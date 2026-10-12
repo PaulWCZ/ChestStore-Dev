@@ -1,11 +1,10 @@
 import { request } from "node:http";
-import { QuotaExceeded } from "../../../packages/chest-client/src/errors.js";
 import * as files from "../../../packages/chest-client/src/files.js";
 import type { FileData, FileObject, FilePage } from "../../../packages/chest-client/src/files.js";
 
 // The files of the tool — the capability files of its manifest —, kept by
 // its Chest through the SDK (files.ts), never on the container's disk.
-export type QuotaProbe = { tooLarge: number; quota: string; written: number };
+export type BoundsProbe = { tooLarge: number; written: number };
 
 export type UploadOptions = { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean };
 export type LinkOptions = { thumbnail?: 256 | 1024; download?: boolean };
@@ -20,16 +19,16 @@ export interface Files {
   // uploadUrl authorises one upload of a member's browser — or, public, of a
   // visitor's —, straight to the Chest (never through this container).
   uploadUrl(name: string, options?: UploadOptions): Promise<{ url: string; method: "PUT"; expiresIn: number }>;
-  // quotaProbe has the Chest refuse what goes beyond its bounds — what the
-  // laboratory's proof reads — and removes what it wrote.
-  quotaProbe(): Promise<QuotaProbe>;
+  // boundsProbe has the Chest refuse an object beyond its bound, writes
+  // past what a quota would have held — there is none — and removes what it
+  // wrote: what the laboratory's proof reads.
+  boundsProbe(): Promise<BoundsProbe>;
 }
 
 const maxObject = 32 << 20;
-// The probe writes 1 MiB at a time, 64 MiB at most: the quota of the
-// laboratory (tool_files_lab) is reached before; a real one is not.
+// The probe writes 1 MiB at a time, 16 MiB in all: no quota holds it back.
 const probeChunk = 1 << 20;
-const probeMax = 64;
+const probeMax = 16;
 
 // tooLarge asks the Chest itself to keep one byte more than an object may
 // have — the SDK would refuse it before sending — and answers its status.
@@ -57,18 +56,14 @@ export class ChestFiles implements Files {
   remove(name: string): Promise<boolean> { return files.delete(name); }
   url(name: string, options: LinkOptions = {}): Promise<{ url: string; expiresIn: number }> { return files.url(name, options); }
   uploadUrl(name: string, options: UploadOptions = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> { return files.uploadUrl(name, options); }
-  async quotaProbe(): Promise<QuotaProbe> {
+  async boundsProbe(): Promise<BoundsProbe> {
     const status = await tooLarge();
     let written = 0;
-    let quota = "not_reached";
     try {
       for (; written < probeMax; written++) await files.put(`probe/${written}`, new Uint8Array(probeChunk));
-    } catch (error) {
-      if (!(error instanceof QuotaExceeded)) throw error;
-      quota = error.code;
     } finally {
       for (let i = 0; i < written; i++) await files.delete(`probe/${i}`);
     }
-    return { tooLarge: status, quota, written };
+    return { tooLarge: status, written };
   }
 }

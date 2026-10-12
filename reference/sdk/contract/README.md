@@ -80,7 +80,7 @@ could be a permission nobody approved.
 | `public` |  | true for a part served to anyone on the Internet, on the tool's public host, outside /chest. Approved as a permission; closed at installation until whoever runs the tool opens it. | `true` |
 | `csp` |  | "tool": the public part sends its own Content-Security-Policy (a nonce per response, as Next.js needs), and the Chest adds beside it only its floor policy instead of its default one. Requires public; approved as a permission. | `"tool"` |
 | `capabilities` |  | What the tool uses of its Chest, each at most once, each approved as a permission: database (its own PostgreSQL), sealed (values it seals, which only its members open through it; every version of the tool then waits for the owner or an admin), files (its private files), members (who has the tool), members.email (their addresses; with members), members.groups (every group of the Chest, and which of those members are in each; with members), notifications (badges and inbox items), ai (AI models through the Chest; with the key ai), realtime (live updates to its members' open pages; its channels in the key realtime). | `["database","sealed","files","members","members.email","members.groups","notifications","ai","realtime"]` |
-| `files` |  | With the capability files: "quota" and "maxObject", sizes such as "5 GiB" or "100 MiB" — the quota from 100 MiB to 100 GiB (1 GiB without it), the largest object from 1 MiB to 512 MiB (32 MiB without it). | `{"quota":"5 GiB","maxObject":"100 MiB"}` |
+| `files` |  | With the capability files: "maxObject", the largest object, a size such as "100 MiB" from 1 MiB to 512 MiB (32 MiB without it). No quota: the tool's files share the server's workload volume with every tool's, and a write is refused only when it is full (storage_full). | `{"maxObject":"100 MiB"}` |
 | `ai` |  | Required with the capability ai: "monthly", the whole euros a month the tool suggests, 1 to 1000 (5 without it; the owner's cap decides); "models", the aliases it calls among default, fast, smart, embedding, each once (default without it); "purpose", what it does with AI, 1 to 120 printable characters. | `{"monthly":5,"models":["default","embedding"],"purpose":"Summarises the tasks of a project"}` |
 | `realtime` |  | With the capability realtime: the channels the members' pages join, and the tables whose writes become live events. "channels", 1 to 32 patterns, no channel name matched by two: "name", segments of ^[a-z0-9_-]{1,64}$ joined by colons, 128 characters at most, its last segment possibly {member} (the joining member's own id only), * (any segment) or {key} (a membership table decides); "join", absent for every member who has the tool, a list of the tool's roles, or {"table", "key", "member"} — a member joins {key} when a row of table has the key in column key and their id in column member (requires database; a row deleted removes them at once); "send" true lets those who join send ephemeral messages; "presence" true lets them appear in its presence. "feeds", up to 16: "table", whose inserts, updates and deletes become events <table>.insert, .update, .delete on "channel" — a declared channel, or prefix:{column} of a variable pattern, the column giving the last segment —, each carrying "columns" (1 to 32, the primary key first) of the row. Names of tables and columns are ^[a-z_][a-z0-9_]{0,62}$. Never approved: only the capability is. | `{"channels":[{"name":"everyone","presence":true},{"name":"room:{id}","join":{"table":"room_members","key":"room_id","member":"member_id"},"send":true,"presence":true},{"name":"inbox:{member}"}],"feeds":[{"table":"messages","channel":"room:{room_id}","columns":["id","room_id","author","text","created_at"]}]}` |
 | `emits` |  | The events the tool tells the other tools of the Chest, by type: two to four dotted words of lowercase letters, digits and dashes (64 characters at most; never member.* nor access.*), each {"description", "data"} — what happened in a sentence of 1 to 80 printable characters, and every field its data carries with its kind: id, text, number, boolean, time, date, member, members, ? after the kind for an optional field (camelCase names; {} for none). Data with any other field is refused, 16 KiB at most. Each type approved as a permission, with the tools it reaches; a type's data only grows from one version to the next: a field is never removed, retyped nor made optional — a new shape is a new type. | `{"task.done":{"description":"A task is done","data":{"task":"id","project":"id","doneBy":"member","note":"text?"}}}` |
@@ -119,11 +119,18 @@ The Chest builds with `npm ci`, then `build.command`, and starts
 at run time but the hosts `network` declares. The container's root is
 read-only: store files through the SDK's `files`, data in the database.
 
+A version is put in service once it is **ready**: `GET /chest`, asked by
+nobody (no member, no session, redirects not followed), answers 2xx, 3xx,
+401, 403 or 404 within 60 s — the 401 of a members' part without a member is
+the usual answer, a 404 that of a tool without one. A 5xx or any other
+status is not ready: a new version is never put in service, and the version
+before it runs on. Never let that path fail.
+
 ## Migrations
 
 <!-- contract:migrations -->
 - Files of `migrations/` named `^[0-9]{4}_[a-z0-9_-]{1,64}\.sql$`: 256 at most, 1 MiB each, 8 MiB in all.
-- Played in the order of their names, each once, as one simple query in a transaction of its own, as the tool's database role: the owner of its database, not a superuser. Only with the capability database. UTF-8 SQL text without NUL; a migration played is never changed: a change is a new one.
+- Played in the order of their names, each once, as one simple query in a transaction of its own, as the tool's database role: the owner of its database, not a superuser. Only with the capability database. UTF-8 SQL text without NUL; a migration played is never changed: a change is a new one. Expand, then contract: the version in service runs on the new schema while the next one starts, and after a rollback without its data, so a migration only adds; what a version stops reading is dropped, renamed or retyped by the release after it, in a migration marked with the line "-- chest: contract" (chest check warns about any other).
 - Extensions a migration may create (`create extension if not exists …`): `btree_gin`, `btree_gist`, `citext`, `cube`, `dict_int`, `fuzzystrmatch`, `hstore`, `intarray`, `isn`, `lo`, `ltree`, `pg_trgm`, `pgcrypto`, `seg`, `tablefunc`, `tcn`, `tsm_system_rows`, `tsm_system_time`, `unaccent`, `uuid-ossp`.
 <!-- /contract:migrations -->
 
@@ -134,8 +141,27 @@ triggers in SQL or PL/pgSQL, schemas, text search configurations, and the
 extensions above. It may take row and table locks. Never a role, a database,
 another extension, an untrusted language or a server setting: PostgreSQL
 refuses them to the tool's role. A migration that has run is never edited:
-a change is a new file; a rollback does not undo a migration, so the
-previous version must keep working on the new schema.
+a change is a new file.
+
+Before a version's migrations, the Chest sets the tool's database aside (a
+copy, within the server's disk): a version that does not become ready is put
+back with it, and a rollback to the version before brings that version's
+data back — what was written since is lost, and the owner is told before
+deciding. Without a copy, the previous version runs on the schema as it is,
+and while a new version starts the one in service runs on its schema anyway:
+**expand, then contract**. Add tables, nullable columns or columns with a
+default, indexes; to drop, rename or retype a column or a table, release a
+version that no longer reads it first, then a migration that changes it,
+marked with a line of its own:
+
+```sql
+-- chest: contract
+-- Release 12 stopped reading notes.text (it reads notes.body).
+ALTER TABLE notes DROP COLUMN text;
+```
+
+`chest check` warns about a migration that drops, renames or retypes without
+that line.
 
 ## Content-Security-Policy
 

@@ -5,6 +5,8 @@ elsewhere; this folder carries copies of what a tool builder needs. **Do not
 edit them** — they are refreshed from their sources by the owner. If something
 here is wrong or unclear, write it in the SDK report.
 
+SDK refresh: **12 October 2026**, release 0.5.1. The studio fork takes the official browser realtime module and its recovery regression tests without replacing its experimental server APIs. It remains a divergent 0.3.1-based fork; it is not a qualified 0.5 server SDK.
+
 Contract and building-tools refresh of **12 October 2026** (Chest PR #320,
 merged as `d434dca9`). Other entries retain their dates below.
 Forms and Chat are prototypes that the owner plans to rebuild; studio tools
@@ -17,9 +19,9 @@ of the studio: [brief/09-update-sdk-0.5.md](../brief/09-update-sdk-0.5.md)
 
 | Folder | Source | Version |
 |---|---|---|
-| `sdk/` | `chest-by-argentic/Chest-SDK` — the official SDK: `client/` (modules and tests), `contract/` (the tool contract: every key of `chest.json`, the repository, migrations, CSP, Next.js — rendered from the Chest's code), `check/` (`chest check`, the Chest's validator in WebAssembly), `README.md`, `AGENTS.md` | `main`, commit `968292f` (7 October 2026) = `@argentic/chest-sdk` **0.5.0**, tool contract **0.5** — merged, **not yet published on npm** (pack it from here: `npm ci && npm pack`) |
-| `perseus-starter/` | The official starter Perseus Code lays in every new project (`chest/perseus/starter` of the Chest repository): TypeScript, Hono, React rendered on the server with islands, Vite, a nonce CSP, a test. The Chest puts the SDK tarball in its `vendor/` (`vendor/chest-sdk-0.5.0.tgz`, not copied here: pack it from `sdk/`) | Chest repository `548e697` |
-| `testweb/` | The Chest's server test bench, exported as a standalone tool (`node tests/export/export-store.mjs testweb`): plain `node:http`, uses every SDK feature (members, groups, files, uploads, notifications, broadcast, events between tools, schedules, AI, realtime, egress; sealed values: see Chat); its `packages/chest-client` is SDK 0.5.0's source | Chest repository `548e697` |
+| `sdk/` | `chest-by-argentic/Chest-SDK` — the official SDK: `client/` (modules and tests), `contract/` (the tool contract: every key of `chest.json`, the repository, migrations, CSP, Next.js — rendered from the Chest's code), `check/` (`chest check`, the Chest's validator in WebAssembly), `README.md`, `AGENTS.md` | `main`, commit `8630b83` (12 October 2026) = `@argentic/chest-sdk` **0.5.1**, tool contract **0.5** — merged, **not yet published on npm** (pack it from here: `npm ci && npm pack`) |
+| `perseus-starter/` | The official starter Perseus Code lays in every new project (`chest/perseus/starter` of the Chest repository): TypeScript, Hono, React rendered on the server with islands, Vite, a nonce CSP, a test. The Chest puts the SDK tarball in its `vendor/` (`vendor/chest-sdk-0.5.1.tgz`, not copied here: pack it from `sdk/`) | Chest hardening branch (12 October 2026; final revision recorded in the delivery audit) |
+| `testweb/` | The Chest's server test bench, exported as a standalone tool (`node tests/export/export-store.mjs testweb`): plain `node:http`, uses every SDK feature (members, groups, files, uploads, notifications, broadcast, events between tools, schedules, AI, realtime, egress; sealed values: see Chat); its `packages/chest-client` is SDK 0.5.1's source | Chest hardening branch (12 October 2026; final revision recorded in the delivery audit) |
 | `forms/` | `chest-by-argentic/forms` — the first catalogue tool: Next.js, database, public + private parts, CSP with a nonce, `"chest": "0.4"`, SDK 0.4.0 vendored (not refreshed: its move to 0.5.0 is pending review) | commit `d0fe2a2` |
 | `contract/application-contract.md` | The Chest's `docs/architecture.md`, sections "Application contract", "Contract map", "Languages" — how the Chest builds, runs, routes and serves a tool (events between tools, sealed values, realtime included), Perseus Code's drafts, what exists and what remains | Chest repository `d434dca9` (12 October 2026; PR #320) |
 | `product/vision/` | What Chest is: overview, concepts (the vocabulary), the customer journey | 5 October 2026 |

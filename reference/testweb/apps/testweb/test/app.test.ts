@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createApp, version } from "../src/app.js";
 import type { Database, Probe, ProbeTarget, Schema, Session } from "../src/database.js";
-import type { Files, LinkOptions, QuotaProbe, UploadOptions } from "../src/files.js";
+import type { Files, LinkOptions, BoundsProbe, UploadOptions } from "../src/files.js";
 import { ChestLifecycle, type LifecycleView } from "../src/lifecycle.js";
 import { ChestSchedules, type Ran } from "../src/schedules.js";
 import { ChestAssistant } from "../src/assistant.js";
@@ -15,7 +15,7 @@ import { pageSize, type Chat, type ChatMessage } from "../src/chat.js";
 import { ChestTeam } from "../src/members.js";
 import { maxNotes, type Note, type NoteStore } from "../src/notes.js";
 import { Secrets, type Secret, type SecretStore } from "../src/secrets.js";
-import { QuotaExceeded } from "../../../packages/chest-client/src/errors.js";
+import { StorageFull } from "../../../packages/chest-client/src/errors.js";
 import type { FileData, FileObject, FilePage } from "../../../packages/chest-client/src/files.js";
 import type { Member } from "../../../packages/chest-client/src/member.js";
 import { fakeChest, withMember, type FakeChest } from "../../../packages/chest-client/src/testing.js";
@@ -102,7 +102,7 @@ const database: Database = {
 class MemoryFiles implements Files {
   readonly kept = new Map<string, { type: string; data: Uint8Array }>();
   async put(name: string, data: Uint8Array, type: string): Promise<FileObject> {
-    if (data.byteLength > 16) throw new QuotaExceeded();
+    if (data.byteLength > 16) throw new StorageFull();
     this.kept.set(name, { type, data });
     return { name, type, size: data.byteLength, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" };
   }
@@ -122,7 +122,7 @@ class MemoryFiles implements Files {
     this.uploads.push([name, options]);
     return { url: "https://web-chest.atelier.example/_chest/files/upload/" + name.length, method: "PUT", expiresIn: options.expiresIn ?? 900 };
   }
-  async quotaProbe(): Promise<QuotaProbe> { return { tooLarge: 413, quota: "quota_exceeded", written: 3 }; }
+  async boundsProbe(): Promise<BoundsProbe> { return { tooLarge: 413, written: 16 }; }
 }
 const files = new MemoryFiles();
 
@@ -272,16 +272,16 @@ test("files are listed and read by a member, put and removed by who writes, and 
   assert.deepEqual(await (await call("/chest/api/files/url", reader, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "notes/a.txt" }) })).json(), { url: "https://web-chest.atelier.example/_chest/files/11", expiresIn: 900 });
   // The Chest's refusal, with its code and status.
   const refused = await put(editor, "big", "x".repeat(17));
-  assert.equal(refused.status, 429);
-  assert.deepEqual(await refused.json(), { error: "quota_exceeded" });
+  assert.equal(refused.status, 507);
+  assert.deepEqual(await refused.json(), { error: "storage_full" });
   assert.equal((await put(editor, "huge", "x".repeat((64 << 10) + 1))).status, 413);
   assert.equal((await call("/chest/api/files/notes/a.txt", reader, { method: "DELETE" })).status, 403);
   assert.equal((await call("/chest/api/files/notes/a.txt", editor, { method: "DELETE" })).status, 204);
   assert.equal((await call("/chest/api/files/notes/a.txt", editor, { method: "DELETE" })).status, 404);
   assert.equal((await call("/chest/api/files/notes/a.txt", reader)).status, 404);
-  assert.equal((await call("/chest/api/quota-probe", reader, { method: "POST" })).status, 403);
-  assert.deepEqual(await (await call("/chest/api/quota-probe", owner, { method: "POST" })).json(), { tooLarge: 413, quota: "quota_exceeded", written: 3 });
-  assert.equal((await call("/chest/api/quota-probe", owner)).status, 405);
+  assert.equal((await call("/chest/api/bounds-probe", reader, { method: "POST" })).status, 403);
+  assert.deepEqual(await (await call("/chest/api/bounds-probe", owner, { method: "POST" })).json(), { tooLarge: 413, written: 16 });
+  assert.equal((await call("/chest/api/bounds-probe", owner)).status, 405);
 });
 
 test("the members of the tool are read from the Chest: the page, the member asserted, a search, one, a lookup, the groups", async () => {

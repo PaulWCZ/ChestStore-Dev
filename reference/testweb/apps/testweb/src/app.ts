@@ -194,10 +194,10 @@ export function createApp(notes: NoteStore, database: Database, files: Files, me
       lifecycle.hold(held);
       return send(response, 204, team);
     }
-    if (path === "/chest/api/quota-probe") {
+    if (path === "/chest/api/bounds-probe") {
       if (method !== "POST") return json(response, 405, { ...team, Allow: "POST" }, { error: "method_not_allowed" });
       if (!canWrite(who)) return json(response, 403, team, { error: "read_only" });
-      return json(response, 200, team, await files.quotaProbe());
+      return json(response, 200, team, await files.boundsProbe());
     }
     return json(response, 404, team, { error: "not_found" });
   }
