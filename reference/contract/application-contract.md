@@ -1,6 +1,6 @@
 # Application contract — excerpt of the Chest’s architecture
 
-Snapshot of `docs/architecture.md` of the private Chest repository, commit `d434dca9` (12 October 2026, PR #320 merged): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
+Snapshot of `docs/architecture.md` of the private Chest repository, commit `3bbf8caffa0f47eadcef1ae6296ea25343858ad6` (12 October 2026, PR #321 merged): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
 
 ## Application contract
 
@@ -3164,6 +3164,9 @@ key, and asks the node for everything through the node's internal socket.
     itself. The AI gateway, the node's services and other workbenches
     are not reachable: the container has no network. A node that does not
     know the Chest's names yet serves no carrier: npm reaches nothing.
+    Stopping the egress service cancels nested registry HTTP servers and
+    closes hijacked connections, including a CONNECT waiting for its first
+    bytes. Service completion waits for the admitted handlers to return.
   - **Preview database**: a role and a database `pb_<id>` (the project's
     identifier without its prefix, `tooldatabase.DraftOf`) in a cluster of
     its own, held for as long as its workbench lives, its data a project of
@@ -3480,8 +3483,15 @@ secret, reaches nothing but the node's socket, and there only under the
   each turn's message and Perseus's `message` events, a call left without
   its result dropped. Replay caches retain at most 2,000 events and 2 MiB
   of serialized payload per transcript, 8 MiB and 32 sessions across the store;
-  inactive entries are evicted by last use. Eviction wakes followers, which
-  resume from the durable file. These are payload budgets, not an RSS ceiling.
+  inactive entries are evicted by last use without waking followers. A fixed
+  set of 256 notification channels survives payload eviction; a hash collision
+  may wake another follower on a real append, never on a read or eviction.
+  Historical pages seek through a sparse byte index (one point per at least
+  64 KiB, at most 1,025 points per cached transcript) and retain at most
+  2 MiB plus one byte per page. A short byte-limited page signals that replay
+  can continue immediately. File identity, size and modification time are
+  checked before indexed reads. A cold cache still verifies the whole file.
+  These are payload budgets, not an RSS ceiling.
   Readers and writers serialize transcript access; a final unterminated record
   is truncated to the last verified newline, while corrupt complete records
   or non-contiguous event numbers are refused. Turn, complete message,
@@ -3971,6 +3981,12 @@ The node enables it only after the application runtime and hosts are ready,
 and cancels/joins its worker before replacing a portal. The laboratory archive
 upload and existing automatic repository-build path retain their own admission;
 a queued installation waits, cancellably, if either already owns the build slot.
+All installation-mutex waits end on cancellation. Automatic publication reads
+the build and the author's current rights only after acquiring that mutex.
+Manual updates recheck data access and the approved package digest there too;
+a bearer request also revalidates its key's lifetime, revocation and tool scope;
+a rollback refuses a previous version changed while it waited. Once admitted,
+updates survive browser disconnection but are cancelled when the portal stops.
 
 - At most **eight outstanding operations**, active one included; one complete
   fetch/build/install operation at a time. The private metadata file is at most
