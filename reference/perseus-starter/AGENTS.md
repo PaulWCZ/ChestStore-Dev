@@ -27,6 +27,20 @@ the server, the browser running only the islands that need it, built by Vite.
 - `npm test`: the type check, the server built into `dist/test`, then `test/*.test.mjs` against it — ended once they ran (`--test-force-exit`), whatever stays open: the preview's database pool a route opened.
 - `npm start`: the built server, as the Chest runs it.
 
+## What the Chest ships
+
+The Chest builds the tool from its source: `npm ci`, then `npm run build`,
+then `npm prune --omit=dev`, with no network but the npm registry. The
+image it runs holds the tool's tree as the build left it — the code,
+`node_modules` without the development dependencies, `dist/` —, read-only,
+and nothing else: what an install script or the build writes outside the
+tree (a download into the home directory's cache, a global install, npm's
+own cache) is not in it. A package that fetches a file from elsewhere when
+it installs (a browser for Playwright or Puppeteer, a binary from a
+download site) cannot: keep what the server needs in a package from the
+registry, under `node_modules`, or copied into the tree by the build. The
+build's log ends with what the image keeps.
+
 ## Conventions
 
 - A route of the members' part is under `/chest`; `member(c.req.raw)` says

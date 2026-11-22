@@ -1,6 +1,6 @@
 # Application contract — excerpt of the Chest’s architecture
 
-Snapshot of `docs/architecture.md` of the private Chest repository, commit `3bbf8caffa0f47eadcef1ae6296ea25343858ad6` (12 October 2026, PR #321 merged): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
+Snapshot of `docs/architecture.md` of the private Chest repository, commit `261b175387bfe676dc53af1c04d41d30b98d2b42` (22 November 2026, branch `office-f4-apps`, Chest PR #411, not merged yet): sections “Application contract”, “Files, the company's storage”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
 
 ## Application contract
 
@@ -136,7 +136,7 @@ no longer offers archive upload.
   for the preview, 512 KiB). The archive keeps in memory the sixteen files at most
   of `chest/` while the manifest is read, then checks each image by its
   bytes (PNG/JPEG decoded up to their dimensions, 4096 px at most; WebP by
-  its container; SVG: an XML document whose root is `svg`, without DOCTYPE,
+  its RIFF size and decoded canvas dimensions, likewise limited to 4096 px; SVG: an XML document whose root is `svg`, without DOCTYPE,
   script, `on*` handler, `href`, `use`, `image`, `foreignObject` or
   `url(`) — a missing image, or one that is not what its name says, refuses
   the archive. The build registry keeps title, description and image
@@ -154,6 +154,47 @@ no longer offers archive upload.
   its address `/api/chests/{chest}/apps/{app}/icon` — also served to whoever
   runs the tool —, otherwise the one of the catalogue entry, otherwise the initial;
   never on the background of the placeholder drawings (`.favicon.forms` is black).
+
+  Contract 0.6 additionally accepts `description_file` (a local `chest/*.md`,
+  UTF-8, 32 KiB maximum; line breaks allowed, hidden controls refused) and
+  `previews` (1–6 distinct local PNG/JPEG/WebP paths, 512 KiB each).
+  Existing `title`, `description` and `preview` stay compatible. Clients use
+  the legacy preview as their gallery fallback, without storing a second copy.
+  Both discovery and build validate these files at the pinned commit. The
+  catalogue omits invalid decorative content; the source checker refuses a
+  declared file that is invalid or missing. Markdown is kept separately and
+  read on demand, never in every list. `description_url` and `preview_urls`
+  are same-origin references added to catalogue and installed-app responses:
+  `GET /api/catalogue/{name}/description` or
+  `/api/chests/{chest}/apps/{app}/description` returns `{markdown}`; gallery
+  images use the matching `/gallery/preview-{index}` path. The routes retain
+  the existing catalogue/member-or-builder authorization and media CSP.
+  Installed media and descriptions additionally require the URL's Chest
+  identifier to equal the local Chest before resolving app-keyed presentation
+  data. A grant for the same application ID in another Chest never authorizes
+  local bytes.
+  Store cards and gallery rails read persisted 1024px derivatives through
+  `/gallery/thumb-preview` (legacy cover) or `/gallery/thumb-preview-{index}`.
+  Original images are loaded only by the explicit lightbox. The derivative
+  routes share the originals' member/builder checks, private revalidation and
+  CSP; unknown keys, missing/corrupt derivatives return 404, never the original.
+  `chest/imagereduce` shares one decoder slot with application-file thumbnails:
+  input configuration is checked before raster allocation (40 million pixels
+  maximum), one image at a time, a 20-second maximum wait for admission. Decoding
+  is bounded by bytes/pixels rather than forcibly interrupted mid-decoder.
+  Store accepts PNG/JPEG/WebP; transparency stays PNG, opaque output is JPEG,
+  no enlargement, and persisted output is bounded to 8 MiB. Catalogue generation
+  and build staging prepare derivatives once; immutable retained presentations
+  copy them alongside current/previous source metadata. Opening an older cache
+  or ledger upgrades missing derivatives once, without archive decompression.
+  A migration failure leaves originals, installed versions and startup intact;
+  the UI shows a placeholder. Rejected rasters keep an empty marker to avoid
+  repeated decoding. GET handlers only read the derivative, verify its persisted SHA-256 and
+  check its header dimensions; they never decode or regenerate an original raster. Catalogue
+  generation removal and retained-source purging also remove their derivatives.
+  There is no remote Markdown fetch. The existing text-based Markdown renderer
+  escapes HTML, allows only HTTP(S) links and never embeds Markdown images.
+
   **Role labels**, optional: `role_labels`, an object that gives
   roles declared in `roles` the words that show them —
   `{"editor": "Editor", "reader": "Reader"}` —, at most one per declared
@@ -324,7 +365,7 @@ no longer offers archive upload.
   --runroot=<its run root> build --pull=never --layers --force-rm
   --from=<the base's ID there> --memory=1536m --memory-swap=1536m
   --cpu-period=100000 --cpu-quota=200000 --cpu-shares=256
-  --ulimit=nproc=4096:4096 --cgroup-parent=chest-workloads-build.slice
+  --ulimit=nproc=4096:4096 --ulimit=core=0:0 --cgroup-parent=chest-workloads-build.slice
   --cap-drop=ALL --security-opt=no-new-privileges`, ten minutes at most, output kept as a log (256 KiB, the end), readable
   during the build.
   - **Storage** (`chest/workload`, `agent_build.go`; Astra F02): what a
@@ -378,14 +419,22 @@ no longer offers archive upload.
     `/var/tmp`; one that fails or
     is stopped leaves the layers it committed, which no image references
     (measured: four, 3 MiB and 850 inodes, for a promotion stopped
-    midway). Two minutes later, no import running, the agent removes
-    every layer no image or container references but those younger than
-    a minute (`podman system check --repair --quick --max=1m0s`): a
-    container's layer is unreferenced between its making and its
-    record's, a window of Podman's own, which the minute spares; when the
-    agent starts, before it runs anything, it spares none. Meanwhile what
-    they take is the disk's as statfs counts it, which the next
-    admission weighs. The
+    midway). Before the failed import answers, and when the agent starts
+    (what an import stopped with the agent before it left), the agent
+    removes every layer no image or container references (`podman system
+    check --repair --quick --max=0s`, `Agent.repairStore`), alone: no
+    import runs, and no container is being made — every run of
+    `chest/runtime` that makes one (an instance, a workbench, a database,
+    its initialisation, the reading of an image's migrations) holds the
+    agent's `making` lock for reading while Podman makes it (for
+    `podman run --detach`, until Podman returns, never for the container's
+    life), the repair holds it for writing. Podman 5.8's check
+    (containers/storage 1.62, AlmaLinux 10) lists the driver's layers
+    outside the store's lock and removes one made since it read the
+    store's records whatever its age: `--max` spares nothing being made
+    (measured: a container made meanwhile no longer started, “mounting
+    storage … no such file”). Meanwhile what the layers take is the
+    disk's as statfs counts it, which the next admission weighs. The
     account's store stays on the system disk, never on the volume: Podman's
     records there must stay writable when the workloads fill the volume
     (“The workload volume”, below); what keeps a promotion from the core's
@@ -572,16 +621,25 @@ assertion), the tool's **variables**, its declared network egress, its
 — two origins, a script of the public part never sees the session.
 
 - **Container** (`chest/runtime/server.go`, `serverArgs`, the only values):
-  `podman run --rm` in the foreground, run by the workload agent as the
-  workload account (“Isolation and interfaces”: the node asks, never runs
-  Podman for a workload), `--network=none`, read-only
+  `podman run --detach`, run by the workload agent as the workload
+  account (“Isolation and interfaces”: the node asks, never runs Podman
+  for a workload), the container then watched by its conmon alone — no
+  Podman process stays beside it (`runtime.detached`: the agent follows
+  conmon by a pidfd, has Podman stop the container, `--stop-signal`, a
+  kill after `--stop-timeout`, when the node's connection ends, reads its
+  exit status, removes it; a container Podman could not start is an
+  error that carries the end of what Podman said, which the node's log
+  keeps, and which the tool's log has among its errors) —,
+  `--network=none`, read-only
   root, `/tmp` as a 64 MiB `noexec` tmpfs, `--userns=keep-id` and
   the workload account's user, `--umask=0007`, all capabilities dropped, `no-new-privileges`,
   no memory of its own (`--cgroup-parent` the workloads slice, shared by
   use, without swap: “Memory”, further down), 1 CPU,
-  256 processes, 1024 descriptors, neither Podman's proxy nor its
-  log (`--log-driver=none`: what the instance writes goes, through the
-  agent's connection, to the node, “Logs” below). The only mount is `s/` of a directory specific to
+  256 processes, 1024 descriptors, no core dump (`--ulimit=core=0:0`:
+  a crash would otherwise leave the tool's memory, its data, with
+  `systemd-coredump` on the system disk), no Podman proxy, no log kept
+  (what the instance writes goes, through a FIFO and the agent's
+  connection, to the node, “Logs” below). The only mount is `s/` of a directory specific to
   the instance (`/run/chest-work/instances/<instance>`, 0710, the agent's
   `runtime.MakeInstance`), at `/run/chest`, where the launcher opens `http.sock` (0660): the tool writes
   into `s/`, under the workload account's uid (`keep-id`), but does not see the instance's
@@ -626,7 +684,7 @@ assertion), the tool's **variables**, its declared network egress, its
   gives only the tool `HTTP_PROXY`, `HTTPS_PROXY` (and their lowercase forms) =
   `http://127.0.0.1:<port>`, `NO_PROXY=localhost,127.0.0.1,::1` and
   `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5: `fetch` and `node:http(s)` follow
-  them; the pinned image is Node 24.21); without it, it removes any inherited
+  them; the pinned image is Node 24.22.3); without it, it removes any inherited
   proxy variable. **The Chest connects to the container, never
   the reverse**: as soon as an instance is launched (`runOnce`, before it
   responds), it keeps “carriers” open in `egress.sock` — four
@@ -709,16 +767,22 @@ assertion), the tool's **variables**, its declared network egress, its
 - **Logs** (`chest/toollog`, `cmd/chest/application_logs.go`): what
   the instances of a server tool write on their standard output and
   error — its server, its launcher, and Podman about the container — and the
-  Chest's lines about their life. **Capture**: `podman run` stays in the
-  foreground with `--log-driver=none` and relays both streams onto its own, which
-  `RunServer` passes to the node (`runtime.ServerOutput`, pipes read by
-  `os/exec`). Chosen rather than Podman's `k8s-file` or `journald` driver:
-  nothing is added to the container (no file, no mount, no
-  socket), the tool writes on its output as always and has no path
-  to a file of the node; Podman writes nothing to disk (`k8s-file`
-  would keep the log in its storage, lost at the `--rm` of a stopped
-  instance, hence at the very moment it is useful; `journald` would mix it into the
-  account's journal, with no limit per tool nor deletion on removal). The node limits what
+  Chest's lines about their life. **Capture**: conmon, which watches the
+  detached container, writes both streams with Podman's `k8s-file` driver
+  into a FIFO of the instance's directory (`--log-opt=path=<instance>/log`,
+  0600, never mounted): one record per line, `<time> <stdout|stderr> <F|P>
+  <text>`, a line conmon cut in parts (`P`) joined again; the agent reads
+  it as it comes (`runtime.relay`) and passes each stream to its writer
+  (`runtime.ServerOutput`), then to the node; Podman's own errors at the
+  start go to the standard error. A FIFO keeps nothing: no file grows,
+  nothing is lost at a rotation, and a slow reader holds the instance's
+  output back as a pipe does. Chosen rather than a `podman run` kept in
+  the foreground to relay it (about 30 MiB per instance awake, measured),
+  a log file (kept in Podman's storage or on a tmpfs, rotated under a
+  bound) or `journald` (mixed into the account's journal, with no limit
+  per tool nor deletion on removal): nothing is added to the container (no
+  file, no mount, no socket), the tool writes on its output as always and
+  has no path to a file of the node. The node limits what
   it keeps: a line cut at **4 KiB** (`cut`, the rest read and discarded;
   the node holds only one line per stream in memory), stripped of
   terminal escape sequences and control characters, invalid UTF-8
@@ -747,10 +811,14 @@ assertion), the tool's **variables**, its declared network egress, its
   live”. After every instance that ended without the Chest asking, the
   supervisor writes “Restarting in …” right after the line that says why:
   the overview reads how the instance does from the last of “Instance
-  started” and “Restarting in …” (`chest/web/portal/src/health.ts`), every
+  started” and “Restarting in …” (`chest/toollog.InstanceHealth`), every
   other line being no news of the instance in service — a switch of version
   (“Instance started”, “Instance stopped by the Chest”, “New version live”)
-  stays “Responding”. **Secrets**: the Chest never adds a variable's value
+  stays answering, of which the overview says nothing. `GET /api/tools/{app}/health` returns only
+  `{state,line}` or `null`, under the same runner authorization, with no
+  application stdout/stderr. The overview polls this summary; full logs are
+  loaded only on their own tab. The server still examines at most 500 lines;
+  no matching transition means unknown, not a healthy instance. **Secrets**: the Chest never adds a variable's value
   nor a credential; what a tool writes — including a variable it
   prints itself — is shown to whoever runs it (owner, admins,
   its builders), as in Vercel. **API** `GET
@@ -842,15 +910,17 @@ assertion), the tool's **variables**, its declared network egress, its
   want of memory (“Server tools asleep”), it stops at once whoever holds
   it, and only a use wakes it again — not a realtime session. Running, it
   is supervised like a server (1 s, 2 s… 5 min, never abandoned).
-  - **Container** (`chest/runtime/database.go`): `podman run --rm` in the
-    foreground, run by the workload agent as the workload account
+  - **Container** (`chest/runtime/database.go`): `podman run --detach`,
+    watched by its conmon alone as a server tool's (`runtime.detached`,
+    SIGINT then a kill after 40 s), run by the workload agent as the workload account
     (`database.run`, for as long as the node's connection lasts), of the node's PostgreSQL image — that of its dependency
     binding (`dependencies.json` next to the installation), the same as
     the provider's, or, in the lab only, the one that `node.json` names
     (`portal.tools_database_image`) —, `--network=none`, read-only
     root, all capabilities dropped, `no-new-privileges`, the image's
     `postgres` user (uid 999) as the workload account's user
-    (`--userns=keep-id:uid=999,gid=999`), 1 CPU, 64 processes, in the
+    (`--userns=keep-id:uid=999,gid=999`), 1 CPU, 64 processes, no core
+    dump, in the
     workloads slice with no memory of its own — it shares the slice by use,
     as every workload does; when the slice is short its memory counts with
     its tool's (“Isolation and interfaces”) —, neither log nor proxy; three
@@ -904,11 +974,28 @@ assertion), the tool's **variables**, its declared network egress, its
     timeline —: its blocks already written, the cluster's own, which no
     other writer can take (measured: a reserve freed to the volume was
     taken by a neighbour's insert before the recovery wrote its segment).
-    A start on a volume that, with it, is still not full writes it again,
-    and so does the volume's keeping as soon as there is room
-    (`Files.Refill`, the agent's `database.refill`: the reserve is beside
-    the data, a cluster that runs is refilled too; the agent holds one lock
-    over a start's reserve and a refill). One stop on a full volume per
+    **Its room** (`room`, a MiB beside the reserve, counted and left out of
+    the backup the same way): XFS makes no file without its room for one —
+    the blocks a chunk of inodes and the worst split of its directory may
+    take, reserved whole whatever the free inodes (measured on AlmaLinux
+    10: an empty file refused with 240 KiB left and 146 inodes free, made
+    with 256 KiB) —, while writes go on to the last block; a cluster that
+    started on its reserve still makes files: a `TRUNCATE`'s new relation
+    files, a checkpoint's state file. Whatever took what its start gave
+    back — a neighbour's write, its own start — would leave it unable to
+    free what filled the volume (seen in the isolation proof: `could not
+    create file "base/…"` for minutes; the neighbour's checkpoint stopped
+    on `pg_logical/replorigin_checkpoint.tmp`). So, while a run that began
+    on its reserve lasts, the agent looks every second (`runtime.DatabaseHost.KeepRoom`) and
+    gives the room back as soon as the volume can no longer take a file
+    (`Files.GiveRoom`, `workvolume.Space.Cramped`: less than a MiB, or no
+    inode, left). Only such a run: a cluster growing on its reserve would
+    take every room given back. A start on a volume that, with them, is
+    still not full writes the reserve and the room again, and so does the
+    volume's keeping as soon as there is room (`Files.Refill`, the agent's
+    `database.refill`: they are beside the data, a cluster that runs is
+    refilled too; the agent holds one lock over a start's reserve, a
+    refill and a room given back). One stop on a full volume per
     reserve: a cluster that stops again before the volume has room stays
     down until it has — the node keeps the volume from getting there
     (“The workload volume's keeping”, below). **Its WAL
@@ -1112,7 +1199,9 @@ assertion), the tool's **variables**, its declared network egress, its
     `snapshotWorkloads`): the node stopped, the workload agent stops what
     still runs (`stop`) and clones by reflink each tool's data and kept
     copies, `work/tools/<tool>`, into `work/backup/<tool>`
-    (`backup.snapshot`); the Chest clones its files, `files/tools/<tool>`,
+    (`backup.snapshot`: refused while a database runs, and a database's
+    start waits until it is done, so that no clone reads a database that
+    runs); the Chest clones its files, `files/tools/<tool>`,
     into `files/backup/<tool>`; the node starts again, then the snapshots
     are archived under `workloads/{tools,files}/<tool>` — the agent streams
     its own as a tar (`backup.read`), the Chest never reads the workload
@@ -1298,9 +1387,15 @@ assertion), the tool's **variables**, its declared network egress, its
     code** (160 random bits, base32 in groups of four,
     `installation/sealing.recovery` until the owner says it is saved) and
     the **escrow** (`installation/sealing.escrow`: the Chest key under
-    AES-256-GCM, its key HKDF-SHA256 of the code). Written code, escrow,
-    then key: a node stopped between them unlocks itself from the code at
-    its next start. Each tool's key (`apps/<tool>/sealed-values.key`: 32
+    AES-256-GCM, its key HKDF-SHA256 of the code). A bounded private journal,
+    `installation/sealing.rotation`, publishes a complete code/escrow pair
+    before either file changes. Startup, revealing the code and confirming it
+    saved finish an interrupted rotation; both files are synchronized before
+    durable journal removal. Backups preserve a pending journal so restoration
+    without `sealing.key` can complete the same pair. Abandoned unpublished
+    recovery temporaries are removed before confirmation. The key itself is
+    written after the pair, so an interrupted first setup can unlock itself
+    from the code at startup. Each tool's key (`apps/<tool>/sealed-values.key`: 32
     random bytes under AES-256-GCM of the Chest key, its additional data the
     tool's name) is made at the tool's first seal and goes with its
     Compartment; one the Chest key does not open is never replaced
@@ -1362,7 +1457,12 @@ assertion), the tool's **variables**, its declared network egress, its
     `CHEST_API=http://127.0.0.1:<port>` (covered by `NO_PROXY` when it also
     has network egress); the Chest serves an `http.Server` over the
     instance's carriers (two idle, sixteen at most; headers 10 s,
-    request and response 5 min, 16 KiB of headers). **The instance is the
+    request and response 5 min, 16 KiB of headers; one request a carrier:
+    the connection closes once answered, its carrier back in the pool at
+    once — kept alive, the connections a tool's HTTP client parks idle held
+    every carrier, and the calls of a burst beyond sixteen, a page listing
+    the links of its photos, were dropped by the launcher after 10 s as the
+    Chest unavailable). **The instance is the
     identity**: this channel reaches only its own tool's files and members,
     no tool name is read from the request (`cmd/chest`, `serveAPI`: `/files`
     here, `/members` and `/groups` below, 404 `not_found` otherwise). A
@@ -1845,13 +1945,14 @@ assertion), the tool's **variables**, its declared network egress, its
     `manual`. A tool removed meanwhile took its data: its part is done.
     The sheet shows each tool: “Erased on …”, “Pending — due …”,
     “Overdue — was due …”, “Confirm by hand” with “Confirm”.
-- **Events between tools** (`chest/toolevents` `between.go`, `data.go`;
+- **Events between tools** (`chest/toolevents` `between.go`, `data.go`,
+  `outgoing.go`;
   `common/packagefile/events.go`; `chest/portal/tool_events.go`; product:
   `01_produit/02_specs/tool-events.md`): one tool reacts to what happens in
   another. **Manifest** (the single validator, `packagefile`): `"emits":
   {<type>: {"description", "data": {<field>: <kind>[?]}}}` — a type of two
   to four dotted segments (`EventTypePattern`, 64 characters, never
-  `member.*` nor `access.*`), its sentence (1–80 printable characters), its
+  `member.*`, `access.*` nor `folders.*`: the Chest's own), its sentence (1–80 printable characters), its
   fields (camelCase, kinds `id`, `text`, `number`, `boolean`, `time`,
   `date`, `member`, `members`, `?` for optional; their number bounded by the
   manifest's 16 KiB) — and `"receives"`: `member.*` and types, **never
@@ -1866,8 +1967,10 @@ assertion), the tool's **variables**, its declared network egress, its
   `RefusedVersion`, the reason in words); a new shape is a new type. **A
   link** is a type the version in service of one tool emits and another's
   receives — never the tool itself —, on unless an admin switched it off
-  (`installation/events/links.json`); the owner approves it with the second
-  of the two installations, the offer showing it (`GET /api/events`, the
+  (`installation/events/links.json`); an unreadable or invalid link policy
+  refuses a new emission, never reopening a disabled link. Turning a link off
+  affects new emissions; events already accepted keep their delivery/retry
+  decision. The owner approves it with the second of the two installations, the offer showing it (`GET /api/events`, the
   portal's words: “Received by …”, “Told by …”). **Emitting**: `POST
   /events` on the tool's API (`EmitAPI`; the instance is the identity; 403
   `capability_not_granted` for a version that emits nothing) `{type, data,
@@ -1879,7 +1982,13 @@ assertion), the tool's **variables**, its declared network egress, its
   `IDPattern`, `occurredAt` within the last 72 hours and not ahead (5 s),
   `cause` an event id (`invalid_event`); `audience` `{members, groups,
   roles}` naming someone, members the tool has or had (`invalid_audience`);
-  a type not declared `invalid_type`. **Idempotency**: a `key` used again
+  a type not declared `invalid_type`. Audience and member-value lists use
+  hash sets for duplicate detection. Current/former members and historical
+  membership are indexed once per validation; delivery indexes the audience's
+  members, groups and roles before intersecting it with current directories.
+  This preserves existing acceptance and authorization rules without pairwise
+  scans under the engine lock. Bounds remain byte-based, not member quotas.
+  **Idempotency**: a `key` used again
   within 72 hours answers 200 with the same event when the content
   (canonical JSON) is the same, 409 `key_reused` otherwise. **The chain**:
   an event's `tool/type` hops (`between.Chain`); with a `cause` the tool
@@ -1887,12 +1996,32 @@ assertion), the tool's **variables**, its declared network egress, its
   delivered, the chain continues it; one whose own hop is already in it is
   accepted and told to no tool, the publisher's log saying “it would loop
   (a/x → b/y → a/x)” — bounded by the distinct tools and types, never by a
-  depth. **Fan-out**: the event is written to the outbox of every linked
-  receiver before the answer, each delivered, retried and failed on its
-  own, as the members' events (one at a time per tool, the tool woken
-  first, the same backoff), retries counted from the emit. **Order per
-  subject**: an event waits while an earlier one of the same source and
-  subject waits in that outbox (`inTurn`; without a subject, none).
+  depth. **Durable fan-out** (`outgoing.go`): before changing any receiver,
+  the publisher's existing journal records one unfinished `outgoing`: the
+  envelope with its stable event ID, key and digest, and fixed target list.
+  Copies are written into the receivers' outboxes, deduplicated by ID against
+  pending work, delivery receipts and failed deliveries. Only after those
+  writes does one atomic publisher write record the idempotency key and
+  remove `outgoing`. Until that commit, copies of this ID cannot be delivered;
+  an unreadable publisher journal also blocks delivery. A failure before or
+  after a receiver write can therefore be retried without creating another
+  event ID or exposing a partial publication. Deliveries after commit retain
+  the existing at-least-once contract: applications still deduplicate by ID.
+  **Recovery**: the engine resumes unfinished publications on start, wake
+  and after a five-second retry wait; a client's next emission from the same
+  publisher first settles its previous publication. Only publishers known to
+  have pending or unreadable journals are scanned for this recovery. A write
+  failure answers 503; uncertain writes are reread from disk, never assumed
+  absent. A blocked publisher retains its bounded decision and logs a
+  diagnostic without admitting another unfinished emission. There is no
+  destructive timeout or promise to repair damaged storage: after repair,
+  recovery uses the original ID and targets. Each committed receiver then
+  delivers, retries and fails independently, as the members' events (one at
+  a time per tool, the tool woken first, the same backoff), retries counted
+  from the emit. **Order per subject**: an event waits while an earlier one
+  of the same source and subject waits in that outbox. `dueIndex`, shared by
+  dispatch and drain, finds eligible heads in one linear pass; events without
+  a subject are independent and equal due times retain outbox order.
   **Audience at delivery**: who may see it in the source now (the audience,
   everyone who has it without one), intersected with who has the receiver:
   nobody — dropped, the source's log says “not told to …: no one there may
@@ -1917,10 +2046,30 @@ assertion), the tool's **variables**, its declared network egress, its
   by a server with a dependency binding). **Capacity**: the receiver's file bounds
   what waits — beyond, the oldest delivered records go, then the oldest
   failed ones, then the oldest events between tools waiting, each said in
-  its log (`fit`); a publisher is never refused for a slow receiver.
-  **Removals**: a receiver removed takes its file; a publisher removed
-  takes the events of it still waiting or failed elsewhere and the links
-  naming it; a version that no longer receives a type drops those waiting.
+  its log (`fit`). The unfinished publisher decision shares the same
+  **96 MiB per-tool file bound** (`3 * access.MaxBytes`), not an additional
+  allowance, and is never evicted to make a write fit. If the journal cannot
+  fit even after ordinary eviction, the write refuses. An evicted receiver
+  copy can be recreated under the same ID while publication is unfinished.
+  Eviction computes exact JSON byte savings (including escaping, separators
+  and omitted empty fields), then compacts the pending queue once and verifies
+  the final serialization against the bound. It preserves receipt/dead-letter
+  batch priority and pending FIFO without serializing a 96 MiB journal once
+  per discarded event. The small-input oracle and separate scaling benchmarks
+  in `chest/toolevents/linear_test.go` verify these semantics and costs.
+  **Journal compatibility**: per-tool files are written as version 2;
+  version 1 files without `outgoing` remain readable and migrate on write.
+  Existing files must explicitly contain their version and required arrays.
+  Both publisher and receiver copies use version 2 before a publication can
+  become visible. An older binary refuses these journals, rather than
+  ignoring `outgoing` and delivering partial work; downgrading does not
+  automatically convert them back. Link and erasure files remain version 1.
+  **Removals**: a receiver removed takes its file and leaves unfinished
+  publishers' target lists, so reinstalling the same name does not inherit
+  those copies. A publisher removed takes the events of it still waiting or
+  failed elsewhere and the links naming it; missing publishers cannot
+  deliver a leftover copy. A version that no longer receives a type drops
+  those waiting and is skipped when an unfinished publication resumes.
   **Logs**: the publisher's “Event note.added (evt_…) emitted to listener”,
   the receiver's deliveries — never the data. **Pages and API**: `GET
   /api/tools/{app}/events` (whoever runs the tool; `/api/v1` too) — each
@@ -1995,24 +2144,44 @@ assertion), the tool's **variables**, its declared network egress, its
   wait for a place, not failed: a small server wakes a few tools at a time,
   not every tool whose morning it is). **State** (`installation/schedules/
   tools/<tool>.json`, 0600, directory 0700, replaced atomically,
-  `privatefs.Replace`, in the nightly archive): per schedule its line and
-  the last time it handled, and the journal — the last 10 runs of each
+  `privatefs.Replace`, in the nightly archive): per schedule its line, the
+  last time it handled and whether it is paused, and the journal — the last 10 runs of each
   schedule, when, how started (`time`, `missed`, `manual`), the attempt,
   the status, the duration, why (`answer` with its status, `timeout`,
-  `unreachable`, `busy`); never what the tool did. A file not of
-  this shape starts over (logged). A schedule no longer declared goes with
-  its runs; a tool without any keeps no file; a tool removed takes its file.
+  `unreachable`, `busy`); never what the tool did. An unreadable or malformed
+  existing journal is preserved and blocks that tool's schedules, rather than
+  forgetting delivery identifiers. Every dispatch is journaled durably before
+  its first external effect. A write failure (including uncertain directory
+  synchronization after rename) blocks that tool until the engine reopens its
+  journal; other tools continue. Reopening a valid journal preserves the run
+  identifiers, including when a response was lost. A schedule no longer declared goes with
+  its runs and its pause; a tool without any keeps no file; a tool removed takes its file.
+  **Pause** (decision of 15 October 2026, `Engine.Pause`): a paused
+  schedule is skipped by the dispatch — never posted, its tool never woken,
+  nothing journaled, nothing counted missed —; pausing gives up its run
+  still waiting to be tried again, and a run in flight that fails is not
+  tried again. The pause is kept per tool and schedule name in its file:
+  across a restart, a new version, a rollback, a changed line. Resuming sets
+  the last time handled to now: the next time is the first after it, no
+  burst, nothing `missed`. Run still runs a paused schedule once.
   Memory: the engine holds each tool's small file (80 runs at most) and
   nothing per schedule but its parsed line. **Whoever runs the tool**
   (`serverRunner`: the owner, an admin, its Builder): `GET
-  /api/tools/{app}/schedules` → `{zone, schedules: [{name, cron, next,
-  running}], runs}` (newest first); `POST /api/tools/{app}/schedules/run
+  /api/tools/{app}/schedules` → `{zone, schedules: [{name, cron, next
+  (absent while paused), paused, running}], runs}` (newest first); `POST /api/tools/{app}/schedules/run
   {name}` → 202 and the run, waiting — 404 a schedule not declared, 409 a
-  run running or waiting. The overview shows “Runs by itself”: each schedule
-  in words, its next time, Run now (Running… while one is under way), the
+  run running or waiting, 503 when its journal cannot be read or written
+  durably (no acceptance of uncommitted work). **The owner and the admins**
+  (`scope.All`; a builder and a token narrowed to tools 403): `POST
+  /api/tools/{app}/schedules/pause {name, paused}` → 204 — 404 a schedule
+  not declared, 400 without `paused`, 503 a journal that cannot be written.
+  The overview shows “Runs by itself”: each schedule
+  in words, its next time or “Paused”, its last run, its switch for the
+  owner and the admins, Run (Running… while one is under way), the
   zone, then the last runs, and follows a run under way every 3 s (2 min at
   most). **For agents**: `GET /api/v1/tools/{app}/schedules` (any token of
-  whoever runs it) and `POST /api/v1/tools/{app}/schedules/run` (a write).
+  whoever runs it), `POST /api/v1/tools/{app}/schedules/run` and `POST
+  /api/v1/tools/{app}/schedules/pause` (writes).
   **Laboratory**:
   `portal.schedule_lab` `{every_seconds}` in `node.json` (30 s to 15 min)
   runs every schedule each that long instead of its line; a server with a
@@ -2025,8 +2194,9 @@ assertion), the tool's **variables**, its declared network egress, its
   entry: it calls its Chest's API, and **the node itself** reaches the
   provider.
   - **Connector**: one, **OpenRouter** (`providers.go`: a provider is its
-    API base, a cheap check under the key, the fields every request adds
-    and the models Argentic chose; adding a provider is adding one entry),
+    API base, a cheap check under the key, where it lists its models, the
+    fields every request adds and the models a Chest starts on; adding a
+    provider is adding one entry),
     connected by the owner or an admin with its key. The key is checked
     with the provider first (OpenRouter's `GET /key`, 15 s) and kept only
     if it passes, then **sealed** in `installation/ai/keys.enc`
@@ -2035,13 +2205,30 @@ assertion), the tool's **variables**, its declared network egress, its
     returned by any route**: the pages see its last four characters. A new
     key replaces the connector; a key the provider refuses at a call marks
     it `refused`, a call that passes marks it `ok` again.
-  - **Aliases**: `default`, `fast`, `smart`, `embedding`, each led to a
-    model of the connected provider and its price in US dollars per
-    million tokens (in and out), Argentic's choice refreshed with the
-    releases (OpenRouter: `default` Claude Sonnet 5, `fast` Gemini 2.5
-    Flash, `smart` Claude Opus 5, `embedding` OpenAI's text-embedding-3-small).
-    The owner may lead `default` to another of five models of a short list
-    (`config.json`, `model`); nothing else is set by hand. A tool calls only
+  - **Aliases** (`aigateway.Aliases`): the tools' `default`, `fast`,
+    `smart`, `embedding` and Perseus's `build`, each led to a model of the
+    connected provider with its price in US dollars per million tokens (in
+    and out) and whether it reads pictures. **The owner or an admin chooses
+    the model of each alias** by typing the provider's identifier
+    (`Gateway.SetModel`, `catalogue.go`): the node reads the provider's list
+    under the key (OpenRouter's `GET /models?output_modalities=all`, 15 s,
+    16 MiB at most, never kept) and keeps the model only if it is listed
+    (`ErrUnknownModel`), suits the alias — `embeddings` among its outputs
+    for `embedding`, text in and out for the others (`ErrModelKind`) — and
+    has a fixed price (`ErrUnpriced`); its name, prices and pictures are
+    kept with it (`config.json`, `models`, by alias). **The models in use
+    follow the provider's prices** (`Gateway.Follow`, started with the
+    node's watcher): a minute after the start, then every day (an hour
+    after a pass that could not read the list), the list is read once and
+    every chosen model, and each starting model (`starting`, by
+    identifier, only this release's), is kept as listed now; one no longer
+    listed or priced is left as it was. Prices are kept to the millionth
+    of a dollar per million tokens (`perMillion`). **An alias without a
+    model of its own follows `default`** (`Provider.model`); `default` and
+    `embedding`, unchosen, lead to the provider's starting models
+    (OpenRouter: Claude Sonnet 5, OpenAI's text-embedding-3-small) —
+    `embedding` never follows a chat model. Choosing `""` for `fast`,
+    `smart` or `build` makes it follow `default` again. A tool calls only
     the aliases its manifest declares.
   - **Routes of the tool** (on `CHEST_API`, `aigateway.API`; the instance
     is the identity): `POST /ai/chat` — OpenAI's Chat Completions shape,
@@ -2132,15 +2319,18 @@ assertion), the tool's **variables**, its declared network egress, its
     month (`Gateway.Forget`); the Chest's total keeps what it spent.
   - **Settings → AI** (`/settings/ai`; `chest/portal/ai.go`; owner and admins only, 403
     otherwise): `GET /api/ai` → `connector` (`{provider, key_hint, state}`
-    or null, never a key), `model` (of `default`) and `models` (the choices,
-    `{id, name, input, output}`; both empty without a connector), the
+    or null, never a key), `aliases` (connected, each alias with its model
+    `{id, name, input, output, images}` and `follows`, `"default"` while it
+    has no model of its own; empty without a connector), the
     month, the Chest's cap and spending, `metering` (`ok`, or `failed`
     while the month cannot be written), and each tool in service that
     holds AI with its cap, what it asks and what it spent; changes are
     POSTs of a JSON body — `/api/ai/connector {provider, key}` (422
     `key_refused`, `unreachable`), `/api/ai/connector/delete {}`,
-    `/api/ai/model {model}` (400 for a model not in the list, 404 without a
-    connector), `/api/ai/caps {app, cap | null}` (404 for a tool without
+    `/api/ai/model {alias, model}` (400 for an unknown alias or an
+    identifier of another shape, 404 without a connector, 422
+    `unknown_model`, `wrong_kind`, `no_price`, `key_refused`,
+    `unreachable`), `/api/ai/caps {app, cap | null}` (404 for a tool without
     AI), `/api/ai/chest-cap {cap | null}`. The page
     (`chest/web/portal/src/ai.ts`, `components/ChestAI.tsx`) is the third
     tab of the Chest's settings, after General and Storage, one section as
@@ -2150,8 +2340,14 @@ assertion), the tool's **variables**, its declared network egress, its
     and “Get a key on openrouter.ai”; connected, “Connected to OpenRouter ·
     €X spent this month” (“of €Y” with a limit) and the key's end (or the
     provider's refusal of it and the key field again), Disconnect (with a
-    confirmation), “Models” and the name of `default`'s model with Change
-    (a select of the short list, saved when chosen), “Monthly limit for the
+    confirmation), “Models”: one row per alias — Perseus (creating apps)
+    and Default always, Fast, Advanced and Search (embeddings) only when a
+    tool in service declares them —, its model's identifier, “Same as
+    Default” while it follows it, the apps that use it, and Change: an
+    empty field for the provider's model ID (never filled in, no list),
+    Save (“Checking…” while the provider answers, its refusal in words
+    under the field) and Cancel, and “Use the Default model” for an alias
+    with a model of its own other than Default and Search; “Monthly limit for the
     Chest” (empty: none), and the privacy in one line of small text. A
     tool's own limit is on its settings (`ToolAI`, owner and admins, tools
     that hold AI): “This month: €X of €Y”, a limit near (80 %), reached or
@@ -2173,8 +2369,9 @@ assertion), the tool's **variables**, its declared network egress, its
     by the owner (PB5).
   - **Perseus Code's calls** (`build.go`, lot PB2): the node makes the
     model calls of Perseus's turns (`Gateway.Build`) — Perseus never holds
-    a key — on the alias `build` (Claude Sonnet 5 through OpenRouter; no
-    tool may call it: a manifest's aliases are the four above) or `fast`
+    a key — on the alias `build` (its model the owner's, else
+    `default`'s; no tool may call it: a manifest's aliases are the four
+    above) or `fast`
     (summaries), always streamed. A call names its answer's maximum
     (1–128,000 tokens) and, of it, the most the model reasons (`Reasoning`,
     sent as OpenRouter's `reasoning.max_tokens`, at most half the answer);
@@ -2210,11 +2407,12 @@ assertion), the tool's **variables**, its declared network egress, its
     (404), the live connections within the node's own memory (503
     `Retry-After: 5`, “Capacity” below). The identity
     is the connection's: member id, subject, role, a digest of the session
-    and its end (`LiveSession`: its deadline or its idle end, the sooner).
+    and its end (`LiveSession`: its deadline or twenty minutes ahead, the
+    sooner — a session signed out ends its connections within them).
     Without `Upgrade`, the same checks renew the session — what a connected
     page asks every 5 minutes, and a page whose connection failed before it
-    tries again —: its deadline slides an hour while the provider still
-    signs the person in (`renew`), the cookie is written again and the
+    tries again —: its end moves twenty minutes ahead again while the
+    provider still signs the person in (`renew`), the cookie is written again and the
     page's connections live on with it (`Space.Renew`); 204, 401 signed
     out, 403, 503 `Retry-After` while the provider does not answer
     (`Unanswered`) or the live connections are at their bound. No hourly cut: a session ends
@@ -2366,20 +2564,25 @@ assertion), the tool's **variables**, its declared network egress, its
   - The screen: what the tool uses, “<size> used · <n> files” — no
     meter, no quota —, the search, the folder as a path (“Delete folder”), the
     rows with their thumbnail or a drawn icon, the type in words, size and
-    age, sortable headers, “Load more”; a file opens in the detail beside
+    age, sortable headers, “Show more”; a file opens in the detail beside
     the list (full screen on a phone): its preview, full name, type, size,
     dimensions, updated, “Download”, “Copy private link (15 min)”,
-    “Delete”. Deleting one file is confirmed by its name (“The tool may
-    still refer to this file.”), a selection by typing its count, a
-    folder by typing its name. No upload, no rename: the tool owns its
+    “Delete”. A deletion — one file, a selection or a folder — is never
+    confirmed: the files leave the list at once and the request waits six
+    seconds under its Undo (`undoable`). No upload, no rename: the tool owns its
     names. Empty: “No files yet. The tool stores them here as it works.”
   - **Chest-wide**: `GET /api/storage` (owner and admins; not through a
     token narrowed to tools) → `{tools: [{app, database, files}], disk:
     {size, used, free}}` (`portal.ChestStorage`; the disk the tools share,
     the workload volume, `statfs`);
-    Settings → Storage (`/settings/storage`) shows it — the meter “Disk of
-    the tools used”, then a table of the tools, its Files column their
-    size —, each tool leading to its Storage tab.
+    Settings → Storage (`/settings/storage`, where a full disk's alert
+    leads) shows it — the meter of that disk, then, once there are tools,
+    their table under “By application”, its Files column their size —,
+    each tool leading to its Storage tab. Settings → Server does not read
+    it: its storage is one presentation among the resources, the chart of
+    the server's storage (“System storage” when the applications' data is
+    on a volume of its own, with that volume's meter beside it, from the
+    health report's `workloads`).
   - **Agents**: `GET /api/v1/tools/{app}/files` (query), `GET
     …/files/journal`, `POST …/files/url`, `POST …/files/delete` (a
     write: refused to a read-only token), the same rights and journal
@@ -2455,7 +2658,15 @@ assertion), the tool's **variables**, its declared network egress, its
   JSON refusal is read in full (`DatabaseRefusal`), within the limits of
   `chest/web/portal/src/limits.ts` (20 s, 24 MiB for these routes); every
   shape is checked (`databaseOverviewView`, `structureView`,
-  `rowsPageView`). One request at a time (two per tool on the node side).
+  `rowsPageView`). Response text is bounded while streaming, before JSON parsing.
+  GET and the explicitly read-only POSTs to `/structure` and `/rows` use the
+  current page's cancellation signal. Navigation aborts them even during a
+  table action; write/SQL requests retain their own timeout and outcome.
+  Only the active table holds its rows and structure. Leaving the route releases
+  those objects and the overview; tab names, filters, page, sort and column
+  preferences survive and are read again on return. A generation check prevents
+  late responses/refusals from restoring released state. One request at a time
+  (two per tool on the node side).
   - **Tables**, on the left: “Search tables…” and the names, each
     with its icon, the active one marked; the column collapses (panel
     button at the head of the tabs).
@@ -2527,19 +2738,40 @@ assertion), the tool's **variables**, its declared network egress, its
   API do not) and serves none is **put to sleep**, checked every 30 s: its
   generation ends — `SIGTERM`, what it serves finished first (30 s at most)
   —, its container goes (`--rm`), its Compartment, database, files and log
-  stay. Its log says “Asleep: no visit for 15 min”. A tool woken that
+  stay. Its log says “Asleep: no visit for 15 min”. A tool **no person
+  reached since it woke** — woken by a scheduled run or an event alone
+  (`Target.LastVisit`, set by the front's requests, never by a delivery,
+  before the generation's start) — waits a fifteenth of that (1 min,
+  `deliveryShare`), its log saying “Asleep: its scheduled work is done and
+  nobody opened it”: a `*/20` schedule no longer keeps its tool awake all
+  day. A tool woken that
   never answers is put to sleep the same way once idle as long since it
-  woke, its restarts ended. **Waking**: the first
+  woke, its restarts ended. **Always on** (product: Experience v4, “Apps
+  that never sleep”): the owner alone keeps a server tool awake
+  (`access.Team.SetAlwaysOn`, the policy's `always_on`; `POST
+  /api/tools/{app}/always-on {on}`, refused 409 `server_full` when the
+  server's memory would not hold a new tool, `GET` for whoever runs it with
+  the memory it holds now, `nodeServerRoom.ToolMemory`); each check reads
+  the policy (`keptOn`): a tool kept on is never put to sleep for idleness
+  nor chosen to make room (`leastRecentlyUsed`), and is woken when it
+  sleeps (`keepAwake`, its log “Woken: kept always on”) unless the memory
+  stopped a workload within 5 min (`calmAfter`); under pressure it may
+  still be the heaviest workload stopped. **Waking**: the first
   request or delivery that finds no instance calls the target's wake
   (`Target.Wakes`), which starts a generation and waits for its first
   answer; the wakes of the same moment wait for the same one (one
   instance). A request waits 60 s at most (`toolfront.WakeHold`), then is
   the 503 page; a browser opening a page (`Visit.Navigation`: a `GET` in
   mode `navigate`, or accepting HTML) waits 2 s, then gets the Chest's
-  page “Waking up <title>…” (`toolfront.Waking`: 503, `Retry-After: 2`,
-  `<meta http-equiv="refresh" content="2">`, no script, a CSS hairline
-  that moves unless reduced motion is asked, the tool's title from its build
-  or its name, escaped), which asks again by itself until the tool answers.
+  launch screen (`Visit.waking`, `plainpage.Launch`: 503, `Retry-After: 2`,
+  `<meta http-equiv="refresh" content="2">`, no script and no words: the
+  tool's icon — `Visit.Icon`, a PNG, WebP, JPEG or SVG of 96 KiB at most
+  carried as a data URI under `plainpage.LaunchPolicy`, its initial
+  otherwise —, its title from its build or its name, escaped, nothing
+  that moves — as a phone's launch screen —, white or black as the device
+  is), which asks again by itself until the tool answers; the restarting
+  page and the stand-in reload by themselves without motion too. A
+  tool paused for want of storage shows the same screen with its line.
   A switch of version, a redeploy or an installation wakes the tool. **The
   server's memory** (`cmd/chest/node_pressure.go`, `watchMemory`): a tool
   always wakes — nothing is admitted or held at a wake; it takes what it
@@ -2869,7 +3101,11 @@ assertion), the tool's **variables**, its declared network egress, its
     `{"variables":[{"name","secret","value"?}],"expected":[…]}` (`value`
     omitted for a secret, `Cache-Control: no-store`); `POST
     /tools/{app}/variables` `{"operation":"set","name","value","secret"}` or
-    `{"operation":"remove","name"}` (strict JSON, 49 KiB at most: 413
+    `{"operation":"remove","name"}`, for whoever sees the tool's data
+    (`dataRunner`, 403 to a builder who does not: a variable steers the
+    code that runs — where it sends what it holds —, security audit S6;
+    the page shows the section, and `GET /api/tools` the `missing` names,
+    to them alone) (strict JSON, 49 KiB at most: 413
     beyond) → 204, 400 invalid or reserved name, 413 beyond the limits, 404
     unknown variable; `POST /api/tools/{app}/redeploy` `{}` → 204: the version in
     service restarts next to the instance that is serving, with the current
@@ -2880,7 +3116,10 @@ assertion), the tool's **variables**, its declared network egress, its
     carry one.
   - **Page**: the “Variables” section (`/tools/{name}/variables`) of a
     server tool: first the expected names, each defined or “Missing”
-    with “Enter” (the tool's header also says “Variable … missing”),
+    with “Enter” (the tool's header also says “Variable … missing”, and
+    `GET /api/tools` gives whoever runs the tool the names still missing,
+    `missing`: opening the tool from the Chest — its tile, the search, Open
+    — shows them first, with “Set it up” and “Open anyway”, `SetupNeeded`),
     then the others (dots for a secret, “Replace” and “Remove”); the
     Name / Value / Secret form (checked by default); “Paste a .env”,
     read in the page (`envfile.ts`: `NAME=value`, `export`, quotes,
@@ -3044,10 +3283,43 @@ key, and asks the node for everything through the node's internal socket.
     of it — and opens only regular files (`O_NONBLOCK`, then checked by
     `fstat` against the entry: a FIFO or a device never blocks the node).
     A path is relative, slash-separated, 16 deep and 512 bytes at most,
-    segments of `[A-Za-z0-9._@+-]` without `.`/`..`, never under
+    printable UTF-8 segments of at most 255 bytes (including spaces,
+    brackets and parentheses), without controls, backslash or `.`/`..`, never under
     `node_modules`, never `.git`, never an environment file (`.env`,
     `.env.*`: variables are the Chest's). A file is 1 MiB at most, written
-    aside then renamed; a listing gives 5,000 entries at most.
+    aside under a short random `O_EXCL` name then renamed. The private sibling
+    `workspace.writes/` (outside the workbench mount) records ownership of the
+    exact pending path before its creation. An OS lock serializes workspace API
+    operations across processes; the next operation reclaims a recorded pending
+    file before any listing, checkpoint or package can see it. Unrecorded files
+    are never deleted by prefix. Corrupt ownership records refuse access without
+    deleting anything. Publication/removal is synchronized before forgetting
+    ownership; payload remains within the workspace's existing XFS quota.
+    Direct writes by project code do not participate in this lock. Individual
+    editor writes remain at most 1 MiB; restore/import copies keep their own
+    archive bounds. A listing gives 5,000 entries at most, with its JSON kept
+    below the 4 MiB IPC frame (1 KiB reserved for the envelope), and `more`
+    when either bound is reached. This wire bound accounts for JSON escaping
+    of file names; a move accepts at most 8 KiB of JSON for its two paths.
+    The model's shorter listing retains a narrowing hint inside its 8,000-byte
+    output budget. Import/checkpoint capture uses `Workspace.Files`, independent
+    of the partial interactive listing; it never loses files at that limit.
+    Replacement metadata has the same JSON budget, reserving checkpoint
+    hashes before import. `CheckReplacement` is shared by local and IPC
+    workspaces; an oversized list is refused before content streams or writes.
+    Adapt reports `source_not_importable` before creating a project. Restore
+    preflights the immutable checkpoint metadata before stopping the preview
+    or resetting its database, then rechecks during replacement. This prevents
+    a known path/transport refusal from disturbing the preview; it does not
+    make subsequent disk failures impossible or restoration transactional.
+    After waiting for history and preflight, a member restore rechecks the
+    current identity, assignment, application incarnation and cancellation.
+    Preparation, restoration and deletion reserve the same project before
+    modifying it; a running turn or reservation refuses another operation.
+    The reservation is released on success or failure and does not hold the
+    global link mutex during filesystem or database work, so other projects
+    remain available. This is admission control, not a permission-policy lock
+    held for the entire duration of restoration.
   - **Disk**: the workspace and the cache are each a project of the
     workload volume (“Isolation and interfaces”), accounted by the kernel,
     with no share of their own: they take what the volume has, beside every
@@ -3118,7 +3390,7 @@ key, and asks the node for everything through the node's internal socket.
   node's user, every capability dropped, `no-new-privileges`, Podman's
   seccomp, 1 GiB on a Starter server and 2 GiB from Team without swap, one
   CPU at a low weight (`--cpu-shares=128`), 512 processes, 4096
-  descriptors, no Podman log. Its writable mounts are its instance's
+  descriptors, no core dump, no Podman log. Its writable mounts are its instance's
   directory at `/run/chest` (the sockets, as a tool's), the workspace at
   `/workspace`, the cache at `/workspace/node_modules` and `/npm`
   (`NPM_CONFIG_CACHE`); the Chest's launcher and runner are mounted
@@ -3303,7 +3575,20 @@ Lot PB2 of [Perseus Code](../../../01_produit/02_specs/perseus-build.md):
 a project's page. Perseus runs as **its own confined service**
 (`chest perseus`, the systemd user unit `perseus.service`), holds no
 secret, reaches nothing but the node's socket, and there only under the
-**grant** of a turn; the node keeps everything durable.
+**grant** of a turn; the node keeps everything durable. On a server it
+**sleeps like a tool** (`perseusLink.power`, `sleepWhenIdle`): the node
+stops its unit once nobody used Perseus Code for `toolIdle` (15 minutes:
+no page opened, no message, no turn ended) and no turn runs or is being
+prepared, marking its stream retired first so that nothing is pushed to
+a Perseus going away; a message wakes it (`ready`: the unit started, the
+message waiting at most 10 s for Perseus to connect), a page of Perseus
+Code too, in the background (`available`: a Perseus not connected counts
+as available when the node can start it — asleep, whether this node or the
+one before it put it to sleep, since a node keeps no memory of it across a
+restart and the nightly backup restarts it —, unless its last wake failed,
+`unwoken`, until a Perseus attaches; each page still tries again). The health report says `asleep`
+(`serverhealth.Asleep`) for a Perseus stopped cleanly, never a service
+down.
 
 - **The engine** (`chest/perseus`): one goroutine per turn, stateless
   between turns. A turn is the builder's message, the conversation so far
@@ -3519,7 +3804,8 @@ secret, reaches nothing but the node's socket, and there only under the
   published —, 64 MiB a project) → `{name}`, `GET …/attachments/{name}`
   (served with its own type, `nosniff`, sandboxed), `GET
   …/sessions/{session}/events` (Server-Sent Events from `Last-Event-ID`,
-  the model's own messages emptied — where each model call ended —; the session settled before it
+  the model's own messages and compaction payloads emptied — boundary markers
+  remain, while the complete model context stays in the server transcript; the session settled before it
   streams, `core.Allowance.Settled`), `POST …/interactions/{interaction}
   {choice | answers}`, `POST …/stop`, `GET …/checkpoints`, `POST
   …/checkpoints/{checkpoint}/restore` (never while a turn runs), `GET
@@ -3550,7 +3836,8 @@ secret, reaches nothing but the node's socket, and there only under the
   left New tool and the member's projects where something was said
   (`started`), the open one with its conversations (a drawer on a phone);
   in the middle `/build/new` (“What should we build?”, examples; or, for a
-  member who is not a builder, **Ask to become a builder**; without an AI
+  member who is not a builder, the same *Ask Perseus* field whose **Send**
+  keeps what they wrote as their draft and sends the builder request; without an AI
   connector, **Open Settings**: `PerseusAccess`) or a project's
   conversation; on the right the preview, only once there is something to
   preview (a checkpoint, or a dev server that runs, starts or failed),
@@ -3640,6 +3927,107 @@ secret, reaches nothing but the node's socket, and there only under the
   gateway's calls and caps; the unit's rendering), the VM proof of the
   unit (`probe-perseus-macos.sh`) and the browser lab (`perseus.spec.ts`),
   [testing](testing.md).
+
+
+The `.applications` inventory uses a dedicated 16-KiB record bound, including
+six active applications, their current/previous origins and up to six pending
+removals. `recordstore` keeps its 1-KiB default for other journals. Inventory
+opening, operator migration and backup inspection use the same dedicated bound.
+Origin timestamps are bounded to the RFC3339Nano representation (35 bytes);
+a seventh pending removal is refused before changing the inventory. The CHR1
+format is unchanged, and existing small records remain readable. An older
+binary enforcing 1 KiB cannot read a larger inventory: rollback requires a
+compatible binary, not truncating or discarding source/version identities.
+Read-only parsing also accepts more than six pending removals when the complete
+record fits the former 1-KiB bound. Startup finishes that legacy cleanup before
+returning the inventory; every new withdrawal still permits at most six pending
+removals. The exception does not bypass identifier or origin validation.
+
+The portal's `conversation.ts` indexes each session's append-only events once.
+It holds references to raw events rather than copying tool outputs, projects
+100 entries at a time, and retains at most 201 projected entries. Earlier/later
+windows and return-to-latest keep the full history accessible. Reading older
+messages or focusing their controls anchors the displayed window; new events
+must not evict that focused content. The current unanswered question remains
+reachable outside the inspected window. Plan, running/waiting state and turn
+commands come from the complete index, independent of the visible slice.
+Replacing the event array on session change, navigation or access refusal
+releases the old weakly-owned index. History navigation stays absent for short
+conversations and retains its layout when focus pauses following a long one;
+inserting controls during native radio activation can cancel the click before
+the draft is saved. The raw transcript remains retained while
+viewing the session; its server-side 64-MiB bound is not a browser RSS guarantee.
+The shared Markdown renderer memoizes unchanged text and limits rich rendering
+to 65,536 UTF-16 code units and 2,048 elements. Above either budget it renders
+the complete source as plain text with preserved line breaks, no active links
+and no interpreted HTML. Ordinary Store descriptions retain rich presentation;
+this fallback bounds rich-node expansion, not raw text layout or total RSS.
+
+### Adapting an installed application
+
+`POST /api/build/projects/import {app}` returns `200 {project}` (the project
+record, including its `id`). The current owner/admin or an assigned builder may
+create or reuse the application's independent Perseus draft; business data is
+never copied. The route uses strict JSON, a 90-second operation allowance and a
+95-second response deadline. Concurrent imports or lifecycle changes return
+`409 busy` without allocating or queuing source archives. No AI turn starts.
+
+Before a source-built version enters the inventory, its validated archive and
+presentation are durably retained in `installation/builds/<app>.sources/`, keyed
+by the canonical `sha256:` source digest. The inventory's `Origin.Source` pins the
+current and previous versions independently of the mutable latest-build ledger.
+A failed build or a candidate awaiting approval cannot replace the installed
+source. At most the current, rollback and one installation candidate remain;
+uninstallation removes the retained sources. These private files travel with
+the normal installation backup. Import validates the digest again, bounds the
+compressed archive to 32 MiB and expansion to 256 MiB, and never refetches a
+mutable GitHub branch. At startup and on an explicit import retry, a legacy
+current or rollback package can acquire source provenance only when its exact
+immutable image equals the ready build's image. The archive and presentation
+are retained before `RecordSource` pins them against the approved package digest;
+existing associations cannot be replaced. A failed or different candidate is
+never evidence for an older version. Binary-only packages and unverifiable
+older versions return `409 source_unavailable`, without guessing provenance.
+A verified archive outside the editor's path grammar returns
+`409 source_not_importable` before creating a draft: no file is silently omitted.
+Import and checkpoint restoration share `buildproject.CheckReplacement`: the
+JSON file metadata list must fit 4 MiB minus a 1 KiB protocol-envelope reserve,
+including a reserved 40-character checkpoint hash per file. Content remains
+streamed. A source with individually valid but collectively oversized escaped
+paths is refused as `source_not_importable` before draft creation; a restoration
+is refused before replacing any file. This byte bound is separate from the
+archive's 20,000-entry bound: short names can fit all 20,000 entries, while long
+or JSON-escaped names can reach the transport bound sooner.
+
+The editor accepts printable UTF-8 names, including framework route brackets,
+parentheses and spaces, but keeps its 512-byte path and 16-level limits (each
+segment is at most 255 bytes). Reserved `.git`, `.env`/`.env.*` and
+`node_modules` segments remain refused. Thus valid installation archives with
+longer/deeper paths or reserved names are not necessarily editable imports;
+the portal reports this limitation separately from absent source. The installed
+application is unchanged.
+
+`Origin.Installation` identifies an installed incarnation, unchanged through
+updates and rollback. An imported project binds `Application` and `Installation`;
+current application assignments, rather than a stale project's builder list,
+control every project access. Uninstallation revokes builder access; reusing the same app
+name cannot reopen its old draft. The owner/admin can still read or delete the
+archived draft (`ProjectState.archived`), keeping its code recoverable and its
+quota reclaimable. Archived drafts are read-only: messages, new conversations,
+renaming, checkpoint restoration, attachments, preview and publishing (including
+reading a queued publication checkpoint) are refused. Repeated import
+returns the existing draft without overwriting unpublished changes; a project
+that published the current version is reused. The management page links directly to
+an accessible, non-archived draft even before its first publication; this editing
+link does not change the source attributed to the installed version. Initialization checkpoints the
+source before publishing the project record. A private import intent lets the
+next import remove an interrupted unpublished draft, while retaining a committed
+one after an uncertain directory sync. A single bounded extraction directory is
+cleaned before the next import and after every completed attempt.
+
+
+The project sidebar returns to the Perseus entry above New tool, without a
+separate full-width navigation bar.
 
 ### Perseus Code: publishing
 
@@ -3892,7 +4280,8 @@ catalogue. Its data does not move — it lives outside the image, in
   `restores`: when the copy of its data that a rollback puts back was set
   aside, absent without one) and `more` (what the offer asks for in
   addition); `GET /api/catalogue` gives `version`, `previous`,
-  `update` and `more` of a tool in service.
+  `update` and `more` of a tool in service only to its current administrators
+  and assigned builders.
 
 ### Room for a new tool
 
@@ -3941,8 +4330,8 @@ memory.
 
 **The screen of a full server.** The install sheet is as ever; a decision
 refused `server_full` turns the panel into its screen (`ServerFull`): “Your
-server is full”, why (the resource), the numbers in Details (the resource's,
-then the three meters of Settings → Server), and what resolves it, by role —
+server is full”, why (the resource), the resource's numbers in Details,
+and what resolves it, by role —
 the **owner** moves to the larger server (below); the owner and the
 **admins** free some space (the tools in service, the largest in memory
 first, then on disk, each removed after the usual confirmation), then retry
@@ -3968,7 +4357,10 @@ service and exactly one before it (Rollback), and the image of each build
 the ledger keeps (an offer, a version waiting for its approval, the last
 ready one of a failed attempt). Only the images the Chest built — labelled
 `dev.chest.build` — are considered, listed before what is kept is read and
-never while a build runs; one a container uses, Podman refuses. The node
+never while a build runs, nor while a version is put in service (from the
+inventory's decision to the swap the version coming is neither the one
+that serves nor, for a rollback, the previous one: collected then, it could
+never start); one a container uses, Podman refuses. The node
 collects at its start, every ten minutes, and five seconds after a version
 changes, a rollback, an uninstallation or a cancelled installation.
 
@@ -3984,7 +4376,7 @@ a queued installation waits, cancellably, if either already owns the build slot.
 All installation-mutex waits end on cancellation. Automatic publication reads
 the build and the author's current rights only after acquiring that mutex.
 Manual updates recheck data access and the approved package digest there too;
-a bearer request also revalidates its key's lifetime, revocation and tool scope;
+a bearer request also revalidates its key's lifetime (including the 30-day ceiling after promotion to owner/admin), revocation and tool scope;
 a rollback refuses a previous version changed while it waited. Once admitted,
 updates survive browser disconnection but are cancelled when the portal stops.
 
@@ -4005,8 +4397,10 @@ updates survive browser disconnection but are cancelled when the portal stops.
   wider permissions with an API key. A changed repository head cannot replace
   the approved commit. A missing checkpoint fails visibly.
 - On restart, pending requests resume in order. A durable `Started` flag is
-  written before execution; a started request is reported as **interrupted**,
-  never blindly replayed across an uncertain migration. Existing retry/review
+  written before execution; a started request without a recorded outcome is
+  reported as **interrupted**, never blindly replayed across an uncertain
+  migration. For a new installation whose binding already exists, completion
+  is reconciled as installed without another build. Existing retry/review
   paths apply. This is at-most-one automatic attempt, not exactly-once side
   effects or universal self-repair. A corrupt queue is preserved and disables
   source-installation admission without preventing the rest of the portal
@@ -4014,7 +4408,33 @@ updates survive browser disconnection but are cancelled when the portal stops.
 - Queue persistence failure stops the worker rather than starting unrecorded
   work. If completion cannot be recorded, the catalogue reports unavailable
   installation storage instead of keeping an active phase; the operation's
-  completion callbacks are not replayed. Existing failed-installation records and the build ledger retain their
+  physical operation is never replayed. A completed success/failure is persisted
+  before canonical proposal settlement and retained until that idempotent write
+  succeeds. Unavailable proposal storage stops dispatch. A background recovery
+  task retries after 5 seconds, backing off to one minute: only when the worker
+  has stopped, it validates and synchronizes the durable queue before resuming.
+  The configured location is retained even if directory preparation failed at
+  startup: repair of that directory and its existing queue can recover without
+  restarting the portal. Recovery revalidates directory ownership, 0700 mode
+  and absence of symlinks, then synchronizes its publication. Every durable
+  transition writes through a freshly validated directory handle. Missing or
+  corrupt queue documents remain blocked for operator repair; recovering an
+  unavailable directory never infers an empty queue. Repair must preserve the
+  latest durable decisions: never restore an older pending queue blindly or
+  manufacture an empty document to make the dispatcher run. If that state is
+  lost, stop admission and reconcile the deployed application and migration
+  outcome before deciding another attempt. Startup and recovery reconstruct
+  queued presentation from those same durable decisions: restored pending work
+  is visible, storage-only failure labels are cleared, and a recorded physical
+  failure keeps its diagnostic. Completed work retries metadata only; started
+  work without an outcome never reruns its migration. Optional conversation/public-opening callbacks have a durable
+  `effects_started` intent before execution; recovery never repeats them. An
+  interruption records an operator diagnostic to check the publication notice
+  and public access. A callback may still be omitted in that gap; this is
+  at-most-once execution, not a transactional outbox. Public opening checks the
+  deciding token again and retains the team's current authorization check.
+  Rejected admission has no durable accepted operation to reconcile. Existing
+  failed-installation records and the build ledger retain their
   roles; the queue is not a second package/image/history store. Automatic
   background builds and uploads are not converted into durable install requests.
 
@@ -4047,7 +4467,11 @@ service or one with a build or a run under way (409) and a name no failed
 installation holds (404):
 
 - `POST /api/installation/retry` — 202 `{name, state}`, followed as the
-  first run. The name must still be free — else 409 `{"error":"name_taken"}`
+  first run. Like Get (`/api/github/links`, `/api/catalogue/install`), the
+  page sends it with `keepalive` (`decided` in `http.ts`) and the Chest
+  fetches its code on a deadline of its own, not the request's
+  (`decidedFetch`): a page left right after the click still has the app
+  installed. The name must still be free — else 409 `{"error":"name_taken"}`
   (another tool, a waiting proposal or a reserved name holds it): the page
   says “The address todo was taken meanwhile: choose another.” and opens the
   sheet of the repository (or of the catalogue entry) with that address,
@@ -4062,17 +4486,49 @@ installation holds (404):
   catalogue is installed again from the catalogue; a version of a Perseus
   Code project that did not build answers `no_retry` (published again from
   its project).
-- `POST /api/installation/cancel` — 204: the row goes — the attempt and the
+- `POST /api/installation/cancel` also withdraws a new source installation
+  still waiting in the durable queue. The queue's mutex arbitrates with the
+  worker's persisted `Started` transition: cancellation first persists a terminal cancellation decision. Only after the
+  proposal is pending again and the attempt is forgotten is that decision
+  removed and its name released. Any failure stops queue dispatch and returns
+  503. Reopening finishes this idempotent cleanup without fetching or executing
+  the cancelled source; a missing proposal is already cleaned. The optional
+  cancellation marker is refused by older binaries rather than replayed. The owner/admin-only attempts view reports `cancellable` for
+  these decisions. Started work, replacements and prepared/project builds are
+  refused with 409; no compilation or database migration is interrupted.
+  A member's Store page can open its own pending/refused proposal through the
+  existing request detail. As on a phone (product: Experience v4), the
+  Store is a list of rows (`StoreCards`: icon, name, one line, the button)
+  and **Get installs at once** (`getApp`): the catalogue's approval with
+  the app's own name as its address, its public part closed — tapping Get
+  approves the permissions its page lists in its Information; only a name
+  that is not free (409 `taken`, `busy`, `reserved`, 400 `invalid_name`)
+  opens the review sheet on its address, and a server that would not hold
+  it its screen. **Update** (`updateApp`, `InstallButton`'s `update`)
+  does the same for a newer version, wherever the app shows (its row, its
+  page, Manage): the catalogue's installation again, or the offer's
+  update, the circle meanwhile (`installStage` follows an installed app's
+  new version), then Open. The Store never takes whoever installs to
+  another page: the app's button — its Store row and page, its row in
+  Manage — shows the progress circle, then Open; a failed
+  installation turns it into **Retry**, a link to the tool's installation
+  page, which holds the reason, the log, Retry and Cancel (`installStage`,
+  `InstallButton`); approving a request and Retry keep the decider where
+  they are too. A queued installation not started yet can be cancelled
+  from its Store page, as the server's capability says.
+- For a failed installation, cancellation returns 204: the row goes — the attempt and the
   run forgotten, the build deleted (`Ledger.Forget`), whatever the node kept
   of a half installation removed, as the uninstallation below takes them;
   when another tool took the name meanwhile, only the attempt is forgotten.
 
 ### Removing a tool
 
-“Remove tool”, in the settings of an installed tool's page, is **a
+“Remove”, in the actions menu of an installed tool's page, is **a
 decision of whoever administers the Chest** (owner or admin, never a
 builder), and it is **final**: reinstalling later starts from scratch
-(decision of 23 September 2026). Route: `POST /api/installation/uninstall {app}`
+(decision of 23 September 2026). It is never confirmed in a dialog: the
+page leaves the tool at once and holds the request under its Undo for six
+seconds (`undoable`, below in [The interface's shared pieces](#the-interfaces-shared-pieces)). Route: `POST /api/installation/uninstall {app}`
 — 204; 404 for a tool that is not running; 409 while a build of the tool is
 running, the catalogue is installing it or the installation lock is held;
 403 for a member.
@@ -4230,7 +4686,9 @@ link their own directly.
   `GET /api/github` tells the
   member the state of **their** link (`none`, `installed` with `account`,
   `unavailable`, `unreachable`); `GET /api/github/repositories` lists **their**
-  repositories, from most recently pushed to oldest: an array of
+  repositories the Chest could still import — one linked to a tool, or
+  being installed from (`repositoryHolders`), is left out before any check —,
+  from most recently pushed to oldest: an array of
   `{full_name, default_branch, pushed_at?, private?, check?}` where `check`
   says what the default branch is, the way a host detects a framework —
   one read of its root per repository (`githubChecks`): `ready` when
@@ -4253,12 +4711,21 @@ link their own directly.
   the repository cannot be installed); without any, “No Chest-compatible
   repository” says the same rule, with an example `chest.json`; repositories
   not checked are counted with “Retry”. The API keeps the first file each
-  one lacks (`check`), for an agent.
+  one lacks (`check`), for an agent. The page draws at once — its list a
+  skeleton — and asks the link and the repositories together
+  (`loadGithubSource`), the tools as they come; the list is read again at
+  each visit. Install closes the sheet and keeps the member on the page: the
+  row of the repository shows the installation (the progress circle), then
+  **Open**, or **Retry** leading to the tool's installation page
+  (`state.githubInstalls`, `InstallButton`).
   **Disconnecting** (`POST /api/github/disconnect`, any member): the central
   removes their installation (and the app from their account if no one else
   is linked to it), their links stop — the built tools remain installed —,
   the Chest forgets what it held from them; they can connect another
-  account.
+  account. **A member removed** from the Chest loses their links the same
+  way, locally (`githubUnlinkMember`, from `memberLeft`): a push of theirs
+  is no longer fetched nor built, and the tool waits for the owner or an
+  admin to link a repository again.
 - **Choosing a repository** (any member): `POST /api/github/read {repository,
   branch}` reads the head of the branch with the member's installation and
   returns what the manifest declares — `{name, title, description,
@@ -4286,7 +4753,8 @@ link their own directly.
   —, refuses a name that a fixed offer bears, that another repository
   already gives or that is not free and, the tool not being in service,
   **builds and installs it in this decision** (like the catalogue:
-  `sourceRun`, followed on the installation screen); a tool in service
+  `sourceRun`; the page stays where the decision was taken, its button
+  following it — `installStage`); a tool in service
   that followed no repository is linked and receives the build as its next
   version. **The link of a new tool is claimed once the tool runs**
   (`Store.Claim`, after its installation): while it is installed, its run
@@ -4362,6 +4830,24 @@ customers — the Chest **discovers** the catalogue by reading the
 organization. Installing is **a decision** of the owner: the access
 displayed, approved, and the Chest fetches, builds and installs on its own.
 
+- **Public Central cache** (`central/githubrelay.PublicCatalogue`): the
+  Central serves `/store/github/api/…` and `/store/github/raw/…` separately
+  from private GitHub installations. Only the fixed public organization is
+  accepted; HTTPS upstream origins are fixed, redirects and caller credentials
+  are refused. Commit-head requests must match a public repository and its
+  default branch from the cached organization listing. The memory cache holds
+  at most 512 entries / 24 MiB; four bounded fetches and 32 response writers
+  have separate admission limits. Successful REST entries live five minutes,
+  commit-pinned raw files 24 hours; failures live one minute. A global hourly
+  budget reserves 12 organization-list reads and 48 branch-head reads;
+  cache hits cost nothing. This reduces GitHub calls, but is not a guarantee
+  against upstream quotas or denial of service.
+  `chest/catalogue.UsePublicRelay` uses the configured Central origin without
+  enrollment tokens. An unavailable/older Central falls back to direct GitHub
+  with a one-minute cooldown. Private repositories, installation archives,
+  and laboratory overrides never enter this shared cache. The Chest retains
+  its own durable catalogue and stale-on-refresh-failure behavior. No service
+  or resident process is added to each Chest.
 - **Discovery** (`chest/catalogue`, `Source.Tools`): `GET
   {api}/orgs/chest-by-argentic/repos?type=public&per_page=100` (at most a
   hundred repositories), then, per public repository with a simple name,
@@ -4380,12 +4866,25 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   images the manifest names, read at the same commit by
   `GET {raw}/{org}/{name}/{commit}/chest/<file>`, checked like
   those of an archive; an image that is missing or is not one leaves the
-  entry without it). The images live in
-  `installation/catalogue/pictures/<name>.icon|preview`, replaced in one
-  block at each discovery, served by `GET /api/catalogue/{name}/icon|preview`
+  entry without it). The images live in immutable generation directories under
+  `installation/catalogue/`, referenced by the atomically replaced discovery
+  file. New generations and their thumbnails are prepared and fsynced outside
+  the read lock, so cached metadata and media remain available while decoding
+  waits for the shared worker. Publication, in-memory adoption and reclamation
+  share the lock with bounded local media reads; a failed publication keeps
+  the previous generation. Legacy `pictures/` caches remain
+  readable until the next successful discovery. Orphan generations are removed
+  after publication; an uncertain fsync keeps both possible committed states.
+  Images are served by `GET /api/catalogue/{name}/icon|preview`
   (`icon_url`, `preview_url` of the entry) without asking GitHub anything;
+  generated media/gallery/Markdown URLs carry `?commit=<shown commit>`. The
+  commit is checked under the same lock as the local read. Refresh may retire
+  an old URL (404), never serve another revision under it. Thumbnail and
+  lightbox paths preserve that commit. Legacy query-free URLs remain accepted;
   the approval ignores the presentation. Client: that of `common/download`
-  (TLS ≥ 1.2, 30 s, three HTTPS redirects, 1 MiB per JSON response),
+  (TLS ≥ 1.2, 30 s, three HTTPS redirects, 1 MiB per JSON response; a
+  failure once the caller's context ended is unavailability, never a
+  refusal),
   `Accept: application/vnd.github+json`, `User-Agent: Chest`, **no token**.
 - **Cadence**: discovery starts only on a visit, after **24 h**. The last
   validated catalogue is returned immediately; one background refresh, bounded
@@ -4401,13 +4900,18 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   or refused decorative picture does not remove the tool. The anonymous service
   still has quotas: a large organisation or a shared egress address can require
   a later catalogue index; this is not an unlimited fleet distribution service.
-- **What the owner approves**: `GET /api/catalogue` (owner only, 403 otherwise)
-  returns `{state: ready|unavailable, discovered, tools}`; each entry carries
+- **Discovery and approval**: `GET /api/catalogue` is open to current Chest
+  members, including those proposing an installation; everyone else is refused.
+  It returns `{state: ready|unavailable, discovered, tools}`; each entry carries
   its `approval` = hex SHA-256 of the canonical JSON
   `{"name","repository","commit","permissions","roles"}` (this order,
   without spaces), its state
-  `available|queued|fetching|building|installing|installed|failed`, the cause in
-  words and the registry build when there is one.
+  `available|queued|fetching|building|installing|installed|failed`. The local
+  build, versions, update comparison and diagnostic reason are included only
+  for the current owner/admin or a builder assigned to that application.
+  Authorization is read again after network discovery; a policy read failure
+  refuses the response. Other members see only the public catalogue metadata
+  and the installation state, never private source/configuration details.
   `POST /api/catalogue/install {name, approval, as?, replace?, open_public?}`
   finds the entry in the latest discovery (never a call to GitHub) and
   recomputes the `approval` — the owner approves exactly what was shown to
@@ -4469,6 +4973,358 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   the output of `export-store.mjs testweb` (the manifest there carries the
   tool's title, description and icon), served to the Chest opened on the
   VM's loopback.
+
+## Files, the company's storage
+
+Files (`chest/officefiles`, routes in `chest/portal` `office.go`; product:
+`01_produit/02_specs/files.md` of the company folder) is the storage of the
+company: folders and documents that belong to the Chest, not to a tool.
+
+**One rule decides access.** A folder's access is its own grants plus every
+grant of the folders above it: a subfolder can be shared more widely than
+its parent, never more narrowly. A grant gives a folder to a member, a
+group (its members as the policy says them at the request) or an installed
+tool, at *view* (open, download, who has access) or *edit* (also add,
+rename, move, remove, restore, share with members and groups). The owner
+edits everything and holds no grant; an admin, like any member, sees only
+what was shared with them, and with the owner alone makes top-level
+folders — each seen by its maker (an edit grant, given at its making) and
+the owner. Every call takes the team the portal reads from the policy at
+that request (`officefiles.Team`): a member removed has no session that
+reaches Files, a member taken out of a group loses what the group gave at
+once, and a grant to a member, group or tool the team no longer has gives
+nothing and is listed nowhere. The effective level is computed in SQL on the
+closure table (`folder_paths`) at each call, never cached. A folder or a
+document the asker does not see is `not_found` (404) whether it exists or
+not; one they see but may not change is `forbidden` (403). Lists, counts
+and paths never name what the asker cannot see: a folder shared below an
+unseen parent is a root of its own, its path starts at it, and counts are
+of subtrees, all visible by inheritance. Names are unique beside each other
+in a folder; at the top level only among the folders the asker sees, so a
+name refused (`name_taken`) never tells an admin of a folder they do not
+see.
+
+**Sensitive folders** (a lock, set by the owner alone, verified recently —
+`core.Verified` —, inherited downwards; *Company* is sensitive from the
+start and stays so): shared by the owner alone, verified, to members and
+tools only, never to a group; a folder a group reaches by a grant above,
+on or under it is never made sensitive, never moved under a sensitive one,
+and a sensitive one never under it; what leaves a sensitive folder for one
+that is not is the owner's to move, verified. Whatever lets someone newly
+see a sensitive document is the owner's, verified, whatever the way: a
+share of a folder above a sensitive one, a move into a sensitive folder,
+out of one, or of a folder that holds one (`lockedMove`); taking someone
+off a sensitive folder is the owner's, verified, too. An admin given a
+sensitive folder edits its papers and never changes who sees them.
+
+**The sentence before access widens.** `POST /api/files/share/preview`
+counts the documents in place of the subtree that at least one of the
+people or tools given would newly reach at that level (groups by their
+members, the owner left out), with those already reached and the total; the
+share carries that count (`expect`) and is refused `stale` (409, with the
+sentence as it is now) when the tree or the grants changed since. A move
+that widens access answers `stale` the same way, with the people and tools
+that gain and the documents they gain, until its sentence was read. Every
+change of the tree, the grants and the blobs runs under one lock of the
+office's database (a session advisory lock): a count read is the count of
+what the change makes.
+
+**Documents.** A blob is named at random — the 128-bit id of the upload
+that wrote it, never a digest of its content — and sealed under a random
+key of its own: two identical documents are two blobs, and nothing on the
+disk, in a backup or in the database says they are the same (no
+deduplication across documents). It is encrypted before it touches the
+disk, in chunks of 64 KiB (XChaCha20-Poly1305): each chunk is sealed under
+a random nonce written before it, never one derived from its place, so a
+chunk sealed again (a part sent once more after its commit failed) never
+reuses a nonce; its index and whether it is the last are its associated
+data, so a chunk changed, moved, dropped or cut, or a blob of another
+length than its size, is refused. The blob's key
+is wrapped by the Files key, 32 random bytes in
+`installation/office/files.key` (0600), which the nightly archive takes
+with the installation, encrypted to the backup identity — a restore always
+gives the papers back, and the key is never in a backup in clear (choice 2
+of the spec). Blobs live in the Chest's own project of the workload volume,
+`files/office/files` (`workvolume.Office`, accounted, no quota),
+archived by the nightly backup with the Chest's other data (`chestData`);
+a blob's file is written in place as its parts come and never moves. A
+document is read by range from its encrypted form; it is served from the
+portal's origin as an attachment (`application/octet-stream`, `nosniff`, a
+sandbox policy, no cache), except a raster image the page previews
+(`Sec-Fetch-Dest: image`): HTML, SVG, PDF and scripts never run on the
+origin. Every open is a line of the journal — the ranges of one read, one line
+(below).
+
+**Uploads** are resumable: `POST /api/files/upload` checks *edit* on the
+folder and gives a token (its digest kept, bound to the member, the folder,
+the name and the size, 2 GiB at most; it waits 15 minutes for each part).
+It takes its room at once: refused `storage_full` (507) when its sealed
+size and what the uploads under way still bring would cross what the
+volume keeps for the Chest's core — the room below which the volume's
+keeping is short, every database awake and one that starts with a segment
+each and the growth it last weighed (`diskKeeper.kept`, given to Files as
+`officefiles.Room`) —; the room taken is the uploads table itself, so it
+holds across restarts and goes with each upload, done or expired. The
+parts (`POST /api/files/upload/part`, `application/octet-stream`,
+`Content-Range`, the token in the `Chest-Upload-Token` header, never in a
+path a log could keep) are sealed chunk by chunk as they come, end on a
+part's boundary (8 MiB) or at the end, and a part cut keeps every whole
+chunk it brought (`GET /api/files/upload/state` says where to go on; an
+upload whose document was refused at the end goes on with an empty part
+at its size). The last part checks *edit* again, then makes the blob's
+row, and a document of the same name in the folder becomes a version of
+it (kept 30 days).
+
+**Remove, Undo, Recently removed.** Remove takes items out at once; they
+keep their place in the tree, seen in Recently removed by whoever can edit
+what held them, restored there (a folder above put back with them — only
+by whoever may restore that folder too —, a name taken since numbered);
+*Delete* is the owner's alone; after 30 days the node purges by itself
+(`purgeOffice`, every six hours): lines older than a year, expired
+uploads, the blobs' files on disk the database does not know once an
+hour old — the disk walked under no lock —, then removed documents and
+the folders they leave empty, leaves first, and replaced versions, then
+blobs nobody names; each deletion in steps of 500 rows, a transaction
+each, and only those that change the tree under its lock, so a change
+waits for one step at most.
+
+**The journal** keeps, written by the node alone in the office's database,
+one line per open (who, which document, how — preview, download —, the
+client's network cut to /24 or /48; the ranges of one read are one open:
+no second line for the same document, subject, way and network within ten
+minutes, `officefiles.OpenSession`, every byte read still under a line) and per change (add, move, remove,
+restore, delete, share, unshare), never the content, for a year; an
+assistant's read is journaled as such (`agent`), never as its member's own
+download; it is read by the owner and those who can edit the folder, for a
+document or a folder's subtree, 500 lines a page (`?page=`), so no line is
+ever pushed out of reach by those after it.
+
+**The office's database** is a PostgreSQL cluster of its own, run by the
+Chest's account — never the workload account, which runs the tools —
+(`officeCluster`, `cmd/chest/node_office.go`): the node starts it in the
+Chest's rootless Podman with a tool's database's profile
+(`runtime.Database`: no network, read-only root, no capability, the
+socket only) but in no workloads slice — it is counted with the core, as
+the identity provider's database —, from the PostgreSQL the bundle pins
+(the provider's, already in the Chest's store). Its data is
+`files/office/db`, on the Chest's side of the workload volume beside the
+blobs (`workvolume.Office`, accounted), and its socket is in the server's
+`run/office-database`: both behind a directory of the Chest's account
+alone (0700), so whatever escapes a tool's container into the workload
+account can neither read, change nor connect to the tree, the names, the
+grants or the journal (`TestTheOfficeDatabaseIsTheChestsAlone`; on the
+lab, `TestOfficeProof`: stat, read, write, connect and a container's
+mount all refused). It is held, woken and put to sleep by the code that
+holds the tools' (`databaseNode`, its host the Chest's account instead of
+the workload agent: `clusterHost`): the Chest reaches it on its socket as
+its role, `office-chest`, holding it awake while a session is open
+(`officefiles.Connect`), and it sleeps a minute after Files was last
+used; the first use after a restart makes its tables and the two system
+folders, *Company* and *To file*. It runs as a tool's cluster does
+(`runtime.DatabaseHost.Serve`, the same code as the workload agent's): its
+reserve and room on the volume, written again by the volume's keeping
+once it has room, its WAL given back when it stops, counted among the
+databases awake (`diskKeeper`); its passwords derive from
+`installation/office/database`. The nightly backup takes it with the
+Chest's other data (`chestData`, `workloads/office/db`): stopped with the
+node — or, should a node have ended without stopping it, by the backup
+(`stopOffice`) —, cloned cold without its reserve and room, put back by a
+restore on the Chest's side; the restore drill refuses an archive whose
+office has documents without its database, or a database without its
+cluster's data. Nothing was deployed with it on the workload account's
+side, so nothing migrates: a cluster a laboratory left there under the
+name `office-chest` is swept as a tool's that is not installed.
+
+**Agents** (`/api/v1/files/…`, `apiRoutes`) reach what their member sees —
+every route a right of the whole Chest, refused to a token narrowed to
+tools; writes with a write token — and never share, unshare, mark a folder
+sensitive, list whom to share with or delete: those routes are not served
+to tokens. A tool reaches the folders it was given (the folders
+capability, F4 of the spec) as `officefiles.ForApp`, the same routes of the
+store as a member: its grants decide, and on a member's request no more
+than that member's (the intersection, `level`). It lists only the folders
+given to it (`Store.AppFolders`), never the tree around them; it is never
+the owner nor an admin, whoever it acts for, and never shares or unshares;
+what it adds and opens is journaled under its name for the member it acts
+for (“Expenses for Claire”), its uploads bound to both. An app is
+named by its tool's identifier, which a tool installed later may take
+again: an uninstall takes off the tool's grants (`Store.ForgetApps`, each a
+line of the journal), and so does every purge for any tool the inventory no
+longer names, so an uninstall cut midway leaves none behind.
+
+**The folders API** (`chest/portal/office_apps.go`, `portal.FoldersAPI`,
+on the tool's `CHEST_API` through `cmd/chest/application_files.go`
+`serveAPI`): `GET /folders`, `GET|PUT /folders/{id}/files`, `POST
+/folders/{id}/upload-url`, `GET /documents/{id}`, `POST
+/documents/{id}/url`, `POST /documents/{id}/remove`. The capability is
+`folders` (`common/packagefile/folders.go`, contract 0.7), its key
+`{"purpose", "level"}` and its permission `folders:<level>:<purpose>`; the
+version's level is `portal.Binding.Folders` and `officefiles.Team.AppLevels`,
+the most any grant gives (a share above it is refused, a version that asks
+`view` never writes). Who acts is decided at each request from the policy
+now (`Portal.appAsker`): the `Chest-Opener` ticket — given by the team host
+to a version that holds `sealed` or `folders` (`Binding.Tickets`,
+`ticketsOf`), signed by the tool's `toolseal.Tool` — names the member; a
+ticket present and not valid is 401 `member_required`, never the app's own
+grant; a member gone is 403 `access_removed`; no ticket is the app alone.
+The portal comes after the apps: `filesNode.office` holds it, and every
+route answers 503 until it is there.
+
+**The documents host** (`chest/portal/office_documents.go`,
+`Portal.DocumentsHost`; `cmd/chest/node_app_hosts.go`, `documentsLabel`):
+`documents.<the tools' domain>`, under the portal's certificate, served by
+`nodeApplicationHosts` beside the tools' hosts for a Chest with Files; no
+tool takes the name (`packagefile.ReservedName`, `Prepare`). It opens what
+has no session: `GET /d/{token}` an app's link to a document (alive 5
+minutes; the document, its content then — `Store.Version`, `OpenVersion` —,
+the app and the member, under the label `chest office document link v1` of
+the node's link key, `toolfiles.Links.Sign` / `Read`), `PUT /u/{token}` an
+app's upload link (15 minutes, one document of the size it says, taken once
+in this run of the node — `Links.Take`, `Boot` —, CORS for the app's team
+origin only, `Store.Add`), `GET /p/{token}` a public link
+(`officefiles.ShareLink`, `OpenLink`: 256 random bits kept as a hash, 7 days
+by default and 30 at most, the owner or an editor verified recently, never
+in a sensitive folder — marked or moved into one —, ended with its maker's
+access; journaled as kind `link`). Every answer is `noindex`, no referrer,
+no store; a document is a sandboxed attachment, a raster image an app asks
+shown aside. Each use re-reads the policy: nothing a link carries is
+trusted beyond who it names.
+
+**Events** (`chest/officefiles/events.go`, `Store.OnChange`;
+`toolevents.Engine.TellFolders`): a document added (an upload, a join) or
+removed is told, once committed, as `folders.file.added` /
+`folders.file.removed` (`{folder, file: {id, name, type, size}}`) to each
+app whose grants reach its folder and whose version holds `folders`
+(`toolevents.Tool.Folders`), through its outbox like the members' events.
+`folders.*` is the Chest's own namespace: no manifest emits or receives a
+type of it (`packagefile.reservedEventType`).
+
+**The SDK** (`@argentic/chest-sdk/folders`, SDK 0.7.0, vendored under
+`tests/sdk/chest-client`): every call names who acts first — a member's
+request, whose ticket it carries, or `null` for nobody; a request without
+a ticket is `MemberRequired` in the SDK, never sent as nobody. Links are
+taken only at `/d/` and `/u/` of an https origin. `fakeChest` gives
+folders with these rules (`testing-folders.ts`).
+
+**The app's page** (`components/ToolFolders.tsx`, in its Sharing tab, for
+the owner and the admins of an app that asks `folders`): `GET
+/api/files/apps/{app}` (`Store.GivenTo`) lists the folders given to the
+app that the reader sees, at the app's level there — the owner and the
+admins only, a folder they do not see unsaid. *Add* opens the share sheet
+with the app given (`ShareSheet.forApp`: the folder picked among the top
+folders the member can edit, the level at most the version's) and its
+sentence, “Expenses will see 61 documents, also when nobody is using it”;
+with none given, *Create the folder Expenses for it* makes that top
+folder and opens the same sheet; *Remove* takes it back under Undo.
+
+| Route (`/api/files`) | Rule |
+|---|---|
+| `GET folders`, `GET folders/{id}?after=` | the roots the member sees; a folder seen, its path as seen, its folders, documents by 200 |
+| `POST folders {parent?, name}` | top level: the owner, an admin; else *edit* on the parent |
+| `POST folders/{id}/rename`, `POST documents/{id}/rename` | *edit*; *Company* and *To file* keep their names |
+| `POST folders/{id}/sensitive {sensitive}` | the owner, verified recently |
+| `GET documents/{id}`, `GET documents/{id}/content` | *view*; content journaled |
+| `POST upload`, `GET upload/state`, `POST upload/part` (the token in `Chest-Upload-Token`) | *edit*, checked again at the last part; the room taken at the start; the token's member only |
+| `POST move {items, to, expect}` | *edit* on what holds each item and on `to`; `stale` when it widens; widening what is sensitive: the owner, verified |
+| `POST remove`, `POST restore`, `GET removed` | *edit* on what holds the items |
+| `POST delete` | the owner |
+| `GET access/{id}` | *view* |
+| `GET apps/{app}` | the owner, an admin: the folders given to the app that they see |
+| `GET people`, `POST share/preview`, `POST share`, `POST unshare` | *edit*; a tool by the owner or an admin; sensitive, or giving anything sensitive: the owner, verified, persons and tools only |
+| `GET journal?file=` or `?folder=` | the owner, or *edit* on the folder |
+| `POST documents/{id}/link {days?}`, `POST documents/{id}/link/end` | the owner or *edit*, verified recently, not sensitive; never a token: the public link, its address on the documents host shown once |
+
+**The place** (`chest/web/portal`: `src/files.ts` reads and changes,
+`src/files-view.ts` the shapes, the words over them and the actions'
+interface, `components/Files.tsx` draws — it imports only
+`files-view.ts` and is given `filesActions`, as every component is a
+drawing of its model —, `styles/files.css`) is a page of the
+portal at `/files`, `/files/<folder>` and `/files/removed`
+(`chest/portal/pages.go`, `filesPages`, served only when the Chest has
+Files; the session names it in `pages` for every member, and the side bar
+shows Files between Workspace and the App Store). On a desktop three
+panes: the folders (*Only you* or *Shared · n*, the lock of a sensitive
+one, *Shared with you* apart, *Recently removed*), the folder's path,
+folders and documents (by pages, *Show more*; the keyboard moves, opens,
+previews and removes), the selected document — its image when the Chest
+shows it inline, *Download* — with *Who has access* and, for whoever
+edits, *Opens*; on a phone one pane at a time and *Add* at the thumb
+(Files, Camera, Photos, Folder). Drag and drop from the computer adds into
+a folder; a row dragged onto a folder files it, a move that widens access
+saying its sentence in that folder until *File* confirms it. The share
+sheet is the portal's panel (`files-share`): whom, the level, the
+sentence counted by `share/preview` (its place kept while counted, *Share*
+disabled until it is or when it cannot be), a stale count said again in
+place. Remove acts at once under the toast's Undo (a restore); Delete in
+Recently removed waits under its Undo before it runs. Every pane draws
+its five states: a skeleton of its rows (after 300 ms), empty, partial,
+the last answer kept with *Retry*, normal. The place never infers a
+right: it shows what the routes answered. Checked by
+`tests/preview/files-check.mjs` and, on the lab, `tests/browser/files.spec.ts`.
+
+**The reader** (`chest/reader`, F3) opens documents for the search and
+their pages, never in the Chest's process. Its programs are a pinned
+image of their own (`deploy/chest/reader/Containerfile`: Debian's
+Tesseract with `fra` and `eng`, Poppler, libheif; pinned by digest in
+`deploy/chest/reader-image`, carried by the bundle as
+`runtime/reader-image`, pulled with the workloads' images); its logic is
+the Chest's executable, `chest read-document` (`reader.Inside`), mounted
+read-only. The workload agent runs it (`reader.run`,
+`runtime.Reader`, `readerArgs`): no network, no volume but that program,
+a read-only root, a `/tmp` of its memory (`noexec`), the container's
+`nobody` (not the workload account), no capability nor new privilege,
+1.5 GiB without swap, one CPU, 32 processes, no core dump (a crashed
+parser leaves no image of a document on the host), 15 minutes, in the
+workloads' slice, its container removed however it ends (and by
+`Recover`, `readerLabel`). The document goes on its standard input
+(256 MiB at most, `reader.MaxInput`; a join's photos as a small tar),
+its answer comes on its standard output: an archive the node reads as
+untrusted (`reader.Check`) — `result.json` first (each page's size,
+text and OCR words with their boxes), then each page's PNG at 256 and
+1,600 px in order, then a join's PDF, sealed as it comes (never held
+whole in the node's memory); the pages it was given (a join's photos, an
+image's one; a PDF's own), regular files only, each within its bound,
+words' boxes on their page, text cleaned of controls and of the search's
+marks, every image decoded and drawn again from its pixels. Anything else
+refuses the whole reading. A PDF page with text of its own is read from it (`pdftotext`),
+one without is drawn at 300 dpi and read by Tesseract; images and HEIC
+photos are read by Tesseract, which draws them into a PDF that gives
+their pages' images.
+
+Files reads documents as they come (`Store.Reading`, woken by each
+addition, every 30 minutes for a retry), one at a time, the documents
+tried least first: PDF, images and
+plain text (read by the node itself, its first MiB). A reading is of a
+blob (`readings`: its state, its text, its words by page, a `tsvector`
+of French and English without accents), and its pages' images are blobs
+of their own, sealed under keys of their own (`pages`), gone with their
+content (`unnamed`, `orphans`, the purge's second pass). A hostile answer
+makes the document unreadable at once and keeps nothing; a run that
+fails (killed, cut) is tried three times; a full volume takes no try (the
+document waits for room). Without the reader's pin, the
+search reads names and plain text only. `GET
+/api/files/documents/{id}/pages/{n}?size=` serves a page's image as a
+journaled preview (`image/png`, `nosniff`, a sandbox CSP, never cached).
+`POST /api/files/join` makes one PDF of photos of a folder the member can
+edit, one join's reader at a time (the next waits its turn, beside the
+background reading's one), the photos to Recently removed (their Undo is a restore); the phone's
+Add → Camera keeps each photo as a page of a scan (Add page, Done) and
+joins them.
+
+**The search** (`Store.Search`, `GET /api/search`, `/api/v1/search` for
+agents): one query, its access in the `WHERE` of each part (`visible`:
+the folder and every folder above it in place, a grant on it or above,
+or the owner), so a row the member cannot open is never ranked, counted
+or excerpted; names by their words or close to them (`pg_trgm`), read
+text by `websearch_to_tsquery` in both languages; 20 results, never a
+total; an excerpt (`ts_headline`, over the text indexed only: its first
+400,000 characters) with its matches between U+E000 and U+E001, which no
+kept text holds; a folder's parent named only when seen.
+⌘K (`components/Shell.tsx`, `AppSearch`) shows them under the apps,
+each leading to `/files/<folder>/<document>`.
+
+Not built yet (the spec's F5): the VM proof (the reader on real scans in
+the lab) and Settings → Storage's Files row.
 
 ## Contract map
 
@@ -4533,7 +5389,7 @@ map, then what remains to be done.
 | (always) | `chest.organization.name`, `chest.timeZone`, `chest.language`, `chest.currency`, `chest.today()`, `chest.tool.teamUrl`, `chest.tool.publicUrl` (`chest.ts`) | `CHEST_ORGANIZATION`, `CHEST_TIME_ZONE`, `CHEST_LANGUAGE`, `CHEST_CURRENCY`, `CHEST_TEAM_URL`, `CHEST_PUBLIC_URL` at each start, every server tool awake started again when one changes; the zone is also its database role's `timezone` |
 | (development) | `chest check` (`@argentic/chest-check`, a devDependency: `check/src/cli.ts`, bin `chest`) | the Chest's validator (`cmd/chest-check`) in WebAssembly, `check/check.wasm.gz`, written with `contract/contract.json` by `scripts/build-contract.mjs`; nothing reached |
 | (variables) | `process.env` | Variables tab; `DATABASE_URL` and `PG*` refused to a tool that has a database |
-| `network` | `fetch`, `node:http(s)` via `HTTP(S)_PROXY` | Chest proxy, log, Network tab |
+| `network` | `fetch`, `node:http(s)` via `HTTP(S)_PROXY` | Chest proxy, connection history in Diagnostic |
 | `database` | `databaseUrl()` | a PostgreSQL of the tool's own (its cluster, a database and a role), bounded on the workload volume; `migrations/*.sql` run before a version's switchover, recorded in `chest_migrations`; a failure keeps the version in service; size measured, shown |
 | `sealed` | `seal`, `sealMany`, `open`, `openMany`, `isSealed` (`sealed.ts`, `CHEST_API`) | values sealed under the tool's key, kept sealed in its database; opened for the member of a request (`Chest-Opener`) who has the tool and one of the value's roles, in its context; every open journaled, the owner's totals; shown “Sealed” everywhere else; every version approved by the owner or an admin |
 | `files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url` (thumbnail, download), `uploadUrl` (`files.ts`, `CHEST_API`) | the tool's private files on the workload volume, 32 MiB per object unless `files` in the manifest asks otherwise (up to 512 MiB), no quota nor count; `url` signs a 15-min link served by the team host; `uploadUrl` authorises one browser upload straight to the Chest (single use, 15 min); thumbnails of images; the Storage view and its journal. `uploadUrl(folder, {public: true, types})` a visitor's upload of the public part, its type recognised by content, paced per visitor, private to the members; `StorageFull` when the workload volume is full. Public files are not built |
@@ -4560,10 +5416,11 @@ map, then what remains to be done.
   `deliver` delivers a member's or a tool's event and `run` a run of a
   schedule, signed as the Chest signs them; `emitted` lists what the tool
   emitted, checked against the `emits` it is given).
-- **A server tool's page**: Overview (including the space used: database and
-  files), Access, Deployments, Logs, Data (the database), Settings — General,
-  Public (including custom domains, for whoever administers the Chest),
-  Variables, Network.
+- **A server tool's page**: application sheet (status, updates, optional version
+  history), Share (internal access first, declared public publishing separately),
+  optional Configuration (declared environment inputs and AI budget), Actions
+  (declared schedules and events), Diagnostic (logs, connections, execution
+  failures), and Advanced data (authorized database/file explorers).
 - **Names** (“Tool names”): a tool's name is the identifier of its data
   (database, files, variables, access). Name chosen at installation;
   **replacing the source** (another repository, a fork) creates a version
