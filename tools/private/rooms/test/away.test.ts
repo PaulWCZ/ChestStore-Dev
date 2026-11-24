@@ -80,6 +80,25 @@ test("an event of another shape is accepted and changes nothing", async () => {
   assert.equal(await told("leave.approved", { member: "someone", from: "x", to: "y", request: "1" }), 204);
 });
 
+// Event types name no tool in 0.7.0: a leave.* type is Leave's word only
+// when Leave (the event's source) told it. And Leave's own shape, exactly
+// as it emits it (its lib/share.ts: halves "am" | "pm"), is read.
+test("a leave.* type told by another tool changes nothing; Leave's own shape marks the days", async () => {
+  const { sql } = database;
+  const a = workday(11);
+  const desk = await desks.bookDesk(sql, asMember(hugo), { deskId: o.desks[2], day: a }, zone);
+  const data = { member: hugo.id, from: a, to: a, fromHalf: "am", toHalf: "pm", request: "source-1" };
+  assert.equal(await chest.deliver({ type: "leave.approved", source: "hiring", data }, POST), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "office", "not Leave's word: the desk's day stays");
+  const [still] = await sql`select cancelled_at from desk_bookings where id = ${desk.id}`;
+  assert.equal(still!["cancelled_at"], null, "the desk stays booked");
+  assert.equal(await told("leave.approved", data), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "off");
+  // Nor may another tool take it back.
+  assert.equal(await chest.deliver({ type: "leave.cancelled", source: "people", data }, POST), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "off");
+});
+
 // Leave shortens a leave as leave.cancelled then leave.approved for the
 // days that remain — the same request, the same moment (its README, "With
 // the other tools"). Events come at least once, not always in order: Rooms
