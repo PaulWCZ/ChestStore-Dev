@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "hiring",
   "title": "Hiring",
   "description": "Publish your jobs on your careers page, Google and Indeed, and hire together: one board per job, CVs, emails, interviews.",
@@ -18,11 +18,115 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime",
+    "sealed"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "booking.busy",
+    "leave.busy"
   ],
+  "emits": {
+    "hiring.hired": {
+      "description": "A candidate is hired",
+      "data": {
+        "candidate": "id",
+        "name": "text",
+        "email": "text?",
+        "job": "text",
+        "team": "text?",
+        "place": "text?",
+        "startDate": "date?",
+        "hiredBy": "member"
+      }
+    },
+    "hiring.hire-cancelled": {
+      "description": "A hire is taken back",
+      "data": {
+        "candidate": "id"
+      }
+    },
+    "hiring.busy": {
+      "description": "A member's interviews change: their busy times",
+      "data": {
+        "member": "member",
+        "at": "time",
+        "from": "time",
+        "to": "time",
+        "spans": "text"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "team",
+        "join": [
+          "recruiter",
+          "interviewer"
+        ]
+      }
+    ],
+    "feeds": [
+      {
+        "table": "jobs",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "stages",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "candidates",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "notes",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "feedback",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "messages",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "interviews",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "interview_requests",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "cleanup",

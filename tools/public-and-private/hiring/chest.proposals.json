@@ -4,18 +4,8 @@
   },
   "calendar": true,
   "files": {
-    "publicUploads": true,
     "publicFiles": true
   },
-  "emits": [
-    "hiring.hired",
-    "hiring.hire_cancelled",
-    "hiring.busy"
-  ],
-  "receives": [
-    "booking.busy",
-    "leave.busy"
-  ],
   "translations": {
     "fr": {
       "title": "Recrutement",

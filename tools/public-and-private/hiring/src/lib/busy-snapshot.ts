@@ -6,11 +6,16 @@
 // already given away. Leave speaks it too ("leave.busy": the days someone
 // is off), and both hear it. Pure: no database, no SDK.
 //
-// The event's data, a snapshot:
+// The event's data, a snapshot — flat fields of declared kinds (contract
+// 0.7 carries no list), the spans as one JSON text:
 //
-//   { v: 1, member: "mbr_…", at: "2026-09-29T21:04:12.345Z",
-//     from: "2026-09-29T00:00Z", to: "2026-12-28T00:00Z",
-//     spans: [["2026-09-30T08:00Z", "2026-09-30T09:00Z"], …] }
+//   member: member   "mbr_…"
+//   at:     time     "2026-09-29T21:04:12.345Z"
+//   from:   time     "2026-09-29T00:00:00.000Z"
+//   to:     time     "2026-12-28T00:00:00.000Z"
+//   spans:  text     '[["2026-09-30T08:00Z","2026-09-30T09:00Z"],…]'
+//
+// Its subject is the member (one member's snapshots arrive in order).
 //
 // - Only times: never who, what, where. A span is busy from its start to
 //   its end (minutes, UTC), sorted, never overlapping.
@@ -54,6 +59,14 @@ export function busySnapshot(member: string, spans: Span[], now: number): BusySn
   return { v: 1, member, at: new Date(now).toISOString(), from: minuteText(from), to: minuteText(to), spans: merged.map(s => [minuteText(s.start), minuteText(s.end)]) };
 }
 
+// busyData: the snapshot as the event carries it (the spans as JSON text;
+// 300 spans of 36 characters fit the Chest's 16 KiB).
+export function busyData(s: BusySnapshot): Record<string, string> {
+  // RFC 3339 instants (with seconds) for the kind "time".
+  const instant = (minute: string) => new Date(Date.parse(minute)).toISOString();
+  return { member: s.member, at: s.at, from: instant(s.from), to: instant(s.to), spans: JSON.stringify(s.spans) };
+}
+
 // The snapshot's fingerprint, its time aside: the same busy times told
 // twice are told once.
 export const busyFingerprint = (s: BusySnapshot) => JSON.stringify([s.member, s.from, s.to, s.spans]);
@@ -64,12 +77,20 @@ export function readBusy(data: unknown): { at: Date; from: Date; to: Date; spans
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const d = data as Record<string, unknown>;
   const time = (value: unknown) => (typeof value === "string" && instantPattern.test(value) ? Date.parse(value) : NaN);
-  if (d["v"] !== 1 || typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
+  if (typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
   const at = time(d["at"]), from = time(d["from"]), to = time(d["to"]);
   if (!Number.isFinite(at) || !Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > busyLimits.readDays * day) return null;
-  if (!Array.isArray(d["spans"]) || d["spans"].length > busyLimits.readSpans) return null;
+  let listed: unknown;
+  try {
+    // Contract 0.7 carries the spans as JSON text; a list is read too
+    // (a tool that sends one, as Booking may).
+    listed = Array.isArray(d["spans"]) ? d["spans"] : typeof d["spans"] === "string" && d["spans"].length <= 64 * 1024 ? JSON.parse(d["spans"]) : null;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(listed) || listed.length > busyLimits.readSpans) return null;
   const spans: Span[] = [];
-  for (const pair of d["spans"] as unknown[]) {
+  for (const pair of listed as unknown[]) {
     if (!Array.isArray(pair) || pair.length !== 2) return null;
     const start = time(pair[0]), end = time(pair[1]);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || start < from || end > to) return null;

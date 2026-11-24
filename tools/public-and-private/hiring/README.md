@@ -45,8 +45,11 @@ decides together.
   sentence, not a box to tick: applying rests on steps before a contract,
   not on consent), and an optional box *Keep me in mind for other jobs*
   (the talent pool).
-  The CV goes from the browser to the Chest (Proposal *public uploads*); the
-  tool checks its type, size and first bytes before keeping it. No captcha:
+  The CV goes from the browser to the Chest (SDK 0.7.0's visitors'
+  uploads: a path of the page's own address, the Chest names the file);
+  the Chest recognises it by its bytes (PDF, Word .docx, a photo — an old
+  .doc only from a recruiter) and the tool checks its type and size again
+  before keeping it. No captcha:
   a honeypot, a single-use token bound to the action, a proof of work the
   browser computes in a fraction of a second (the package's `bound.work`:
   sending an application needs JavaScript), and counters.
@@ -149,8 +152,9 @@ decides together.
   for feedback; whoever asked hears when it is given.
 - **GDPR / CNIL**: candidates are deleted with their CV and their emails'
   files 2 years (or 1 year, 6 months: *Settings*) after their last news
-  (a message sent, a move, an interview), every night (Proposal *schedules*); CVs
-  sent but never claimed go after a day; every bell item that named a
+  (a message sent, a move, an interview), every night (the `cleanup`
+  schedule); CVs sent but never kept with an application go after a day
+  (the Chest keeps a visitor's upload until the tool deletes it); every bell item that named a
   deleted candidate is withdrawn (new, asked, bounced, feedback
   given, an interview today, chosen, given back or called off); a file
   the Chest could not delete then is kept in `files_gone` and deleted by
@@ -281,14 +285,40 @@ a token bound to its action, and for `apply` a proof of work:
 
 ## On a Chest
 
-Contract 0.4 (`chest.json`): capabilities `database`, `files`,
-`members`, `notifications`; receives `member.*`; schedules `cleanup`
-(03:25), `outbox` (every 15 minutes) and `morning` (07:40 on weekdays), in
-the Chest's zone. Proposals (in `chest.proposals.json` until a Chest
-accepts them): `mail.send` (to candidates only), `calendar`,
-`files.publicUploads` and `files.publicFiles` (visitors' CVs, logo,
-photos), `emits` (`hiring.hired`, `hiring.hire_cancelled`, `hiring.busy`),
-`receives` (`booking.busy`, `leave.busy`) and the tile's French words. When a member loses access or leaves, they are
+Contract 0.7 (`chest.json`, SDK 0.7.0): capabilities `database`, `files`,
+`members`, `notifications`, `realtime` (the team's pages are live: channel
+`team` for recruiters and interviewers, feeds of ids on jobs, stages,
+candidates, notes, feedback, emails, interviews and time links — what a
+member may see is still the page's read; no timer, so Hiring sleeps while
+pages stay open) and `sealed` (below); receives `member.*`, `booking.busy`,
+`leave.busy`; emits `hiring.hired`, `hiring.hire-cancelled`, `hiring.busy`
+with their fields; schedules `cleanup` (03:25), `outbox` (every 15
+minutes) and `morning` (07:40 on weekdays), in the company's zone.
+Proposals (in `chest.proposals.json`, not in 0.7.0): `mail.send` (to
+candidates only), `calendar`, `files.publicFiles` (the careers page's logo
+and photos) and the tile's French words.
+
+**Sealed**: candidates' private notes and the words of feedback
+(strengths, concerns) are sealed by the Chest (`src/lib/sealing.ts`): the
+database, the owner, the admins, the Data tab, the agents, the logs and
+the backups see "Sealed"; Hiring opens them only on a member's request,
+for the page or the export they asked for, after its own rules chose what
+they may see (an interviewer: the jobs they are on; others' feedback once
+they gave theirs) — every open journaled by the Chest. Who wrote, when,
+the rating and the recommendation stay in clear (lists, averages). Each
+value is bound to its candidate. Notes written before are sealed by the
+nightly `cleanup`. A Chest that cannot seal refuses a new note ("not
+available"): it is never kept in clear instead. Migration
+`0009_sealed_texts.sql` only widens the columns' bounds (a sealed value is
+longer than its words). `chest check` still warns on
+`0007_files_gone.sql` (it drops a table without the contract marker):
+shipped before, never edited.
+
+**The currency of salaries** is Hiring's own (*Settings*: the country's
+currency until chosen, else the euro); every job keeps its own code; no
+total adds salaries.
+
+When a member loses access or leaves, they are
 taken off their jobs and no longer asked for feedback; what they wrote stays
 under "(former member)". On erasure, their id goes from notes, feedback,
 history (including "asked X for feedback" and interviews' people), jobs,
@@ -298,21 +328,31 @@ acknowledged.
 
 ## With the other tools
 
-Through the *events between tools* proposal (`chest.proposals.json`
-`"emits"`), once an admin of the Chest linked Hiring to People — the Chest's
-decision, never the tool's:
+Through SDK 0.7.0's events between tools (`chest.json` `"emits"`, each
+type with its fields), once the owner approved the link — the Chest's
+decision, never the tool's. Contract 0.7 carries flat fields of declared
+kinds only:
 
 | Event | When | Data |
 |---|---|---|
-| `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `{ candidate, name, email, job, team, place, startDate, hiredBy }` — key `hiring:<candidate>:hired:<time of the move>` |
-| `hiring.hire_cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `{ candidate }` — key `hiring:<candidate>:cancelled:<time>` |
-| `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `{ v: 1, member, at, from, to, spans: [[start, end], …] }` (UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
+| `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `candidate` (id), `name`, `email?`, `job`, `team?`, `place?` (text), `startDate` (date?), `hiredBy` (member) — key `hiring:<candidate>:hired:<time of the move>` |
+| `hiring.hire-cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `candidate` (id) — key `hiring:<candidate>:cancelled:<time>`. **Renamed** from `hiring.hire_cancelled`: 0.7.0 refuses an underscore in a type; People and Goals must hear the new name |
+| `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `member` (member), `at`, `from`, `to` (time), `spans` (text: JSON `[[start, end], …]`, UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
+
+Each event's subject is its candidate or member (a receiver gets them in
+order). Audience: `hiring.hired` and `hiring.hire-cancelled` are for the
+recruiters (an interviewer sees only the jobs they are on), so People shows
+a hire only to those of its members who are Hiring's recruiters;
+`hiring.busy` is for everyone with a role in Hiring.
 
 **What Hiring hears** (`"receives": ["booking.busy", "leave.busy"]`):
 Booking's snapshot of a host's busy times, and Leave's of the days a
 member is off (approved leave, whole days or halves in the Chest's time
 zone — never the kind of leave, which Leave never sends), in the same
-shape (`src/lib/busy-snapshot.ts`, the same file in each tool). Both go to
+shape (`src/lib/busy-snapshot.ts`: `spans` as JSON text, or a list).
+Their audience narrows nothing here: busy times are never shown to anyone
+but as times taken out of an offer (and, for the recruiter choosing a time,
+as "busy"). Both go to
 one handler (`takeBusy`), kept per tool and member, the latest by `at`
 only (`told_busy`, `told_spans`); a candidate choosing their time is never
 offered those times, and in *I choose the time* the recruiter sees them
@@ -374,17 +414,17 @@ with its candidate and given to them in their data.
 
 ## Needs from the SDK
 
-The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.7). The
-needs below are proposals of the studio's working copy; the tool calls
-them as if shipped and keeps working without them:
+The tool is built on SDK 0.7.0 + the studio's proposals (0.7.0-studio.2)
+and `@argentic/chest-app` 0.1.0-studio.12. 0.7.0 gives visitors' uploads,
+events between tools, `notifications.broadcast` with `translations`,
+`sealed`, `realtime` and the schedules. The needs below are proposals of
+the studio's working copy; the tool calls them and keeps working without
+them:
 
-- **Public uploads and public files** (`files.publicUploadUrl`,
-  `files.claim`, `files.publicPath`): a visitor's CV goes straight to the
-  Chest, which answers the browser with a claim; the application claims it
-  (type, size and first bytes checked before it is kept), and an unclaimed
-  upload is dropped by the Chest after a day. Without public uploads the
-  form asks for a link to the CV instead; without public files the careers
-  page shows the company's name, no logo or photos.
+- **Public files** (`files.publicPath`): the careers page's logo and
+  photos, served by the Chest. Without them the careers page shows the
+  company's name, no logo or photos. (Visitors' CVs are SDK 0.7.0's:
+  without the `files` permission, the form asks for a link instead.)
 - **Mail to people outside** (`mail.send`, `mail.available`,
   `mail.status`; see "Mail to people outside the company"): without it,
   a written email is kept as "not sent" and the recruiter's own mail app
@@ -395,16 +435,13 @@ them as if shipped and keeps working without them:
   mail; Hiring asks `mail.available()` again to tell them apart (else an
   email would read "Leaving soon" for weeks). A distinct error
   (`NotConnected`) would spare that question.
-- **Notifications**: a notice's `translations` and `broadcast` —
-  proposals announced for 0.5. Without broadcast, the tool lists its
-  recruiters (`members.list` by role) and notifies them.
 - **Calendar** (`calendar.put/remove`, `calendar.ics`): without it, each
   interview offers "Add to my calendar" (an `.ics` with the same UID).
 - **Schedules** (`cleanup`, `outbox`, `morning`): without them the
   retention does not run by itself, a rejection email leaves at the next
   page a recruiter opens after its Undo, bounces are not learnt, and
   there is no morning reminder.
-- **Visitors**: a contract-0.4 Chest names no visitor. The public
+- **Visitors**: a Chest of contract 0.7 names no visitor. The public
   actions are bounded by the package's `bound` in the tool's own table
   (`chest_bounds`), a day in the Chest's zone (`publicBounds` in
   `src/actions.ts`), with a form at least 3 s old and a honeypot; never a
@@ -429,11 +466,9 @@ them as if shipped and keeps working without them:
   card, a bell item and a confirmation email (greeted "Hello," when the
   name holds a link or an address). A guessed interview link spends a
   budget of its own and is never a refusal: it never closes a real link.
-  Naming visitors by their address (the studio's proposal
-  `Chest-Visitor-Address`) would make all of this per person.
-- **Events between tools** (`events.publish`, `receives`): without them,
-  People is not told of hires, Booking does not see interviews, and free
-  times come from Hiring's interviews only (no Booking, no days off).
+  Naming visitors (the studio's proposal, the Chest-held `Chest-Visitor`
+  key) would make all of this per person.
+- **Calendar** stays a proposal: 0.7.0 has no calendar feed.
 - **Chest settings** (`chest.tool.publicUrl`, `chest.tool.teamUrl`;
   official since 0.3.0: `chest.organization.name`, `chest.timeZone`, `chest.language`):
   the company name by default, the careers page's address, the zone of
@@ -478,6 +513,9 @@ upload one.
   outbound network). Whether Google indexes a given careers page, and
   whether a real Chest's public host adds its own `X-Robots-Tag`, was not
   verified (no crawler reaches the studio).
+- **Sealed notes in a search**: notes and feedback are sealed, so search
+  finds candidates by name, address, phone, letter and answers — never by
+  a word of a note (it never did).
 - **Free times** come from Hiring's interviews, what Booking tells
   (its bookings and the Google/Outlook/Apple calendars a host connected
   there) and the days off Leave tells (approved leave only: a request

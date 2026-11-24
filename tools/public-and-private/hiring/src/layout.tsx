@@ -10,9 +10,9 @@ import { PublicShell } from "./pages/public-shell.tsx";
 //
 // The team's frame, in the kit's shell: the sections as labelled tabs (a
 // row of their own on a phone), the search ("/" focuses it), who is signed
-// in — and the page read again while it is seen (the Chest has no
-// WebSocket: AutoRefresh, the package's useAutoRefresh, which stops when
-// the reader is idle so the tool may sleep). A job's board, a candidate,
+// in — and the page read again when the Chest says something it shows
+// changed (LiveTeam: SDK 0.7.0's realtime, no timer; the tool sleeps while
+// pages stay open). A job's board, a candidate,
 // the emails to file and a search are parts of "Jobs": its tab stays
 // current there. A member whose role gives nothing sees why, not an error.
 //
@@ -45,7 +45,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
         labels={{ skip: t.shell.skip, nav: t.shell.nav }}
         width="wide"
       >
-        {role && <Island name="AutoRefresh" props={{ seconds: 30 }} />}
+        {role && <Island name="LiveTeam" props={{}} />}
         {notice && <p className="notice" role="alert">{notice}</p>}
         {role ? children : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
       </AppShell>

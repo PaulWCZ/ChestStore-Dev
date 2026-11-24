@@ -4,7 +4,7 @@ import * as files from "@argentic/chest-sdk/files";
 import { AppError } from "../shared/app-error.ts";
 import type { Cv } from "./candidates.ts";
 import { sign, verify } from "./signature.ts";
-import { clean, cvTypes, isCvType, limits, type CvType } from "../shared/model.ts";
+import { clean, cvTypes, isCvType, isVisitorCvType, limits, type CvType } from "../shared/model.ts";
 import { db, type Query } from "./db.ts";
 
 // CVs, in three steps around the browser's own upload to the Chest:
@@ -14,30 +14,33 @@ import { db, type Query } from "./db.ts";
 //    - a recruiter's (team): the tool names the file (uploads/team/…) and
 //      hands the browser the address and a ticket, the name signed by the
 //      tool;
-//    - a visitor's of the careers page (public: Proposal (studio),
-//      files.publicUploadUrl): a path on the host the page is on — the
-//      public host, or the company's own domain once connected —, whose
-//      answer to the browser is a claim, never the object's name;
+//    - a visitor's of the careers page (SDK 0.7.0: files.uploadUrl into
+//      the folder uploads/public/ with public: true): a path on the host
+//      the page is on — the public host, the company's own domain, or a
+//      site that frames the page —; the Chest names the file (20 random
+//      hex characters) and answers that name to the browser;
 // 2. the browser sends the file to the Chest, never through the tool;
-// 3. accept (a ticket) or take (a claim): with the application, the ticket
-//    or the claim comes back; the tool checks the signature, or trades the
-//    claim once (a visitor can only attach what they sent themselves),
-//    then what the Chest says of the file — of a CV's type, 10 MiB at
+// 3. accept (a ticket) or take (a name): with the application, the ticket
+//    or the name comes back; the tool checks the signature, or that the
+//    name is one of the visitors' folder and the Chest holds it, and
+//    takes it once (the move: a second application naming it finds
+//    nothing), then what the Chest says of the file — of a CV's type, 10 MiB at
 //    most — and moves it to cv/. Its first bytes were checked by the
 //    Chest when it took the upload (an address names its types; a file
 //    whose first bytes are not of its type is refused, type_mismatch): the
 //    tool never reads a CV to accept it, so a burst of applications costs
-//    no memory. A file that fails is deleted. A visitor's upload nobody claims is deleted by the Chest
-//    after a day (expiresUnclaimedAfter); a recruiter's, by the nightly
-//    cleanup (sweep).
-// A ticket names a recruiter's upload (team); a visitor's is a claim.
+//    no memory. A file that fails is deleted. An upload nobody took — a
+//    visitor's or a recruiter's — is deleted by the nightly cleanup after
+//    a day (sweep): the Chest keeps a visitor's until the tool deletes it.
+// A ticket names a recruiter's upload (team); a visitor's is the name the
+// Chest gave it.
 export type Kind = "team";
 const ticketLife = 2 * 3600 * 1000;
 
 // A CV's type and size as the browser says them, checked before the Chest
 // is asked anything.
-function checked(type: unknown, size: unknown): CvType {
-  if (!isCvType(type)) throw new AppError("cv_invalid");
+function checked(type: unknown, size: unknown, kind: "team" | "public" = "team"): CvType {
+  if (!isCvType(type) || (kind === "public" && !isVisitorCvType(type))) throw new AppError("cv_invalid");
   if (typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0) throw new AppError("cv_invalid");
   if (size > limits.cvSize) throw new AppError("cv_too_large");
   return type;
@@ -58,14 +61,15 @@ export async function grant(kind: "team", type: unknown, size: unknown, now = Da
   }
 }
 
-// publicGrant: a visitor's upload (Proposal (studio): files.publicUploadUrl)
-// — a path of the host the page is on, for one CV; unclaimed, the Chest
-// deletes it after a day. A Chest without public uploads throws
-// CapabilityNotGranted: the form then asks for a link instead (cv_off).
+// publicGrant: a visitor's upload (SDK 0.7.0) — a path of the host the
+// page is on, for one CV of a type the Chest recognises by its bytes (no
+// old .doc: visitorCvTypes); not taken, the nightly sweep deletes it after
+// a day. A Chest without files throws CapabilityNotGranted: the form then
+// asks for a link instead (cv_off).
 export async function publicGrant(type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
-  const cvType = checked(type, size);
+  const cvType = checked(type, size, "public");
   try {
-    const up = await files.publicUploadUrl("uploads/public/", { types: [cvType], maxSize: limits.cvSize, expiresIn: 900, expiresUnclaimedAfter: 86400 });
+    const up = await files.uploadUrl("uploads/public/", { public: true, types: [cvType], maxSize: limits.cvSize, expiresIn: 900 });
     return { url: up.url, expiresIn: up.expiresIn };
   } catch (error) {
     if (error instanceof TooLarge) throw new AppError("cv_too_large");
@@ -73,23 +77,23 @@ export async function publicGrant(type: unknown, size: unknown): Promise<{ url: 
   }
 }
 
-// What a visitor's form sends for their CV: the claim their browser got.
-export const claimPattern = /^[A-Za-z0-9_-]{16,128}\.claim$/u;
+// What a visitor's form sends for their CV: the name the Chest gave it.
+export const uploadedPattern = /^uploads\/public\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u;
 
-// take trades a visitor's claim for their file, once, and keeps it as a
-// CV (cv/…), checked like a recruiter's. Anything else is cv_missing.
-export async function take(claim: unknown, fileName: unknown): Promise<Cv> {
-  if (typeof claim !== "string" || !claimPattern.test(claim)) throw new AppError("cv_missing");
+// take keeps a visitor's upload as a CV (cv/…), once, checked like a
+// recruiter's. Anything else is cv_missing.
+export async function take(name: unknown, fileName: unknown): Promise<Cv> {
+  if (typeof name !== "string" || !uploadedPattern.test(name)) throw new AppError("cv_missing");
   try {
-    let held: files.FileObject;
+    const held = await files.stat(name);
+    if (!held) throw new AppError("cv_missing");
     try {
-      held = await files.claim(claim);
+      return await keep(name, held.type, held.size, fileName, "cv");
     } catch (error) {
+      // Taken meanwhile by another application (the move found nothing).
       if (error instanceof ChestError && error.code === "not_found") throw new AppError("cv_missing");
       throw error;
     }
-    if (!held.name.startsWith("uploads/public/")) throw new AppError("cv_missing");
-    return await keep(held.name, held.type, held.size, fileName, "cv");
   } catch (error) {
     if (error instanceof AppError) throw error;
     if (error instanceof ChestError) throw new AppError("unavailable");
@@ -224,9 +228,9 @@ export async function copy(object: string, folder: Folder = "cv"): Promise<Cv | 
 }
 
 // sweep deletes the uploads nobody kept within a day: a recruiter who
-// sent a file then left the page. A visitor's unclaimed upload is the
-// Chest's to delete (expiresUnclaimedAfter); one claimed and left (a
-// refused application) is deleted here too.
+// sent a file then left the page, a visitor who never sent the form (or a
+// robot). SDK 0.7.0 keeps a visitor's upload until the tool deletes it:
+// this sweep is the only one.
 export async function sweep(now = new Date()): Promise<number> {
   let gone = 0;
   for (const prefix of ["uploads/public/", "uploads/team/"]) {

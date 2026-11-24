@@ -1,19 +1,27 @@
 import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
-import { busyFingerprint, busySnapshot, readBusy, type Span } from "./busy-snapshot.ts";
+import { busyData, busyFingerprint, busySnapshot, readBusy, type Span } from "./busy-snapshot.ts";
 import type { Query, Sql } from "./db.ts";
 import { isMemberId } from "../shared/model.ts";
 
-// What Hiring tells the other tools of the Chest (Proposal (studio): events
-// between tools; chest.proposals.json "emits"), once an admin linked them:
-// a hire becomes a newcomer in People. It carries the person's name and
-// address — they are about to join the company — and nothing of the
-// application (no CV, no notes, no feedback, no rating). A courtesy: when
-// the Chest cannot take it, the move in Hiring still stands.
+// What Hiring tells the other tools of the Chest (events between tools,
+// SDK 0.7.0; chest.json's "emits", each type with its fields), once the
+// owner approved the link: a hire becomes a newcomer in People. It carries
+// the person's name and address — they are about to join the company —
+// and nothing of the application (no CV, no notes, no feedback, no
+// rating). A courtesy: when the Chest cannot take it, the move in Hiring
+// still stands.
 //
-// hiring.hired:          { candidate, name, email, job, team, place, startDate, hiredBy }
-// hiring.hire_cancelled: { candidate }
+// hiring.hired:          candidate: id, name: text, email: text?, job: text,
+//                        team: text?, place: text?, startDate: date?, hiredBy: member
+// hiring.hire-cancelled: candidate: id   (was hiring.hire_cancelled: 0.7.0
+//                        refuses an underscore in a type; People hears the new name)
+//
+// Their subject is the candidate (a receiver gets one candidate's events in
+// order: hired, then cancelled); their audience the recruiters — who in
+// Hiring sees every hire (an interviewer sees only the jobs they are on):
+// a receiver shows them to those of its members only.
 export type Hire = {
   candidate: string;
   name: string;
@@ -25,9 +33,14 @@ export type Hire = {
   hiredBy: string;
 };
 
-async function publish(type: "hiring.hired" | "hiring.hire_cancelled" | "hiring.busy", data: Record<string, unknown>, key: string): Promise<boolean> {
+export const hireAudience = { roles: ["recruiter"] };
+// A member's busy times: times only, for everyone in Hiring with a role
+// (the receiver only takes them out of what it offers).
+export const busyAudience = { roles: ["recruiter", "interviewer"] };
+
+async function publish(type: "hiring.hired" | "hiring.hire-cancelled" | "hiring.busy", data: Record<string, unknown>, key: string, options: { subject?: string; audience?: { roles: string[] } } = {}): Promise<boolean> {
   try {
-    await events.publish(type, data, { key });
+    await events.emit(type, data, { key, ...options });
     return true;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
@@ -38,12 +51,12 @@ async function publish(type: "hiring.hired" | "hiring.hire_cancelled" | "hiring.
 // hired: the key carries the time of the move, so hired, taken back, hired
 // again is two events (the same move told twice is one).
 export async function hired(h: Hire, at: string): Promise<boolean> {
-  return publish("hiring.hired", { ...h, email: h.email || null, team: h.team || null, place: h.place || null }, `hiring:${h.candidate}:hired:${Date.parse(at)}`);
+  return publish("hiring.hired", { ...h, email: h.email || null, team: h.team || null, place: h.place || null }, `hiring:${h.candidate}:hired:${Date.parse(at)}`, { subject: h.candidate, audience: hireAudience });
 }
 
 // hireCancelled: moved out of "hired", rejected after it, or erased.
 export async function hireCancelled(candidate: string, at = new Date()): Promise<boolean> {
-  return publish("hiring.hire_cancelled", { candidate }, `hiring:${candidate}:cancelled:${at.getTime()}`);
+  return publish("hiring.hire-cancelled", { candidate }, `hiring:${candidate}:cancelled:${at.getTime()}`, { subject: candidate, audience: hireAudience });
 }
 
 // ---- Busy times, with Booking --------------------------------------------
@@ -83,7 +96,7 @@ export async function shareBusy(sql: Query, memberIds: string[], now = Date.now(
     if (known.get(member) === hash) continue;
     // A member never told and with no interview: nothing to say.
     if (!known.has(member) && snapshot.spans.length === 0) continue;
-    if (!(await publish("hiring.busy", snapshot, `busy:${member}:${now}:${hash.slice(0, 8)}`))) return told;
+    if (!(await publish("hiring.busy", busyData(snapshot), `busy:${member}:${now}:${hash.slice(0, 8)}`, { subject: member, audience: busyAudience }))) return told;
     await sql`insert into shared_busy (member_id, hash, told_at) values (${member}, ${hash}, ${new Date(now)})
       on conflict (member_id) do update set hash = excluded.hash, told_at = excluded.told_at`;
     told++;
@@ -103,6 +116,9 @@ export async function shareDueBusy(sql: Query, now = Date.now()): Promise<number
 // takeBusy keeps a member's busy times as another tool told them: the
 // snapshot replaces that tool's earlier one, unless older. Says whether it
 // was kept.
+// The busy times are never shown to anyone: they only take times out of
+// what a candidate is offered (an offer reveals no one's agenda). So the
+// event's audience does not narrow who sees them: there is nothing to see.
 export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boolean> {
   const source = event.source;
   if (typeof source !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || source.length > 63 || source === "hiring") return false;

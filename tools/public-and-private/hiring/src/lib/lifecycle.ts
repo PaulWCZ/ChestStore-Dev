@@ -57,7 +57,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await forget(sql, memberId);
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
   return {
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": event => leave(sql, event.data.id),
