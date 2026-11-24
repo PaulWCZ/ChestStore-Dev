@@ -7,6 +7,7 @@ import { Island } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import { askWho, noSharing, sharingFor } from "../lib/audience.ts";
 import { listBoards } from "../lib/boards.ts";
+import { admit } from "../lib/live.ts";
 import { followBoards } from "../shared/live.ts";
 import { db } from "../lib/db.ts";
 import { newBoardWords } from "./MyTasks.tsx";
@@ -17,13 +18,15 @@ export async function boardsPage({ member, locale: language, t, query }: PageCon
   const archived = query("archived") === "1";
   const creates = !archived && can(member, "boards.create");
   const [boards, sharing] = await Promise.all([listBoards(db(), member, { archived }), creates ? sharingFor(member.id) : Promise.resolve(noSharing)]);
+  // The boards followed live: listBoards checked the member sees each.
+  const tickets = archived ? new Map<string, string>() : await admit(db(), boards.map(b => b.id), member.id);
   const newBoard = (look: { primary?: boolean; tile?: boolean }) => ({ t: newBoardWords(t), label: t.boards.new, sharing, locale, ...look });
   const words = { open: t.boards.open, mine: t.boards.mine, late: t.boards.late, private: t.boards.private };
   return {
     title: archived ? t.boards.archived : t.boards.title,
     body: (
       <div className="wide">
-        {!archived && <Island name="Live" props={{ follow: followBoards(boards.map(b => b.id)) }} />}
+        {!archived && <Island name="Live" props={{ follow: followBoards(tickets) }} />}
         <div className="hello">
           <h1>{archived ? t.boards.archived : t.boards.title}</h1>
           <div className="row">

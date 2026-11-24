@@ -11,6 +11,7 @@ import { chestToday } from "../lib/clock.ts";
 import { db, type Sql } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { grid, monthOf, shift, timelineDays, timelineStart, timelineStep, type CalendarMonth, type TimelineWindow } from "../shared/calendar.ts";
+import { admit } from "../lib/live.ts";
 import { followBoards } from "../shared/live.ts";
 import { addDays, nextDue, type Repeat } from "../shared/repeat.ts";
 
@@ -22,7 +23,8 @@ export async function boardPage({ member, locale: language, t, param, query, url
   const locale = localeOf(language);
   const sql = db();
   const b = await readBoard(sql, member, param("id")).catch((error: unknown) => (error instanceof AppError && error.code === "not_found" ? notFound() : Promise.reject(error)));
-  const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);
+  // tickets: readBoard checked the member sees the board: they may follow it live.
+  const [cols, labs, own, cards, audience, tickets] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b), admit(sql, [b.id], member.id)]);
   // Who the cards may be given to; unreadable when the Chest did not answer.
   const unreadable = audience === null;
   const everyone = audience ?? [];
@@ -90,7 +92,7 @@ export async function boardPage({ member, locale: language, t, param, query, url
     title: panel ? `${panel.title} · ${b.name}` : b.name,
     body: (
       <div className={`board-page c-${b.color}`}>
-        <Island name="Live" props={{ follow: followBoards([b.id]) }} />
+        <Island name="Live" props={{ follow: followBoards(tickets) }} />
         {cardGone && <p className="notice card-gone" role="status">{t.board.cardGone}</p>}
         {unreadable && <p className="notice" role="status">{t.peoplePicker.unreadable}</p>}
         <Island name="BoardView" props={{

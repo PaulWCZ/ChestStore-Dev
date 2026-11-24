@@ -46,7 +46,12 @@
   "realtime": {
     "channels": [
       {
-        "name": "board:*"
+        "name": "board:{id}",
+        "join": {
+          "table": "board_live",
+          "key": "board_id",
+          "member": "member_id"
+        }
       }
     ],
     "feeds": [

@@ -210,8 +210,9 @@ the tool's builders come in with the first role, `manager`.
   the tile's number); `realtime` (the open pages follow the boards);
   `receives: ["member.*"]`; `emits` `tasks.card.done` and
   `tasks.card.reopened`, each with its fields (Goals' "Cards done");
-  `realtime`: the channel `board:*` and the feeds `cards`, `columns`,
-  `labels`, `fields`, `boards` (ids only). Proposals (studio) in
+  `realtime`: the channel `board:{id}`, joined through the table
+  `board_live`, and the feeds `cards`, `columns`, `labels`, `fields`,
+  `boards` (ids only). Proposals (studio) in
   `chest.proposals.json`: `calendar: true` (each person's due dates in
   their Chest calendar feed) and `translations` (the store's words in
   French). No `mail`: Tasks mails no one (see "Mail to people outside the
@@ -254,6 +255,17 @@ one already late. Archiving a repeating card stops its series; choosing
 "Does not repeat" stops it too.
 - **Live without a timer**: a page of Tasks joins `board:<id>` of each
   board it shows (realtime: the Chest holds the connection, Tasks sleeps).
+  **Only who sees a board joins its channel**: the Chest checks the table
+  `board_live` at every join (migration 0009, the channel's `join`), where
+  Tasks writes a row once it has checked the member sees the board (the
+  board's page, *Boards*, *My tasks*). The rows go wherever that may have
+  changed — a board made team or private, a private board's people or
+  groups changed, the board deleted, the member's groups or role changed,
+  their access revoked, their departure or erasure — and the Chest takes
+  them out of the channel at once; their page reads itself again and is
+  let in again if still allowed (a new mark, so its live island joins
+  again). Nobody can join a private board's channel to learn when its
+  cards change.
   The Chest turns each committed row of `cards`, `columns`, `labels`,
   `fields` and `boards` into an event there, carrying ids only; a change
   inside a card (people, labels, steps, checklists, comments, files,
@@ -357,14 +369,9 @@ browser machinery) and `@argentic/chest-ui` (the kit), packed beside it.
 - **The store's words in French** (title, description, role names): 0.7.0
   has one language for them; the French ones wait in
   `chest.proposals.json` `translations`.
-- **A live channel per member, or per "who sees this board"**: 0.7.0's
-  `chest check` refuses a feed on a `{member}` channel, and no join rule
-  says "whoever sees this board" (a team board is everyone's, a private one
-  its people's, groups' and managers'). So `board:*` is open to every
-  member who has Tasks and carries ids only — a member who joins a private
-  board's channel by hand learns that some card id changed there, never
-  what —, and *My tasks* follows every board its reader sees rather than
-  only their own cards.
+- **A live channel per member**: 0.7.0's `chest check` refuses a feed on
+  a `{member}` channel, so *My tasks* follows every board its reader sees
+  (each through `board_live`) rather than only their own cards.
 - **To do items** (the contract's `todo` capability): no API in 0.7.0;
   due cards stay in the morning reminder and *My tasks*.
 - **The company's look**: none in 0.7.0; Tasks shows its own identity

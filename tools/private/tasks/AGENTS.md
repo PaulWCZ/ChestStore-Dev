@@ -11,7 +11,7 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.7): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives: ["member.*"]`; `emits` (`tasks.card.done`, `tasks.card.reopened`, each with its fields); `realtime` (channel `board:*`, feeds of `cards`, `columns`, `labels`, `fields`, `boards`, ids only); schedules `morning`, `retry`; `build.static: ["/assets/"]`. Proposals (studio) in `chest.proposals.json`: `calendar`, `translations` |
+| `chest.json` | Manifest (contract 0.7): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives: ["member.*"]`; `emits` (`tasks.card.done`, `tasks.card.reopened`, each with its fields); `realtime` (channel `board:{id}` joined through the table `board_live`, feeds of `cards`, `columns`, `labels`, `fields`, `boards`, ids only); schedules `morning`, `retry`; `build.static: ["/assets/"]`. Proposals (studio) in `chest.proposals.json`: `calendar`, `translations` |
 | `src/app.tsx` | Every route: `createApp` (actions, islands, words, layouts, `look` = the company's choice, `head`), the pages, the downloads, `/chest/files/<id>`, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | Every change, by name (`act()` = an action, then the calendars and the linked tools after the answer) |
 | `src/pages/` | `MyTasks`, `Boards`, `Board` (the board and the open card; the calendar's month and the timeline's window written here; `/chest/cards/<id>`), `Settings`, `Search`, `Import` |
@@ -26,6 +26,7 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 | `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (`notice()`: English with its French as `translations`; the Chest shows each member theirs) and badges |
 | `src/lib/repeats.ts`, `src/lib/morning.ts`, `src/lib/reminders.ts` | A repeating card's series; the weekday morning; the reminder's switch |
 | `src/lib/deliveries.ts` | What the Chest posts: events (`onEvent`) and schedule runs (`onSchedule`), each id kept (`chest_events`, 30 days) |
+| `src/lib/live.ts` | Who may join a board's live channel: `admit` (rows of `board_live` once a page checked the member sees the boards, and their marks), `forget` (wherever that may change) |
 | `src/lib/lifecycle.ts`, `src/lib/groups.ts` (the groups a board may be shared with; a member's groups when the Chest sends `null`), `src/lib/audience.ts`, `src/lib/people.ts`, `src/lib/export.ts`, `src/lib/importers.ts`, `src/lib/card-events.ts`, `src/lib/clock.ts`, `src/lib/db.ts` | Leaving and erasure; the Chest's groups that may share a board (`members.groups`, kept a minute); who sees a board; names (former, no access, erased); exports; writing an import; events to Goals; "today" in the Chest's zone; the database |
 | `src/shared/` | Rules used by the server **and** the islands, pure: `repeat.ts`, `calendar.ts` (and the month/timeline window types), `parse-import.ts`, `csv.ts`, `model.ts`, `markdown.ts`, `position.ts`. They refuse with `fail`/`AppError` from `@argentic/chest-app/client` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` (kept Intl objects, for pages and islands) |
@@ -151,8 +152,11 @@ npm ci && npm test && npm run build   # all three must pass
   `scheduledAt` on the company's zone. Tasks has no time-zone setting.
 - **Live pages** (realtime, `src/shared/live.ts`, `src/islands/Live.tsx`):
   a page others change shows `<Island name="Live" props={{ follow:
-  followBoards(ids) }} />`; never a timer. A feed carries ids only (the
-  channel `board:*` is open to every member). A new table whose rows a
+  followBoards(await admit(sql, ids, member.id)) }} />` (`src/lib/live.ts`:
+  only once the page checked the member sees those boards); never a timer.
+  Who may join `board:{id}` is the table `board_live` (migration 0009): a
+  new way to change who sees a board must call `forget` (as `updateBoard`,
+  `setPeople`, the member events do). A feed carries ids only. A new table whose rows a
   board shows: give it a `board_id` and a feed in `chest.json`, or, if it
   hangs off a card (`card_id`), a `tasks_touch_card` trigger (as
   `migrations/0008_live.sql`); `test/live.test.ts` checks both.

@@ -8,6 +8,7 @@ import { AppError } from "@argentic/chest-app";
 import { catalogue, locales, type Catalogue } from "../i18n/index.ts";
 import { clean, colors, groupPattern, id, isColor, isFieldKind, isTemplate, limits, memberIds, templates, type Color, type FieldKind, type Template } from "../shared/model.ts";
 import { between, isPosition, sequence } from "../shared/position.ts";
+import { forget } from "./live.ts";
 import { makeNext, takeBack } from "./repeats.ts";
 
 // Boards, their columns, labels and people. Every function takes the
@@ -133,7 +134,11 @@ export async function updateBoard(sql: Sql, actor: Member | null, boardId: unkno
   const name = input.name === undefined ? b.name : clean(input.name, limits.boardName);
   const color = input.color === undefined ? b.color : isColor(input.color) ? input.color : b.color;
   const visibility = input.visibility === undefined ? b.visibility : input.visibility === "private" ? "private" : "team";
-  await sql`update boards set name = ${name}, color = ${color}, visibility = ${visibility} where id = ${b.id}`;
+  await sql.begin(async tx => {
+    await tx`update boards set name = ${name}, color = ${color}, visibility = ${visibility} where id = ${b.id}`;
+    // Team or private: who follows it live is checked again (lib/live.ts).
+    if (visibility !== b.visibility) await forget(tx, { board: b.id });
+  });
 }
 
 // setPeople names who belongs to the board (a private board's audience) and
@@ -150,6 +155,9 @@ export async function setPeople(sql: Sql, actor: Member | null, boardId: unknown
     for (const p of people) await tx`insert into board_people (board_id, member_id, owner) values (${b.id}, ${p}, ${owners.includes(p)})`;
     await tx`delete from board_groups where board_id = ${b.id}`;
     for (const g of groups) await tx`insert into board_groups (board_id, group_id) values (${b.id}, ${g})`;
+    // A private board's people or groups changed: who follows it live is
+    // checked again (lib/live.ts). A team board's are everyone's anyway.
+    if (b.visibility === "private") await forget(tx, { board: b.id });
   });
 }
 

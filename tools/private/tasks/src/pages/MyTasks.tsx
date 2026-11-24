@@ -16,6 +16,7 @@ import { db } from "../lib/db.ts";
 import { calendarPage, calendarWorks, sync as syncCalendar } from "../lib/due-calendar.ts";
 import { reminderOn } from "../lib/reminders.ts";
 import { refreshBadges } from "../lib/tell.ts";
+import { admit } from "../lib/live.ts";
 import { followBoards } from "../shared/live.ts";
 import { dueState, type DueState } from "../shared/model.ts";
 
@@ -75,13 +76,15 @@ export async function myTasksPage({ member, locale: language, t }: PageContext):
   ].sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"));
   const newBoard = (label: string, look: { primary?: boolean; tile?: boolean }) => ({ t: newBoardWords(t), label, sharing, locale, ...look });
   const order: DueState[] = ["late", "today", "soon", "later", "none"];
+  // The boards followed live: listBoards checked the member sees each.
+  const tickets = await admit(sql, boards.filter(b => !b.archived).map(b => b.id), member.id);
   const mine = boards.filter(b => b.mine > 0 || b.createdBy === member.id).slice(0, 7);
   const shownBoards = mine.length > 0 ? mine : boards.slice(0, 7);
   return {
     title: t.home.title,
     body: (
       <div className="narrow">
-        <Island name="Live" props={{ follow: followBoards(boards.filter(b => !b.archived).map(b => b.id)) }} />
+        <Island name="Live" props={{ follow: followBoards(tickets) }} />
         <div className="hello">
           <div>
             <h1>{t.home.title}</h1>

@@ -89,6 +89,8 @@ test("a board made by an action opens at once; its page has the board and the ca
   const page = checkPage(await (await get(hugo, `/chest/boards/${boardId}?card=${second}`)).text());
   assert.match(page, /data-island="BoardView"/u);
   assert.match(page, /data-island="CardPanel"/u);
+  // Shown the board, Hugo may follow it live (board_live: lib/live.ts).
+  assert.equal((await database.sql`select 1 from board_live where board_id = ${boardId} and member_id = ${hugo.id}`).length, 1);
   assert.match(page, /<title>Load the truck · Launch · Tasks<\/title>/u);
   assert.match(page, /Book the truck/u);
   assert.doesNotMatch(page, /\sstyle="/u);

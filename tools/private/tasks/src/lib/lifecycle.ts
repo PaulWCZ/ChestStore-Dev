@@ -2,6 +2,7 @@ import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { sync } from "./due-calendar.ts";
 import { forgetGroups } from "./groups.ts";
+import { forget } from "./live.ts";
 
 // What Tasks does when a member changes, loses access, leaves or is erased
 // (the Chest posts these to /chest-events, at least once).
@@ -26,6 +27,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     // Their open steps are freed too; ticked ones keep who did them.
     await tx`update checklist_items set assignee = null where assignee = ${memberId} and not done`;
     await tx`delete from board_people where member_id = ${memberId}`;
+    // They follow no board live any more (lib/live.ts).
+    await forget(tx, { member: memberId });
     await tx`delete from reminders where member_id = ${memberId}`;
     // What their bell showed goes.
     await tx`delete from comment_notices where member_id = ${memberId}`;
@@ -37,6 +40,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from card_assignees where member_id = ${memberId}`;
     await tx`update checklist_items set assignee = null where assignee = ${memberId}`;
     await tx`delete from board_people where member_id = ${memberId}`;
+    // They follow no board live any more (lib/live.ts).
+    await forget(tx, { member: memberId });
     await tx`delete from reminders where member_id = ${memberId}`;
     await tx`delete from comment_notices where member_id = ${memberId}`;
     await tx`update card_blockers set created_by = 'erased' where created_by = ${memberId}`;
@@ -54,7 +59,13 @@ export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.r
     // A member joined or left a group (the capability "members.groups";
     // SDK 0.5+ has no group events): the groups kept a minute are read
     // again. Who is in a group comes with each member, asked each time.
-    "member.updated": async event => { if (event.data.changed.includes("groups")) forgetGroups(); },
+    // Their groups or role changed: the boards they follow live are
+    // checked again (lib/live.ts) — a private board kept to a group they
+    // left, or every board once they are no longer a manager.
+    "member.updated": async event => {
+      if (event.data.changed.includes("groups")) forgetGroups();
+      if (event.data.changed.includes("groups") || event.data.changed.includes("role")) await forget(sql, { member: event.data.id });
+    },
     // Their cards and steps change hands: the calendars follow.
     "access.revoked": async event => { await leave(sql, event.data.id); await sync(sql); },
     "member.removed": async event => { await leave(sql, event.data.id); await sync(sql); },
