@@ -310,6 +310,14 @@ A tool with `"capabilities": ["realtime"]` and a `realtime` key in
   Quotes check that a row written to the database reaches an open page,
   which reads itself again without a reload.
 
+**Members who left after the start.** 0.7.0's fake reads its former
+members once (`options.former`): an event a tool emits about a member
+removed from `/_dev` later would be refused `invalid_data`. The tool's
+`CHEST_API` is therefore a relay of the harness, which passes every call as
+it came, but stands the former members a `POST /events` names in
+`chest.members` (no role) while the fake checks it (SDK report: a fake that
+reads `chest.former` at each call).
+
 ## Unmigrated tools
 
 A tool still on 0.4.1-studio starts and serves against 0.7.0's fake, but
