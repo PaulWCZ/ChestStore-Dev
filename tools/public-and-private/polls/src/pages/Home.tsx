@@ -32,7 +32,8 @@ export type HomeProps = {
 
 export function Home({ data, member, organisers, totals, rules, creates, surveys, settles, zone, t, f }: HomeProps) {
   const locale = f.locale;
-  const d = dates(locale, zone);
+  // Instants on the reader's own clock (the option's hours are the office's).
+  const d = dates(locale, member.timeZone);
   const nothing = data.toAnswer.length + data.mine.length + data.answered.length + data.closed.length === 0;
 
   function card(c: Card, variant: "ask" | "answered" | "closed") {
@@ -98,7 +99,7 @@ export function Home({ data, member, organisers, totals, rules, creates, surveys
 
   return (
     <>
-      <Island name="AutoRefresh" props={{ seconds: 30 }} />
+      <Island name="LiveHome" props={{ member: member.id }} />
       <div className="hello confetti-band">
         <PageHeader title={t.home.title} action={creates ? <a className="button primary" href="/chest/new"><Plus />{t.shell.newPoll}</a> : undefined} />
       </div>

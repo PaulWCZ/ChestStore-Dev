@@ -6,10 +6,10 @@ import { people } from "./people.ts";
 
 // Items in the Chest's bell. A notice is written once in every language
 // Polls speaks — English the fallback, the others as its translations —
-// and the Chest shows each member theirs (Proposal (studio), announced for
-// 0.5). The Chest mails members their notifications by each member's
+// and the Chest shows each member theirs (SDK 0.7.0's translations). The
+// Chest mails members their notifications by each member's
 // choice: Polls never mails a member. A notification is a courtesy: when
-// the Chest cannot take it (not granted, quota, unreachable), the action
+// the Chest cannot take it (not granted, unreachable), the action
 // that sent it still succeeds.
 export type Words = (t: Catalogue, locale: Locale) => { title: string; body?: string };
 
@@ -23,7 +23,7 @@ export function notice(message: Words, options: { path: string; key?: string }):
   return { ...shaped("en"), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
 }
 
-// The Chest takes 500 recipients a call (0.4.1).
+// 500 recipients a call: each request stays small (SDK 0.7.0 sets no cap).
 const perCall = 500;
 
 // sendNotice: these members (already known to have Polls) hear of it.

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
+import { settled } from "@argentic/chest-app/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, fakeGroups, hugo, ines, sofia, stranger } from "./support/members.ts";
 
@@ -14,7 +15,7 @@ import { camille, everyone, fakeGroups, hugo, ines, sofia, stranger } from "./su
 // the Chest's signed calls.
 let chest, database, app;
 before(async () => {
-  chest = await fakeChest({ tool: "news", network: {}, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications", "calendar", "members.groups"], calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: null } });
+  chest = await fakeChest({ tool: "news", network: {}, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications", "calendar", "members.groups", "realtime"], realtime: JSON.parse(readFileSync("chest.json", "utf8")).realtime, calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: null } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -51,7 +52,8 @@ test("the front page: the member's language, the policy, the look as a styleshee
   assert.match(html, /<title>Actualités<\/title>/u);
   assert.match(html, /Nous déménageons le 2 novembre/u, "the post in the reader's language");
   assert.match(html, /<link rel="stylesheet" href="\/chest\/look\.css\?v=[\w-]{16}"\/>/u);
-  assert.match(html, /data-island="AutoRefresh"/u);
+  assert.match(html, /data-island="LiveFront"/u, "the front page follows the Chest's realtime");
+  assert.doesNotMatch(html, /AutoRefresh/u, "never a timer");
   assert.match(html, /data-island="Search"/u, "the header's search");
   assert.equal((await get(null, "/chest")).status, 401);
   // No role: why, not an error.
@@ -120,6 +122,9 @@ test("actions from an island: a post written and confirmed; refusals are codes i
   assert.equal((await notAllowed.json()).message, "Your role does not allow this.");
   assert.equal((await call(hugo, "confirmRead", { postId: "999" })).status, 404);
   assert.deepEqual(await (await call(hugo, "confirmRead", { postId: "4" })).json(), { ok: true, value: null });
+  // The post's author's open page hears of it (realtime, no payload).
+  await settled();
+  assert.ok(chest.realtime.published.some(p => p.event === "post.confirmed" && p.channel.startsWith("mine:mbr_")), "the author's page told");
   assert.equal((await call(hugo, "noSuchAction", {})).status, 404);
   assert.equal((await call(hugo, "requestUpload", { role: "attachment", size: 10 })).status, 403, "a reader adds a proposal's picture only");
   const grant = await (await call(hugo, "requestUpload", { role: "cover", size: 10 })).json();
@@ -198,8 +203,8 @@ test("the host's root, the language switch, the error pages, the browser's files
 test("the Chest's events and schedule runs, signed, each handled once", async () => {
   const to = request => app.fetch(request);
   const left = { type: "member.removed", id: "evt_" + "d".repeat(26), data: { id: ines.id } };
-  assert.equal(await chest.emit(left, to), 204);
-  assert.equal(await chest.emit(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
   assert.equal(await chest.run("publish", to), 204);
   assert.equal(await chest.run("digest", to), 404, "no digest of its own: the Chest groups notifications as each member chose");
   assert.equal(await chest.run("nothing", to), 404);

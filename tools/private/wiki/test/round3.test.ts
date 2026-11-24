@@ -184,9 +184,9 @@ test("“My pages”: everyone's own, readers included; nobody else sees it — 
   // Hugo, a reader, cannot share his: he writes nowhere else.
   await assert.rejects(pages.movePage(sql, asMember(hugo), note.id, { spaceId: "1", parentId: null }), (e: unknown) => (e as { code?: string }).code === "forbidden");
   // Losing access keeps it; leaving the company takes it away (nobody else could read it).
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: hugo.id } }, chestEvents), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: hugo.id } }, chestEvents), 204);
   assert.equal((await pages.page(sql, asMember(hugo), note.id)).id, note.id);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, chestEvents), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, chestEvents), 204);
   assert.equal((await sql`select count(*)::int as n from spaces where id = ${mine.id}`)[0]!.n, 0);
   assert.equal((await sql`select count(*)::int as n from pages where id = ${note.id}`)[0]!.n, 0);
 });

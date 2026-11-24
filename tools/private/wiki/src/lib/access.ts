@@ -45,9 +45,9 @@ export function spaceAccess(actor: Member | null, space: SpaceAudience): SpaceAc
   // "My pages": its creator's alone, whatever their role — not even the
   // Chest's administrators see it.
   if (space.visibility === "private") return space.createdBy === actor.id ? "write" : "none";
-  const sees = space.visibility === "everyone" || actor.isAdmin || space.createdBy === actor.id || space.groups.some(g => actor.groups.includes(g));
+  const sees = space.visibility === "everyone" || actor.isAdmin || space.createdBy === actor.id || space.groups.some(g => (actor.groups ?? []).includes(g));
   if (!sees) return "none";
   if (!can(actor, "write")) return "read";
   if (space.editing !== "some" || actor.isAdmin || space.createdBy === actor.id) return "write";
-  return (space.editors ?? []).some(w => w === actor.id || actor.groups.includes(w)) ? "write" : "read";
+  return (space.editors ?? []).some(w => w === actor.id || (actor.groups ?? []).includes(w)) ? "write" : "read";
 }

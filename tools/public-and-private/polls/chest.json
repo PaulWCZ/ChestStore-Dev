@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "polls",
   "title": "Polls",
   "description": "Ask the team a quick question, find a date that suits everyone, or run a short anonymous survey.",
@@ -17,11 +17,49 @@
   "capabilities": [
     "database",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
     "member.*"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "polls"
+      },
+      {
+        "name": "poll:*"
+      },
+      {
+        "name": "mine:{member}"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "polls",
+        "channel": "polls",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "comments",
+        "channel": "poll:{poll_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "replies",
+        "channel": "poll:{poll_id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "pass",

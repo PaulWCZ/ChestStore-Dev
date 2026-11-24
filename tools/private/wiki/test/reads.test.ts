@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestEvents as POST } from "../src/calls.ts";
 import { normalize } from "../src/lib/doc.ts";
 import * as editing from "../src/lib/editing.ts";
@@ -52,7 +52,7 @@ test("editors ask everyone who reads the space; each is told once, confirms, and
   assert.equal(told, 4);
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
   assert.ok(chest.notifications.every(n => n.key === `read:${p.id}`));
-  assert.ok(shownTo(chest.notifications.find(n => n.member === lea.id)!, "fr").title.startsWith("Camille Martin vous demande de lire"));
+  assert.ok((chest.notifications.find(n => n.member === lea.id)!).title.startsWith("Camille Martin vous demande de lire"));
   // Hugo sees it on his home page, confirms version 1; it leaves his home page and his bell.
   assert.deepEqual((await reads.toRead(sql, asMember(hugo))).map(r => r.id), [p.id]);
   assert.deepEqual(await reads.confirm(sql, asMember(hugo), p.id), { version: 1 });
@@ -117,9 +117,9 @@ test("an erasure removes a person's confirmations and signs the request 'erased'
   await reads.confirm(sql, asMember(lea), p.id);
   const erasure = "era_" + "e".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "f".repeat(26), data: { id: lea.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal((await sql`select count(*)::int as n from page_reads where member_id = ${lea.id}`)[0]!["n"], 0);
   const ev2 = { type: "member.erased" as const, id: "evt_" + "g".repeat(26), data: { id: camille.id, erasure: "era_" + "h".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(ev2, POST), 204);
+  assert.equal(await chest.deliver(ev2, POST), 204);
   assert.equal((await sql`select read_asked_by from pages where id = ${p.id}`)[0]!["read_asked_by"], "erased");
 });

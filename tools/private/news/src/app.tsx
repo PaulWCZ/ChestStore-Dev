@@ -27,6 +27,7 @@ import { searchPage } from "./pages/Search.tsx";
 import { transferPage } from "./pages/Transfer.tsx";
 import { plain } from "./shared/markdown.ts";
 import { lookFor } from "./theme.ts";
+import { completeGroups } from "./lib/groups.ts";
 
 // News's routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the look (/chest/look.css), the member of every /chest
@@ -39,6 +40,9 @@ export const app = createApp({
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
+  // A member in more groups than a request carries (SDK 0.7.0: groups
+  // null) is completed from the Chest (src/lib/groups.ts).
+  complete: completeGroups,
   // The look: the company's choice, else Newsprint (src/theme.ts), served
   // by the package at /chest/look.css and /look.css.
   look: lookFor,

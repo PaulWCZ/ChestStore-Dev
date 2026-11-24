@@ -1,4 +1,4 @@
-import { action, fail, field, publicAction, redirect } from "@argentic/chest-app";
+import { action, after, fail, field, publicAction, redirect } from "@argentic/chest-app";
 import { emailGuests, syncFinal } from "./lib/agenda.ts";
 import { answer } from "./lib/answers.ts";
 import { findPeople, groups, havePolls } from "./lib/audience.ts";
@@ -7,6 +7,7 @@ import { localeOf } from "./i18n/index.ts";
 import { db } from "./lib/db.ts";
 import { guestCookie, guestCookieDays, guestCookiePath } from "./lib/guest-cookie.ts";
 import * as guests from "./lib/guests.ts";
+import * as live from "./lib/live.ts";
 import { limits, memberPattern } from "./lib/model.ts";
 import { nameOf, people } from "./lib/people.ts";
 import * as polls from "./lib/polls.ts";
@@ -55,7 +56,7 @@ export const actions = {
   }),
 
   // Writing: a new poll or a draft saved, sent at once when asked (the bell
-  // items go out right away, within the Chest's quota). The composer's
+  // items go out right away, at the Chest's pace). The composer's
   // whole poll is read by src/lib/model.ts (readPoll).
   savePoll: action({ pollId: field.optional(field.id()), input: field.json() }, async ({ pollId, input }, { member }) => {
     const sql = db();
@@ -71,10 +72,12 @@ export const actions = {
     await tell.runTellings(sql);
   }),
 
-  // Answering: the "asks you" item leaves the member's bell.
+  // Answering: the "asks you" item leaves the member's bell; the poll's
+  // open pages and its organiser's home read it again (lib/live.ts).
   answerPoll: action({ ...poll, answer: field.json() }, async ({ pollId, answer: given }, { member }) => {
     const sql = db();
     const done = await answer(sql, member, pollId, given);
+    after("live", () => live.answered(done.poll));
     await tell.answered(sql, member, done.poll.id);
     return { first: done.first };
   }),
@@ -152,6 +155,7 @@ export const actions = {
   }),
   removeGuest: action({ ...poll, participantId: field.id() }, async ({ pollId, participantId }, { member }) => {
     await guests.removeGuest(db(), member, pollId, participantId);
+    after("live", () => live.answered({ id: pollId, organiser: "" }));
   }),
 
   // Replies to anonymous free texts (src/lib/replies.ts): those who manage
@@ -196,6 +200,8 @@ export const actions = {
     const secret = input.poll ? cookies.get(guestCookie(input.poll)) : undefined;
     const done = await guests.answerAsGuest(sql, input.link, { name: input.name, email: input.email, dates: input.dates, locale: localeOf(locale), secret }, new Date());
     cookies.set(guestCookie(done.poll.id), done.secret, { path: guestCookiePath(input.link), maxAge: guestCookieDays * 86_400 });
+    // The members' pages of the poll read it again (lib/live.ts).
+    after("live", () => live.answered(done.poll));
     redirect(`/p/${input.link}?sent=${done.first ? "1" : "2"}`);
   }, { bound: { perVisitor: limits.guestsPerVisitorDay, perDay: limits.guestsPerDay, formSeconds: limits.guestSeconds, work: true } }),
 };

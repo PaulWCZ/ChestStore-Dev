@@ -1,4 +1,4 @@
-import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
+import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { spaceAccess, type SpaceAudience } from "./access.ts";
@@ -6,41 +6,67 @@ import { orList } from "../i18n/index.ts";
 
 // The Chest's groups the wiki offers — for a space kept to some of them,
 // edited by some of them, or asked to confirm a page — by name. With the
-// capability "members.groups" (Proposal (studio), the name announced for
-// the official 0.5, as News) the wiki sees every group of the Chest
-// (Sales, Tech, the warehouse) even when it is open to everyone, and the
-// Chest names every group a member is in (member(request).groups,
+// capability "members.groups" (SDK 0.7.0) the wiki sees every group of the
+// Chest (Sales, Tech, the warehouse) even when it is open to everyone, and
+// the Chest names every group a member is in (member(request).groups,
 // members.*'s groups): a member's groups come with them, never asked
 // again. Without it, only the groups that give the wiki (the usual wiki,
-// open to all, then has none). Without an answer
-// from the Chest, none: the page still works. Kept a minute (the SDK's
-// advice), per Chest API (the tests start many).
+// open to all, then has none). Without an answer from the Chest, none: the
+// page still works. The Chest pages them (no count bounds a company):
+// every page is read, kept a minute (the SDK's advice), per Chest API (the
+// tests start many).
 export type Group = { id: string; name: string };
 let cached: { at: number; api: string | undefined; groups: Group[] } | null = null;
+const maxGroupPages = 40;
 
 export async function companyGroups(): Promise<Group[]> {
   if (cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
-  let groups: Group[];
+  const groups: Group[] = [];
   try {
-    groups = (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
+    let after: string | undefined;
+    for (let i = 0; i < maxGroupPages; i++) {
+      const page = await members.groups.list({ limit: 500, ...(after ? { after } : {}) });
+      groups.push(...page.groups.map(g => ({ id: g.id, name: g.name })));
+      if (!page.next) break;
+      after = page.next;
+    }
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
-    if (!(error instanceof CapabilityNotGranted)) return [];
-    try {
-      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
-    } catch (inner) {
-      if (!(inner instanceof ChestError)) throw inner;
-      return [];
-    }
+    return [];
   }
   groups.sort((a, b) => a.name.localeCompare(b.name));
   cached = { at: Date.now(), api: process.env["CHEST_API"], groups };
   return groups;
 }
 
-// A group changed or was removed (events): read them again.
+// Someone moved between groups (member.updated): read them again. A
+// renamed group is read again within the minute (no group events).
 export function forgetGroups(): void {
   cached = null;
+}
+
+// A member's groups. The request's assertion carries them, except for a
+// member in more groups than it can hold (about 150: groups is null, SDK
+// 0.7.0's "groups overage"): those are read from the Chest (members.get),
+// kept a minute per member — createApp's complete() calls it on each
+// /chest request, so every rule reads a full list. Where the Chest cannot
+// answer, "in no group" (the safe answer: a space kept to a group stays
+// closed rather than open to the wrong person).
+const overage = new Map<string, { at: number; groups: string[] }>();
+export async function completeGroups(who: Member): Promise<Member> {
+  if (who.groups !== null) return who;
+  const kept = overage.get(who.id);
+  if (kept && Date.now() - kept.at < 60_000) return { ...who, groups: kept.groups };
+  let groups: string[];
+  try {
+    groups = (await members.get(who.id))?.groups ?? [];
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return { ...who, groups: [] };
+  }
+  if (overage.size > 1000) overage.clear();
+  overage.set(who.id, { at: Date.now(), groups });
+  return { ...who, groups };
 }
 
 // The members who have the wiki (with a role, or none), by name: all of

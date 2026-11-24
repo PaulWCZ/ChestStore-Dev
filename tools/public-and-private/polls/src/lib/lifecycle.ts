@@ -38,21 +38,18 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"member.removed" | "member.updated" | "member.erased"> {
   return {
     "member.removed": event => leave(sql, event.data.id),
     // Someone moved between groups: what a group they left asked of them
-    // leaves their bell and their tile.
+    // leaves their bell and their tile, and the groups' sizes are read
+    // again (the composer's choices, results per team). SDK 0.7.0 sends no
+    // group events: a renamed group is read at render (a minute's cache).
     "member.updated": async event => {
-      if (event.data.changed.includes("groups")) await regrouped(sql, event.data.id);
-    },
-    // Groups (Proposal (studio), "members.groups"): their names and sizes
-    // are read again (the composer's choices, results per team).
-    "group.changed": async () => {
-      forgetGroups();
-    },
-    "group.removed": async () => {
-      forgetGroups();
+      if (event.data.changed.includes("groups")) {
+        forgetGroups();
+        await regrouped(sql, event.data.id);
+      }
     },
     "member.erased": async event => {
       await erase(sql, event.data.id);

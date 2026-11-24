@@ -27,7 +27,9 @@ async function askOf(sql: Query, pageId: string): Promise<ReadAsk | null> {
 
 // Whether a member is among those asked (they read the page: checked by
 // the caller). Whoever asks is not asked.
-export const concerns = (ask: ReadAsk, who: { id: string; groups: string[] }): boolean => who.id !== ask.by && (ask.groups.length === 0 || ask.groups.some(g => who.groups.includes(g)));
+// A member's groups may be null (SDK 0.7.0, about 150 groups: completed on
+// /chest requests): none then.
+export const concerns = (ask: ReadAsk, who: { id: string; groups: readonly string[] | null }): boolean => who.id !== ask.by && (ask.groups.length === 0 || ask.groups.some(g => (who.groups ?? []).includes(g)));
 
 export async function readState(sql: Query, actor: Member | null, pageId: unknown): Promise<ReadState> {
   const p = await page(sql, actor, pageId);
@@ -128,6 +130,6 @@ export async function toRead(sql: Query, actor: Member | null): Promise<{ id: st
     where p.read_asked_at is not null and p.deleted_at is null and p.space_id in ${sql(spaces)}
       and (r.version is null or r.version < p.read_version) and p.read_asked_by is distinct from ${actor.id}
     order by p.read_asked_at desc limit 50`;
-  return found.filter(r => (r.read_groups ?? []).length === 0 || r.read_groups.some(g => actor.groups.includes(g))).slice(0, 10)
+  return found.filter(r => (r.read_groups ?? []).length === 0 || r.read_groups.some(g => (actor.groups ?? []).includes(g))).slice(0, 10)
     .map(r => ({ id: String(r.id), title: r.title, askedAt: r.read_asked_at }));
 }

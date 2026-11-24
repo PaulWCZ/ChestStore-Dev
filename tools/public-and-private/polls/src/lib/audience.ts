@@ -22,7 +22,7 @@ export type Page = { people: Person[]; next: string | null };
 // (every group they are in, with "members.groups": lib/groups.ts).
 export async function page(audience: Audience, after: string | null): Promise<Page> {
   const answer = await members.list({ limit: pageSize, ...(after ? { after } : {}) });
-  const listed = answer.members.map(m => ({ id: m.id, name: m.name, locale: localeOf(m.language), role: m.role, groups: [...m.groups] }));
+  const listed = answer.members.map(m => ({ id: m.id, name: m.name, locale: localeOf(m.language), role: m.role, groups: [...(m.groups ?? [])] }));
   return {
     people: listed.filter(p => asked({ ...p, isAdmin: false }, audience)),
     next: answer.next,
@@ -82,7 +82,7 @@ export async function havePolls(ids: string[]): Promise<string[] | null> {
 }
 
 // The groups a poll may ask, by name: every group of the Chest with
-// "members.groups" (Proposal (studio)), else those that give Polls
+// "members.groups", else those that give Polls
 // (lib/groups.ts). Null when the Chest cannot say.
 export async function groups(): Promise<{ id: string; name: string; size: number }[] | null> {
   return chestGroups();

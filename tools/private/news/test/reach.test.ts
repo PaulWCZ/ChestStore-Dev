@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { chestEvents } from "../src/calls.ts";
 import { eventKey, syncEvent } from "../src/lib/agenda.ts";
 import { everyone as everyoneWithNews, tally } from "../src/lib/audience.ts";
@@ -14,6 +14,10 @@ import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, groups, hugo, ines, lea, nora, sofia, stranger, workshop } from "./support/members.ts";
+
+// SDK 0.7.0's fake keeps each item in its member's language (its
+// translation, the English words otherwise).
+const inLanguage = (n: { title: string; body?: string }) => ({ title: n.title, ...(n.body !== undefined ? { body: n.body } : {}) });
 
 // What makes a post reach people: notifications in each one's language
 // (Proposal (studio): a notice's translations), the 10 seconds of "Undo"
@@ -36,14 +40,14 @@ beforeEach(async () => {
 
 const zone = "Europe/Paris";
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
-const withWorkshop = (m: FakeMember, into: boolean) => ({ ...m, groups: into ? [...m.groups, groups.workshop] : m.groups.filter(g => g !== groups.workshop) });
+const withWorkshop = (m: FakeMember, into: boolean) => ({ ...m, groups: into ? [...(m.groups ?? []), groups.workshop] : (m.groups ?? []).filter(g => g !== groups.workshop) });
 
 async function open(options: { members?: FakeMember[]; calendar?: boolean; groupsRead?: boolean } = {}) {
   const { calendar = true, groupsRead = true } = options;
   const members = options.members ?? everyone;
   chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" },
     members,
-    groups: [...fakeGroups, { ...workshop, members: members.filter(m => m.groups.includes(groups.workshop)).map(m => m.id) }],
+    groups: [...fakeGroups, { ...workshop, members: members.filter(m => (m.groups ?? []).includes(groups.workshop)).map(m => m.id) }],
     capabilities: ["members", "files", "notifications", ...(calendar ? ["calendar"] : []), ...(groupsRead ? ["members.groups"] : [])],
     calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" },
   });
@@ -65,8 +69,8 @@ test("an Important post is told to its audience, once, each in their language �
     assert.deepEqual(told().map(n => n.member).sort(), [hugo.id, ines.id, nora.id, sofia.id].sort());
     // One notice, written in each language of the post: the Chest shows each member theirs.
     const toInes = told().find(n => n.member === ines.id)!;
-    assert.deepEqual(shownTo(toInes, "fr"), { title: "Important\u202f: Déménagement", body: "Nous déménageons le 2 novembre." });
-    assert.equal(shownTo(toInes, "en").title, "Important: Office move");
+    assert.deepEqual(inLanguage(toInes), { title: "Important\u202f: Déménagement", body: "Nous déménageons le 2 novembre." });
+    assert.equal(told().find(n => n.member === hugo.id)!.title, "Important: Office move", "Hugo reads English");
     assert.equal(toInes.path, `/chest/posts/${p.id}`);
     assert.equal(chest.outbox.length, 0, "members are never emailed by News");
     // Told again (its audience changed): the item is replaced, never doubled.
@@ -77,7 +81,7 @@ test("an Important post is told to its audience, once, each in their language �
     const { confirmed } = await posts.confirmations(database.sql, pub, p.id);
     const pending = tally({ ...p, author: camille.id, people: [] }, confirmed, (await everyoneWithNews()).people).pending;
     await tell.remind({ id: p.id, title: "Office move", body: "We move.", locale: "en", versions: [] }, pending);
-    assert.ok(told().every(n => n.title === "Reminder: Office move"));
+    assert.ok(told().every(n => /^(Reminder: |Rappel\u202f: )Office move$/u.test(n.title)), "each in their language");
     assert.equal(told().length, 4);
   } finally {
     await chest.close();
@@ -157,7 +161,7 @@ test("leaving a group takes the post's bell item away; a removed group too", asy
     const person = chest.members.find(m => m.id === nora.id)!;
     person.groups = [];
     chest.groups.find(g => g.id === groups.workshop)!.members = [];
-    assert.equal(await chest.emit({ type: "member.updated", data: { id: nora.id, changed: ["groups"] } }, chestEvents), 204);
+    assert.equal(await chest.deliver({ type: "member.updated", data: { id: nora.id, changed: ["groups"] } }, chestEvents), 204);
     assert.ok(!chest.notifications.some(n => n.member === nora.id && n.key === `post:${p.id}:important`));
     assert.equal(chest.badges.get(nora.id), undefined);
     // Back in the workshop, then the group goes: the same.
@@ -169,7 +173,8 @@ test("leaving a group takes the post's bell item away; a removed group too", asy
     assert.ok(chest.notifications.some(n => n.member === nora.id && n.key === `post:${p.id}:important`));
     person.groups = [];
     chest.groups.splice(chest.groups.findIndex(g => g.id === groups.workshop), 1);
-    assert.equal(await chest.emit({ type: "group.removed", data: { id: groups.workshop } }, chestEvents), 204);
+    // SDK 0.7.0 has no group events: the Chest tells each member who left it.
+    assert.equal(await chest.deliver({ type: "member.updated", data: { id: nora.id, changed: ["groups"] } }, chestEvents), 204);
     assert.ok(!chest.notifications.some(n => n.member === nora.id && n.key === `post:${p.id}:important`));
     // The group's name is read again.
     const listed = await chestGroups();

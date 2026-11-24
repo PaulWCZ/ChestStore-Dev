@@ -87,7 +87,7 @@ channel where announcements drown.
 - **Pinned until**: a pin may end on a day (then the post is no longer
   first).
 - **Who is it for**: *Everyone* (the default) or *Some groups or people* —
-  any group of the Chest (Sales, the workshop…, Proposal (studio):
+  any group of the Chest (Sales, the workshop…, with the capability
   `members.groups`), and people picked by name; the composer counts them (*6 people
   can see it*). A post kept to an audience is marked *For Sales and 2
   people* and seen by it, its author and the Chest's admins; **nobody
@@ -201,28 +201,27 @@ Wiki's spaces kept to groups).
 
 ## On a Chest
 
-- `capabilities`: `database`; `files` (covers 15 MB — JPEG, PNG, GIF, WebP,
-  the pictures the Chest makes thumbnails of — attachments 25 MB, uploaded
-  from the browser to the Chest); `members` (names, photos, who has News);
-  `notifications` (the bell, the tile's number); `receives: ["member.*"]`.
+- `capabilities` (contract 0.7): `database`; `files` (covers 15 MB — JPEG,
+  PNG, GIF, WebP, the pictures the Chest makes thumbnails of — attachments
+  25 MB, uploaded from the browser to the Chest); `members` (names, photos,
+  who has News); `members.groups`; `notifications` (the bell, the tile's
+  number); `realtime` (live pages, below); `receives: ["member.*"]`.
 - **Groups** are the Chest's. With the capability **`members.groups`**
-  (Proposal (studio), the name announced for 0.5, in
-  `chest.proposals.json`: "Sees your Chest's groups and who is in them")
-  News offers **every** group (`members.groups.all()`), and the Chest names
-  every group a member is in — in `member(request).groups` and in
-  `members.*` — so a company that opens News to everyone can still write
-  for Sales. It receives `group.*`: someone who leaves a group
-  (`member.updated`, `group.changed`) or a group removed (`group.removed`)
-  takes the item of the Important posts they are no longer in the audience
-  of away, and their number. Without the capability, only the groups that
-  **give** News are offered (the Chest shows a tool no other group). A
-  group the Chest no longer has stays on the posts it was on (read *a
-  former group*). The official 0.4.1's `member()` refuses an
-  assertion with more than 16 groups; the vendored SDK 0.4.1-studio.7
-  lifts it (an assertion up to 16 KiB, about 300 groups).
+  News offers **every** group (`members.groups.list`, read page after page,
+  kept a minute), and the Chest names every group a member is in — in
+  `member(request).groups` and in `members.*` — so a company that opens
+  News to everyone can still write for Sales. Someone who leaves a group,
+  or whose group is removed, is told by `member.updated` (`changed:
+  ["groups"]`; SDK 0.7.0 has no group events): the item of the Important
+  posts they are no longer in the audience of goes, and their number.
+  Without the capability, only the groups that **give** News are offered
+  (the Chest shows a tool no other group). A group the Chest no longer has
+  stays on the posts it was on (read *a former group*). A member in more
+  groups than a request carries (about 150: `groups` is `null`) is
+  completed from the Chest (`members.get`, once a minute).
 - **Notifications, never email** (the owner's decisions of 6 October
   2026): every notice is written once, in English with its French
-  `translations` (Proposal (studio), announced for 0.5) — an Important
+  `translations` (SDK 0.7.0) — an Important
   post's in each language the post has — and the Chest shows each member
   theirs. The Chest emails members their notifications by their own
   choice (every one, once or twice a day, or off; and off per tool) and
@@ -246,13 +245,13 @@ Wiki's spaces kept to groups).
   language, the result says so, and an empty search suggests trying the
   word in the language some posts are written in only.
 - **Telling everyone** uses `members.list`, 500 people at a time (up to
-  10,000), in each person's language. The Chest takes **1,000 recipients an
-  hour** per tool: beyond, News stops, keeps where it stopped, and goes on
-  at the next pass — the "publish" schedule every 15 minutes, or the next
-  visit to the front page — once the hour has passed. In a company of more
-  than ~1,000 people an Important post therefore reaches everyone's bell
-  over two hours or more; it is on the front page for everyone at once.
-  Badge writes (600 a minute) are set right at each person's next visit.
+  10,000), each page told in one `notify` (the tile's number is counted on
+  the same page, so not one `broadcast`). The Chest refuses no notice for
+  its pace (SDK 0.7.0: beyond ten at once to a member, it folds them into
+  one grouped item). When it cannot be reached, News keeps where it
+  stopped and goes on at the next pass — the "publish" schedule every 15
+  minutes, or the next visit to the front page. Badge writes (600 a
+  minute) are set right at each person's next visit.
 - **Scheduled posts** appear at their time without any job (the front page
   shows what is due); the bell for a scheduled Important post rings at the
   next pass: within 15 minutes with the schedule, at the first visit after
@@ -289,37 +288,52 @@ Wiki's spaces kept to groups).
   which is the monitoring a CSE must be consulted on. A company of 50 or more should still inform its CSE before
   using confirmations and view counts; this paragraph is written so it can
   be handed to them.
-- No WebSocket: the front page re-reads itself every 60 s, a post every
-  30 s, while visible.
+- **Live pages, never a timer** (`realtime`): the front page and a post's
+  page follow the Chest's realtime — the `posts` table's feed (on `news`),
+  the feeds of `comments` and `reactions` (on `post:<id>`), each with the
+  row's id alone, and what News publishes once it is written:
+  `post.answered` (an event's seats, on `post:<id>`) and `post.confirmed`
+  (on the author's own `mine:<member>`: only the author's page reads its
+  readers again). The page reads what it shows from News, which checks
+  the audience. The Chest holds the connections: News sleeps while pages
+  stay open. A post's author, or the author of the comment answered, who
+  has the post's page on screen (`realtime.online`'s `watching`) is not
+  notified of a new comment: they see it arrive. A view writes the post's
+  row once (its view key), never at each view: every write of a post is an
+  event to every open page.
+- **Time zones**: instants (published at, an event's hours, a comment's
+  time) are shown on each member's own clock (`member.timeZone`); the
+  front page's date and the days a schedule counts are the company's
+  (`chest.timeZone`, `chest.today()`).
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, and the
-studio's app machinery `@argentic/chest-app` (0.1.0-studio.8).
+Built on SDK 0.7.0 + studio proposals (`0.7.0-studio.2`), in `vendor/`, and
+the studio's app machinery `@argentic/chest-app` (0.1.0-studio.12),
+contract 0.7 (`"chest": "0.7"`).
 
-- `member.language` (SDK 0.3.0 and later): the interface in each member's language;
-  a notice's `translations` (Proposal (studio), announced for 0.5) for the
-  notifications in each recipient's.
-- **Scheduled tasks** (`schedules`, SDK 0.4.0): `chest.json` declares
-  `publish` every 15 minutes, run on `POST /chest-schedules`
-  (`src/calls.ts`). Without it News still works — the publish pass runs
-  when someone opens the front page.
-- The Chest's **time zone** (`chest.timeZone`, SDK 0.3.0): event times
-  and schedules are typed on the Chest's clock. The Chest makes it its
-  database sessions' zone too: the sample data's days and times
-  (`current_date`, `::timestamptz`) are on that clock.
-- **Localized manifest title** (studio report): the tile says "News" to a
-  French member; the interface says *Actualités*.
-- **`members.groups`** (`receives: ["group.*"]`), notices'
-  **`translations`** and the **calendar** — Proposals (studio), in
-  `vendor/`, described above.
+- `member.language`: the interface in each member's language; a notice's
+  `translations` (SDK 0.7.0) for the notifications in each recipient's.
+- **Scheduled tasks** (`schedules`): `chest.json` declares `publish` every
+  15 minutes, run on `POST /chest-schedules` (`src/calls.ts`). Without it
+  News still works — the publish pass runs when someone opens the front
+  page.
+- The company's **time zone** (`chest.timeZone`, `chest.today()`): event
+  times and schedules are typed on the company's clock, and the database's
+  sessions are in it (`current_date`). `member.timeZone`: instants shown
+  to a member.
+- **`members.groups`**, **`realtime`** (channels `news`, `post:*`,
+  `mine:{member}`; feeds `posts`, `comments`, `reactions`) — SDK 0.7.0.
+- Studio proposals, in `chest.proposals.json`: the **calendar** and the
+  store's words in French (`translations`). SDK 0.7.0 has neither: on a
+  real 0.7 Chest an event is not put in the Chest's calendar (the `.ics`
+  file stays), and the tile and roles read in English.
 - Wanted, not built: **actions on a bell item** (`notify(…, { actions:
   [{ label, path }] })`: *I'm coming* / *Not coming* in the Chest's bell
   itself, and in the Chest's emails of notifications — today the
   notification opens the post, where the answer is two taps away);
   **push to a phone**; a **broadcast to roles, groups and people by id
-  that also sets each one's tile number**, or a **"notify at least once"
-  quota exemption**, so a large company is told at once; a **video thumbnail/transcoding** service (videos play as
+  that also sets each one's tile number**; a **video thumbnail/transcoding** service (videos play as
   uploaded); a **polls** embed across tools.
 
 ## Mail to people outside the company
@@ -344,6 +358,15 @@ notifications, by their choice). It declares no `mail`.
   with French `translations`, instead of one call per language.
 - **Groups** use the capability `members.groups` (the earlier groups read
   proposal is gone): a member's groups come with the member.
+
+## What changed with SDK 0.7.0 (24 November 2026)
+
+- Contract 0.7: `members.groups` and `realtime` are official keys of
+  `chest.json`; `receives: ["group.*"]` is gone (`member.updated` says it).
+- Groups are paged; a member's `groups` may be `null` (completed).
+- No more auto-refresh timer: pages follow the Chest's realtime (above).
+- No notification quota: an Important post is told in one pass.
+- Instants are shown in the member's own zone.
 - The tables only these used (`preferences`, `digests`, `digest_runs`,
   `emails`, `posts.email_short`) stay until no version in service reads
   them (a Chest runs the new migrations before switching versions, and a

@@ -88,7 +88,7 @@ export const anonymousThreshold = 5;
 // members of its groups, or the people picked by name).
 export function asked(actor: Actor | null, poll: Pick<PollRights, "everyone" | "groups" | "people">): boolean {
   if (!actor || roleOf(actor) === null) return false;
-  return poll.everyone || poll.groups.some(g => actor.groups.includes(g)) || poll.people.includes(actor.id);
+  return poll.everyone || poll.groups.some(g => (actor.groups ?? []).includes(g)) || poll.people.includes(actor.id);
 }
 
 // manages: may close, reopen, delete, pick the final date, download.

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo } from "@argentic/chest-sdk/testing";
+import { readFileSync } from "node:fs";
+import { connect } from "@argentic/chest-sdk/realtime/client";
+import { fakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
 import { AppError } from "@argentic/chest-app";
 import * as comments from "../src/lib/comments.ts";
+import * as live from "../src/lib/live.ts";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import { enps, readAnswer } from "../src/lib/model.ts";
 import * as polls from "../src/lib/polls.ts";
@@ -33,6 +36,7 @@ const now = new Date("2026-10-05T08:00:00Z"); // a Monday, 10:00 in Paris
 const ctx = { zone, now, today: "2026-10-05", known: null };
 const refuses = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const later = (days: number, from = now) => new Date(from.getTime() + days * 864e5);
+const lunch = { kind: "choice", title: "Lunch?", options: ["Yes", "No"], open: true };
 
 test("a poll put to people picked by name: only they are asked and see it", async () => {
   const { sql } = database;
@@ -115,6 +119,62 @@ test("comments: named polls only, by those asked or managing; removed by their a
   await assert.rejects(comments.add(sql, asMember(ines), anon.id, "Hmm", now), refuses("no_comments"));
 });
 
+test("a comment: its organiser is told, unless the poll's page is on their screen (realtime's watching)", async () => {
+  const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
+  const chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "realtime"], realtime, chest: { timeZone: zone } });
+  const page = connect({ url: chest.realtime.url(sofia.id) });
+  try {
+    const { sql } = database;
+    const made = await polls.createPoll(sql, asMember(sofia), lunch, ctx);
+    const poll = await polls.load(sql, made.id);
+    const told = () => chest.notifications.filter(n => n.key === tell.commentKey(made.id) && n.member === sofia.id).length;
+    await tell.commented(poll, asMember(hugo));
+    assert.equal(told(), 1, "away: told");
+    await tell.commented(poll, asMember(sofia));
+    assert.equal(told(), 1, "her own comment: nothing");
+    // Sofia opens the poll's page (LivePoll: the channel joined, focused).
+    let joined = false;
+    page.channel(`poll:${made.id}`).onJoined(() => { joined = true; });
+    page.focus(`poll:${made.id}`);
+    for (let i = 0; i < 300 && !(joined && (await live.watching([sofia.id], made.id)).has(sofia.id)); i++) await new Promise(r => setTimeout(r, 10));
+    assert.deepEqual([...await live.watching([sofia.id, hugo.id], made.id)], [sofia.id]);
+    chest.notifications.length = 0;
+    await tell.commented(poll, asMember(ines));
+    assert.equal(told(), 0, "watching: she sees it arrive, no notification");
+    // The Chest out of reach: told (one too many rather than one missing).
+    const api = process.env["CHEST_API"];
+    process.env["CHEST_API"] = "http://127.0.0.1:9";
+    try {
+      assert.equal((await live.watching([sofia.id], made.id)).size, 0);
+    } finally {
+      process.env["CHEST_API"] = api;
+    }
+  } finally {
+    page.close();
+    await chest.close();
+  }
+});
+
+test("an answer is published to the poll's pages and its organiser's home; the Chest out of reach loses nothing written", async () => {
+  const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
+  const chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "realtime"], realtime, chest: { timeZone: zone } });
+  try {
+    await live.answered({ id: "12", organiser: sofia.id });
+    await live.answered({ id: "13", organiser: "erased" });
+    assert.deepEqual(chest.realtime.published.map(p => [p.channel, p.event]), [["poll:12", "poll.answered"], [`mine:${sofia.id}`, "poll.answered"], ["poll:13", "poll.answered"]]);
+  } finally {
+    await chest.close();
+  }
+  // Without the capability (or no Chest): nothing thrown.
+  const bare = await fakeChest({ network: {}, members: everyone, capabilities: ["members"] });
+  try {
+    await live.answered({ id: "12", organiser: sofia.id });
+    assert.equal((await live.watching([sofia.id], "12")).size, 0);
+  } finally {
+    await bare.close();
+  }
+});
+
 test("the organiser reminds those who have not answered — a notification in each one's language, never an email, at most every 12 hours", async () => {
   const chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: zone } });
   try {
@@ -128,11 +188,11 @@ test("the organiser reminds those who have not answered — a notification in ea
     await tell.runTellings(sql, now);
     // Léa and Tom had not answered (Sofia organises it): the reminder
     // replaces their "asks you" item (the same key).
-    const reminded = chest.notifications.filter(n => n.key === tell.askKey(made.id) && n.title.startsWith("Reminder"));
+    const reminded = chest.notifications.filter(n => n.key === tell.askKey(made.id) && /^(Reminder|Rappel)/u.test(n.title));
     assert.deepEqual(reminded.map(n => n.member).sort(), [lea.id, tom.id].sort());
     const toTom = reminded.find(n => n.member === tom.id)!;
-    assert.deepEqual(shownTo(toTom, "en"), { title: "Reminder: Lunch?", body: "Sofia Rossi is waiting for your answer. It closes Fri 9 Oct, 12:00." });
-    assert.match(shownTo(reminded.find(n => n.member === lea.id)!, "fr").title, /^Rappel\s:\sLunch\?$/u);
+    assert.deepEqual({ title: toTom.title, body: toTom.body }, { title: "Reminder: Lunch?", body: "Sofia Rossi is waiting for your answer. It closes Fri 9 Oct, 12:00." });
+    assert.match(reminded.find(n => n.member === lea.id)!.title, /^Rappel\s:\sLunch\?$/u);
     assert.equal(toTom.path, `/chest/polls/${made.id}`);
     assert.equal(chest.outbox.length, 0, "members are never mailed by Polls");
     await assert.rejects(polls.nudge(sql, asMember(sofia), made.id, later(0.25)), refuses("nudged"));

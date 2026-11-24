@@ -6,7 +6,7 @@ import { catalogue, fill } from "../i18n/index.ts";
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
 // "former" left the Chest (their name kept), "no_access" is still in the
-// Chest but lost access to Polls (SDK 0.4.1: their name kept), "erased"
+// Chest but lost access to Polls (their name kept), "erased"
 // had their data erased, "unknown" is an id the Chest does not know here
 // (or the Chest could not be asked: the page still renders).
 export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "no_access" | "erased" | "unknown"; locale: Locale };

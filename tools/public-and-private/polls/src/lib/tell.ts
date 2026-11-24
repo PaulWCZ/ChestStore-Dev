@@ -1,9 +1,10 @@
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { asked, roles } from "./access.ts";
 import { all, maxPages, page, type Person } from "./audience.ts";
+import { watching } from "./live.ts";
 import { dates, optionText } from "./dates.ts";
 import type { Sql } from "./db.ts";
 import { fill, type Catalogue } from "../i18n/index.ts";
@@ -25,15 +26,16 @@ import { chestZone } from "./zone.ts";
 // - 'final': a date poll's date is chosen — everyone asked.
 // - the organiser hears that their poll closed by its date.
 //
-// 'ask' and 'final' go in one broadcast (Proposal (studio):
-// notifications.broadcast(notice, {to, except})). Where the Chest cannot
-// broadcast, for polls put to people by name, and for reminders (only
-// those who have not answered), Polls tells a page of 500 members at a
-// time. The Chest takes 1,000 recipients an
-// hour per tool: beyond, it refuses (QuotaExceeded) and Polls keeps where it
-// stopped (tellings.after) and goes on at the next pass — on the "pass"
-// schedule (every 15 minutes, Proposal (studio)) or when someone opens a
-// page. Each item has one key per poll: telling again replaces it.
+// 'ask' and 'final' go in one broadcast (SDK 0.7.0:
+// notifications.broadcast(notice, {to, except}), the Chest resolving the
+// members of the roles or groups). For polls put to people by name, and for
+// reminders (only those who have not answered), Polls tells a page of 500
+// members at a time. The Chest never refuses a notice for its pace (a burst
+// folds into one grouped item); when it cannot be reached (Unavailable,
+// RateLimited on its members calls), Polls keeps where it stopped
+// (tellings.after) and goes on at the next pass — on the "pass" schedule
+// (every 15 minutes) or when someone opens a page. Each item has one key
+// per poll: telling again replaces it.
 export const pollPath = (pollId: string) => `/chest/polls/${pollId}`;
 export const askKey = (pollId: string) => `poll:${pollId}:ask`;
 export const finalKey = (pollId: string) => `poll:${pollId}:final`;
@@ -66,8 +68,8 @@ async function organiserName(poll: Poll): Promise<(locale: Locale) => string> {
 }
 
 // broadcastTo tells everyone the poll asks in one call. "fallback": the
-// Chest cannot broadcast (not granted, not a Chest that knows it); "wait":
-// over its quota or unreachable, again at the next pass.
+// Chest cannot broadcast (not granted, refused); "wait": unreachable for
+// now, again at the next pass.
 async function broadcastTo(sql: Sql, poll: Poll, kind: "ask" | "final", key: string): Promise<"done" | "fallback" | "wait"> {
   const zone = chestZone();
   const name = await organiserName(poll);
@@ -80,7 +82,7 @@ async function broadcastTo(sql: Sql, poll: Poll, kind: "ask" | "final", key: str
     await notifications.broadcast(notice((t, l) => words(kind, poll, t, l, name(l), zone), { path: pollPath(poll.id), key }), { to: poll.everyone ? { roles: [...roles] } : { groups: [...poll.groups] }, except });
     return "done";
   } catch (error) {
-    if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable) return "wait";
+    if (error instanceof RateLimited || error instanceof Unavailable) return "wait";
     if (error instanceof ChestError) return "fallback";
     throw error;
   }
@@ -122,8 +124,11 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
 
 // commented: the organiser hears of a new comment on their poll (one item
 // per poll, replaced by the next comment).
+// An organiser who has the poll's page on screen sees the comment arrive
+// (realtime: lib/live.ts) and is not told again.
 export async function commented(poll: Poll, author: Member): Promise<void> {
   if (poll.organiser === author.id || poll.organiser === "erased") return;
+  if ((await watching([poll.organiser], poll.id)).has(poll.organiser)) return;
   const who = await lookup([author.id]);
   await notify([poll.organiser], (t, locale) => ({ title: cut(fill(t.bell.comment, { name: nameOf(who.get(author.id), locale), title: poll.title }), 80) }), { path: pollPath(poll.id) + "#comments", key: commentKey(poll.id) });
 }
