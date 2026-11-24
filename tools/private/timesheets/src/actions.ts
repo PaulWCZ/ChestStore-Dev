@@ -2,6 +2,8 @@ import { action, field, fail, type Field } from "@argentic/chest-app";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
+import { setCurrency } from "./lib/money.ts";
+import { live, told } from "./lib/live.ts";
 import { everyone } from "./lib/directory.ts";
 import * as entries from "./lib/entries.ts";
 import * as handoff from "./lib/handoff.ts";
@@ -117,66 +119,67 @@ const rateTarget = { kind: sent<"bill" | "cost">(), projectId: maybe<string | nu
 
 export const actions = {
   // ——— The timer ———
-  startTimer: action({ projectId: sent<string>(), taskId: sent<string | null>(), note: sent<string>() }, (input, { member }): Promise<{ stopped: entries.Entry | null }> => timer.startTimer(db(), member, input)),
+  startTimer: action({ projectId: sent<string>(), taskId: sent<string | null>(), note: sent<string>() }, (input, { member }): Promise<{ stopped: entries.Entry | null }> => told([member.id], timer.startTimer(db(), member, input))),
   updateTimer: action({ projectId: maybe<string>(), taskId: maybe<string | null>(), note: maybe<string>() }, async (input, { member }): Promise<null> => {
     // Only what was sent changes.
-    await timer.updateTimer(db(), member, Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)));
+    await told([member.id], timer.updateTimer(db(), member, Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined))));
     return null;
   }),
   // at: an instant chosen in the forgotten timer's dialog; none: now.
-  stopTimer: action({ at: maybe<string>() }, (input, { member }): Promise<{ entry: entries.Entry | null; day: string }> => timer.stopTimer(db(), member, input.at)),
-  discardTimer: action({}, (_input, { member }): Promise<timer.Discarded> => timer.discardTimer(db(), member)),
+  stopTimer: action({ at: maybe<string>() }, (input, { member }): Promise<{ entry: entries.Entry | null; day: string }> => told([member.id], timer.stopTimer(db(), member, input.at))),
+  discardTimer: action({}, (_input, { member }): Promise<timer.Discarded> => told([member.id], timer.discardTimer(db(), member))),
   restoreTimer: action({ discarded: sent<timer.Discarded>() }, async ({ discarded }, { member }): Promise<null> => {
     if (discarded === null || typeof discarded !== "object") fail("invalid");
-    await timer.restoreTimer(db(), member, discarded as timer.Discarded);
+    await told([member.id], timer.restoreTimer(db(), member, discarded as timer.Discarded));
     return null;
   }),
 
   // ——— The week's grid ———
-  saveCell: action({ projectId: sent<string>(), taskId: sent<string | null>(), day: sent<string>(), duration }, ({ duration: minutes, ...input }, { member }): Promise<entries.Cell> => entries.saveCell(db(), member, { ...input, minutes })),
+  saveCell: action({ projectId: sent<string>(), taskId: sent<string | null>(), day: sent<string>(), duration }, ({ duration: minutes, ...input }, { member }): Promise<entries.Cell> => told([member.id], entries.saveCell(db(), member, { ...input, minutes }))),
   addRow: action(row, async (input, { member }): Promise<null> => {
-    await entries.addRow(db(), member, input);
+    await told([member.id], entries.addRow(db(), member, input));
     return null;
   }),
-  removeRow: action(row, (input, { member }): Promise<string[]> => entries.removeRow(db(), member, input)),
-  copyLastWeek: action({ week: sent<string>() }, ({ week }, { member }): Promise<number> => entries.copyLastWeek(db(), member, week)),
+  removeRow: action(row, (input, { member }): Promise<string[]> => told([member.id], entries.removeRow(db(), member, input))),
+  copyLastWeek: action({ week: sent<string>() }, ({ week }, { member }): Promise<number> => told([member.id], entries.copyLastWeek(db(), member, week))),
   // Undo of a deleted entry, or of a removed row (its entries, and the row).
   restoreEntries: action({ ids: sent<string[]>(), row: maybe<Row>() }, async ({ ids, row: r }, { member }): Promise<number> => {
     const sql = db();
     const list = Array.isArray(ids) ? ids : [];
     if (r && list.length === 0) {
-      await entries.addRow(sql, member, r as Row);
+      await told([member.id], entries.addRow(sql, member, r as Row));
       return 0;
     }
     const n = await entries.restoreEntries(sql, member, ids);
     if (r) await entries.addRow(sql, member, r as Row).catch(() => {});
+    await live([member.id]);
     return n;
   }),
 
   // ——— The day's list ———
-  addEntry: action(entry, ({ duration: minutes, ...input }, { member }): Promise<entries.Entry> => entries.addEntry(db(), member, { ...input, minutes })),
-  updateEntry: action({ ...one, ...entry }, ({ id, duration: minutes, ...input }, { member }): Promise<entries.Entry> => entries.updateEntry(db(), member, id, { ...input, minutes })),
+  addEntry: action(entry, ({ duration: minutes, ...input }, { member }): Promise<entries.Entry> => told([member.id], entries.addEntry(db(), member, { ...input, minutes }))),
+  updateEntry: action({ ...one, ...entry }, ({ id, duration: minutes, ...input }, { member }): Promise<entries.Entry> => told([member.id], entries.updateEntry(db(), member, id, { ...input, minutes }))),
   deleteEntry: action(one, async ({ id }, { member }): Promise<null> => {
-    await entries.deleteEntry(db(), member, id);
+    await told([member.id], entries.deleteEntry(db(), member, id));
     return null;
   }),
   setNote: action({ ...one, note: sent<string>() }, async ({ id, note }, { member }): Promise<null> => {
-    await entries.setNote(db(), member, id, note);
+    await told([member.id], entries.setNote(db(), member, id, note));
     return null;
   }),
 
   // ——— A week sent for approval, and the managers' answers ———
-  submitWeek: action({ week: sent<string>() }, ({ week }, { member }): Promise<weeks.WeekState & { approvers: number }> => weeks.submitWeek(db(), member, week)),
+  submitWeek: action({ week: sent<string>() }, ({ week }, { member }): Promise<weeks.WeekState & { approvers: number }> => told([member.id], weeks.submitWeek(db(), member, week))),
   withdrawWeek: action({ week: sent<string>() }, async ({ week }, { member }): Promise<null> => {
-    await weeks.withdrawWeek(db(), member, week);
+    await told([member.id], weeks.withdrawWeek(db(), member, week));
     return null;
   }),
   approveWeek: action({ memberId: sent<string>(), week: sent<string>(), anyway: field.bool() }, async ({ memberId, week, anyway }, { member }): Promise<null> => {
-    await weeks.approveWeek(db(), member, memberId, week, { anyway });
+    await told([String(memberId)], weeks.approveWeek(db(), member, memberId, week, { anyway }));
     return null;
   }),
   returnWeek: action({ memberId: sent<string>(), week: sent<string>(), reason: sent<string>() }, async ({ memberId, week, reason }, { member }): Promise<null> => {
-    await weeks.returnWeek(db(), member, memberId, week, reason);
+    await told([String(memberId)], weeks.returnWeek(db(), member, memberId, week, reason));
     return null;
   }),
   remind: action({ memberIds: sent<string[]>(), week: sent<string>() }, ({ memberIds, week }, { member }): Promise<number> => weeks.remind(db(), member, memberIds, week)),
@@ -247,6 +250,11 @@ export const actions = {
   }),
   saveChoices: action({ approvals: maybe<boolean>(), hoursStyle: maybe<settings.HoursStyle>() }, async (input, { member }): Promise<null> => {
     await settings.saveChoices(db(), member, input);
+    return null;
+  }),
+  // The tool's currency (the Chest has none): src/lib/money.ts.
+  saveCurrency: action({ currency: field.currency() }, async ({ currency }, { member }): Promise<null> => {
+    await setCurrency(db(), member, currency);
     return null;
   }),
 

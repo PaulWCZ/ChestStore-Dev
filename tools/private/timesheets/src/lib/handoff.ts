@@ -4,7 +4,7 @@ import * as events from "@argentic/chest-sdk/events";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { currency } from "./clock.ts";
+import { currency } from "./money.ts";
 import type { Query, Sql } from "./db.ts";
 import { daysBetween, isDay } from "../shared/days.ts";
 import { clean, id, limits, memberPattern, numeric } from "../shared/model.ts";
@@ -12,40 +12,55 @@ import { billRateOf, costRateOf, entryAmount, revenueOf } from "./rates.ts";
 import { transaction } from "./tx.ts";
 
 // Billable time handed to the Quotes tool as the lines of a draft invoice,
-// through events between tools (Proposal (studio): "emits" in
-// chest.proposals.json). A manager picks a project and a period in the
-// report "Billable, not invoiced" and presses "Draft invoice in Quotes":
-// its billable entries not invoiced (and not already handed over) become
-// one hand-off, published once as `timesheets.billable` (version 1, the
-// contract below and in README.md "With the other tools"). Quotes makes a
-// draft invoice of it and answers `quotes.invoiced` with the hand-off's id
-// once the invoice is issued: its entries are then invoiced here (they lock
-// and keep their rates). Before that a manager may take the hand-off back:
-// its entries are free again and Quotes hears `timesheets.billable_cancelled`.
+// through events between tools (SDK 0.5+: "emits" in chest.json, each type
+// with its fields; the owner approves the link). A manager picks a project
+// and a period in the report "Billable, not invoiced" and presses "Draft
+// invoice in Quotes": its billable entries not invoiced (and not already
+// handed over) become one hand-off, emitted once as `timesheets.billable`
+// (its fields below, in chest.json and in README.md "With the other
+// tools"). Quotes makes a draft invoice of it and answers `quotes.invoiced`
+// with the hand-off's id once the invoice is issued: its entries are then
+// invoiced here (they lock and keep their rates). Before that a manager may
+// take the hand-off back: its entries are free again and Quotes hears
+// `timesheets.billable-cancelled` (0.7.0: no underscore in a type).
 //
-// Idempotent both ways: a hand-off is published under the key
-// `timesheets:billable:<id>` (the Chest keeps one event per key for a day;
-// Quotes keeps one draft per hand-off id), and a `quotes.invoiced` for a
-// hand-off already invoiced changes nothing.
+// Idempotent both ways: a hand-off is emitted under the key
+// `timesheets:billable:<id>:<ms>` (the Chest keeps one event per key for 72
+// hours; Quotes keeps one draft per hand-off id) with the subject
+// `handoff:<id>` (delivered in order per hand-off: made, then taken back),
+// and a `quotes.invoiced` for a hand-off already invoiced changes nothing.
 
-export const eventVersion = 1;
+// The Chest's events, through one seam: 0.7.0's fake Chest answers every
+// emit "written for 0 tools" (it cannot play an installed Quotes), so the
+// tests wrap it to play one (test/handoff.test.ts); the tool itself always
+// calls the SDK's emit.
+export const outbox = { emit: events.emit };
+
 // The lines of one draft invoice: an event is 16 KiB at most.
 export const maxLines = 60;
 
 export type BillableLine = { label: string; task: { id: string; name: string } | null; minutes: number; rate: number | null; amount: number | null; entries: number };
+
+// What `timesheets.billable` carries: flat fields of the contract's kinds
+// (0.7.0 has no nested data). Money: minor units of `currency`, the
+// hand-off's own ISO 4217 code. `lines` is text: a JSON array of
+// {label, minutes, rate, amount, entries} (rate: minor units an hour, or
+// null), at most 60 — what Quotes makes the invoice's lines of.
 export type Billable = {
-  version: 1;
   handoff: string;
-  project: { id: string; name: string };
-  client: { id: string; name: string } | null;
-  period: { from: string; to: string };
+  project: string;
+  projectName: string;
+  client?: string;
+  clientName?: string;
+  from: string;
+  to: string;
   currency: string;
   minutes: number;
-  amount: number | null;
+  amount?: number;
   entries: number;
-  lines: BillableLine[];
-  // Where the time is, in Timesheets (chest.tools.link("timesheets", path)).
-  source: { tool: "timesheets"; path: string };
+  lines: string;
+  // Where the time is, in Timesheets (a path on its team host).
+  path: string;
 };
 
 export type Handoff = {
@@ -71,6 +86,13 @@ async function billableEntries(tx: Query, projectId: string, p: { from: string; 
     order by e.day, e.id
     ${lock ? tx`for update of e` : tx``}`;
 }
+
+// A name as an event's text may carry it: the Chest refuses a text field
+// with a format character (U+200B, U+FEFF, the joiner inside an emoji…,
+// SDK 0.7.0 "Fields"), which a project, client or task name typed or
+// imported may hold. They go from the event only (the names are kept as
+// typed); an emoji joined by one shows as its parts in Quotes.
+export const eventText = (value: string): string => value.replace(/\p{Cf}/gu, "");
 
 export function linesOf(rows: EntryRow[], projectName: string): BillableLine[] {
   const byKey = new Map<string, BillableLine>();
@@ -103,14 +125,15 @@ export async function preview(sql: Query, actor: Member | null, projectId: unkno
 // A hand-off's key: its id and the moment it was made (milliseconds).
 export const handoffKey = (handoff: string, at: Date): string => `timesheets:billable:${handoff}:${at.getTime()}`;
 
-// occurredAt (events.publish, studio.16): the moment the database wrote,
-// when the Chest would take it — 24 hours back at most, less five minutes
-// for the clocks. A moment ahead of this server's clock (the database's
-// running fast) goes without it rather than risk a refusal. Published
-// right after the change today, so given; kept exact for a retry.
+// occurredAt (events.emit): the moment the database wrote, when the Chest
+// would take it — 72 hours back at most (0.7.0), less five minutes for the
+// clocks. A moment ahead of this server's clock (the database's running
+// fast) goes without it rather than risk a refusal. Emitted right after the
+// change today, so given; kept exact for a retry.
+const occurredWindow = 72 * 3600_000;
 export function occurred(at: Date, now = Date.now()): { occurredAt?: Date } {
   const age = now - at.getTime();
-  return age >= 0 && age < events.occurredLimits.behindMs - 5 * 60_000 ? { occurredAt: at } : {};
+  return age >= 0 && age < occurredWindow - 5 * 60_000 ? { occurredAt: at } : {};
 }
 
 // release frees the entries of a hand-off that did not go (not taken, or
@@ -121,6 +144,7 @@ async function release(tx: Query, handoff: string): Promise<void> {
     update entries set handoff_id = null,
       rates_fixed = case when handoff_fixed then false else rates_fixed end,
       bill_rate_cents = case when handoff_fixed then null else bill_rate_cents end,
+      rates_currency = case when handoff_fixed then null else rates_currency end,
       cost_rate_cents = case when handoff_fixed then null else cost_rate_cents end,
       handoff_fixed = false
     where handoff_id = ${handoff} and invoiced_at is null`;
@@ -134,28 +158,24 @@ async function undo(sql: Sql, handoff: string): Promise<void> {
   });
 }
 
-// linked: whether some tool receives the hand-off now — Quotes installed
-// AND linked to Timesheets by an admin (chest.tools.get only says it is
-// installed). False on a Chest without events between tools.
-export async function linked(): Promise<boolean> {
-  try {
-    return (await events.receivers("timesheets.billable")).length > 0;
-  } catch (error) {
-    if (error instanceof ChestError) return false;
-    throw error;
-  }
+// reachable: whether Quotes may be there to receive the hand-off. 0.7.0
+// says which tools an event reached only when it is emitted (a count), so
+// before that the panel offers it when Quotes is installed — the studio's
+// `chest.tools` (CHEST_TOOL_URLS) —, or always on a Chest that does not say
+// which tools it has (0.7.0 itself): a send that reaches no tool then says
+// so (quotes_unavailable) and keeps nothing.
+export function reachable(): boolean {
+  return chest.tools.get("quotes") !== null || process.env["CHEST_TOOL_URLS"] === undefined;
 }
 
-// sendBillable makes the hand-off and publishes it. Nothing is kept when
-// no tool would receive it, when the Chest does not take the event, or
-// when it reached no one: the time stays "billable, not invoiced", and the
-// answer says so (quotes_unavailable).
+// sendBillable makes the hand-off and emits it. Nothing is kept when the
+// Chest does not take the event (not granted, the link not approved) or
+// when it reached no tool: the time stays "billable, not invoiced", and
+// the answer says so (quotes_unavailable).
 export async function sendBillable(sql: Sql, actor: Member | null, input: { projectId?: unknown; from?: unknown; to?: unknown }): Promise<{ handoff: string; entries: number; minutes: number; receivers: number }> {
   if (!actor || !can(actor, "invoice")) throw new AppError("forbidden");
   const p = period(input.from, input.to);
   const pid = id(input.projectId);
-  // Nobody would receive it: nothing is locked, the page says why.
-  if (!(await linked())) throw new AppError("quotes_unavailable");
   const made = await transaction(sql, async tx => {
     const [project] = await tx<{ name: string; client_id: string | null; client_name: string | null }[]>`
       select p.name, p.client_id::text, c.name as client_name from projects p left join clients c on c.id = p.client_id where p.id = ${pid} for update of p`;
@@ -166,7 +186,7 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
     if (lines.length > maxLines) throw new AppError("too_many", { max: maxLines });
     const minutes = rows.reduce((n, r) => n + r.minutes, 0);
     const amount = lines.every(l => l.amount !== null) ? lines.reduce((n, l) => n + (l.amount ?? 0), 0) : null;
-    const code = currency();
+    const code = await currency(tx, { share: true });
     const [h] = await tx<{ id: string; sent_at: Date }[]>`
       insert into handoffs (project_id, from_day, to_day, minutes, cents, currency, entries, sent_by)
       values (${pid}, ${p.from}, ${p.to}, ${minutes}, ${amount}, ${code}, ${rows.length}, ${actor.id}) returning id::text, sent_at`;
@@ -175,15 +195,15 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
     // apart, whatever rate changes later; taken back, they are freed again.
     await tx`
       update entries e set handoff_id = ${h!.id},
-        handoff_fixed = not e.rates_fixed, rates_fixed = true,
+        handoff_fixed = not e.rates_fixed, rates_fixed = true, rates_currency = (select currency from settings where id),
         bill_rate_cents = ${billRateOf(tx)}, cost_rate_cents = ${costRateOf(tx)}
       where e.id = any(${rows.map(r => r.id)}::bigint[])`;
     const data: Billable = {
-      version: eventVersion, handoff: h!.id,
-      project: { id: pid, name: project.name },
-      client: project.client_id && project.client_name ? { id: project.client_id, name: project.client_name } : null,
-      period: p, currency: code, minutes, amount, entries: rows.length, lines,
-      source: { tool: "timesheets", path: `/chest/projects/${pid}` },
+      handoff: h!.id, project: pid, projectName: eventText(project.name),
+      ...(project.client_id && project.client_name ? { client: project.client_id, clientName: eventText(project.client_name) } : {}),
+      from: p.from, to: p.to, currency: code, minutes, ...(amount !== null ? { amount } : {}), entries: rows.length,
+      lines: JSON.stringify(lines.map(l => ({ label: eventText(l.label), minutes: l.minutes, rate: l.rate, amount: l.amount, entries: l.entries }))),
+      path: `/chest/projects/${pid}`,
     };
     return { handoff: h!.id, at: new Date(h!.sent_at), data, entries: rows.length, minutes };
   });
@@ -193,8 +213,10 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
     // backup, a hand-off id may be given again to other time (sdk/README,
     // "Put the recipient in the key" — what the event is about), which the
     // Chest would refuse as another event under the same key.
-    // occurredAt (studio.16): when it was made, as the row says.
-    receivers = (await events.publish("timesheets.billable", made.data as unknown as Record<string, unknown>, { key: handoffKey(made.handoff, made.at), ...occurred(made.at) })).receivers;
+    // occurredAt: when it was made, as the row says. No audience: who sees
+    // the draft is Quotes' rule (its billing roles); naming Timesheets'
+    // managers would hide it from a billing team that manages no time.
+    receivers = (await outbox.emit("timesheets.billable", made.data, { subject: `handoff:${made.handoff}`, key: handoffKey(made.handoff, made.at), ...occurred(made.at) })).receivers;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     // Not taken: the hand-off never happened.
@@ -228,7 +250,7 @@ export async function cancelHandoff(sql: Sql, actor: Member | null, handoffValue
     return { sent: new Date(h.sent_at), cancelled: new Date(c!.cancelled_at) };
   });
   try {
-    await events.publish("timesheets.billable_cancelled", { version: eventVersion, handoff: hid }, { key: `${handoffKey(hid, done.sent)}:cancelled`, ...occurred(done.cancelled) });
+    await outbox.emit("timesheets.billable-cancelled", { handoff: hid }, { subject: `handoff:${hid}`, key: `${handoffKey(hid, done.sent)}:cancelled`, ...occurred(done.cancelled) });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }
@@ -237,9 +259,12 @@ export async function cancelHandoff(sql: Sql, actor: Member | null, handoffValue
 // invoiced: Quotes' answer (`quotes.invoiced`, delivered to /chest-events):
 // the hand-off's entries are invoiced, their rates written on them for good.
 // `by` is the member who issued the invoice (else whoever sent the time).
+// The invoice's number and link are shown only to the members the event's
+// audience allows ("all", or Quotes' list of them — kept on the hand-off).
 // Says whether anything changed (a second delivery changes nothing).
-export async function invoiced(sql: Sql, data: unknown): Promise<boolean> {
-  const d = (data ?? {}) as { handoff?: unknown; invoice?: unknown; path?: unknown; by?: unknown };
+export async function invoiced(sql: Sql, event: { data: unknown; audience?: "all" | string[] }): Promise<boolean> {
+  const d = (event.data ?? {}) as { handoff?: unknown; invoice?: unknown; path?: unknown; by?: unknown };
+  const audience = Array.isArray(event.audience) ? event.audience.filter(m => typeof m === "string" && memberPattern.test(m)) : null;
   if (typeof d.handoff !== "string" || !/^[1-9][0-9]{0,17}$/u.test(d.handoff)) return false;
   const ref = typeof d.invoice === "string" ? clean(d.invoice.slice(0, 60), 60, { optional: true }) : "";
   const path = typeof d.path === "string" && d.path.startsWith("/") && !d.path.startsWith("//") && d.path.length <= 300 ? d.path : "";
@@ -249,28 +274,29 @@ export async function invoiced(sql: Sql, data: unknown): Promise<boolean> {
     if (!h || h.cancelled || h.invoiced) return false;
     const by = typeof d.by === "string" && memberPattern.test(d.by) ? d.by : h.sent_by;
     await tx`
-      update entries e set invoiced_at = now(), invoiced_by = ${by}, rates_fixed = true, handoff_fixed = false,
+      update entries e set invoiced_at = now(), invoiced_by = ${by}, rates_fixed = true, handoff_fixed = false, rates_currency = (select currency from settings where id),
         bill_rate_cents = case when e.rates_fixed then e.bill_rate_cents else bill_rate(e.member_id, e.project_id, e.day) end,
         cost_rate_cents = case when e.rates_fixed then e.cost_rate_cents else cost_rate(e.member_id, e.day) end
       where e.handoff_id = ${d.handoff as string} and e.invoiced_at is null and e.deleted_at is null`;
-    await tx`update handoffs set invoiced_at = now(), invoice_ref = ${ref}, invoice_path = ${path} where id = ${d.handoff as string}`;
+    await tx`update handoffs set invoiced_at = now(), invoice_ref = ${ref}, invoice_path = ${path}, invoice_audience = ${audience} where id = ${d.handoff as string}`;
     return true;
   });
 }
 
-// The hand-offs of the last 120 days (the Reports page lists them).
+// The hand-offs of the last 120 days (the Reports page lists them). The
+// invoice's number and link only for the members Quotes' event allowed.
 export async function recentHandoffs(sql: Query, actor: Member | null): Promise<Handoff[]> {
-  if (!can(actor, "invoice")) throw new AppError("forbidden");
-  const rows = await sql<{ id: string; project_id: string; project_name: string; client_name: string | null; from_day: string; to_day: string; minutes: number; cents: string | null; currency: string; entries: number; sent_by: string; sent_at: Date; published: boolean; cancelled: boolean; invoiced: boolean; invoice_ref: string; invoice_path: string }[]>`
+  if (!actor || !can(actor, "invoice")) throw new AppError("forbidden");
+  const rows = await sql<{ id: string; project_id: string; project_name: string; client_name: string | null; from_day: string; to_day: string; minutes: number; cents: string | null; currency: string; entries: number; sent_by: string; sent_at: Date; published: boolean; cancelled: boolean; invoiced: boolean; invoice_ref: string; invoice_path: string; invoice_audience: string[] | null }[]>`
     select h.id::text, h.project_id::text, p.name as project_name, c.name as client_name, to_char(h.from_day, 'YYYY-MM-DD') as from_day, to_char(h.to_day, 'YYYY-MM-DD') as to_day,
       h.minutes, h.cents::text, h.currency, h.entries, h.sent_by, h.sent_at, h.published_at is not null as published, h.cancelled_at is not null as cancelled,
-      h.invoiced_at is not null as invoiced, h.invoice_ref, h.invoice_path
+      h.invoiced_at is not null as invoiced, h.invoice_ref, h.invoice_path, h.invoice_audience
     from handoffs h join projects p on p.id = h.project_id left join clients c on c.id = p.client_id
     where h.sent_at > now() - interval '120 days' order by h.sent_at desc, h.id desc limit 50`;
-  return rows.map(r => ({
+  return rows.map(r => ({ ...r, shown: r.invoice_audience === null || r.invoice_audience.includes(actor.id) })).map(r => ({
     id: r.id, projectId: r.project_id, projectName: r.project_name, clientName: r.client_name, from: r.from_day, to: r.to_day, minutes: r.minutes,
     cents: r.cents === null ? null : numeric(r.cents), currency: r.currency, entries: r.entries, sentBy: r.sent_by, sentAt: new Date(r.sent_at).toISOString(),
-    published: r.published, cancelled: r.cancelled, invoiced: r.invoiced, invoiceRef: r.invoice_ref, invoiceLink: r.invoice_path ? chest.tools.link("quotes", r.invoice_path) : null,
+    published: r.published, cancelled: r.cancelled, invoiced: r.invoiced, invoiceRef: r.shown ? r.invoice_ref : "", invoiceLink: r.shown && r.invoice_path ? chest.tools.link("quotes", r.invoice_path) : null,
   }));
 }
 

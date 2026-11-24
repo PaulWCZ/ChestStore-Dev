@@ -5,7 +5,8 @@ import { Plus, Upload } from "../components/icons.tsx";
 import { format, formatDay, localeOf, money, plural } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { AppError } from "../lib/app-error.ts";
-import { currency, today } from "../lib/clock.ts";
+import { today } from "../lib/clock.ts";
+import { currency } from "../lib/money.ts";
 import { db } from "../lib/db.ts";
 import { everyoneOrNone } from "../lib/directory.ts";
 import { nameFor, people as lookup } from "../lib/people.ts";
@@ -23,7 +24,7 @@ export async function projectsPage({ member, locale: lang, t, query }: PageConte
   const archived = query("archived") === "1";
   const sql = db();
   const [list, clients] = await Promise.all([listProjects(sql, member, { archived }), listClients(sql, member)]);
-  const code = currency();
+  const code = await currency(sql);
   const groups = new Map<string, Project[]>();
   for (const p of list) groups.set(p.clientName ?? "", [...(groups.get(p.clientName ?? "") ?? []), p]);
   const budget = (p: Project) => {
@@ -101,7 +102,7 @@ export async function projectsPage({ member, locale: lang, t, query }: PageConte
 export async function newProjectPage({ member, locale: lang, t }: PageContext<MemberContext>): Promise<View> {
   const locale = localeOf(lang);
   if (!can(member, "projects.manage")) forbidden();
-  const [clients, dir] = await Promise.all([listClients(db(), member), everyoneOrNone()]);
+  const [clients, dir, code] = await Promise.all([listClients(db(), member), everyoneOrNone(), currency(db())]);
   return {
     title: t.project.newTitle,
     body: (
@@ -115,7 +116,7 @@ export async function newProjectPage({ member, locale: lang, t }: PageContext<Me
             clients: clients.filter(c => !c.archived).map(c => ({ id: c.id, name: c.name })),
             people: dir.people.map(p => ({ id: p.id, name: p.name })),
             managers: dir.people.filter(p => p.role === "manager").map(p => ({ id: p.id, name: p.name })),
-            currency: currency(),
+            currency: code,
             comma: locale === "fr",
             defaultTasks: [t.project.defaultTasks.design, t.project.defaultTasks.development, t.project.defaultTasks.meetings],
             t: { project: t.project, colors: t.colors, errors: t.errors, date: t.kit.date },
@@ -143,7 +144,7 @@ export async function projectPage({ member, locale: lang, t, param }: PageContex
   // the tool still shows.
   const missing = [...new Set([...p.people, ...rates.people.map(r => r.memberId)])].filter(x => !dir.people.some(d => d.id === x));
   const gone = missing.length ? await lookup(missing) : new Map();
-  const code = currency();
+  const code = await currency(db());
   const now = today();
   const step = (x: RateStep) => format(x.from === origin ? t.people.since0 : t.people.since, { rate: x.cents === null ? t.people.none : money(x.cents, code, locale), date: formatDay(x.from, locale, { day: "numeric", month: "long", year: "numeric" }) });
   const everyoneNamed = [...dir.people.map(x => ({ id: x.id, name: x.name })), ...missing.map(x => ({ id: x, name: nameFor(x, gone, locale) }))];

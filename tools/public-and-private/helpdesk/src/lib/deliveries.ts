@@ -21,24 +21,31 @@ import { cleanup } from "./tickets.ts";
 // every one is idempotent.
 
 // The members' lifecycle (lib/lifecycle.ts), the requests Forms sends and
-// the incidents Status publishes (Proposal (studio): events between tools;
-// lib/forms-in.ts, lib/incidents-in.ts).
+// the incidents Status tells (events between tools, SDK 0.7.0: one map,
+// chest.json's "receives"; lib/forms-in.ts, lib/incidents-in.ts).
+export function fromItsTool(e: Pick<events.ToolEvent, "type" | "source">): boolean {
+  if (e.source === e.type.split(".")[0]) return true;
+  log.warn("event ignored: not from the tool its type names", { type: e.type });
+  return false;
+}
+
 export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
   return new Response(null, {
-    status: await events.handle(request, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "forms.request": async e => { await fromForms(sql, e); },
-        "status.incident": async e => { await incidents.received(sql, e); },
-      },
-    }),
+    status: await events.handle(request, {
+      ...handlers(sql),
+      // Each type only from the tool its first word names (the Chest stamps
+      // source): another tool emitting "forms.request" is not Forms.
+      "forms.request": async e => { if (fromItsTool(e)) await fromForms(sql, e); },
+      "status.incident": async e => { if (fromItsTool(e)) await incidents.received(sql, e); },
+    }, { seen: seen(sql) }),
   });
 }
 
-// The runs of chest.json's "schedules" (contract 0.4). Every night,
+// The runs of chest.json's "schedules". Every night,
 // "cleanup": closed tickets older than the retention (Settings) go, with
-// their files; so do the files members sent but never added to a message,
+// their files; so do the files visitors and members sent but never added
+// to a message (0.7.0 keeps a visitor's upload until the tool deletes it),
 // and the ticket events told long ago. Every 15 minutes, "late": requests
 // waiting past the threshold are told to the channels that asked for it
 // (lib/notices.ts), the tickets solved or reopened that the Chest could

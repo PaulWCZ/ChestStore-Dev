@@ -19,17 +19,19 @@ import { lineNet, totals } from "../shared/totals.ts";
 // handed over to be invoiced. Flat, as the Chest carries it (fields of its
 // kinds: a list travels as JSON text):
 //
-//   timesheets.billable {version: 1, handoff, projectName, clientName?,
-//     from?, to? (days), currency, minutes, amount, entries,
-//     lines: JSON text of [{label, task, minutes, rate: cents an hour | null, amount, entries}],
+//   timesheets.billable {handoff, project, projectName, client?, clientName?,
+//     from, to (days), currency, minutes, amount?, entries,
+//     lines: JSON text of [{label, minutes, rate: cents an hour | null, amount, entries}],
 //     (amounts and rates in cents — hundredths, whatever the currency's
 //     decimals —, read in the currency's minor units: fromCents)
 //     path}
-//   timesheets.billable-cancelled {version: 1, handoff}
+//   timesheets.billable-cancelled {handoff}
 //
-// The nested shape of before (project: {name}, client: {name}, period:
-// {from, to}, lines: [...], source: {path}) is read too; `v` stands for
-// `version`. A hand-off told for some people only (its audience) makes no
+// — exactly the fields Timesheets declares in its chest.json "emits" (the
+// Chest refuses any other field, so 0.7.0's shape carries no `version`: a
+// new shape is a new type). The shape of before 0.7.0 (`version: 1` or
+// `v: 1`; project: {name}, client: {name}, period: {from, to}, lines:
+// [...], source: {path}) is read too; any other version is ignored. A hand-off told for some people only (its audience) makes no
 // draft — Quotes has no private document —; the billing members it names
 // are told to invoice it by hand.
 //
@@ -88,10 +90,14 @@ function listOf(value: unknown): unknown {
     return null;
   }
 }
-const versionOf = (data: Record<string, unknown>) => data["version"] ?? data["v"];
+// No version (0.7.0's flat shape) or version 1 (before): read; another: ignored.
+const knownVersion = (data: Record<string, unknown>): boolean => {
+  const v = data["version"] ?? data["v"];
+  return v === undefined || v === null || v === 1;
+};
 
 export function readBillable(data: Record<string, unknown>): Billable | null {
-  if (versionOf(data) !== 1) return null;
+  if (!knownVersion(data)) return null;
   const handoff = data["handoff"];
   if (typeof handoff !== "string" || !handoffPattern.test(handoff)) return null;
   const project = nameOf(data, "project", 120);
@@ -189,7 +195,7 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
 // billableCancelled: the hand-off taken back in Timesheets. Its draft goes;
 // an issued invoice stays, and billing hear of it.
 export async function billableCancelled(sql: Sql, event: ToolEvent): Promise<"deleted" | "kept" | null> {
-  if (versionOf(event.data) !== 1) return null;
+  if (!knownVersion(event.data)) return null;
   const handoff = event.data["handoff"];
   if (typeof handoff !== "string" || !handoffPattern.test(handoff)) return null;
   const result = await sql.begin(async tx => {

@@ -1,7 +1,7 @@
+import { currencyFor } from "./money.ts";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import { chest } from "@argentic/chest-sdk/chest";
 import { can, mayCreate, mayEdit } from "./access.ts";
 import { groupsOf, readerFor } from "./groups.ts";
 import { AppError } from "./app-error.ts";
@@ -71,7 +71,9 @@ async function teamFor(sql: Query, level: Level, teamId: unknown) {
   return found;
 }
 
-export type KeyResultInput = { title?: unknown; kind?: unknown; unit?: unknown; start?: unknown; target?: unknown; owner?: unknown; weight?: unknown; source?: unknown; mine?: unknown; scope?: unknown };
+// currency: a money key result's ISO 4217 code; absent or "": the tool's
+// default (src/lib/money.ts).
+export type KeyResultInput = { title?: unknown; kind?: unknown; unit?: unknown; start?: unknown; target?: unknown; owner?: unknown; weight?: unknown; source?: unknown; mine?: unknown; scope?: unknown; currency?: unknown };
 export type CheckedKeyResult = Measure & { title: string; owner: string; weight: number; currency: string | null; source: Source | null; mine: boolean; scope: string | null };
 
 // A fed key result's options (lib/sources.ts): "only theirs" where the
@@ -94,7 +96,7 @@ export function checkSource(value: unknown): Source | null {
   return value;
 }
 
-export async function checkKeyResult(input: KeyResultInput, fallbackOwner: string): Promise<CheckedKeyResult> {
+export async function checkKeyResult(sql: Query, input: KeyResultInput, fallbackOwner: string): Promise<CheckedKeyResult> {
   const title = clean(input.title, limits.title);
   const source = checkSource(input.source);
   // Fed by another tool: an amount of money (the CRM's), or a count.
@@ -102,7 +104,10 @@ export async function checkKeyResult(input: KeyResultInput, fallbackOwner: strin
   const owner = input.owner === undefined || input.owner === "" || input.owner === null ? fallbackOwner : await activeMember(input.owner);
   const weight = input.weight === undefined ? 1 : Number(input.weight);
   if (![1, 2, 3].includes(weight)) throw new AppError("invalid");
-  return { ...m, title, owner, weight, currency: m.kind === "money" ? chest.currency : null, source, ...checkFeed(source, input.mine, input.scope) };
+  // A money key result keeps its own currency: the one chosen, else the
+  // tool's default (the Chest has none).
+  const currency = m.kind === "money" ? await currencyFor(sql, input.currency) : null;
+  return { ...m, title, owner, weight, currency, source, ...checkFeed(source, input.mine, input.scope) };
 }
 
 export async function insertKeyResult(sql: Query, actor: Member, objectiveId: string, k: CheckedKeyResult): Promise<string> {
@@ -166,7 +171,7 @@ export async function createObjective(sql: Sql, actor: Member | null, input: New
   if (!Array.isArray(list)) throw new AppError("invalid");
   if (list.length > limits.keyResultsPerObjective) throw new AppError("too_many", { max: limits.keyResultsPerObjective });
   const krs: CheckedKeyResult[] = [];
-  for (const k of list) krs.push(await checkKeyResult((k ?? {}) as KeyResultInput, owner));
+  for (const k of list) krs.push(await checkKeyResult(sql, (k ?? {}) as KeyResultInput, owner));
   return sql.begin(async tx => {
     await roomIn(tx, cycle.id, 1);
     const [row] = await tx<{ id: string }[]>`

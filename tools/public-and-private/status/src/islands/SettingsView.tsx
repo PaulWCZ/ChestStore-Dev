@@ -26,17 +26,18 @@ function Snippet({ id, label, code, t }: { id: string; label: string; code: stri
   );
 }
 
-export function SettingsView({ origin, settings, look, subscribers, templates, t }: { origin: string; settings: { website: string; support: string; embedSites: string }; look: "own" | "catalogue" | "brand"; subscribers: string; templates: { id: string; name: string; title: string }[]; t: Words }) {
+export function SettingsView({ origin, settings, zones, look, subscribers, templates, t }: { origin: string; settings: { website: string; support: string; embedSites: string; timeZone: string }; zones: { company: string; all: string[] }; look: "own" | "catalogue" | "brand"; subscribers: string; templates: { id: string; name: string; title: string }[]; t: Words }) {
   const w = t.settings;
   const { run, pending, undo } = useRun();
   const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [website, setWebsite] = useState(settings.website);
   const [support, setSupport] = useState(settings.support);
   const [sites, setSites] = useState(settings.embedSites);
+  const [timeZone, setTimeZone] = useState(settings.timeZone);
   const [importing, setImporting] = useState(false);
   const save = (event: React.FormEvent) => {
     event.preventDefault();
-    void run("savePage", { website, support, embedSites: sites }, w.saved);
+    void run("savePage", { website, support, embedSites: sites, timeZone }, w.saved);
   };
   const upload = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,6 +80,14 @@ export function SettingsView({ origin, settings, look, subscribers, templates, t
             <label className="label" htmlFor="support">{w.support}</label>
             <input id="support" className="field" maxLength={300} placeholder={w.supportPlaceholder} value={support} onChange={e => setSupport(e.target.value)} aria-describedby="support-hint" />
             <p id="support-hint" className="hint">{w.supportHint}</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="page-zone">{w.timeZone}</label>
+            <select id="page-zone" className="field" value={timeZone} onChange={e => setTimeZone(e.target.value)} aria-describedby="page-zone-hint">
+              <option value="">{format(w.timeZoneCompany!, { zone: zones.company })}</option>
+              {zones.all.filter(z => z !== zones.company).map(z => <option key={z} value={z}>{z.replaceAll("_", " ")}</option>)}
+            </select>
+            <p id="page-zone-hint" className="hint">{w.timeZoneHint}</p>
           </div>
           <p className="note">{look === "brand" ? w.brandOn : look === "catalogue" ? w.themeOn : w.brandOff}</p>
           <p className="note">{format(w.domain!, { address: origin })}</p>

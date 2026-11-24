@@ -358,7 +358,7 @@ export const en = {
   reports: {
     found: { zero: "No note holds “{q}” in these days", one: "1 entry whose note holds “{q}”", other: "{count} entries whose note holds “{q}”" },
     foundMany: "The {count} most recent entries whose note holds “{q}”: the CSV has them all",
-    quotes: { title: "Draft invoices in Quotes", intro: "Each project’s billable time of these days becomes a draft invoice in Quotes: one line per task and rate. The time is marked invoiced when Quotes issues the invoice.", nothing: "Nothing left to send for these days.", entries: { one: "1 entry", other: "{count} entries" }, send: "Draft invoice in Quotes", sendLabel: "Draft invoice in Quotes: {project}", sent: { one: "1 entry of {project} sent to Quotes as a draft invoice.", other: "{count} entries of {project} sent to Quotes as a draft invoice." }, recent: "Sent to Quotes", span: "{from} – {to}", waiting: "Waiting for its invoice", invoiced: "Invoiced", invoicedAs: "Invoiced: {invoice}", cancelled: "Taken back", open: "Open in Quotes", takeBack: "Take back", takeBackLabel: "Take back: {what}", takenBack: "Taken back: the time can be changed and sent again. Quotes was told.", notLinked: "Quotes is installed but not linked to Timesheets yet: an administrator of your Chest links them. Until then, mark the time invoiced by hand." },
+    quotes: { title: "Draft invoices in Quotes", intro: "Each project’s billable time of these days becomes a draft invoice in Quotes: one line per task and rate. The time is marked invoiced when Quotes issues the invoice.", nothing: "Nothing left to send for these days.", entries: { one: "1 entry", other: "{count} entries" }, send: "Draft invoice in Quotes", sendLabel: "Draft invoice in Quotes: {project}", sent: { one: "1 entry of {project} sent to Quotes as a draft invoice.", other: "{count} entries of {project} sent to Quotes as a draft invoice." }, recent: "Sent to Quotes", span: "{from} – {to}", waiting: "Waiting for its invoice", invoiced: "Invoiced", invoicedAs: "Invoiced: {invoice}", cancelled: "Taken back", open: "Open in Quotes", takeBack: "Take back", takeBackLabel: "Take back: {what}", takenBack: "Taken back: the time can be changed and sent again. Quotes was told.", notInstalled: "Quotes is not installed in your Chest: mark the time invoiced by hand." },
     title: "Reports",
     period: "Period",
     presets: {
@@ -471,7 +471,11 @@ export const en = {
     peopleLink: "Rates and usual weeks of each person",
     money: {
       title: "Money",
-      body: "Rates and amounts are in {currency}, your Chest’s currency.",
+      body: "Rates, money budgets and amounts are all in one currency.",
+      currency: "Currency",
+      correct: "Changing it relabels every rate and budget (80 EUR becomes 80 GBP): change it only to correct it. Once time is invoiced, it stays.",
+      fixed: "Time was invoiced in {currency}: the currency stays.",
+      saved: "Currency saved.",
     },
     import: {
       title: "Import",
@@ -555,6 +559,7 @@ export const en = {
     self_approval: "Nobody approves their own week: another manager does.",
     lead_invalid: "A project’s lead must be a manager of Timesheets.",
     nothing_to_send: "No billable time left to send for this project and these days.",
+    currency_fixed: "Time was already invoiced in this currency: it can no longer change.",
     quotes_unavailable: "Quotes can’t be told yet (your Chest does not link tools yet, or Quotes is not linked to Timesheets). Mark the time invoiced by hand instead.",
     handoff_state: "This time was already invoiced or taken back.",
     forbidden: "Your role does not allow this.",

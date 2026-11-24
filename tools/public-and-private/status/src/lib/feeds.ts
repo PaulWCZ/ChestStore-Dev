@@ -7,6 +7,7 @@ import { recentActivity, upcomingMaintenance } from "./incidents.ts";
 import { pick } from "./texts.ts";
 import { publicOrigin } from "./public-origin.ts";
 import { rememberPublicOrigin } from "./settings.ts";
+import { pageZone } from "./page-settings.ts";
 
 // The public feeds: incidents (Atom and RSS) and planned maintenance (a
 // calendar). Anonymous, like the page, cached as briefly.
@@ -25,7 +26,7 @@ export async function incidentFeed(headers: Headers, locale: Locale): Promise<Fe
   const t = catalogue(locale);
   const sql = db();
   const base = await origin(headers);
-  const zone = chest.timeZone;
+  const zone = await pageZone(sql);
   const now = new Date();
   const company = chest.organization.name || t.mail.team;
   const list = await recentActivity(sql, now, 50);

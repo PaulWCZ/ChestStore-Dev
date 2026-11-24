@@ -3,7 +3,8 @@ import { PageHeader } from "@argentic/chest-ui/components";
 import { compare, format, formatDay, localeOf, money, plural } from "../i18n/index.ts";
 import type { PersonView } from "../islands/People.tsx";
 import { can } from "../lib/access.ts";
-import { currency, today } from "../lib/clock.ts";
+import { today } from "../lib/clock.ts";
+import { currency } from "../lib/money.ts";
 import { db } from "../lib/db.ts";
 import { everyoneOrNone } from "../lib/directory.ts";
 import { formerPeople } from "../lib/import.ts";
@@ -39,7 +40,7 @@ export async function peoplePage({ member, locale: lang, t }: PageContext<Member
     if (mine.length === 0) return plural(t.people.useNone, list.length, locale, { names: names(list) });
     return format(t.people.useSome, { used: mine.length, count: list.length, names: names(mine) });
   };
-  const code = currency();
+  const code = await currency(sql);
   const now = today();
   const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
   const describe = (steps: RateStep[]) => steps.map(x => format(x.from === origin ? t.people.since0 : t.people.since, { rate: x.cents === null ? t.people.none : money(x.cents, code, locale), date: long(x.from) }));

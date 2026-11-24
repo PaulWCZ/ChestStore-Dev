@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "helpdesk",
   "title": "Support",
   "description": "Answer your customers together: a contact form, one shared inbox, replies and notes.",
@@ -20,11 +20,83 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "forms.request",
+    "status.incident"
   ],
+  "emits": {
+    "helpdesk.ticket.solved": {
+      "description": "A support request is solved",
+      "data": {
+        "ticket": "id",
+        "assignee": "member?"
+      }
+    },
+    "helpdesk.ticket.reopened": {
+      "description": "A solved support request is reopened",
+      "data": {
+        "ticket": "id"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "desk",
+        "join": [
+          "admin",
+          "agent",
+          "viewer"
+        ]
+      },
+      {
+        "name": "mine:{member}"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "tickets",
+        "channel": "desk",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "messages",
+        "channel": "desk",
+        "columns": [
+          "id",
+          "ticket_id"
+        ]
+      },
+      {
+        "table": "ticket_tags",
+        "channel": "desk",
+        "columns": [
+          "ticket_id",
+          "tag_id"
+        ]
+      },
+      {
+        "table": "tags",
+        "channel": "desk",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "incidents",
+        "channel": "desk",
+        "columns": [
+          "source_id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "cleanup",

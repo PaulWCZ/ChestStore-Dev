@@ -12,8 +12,9 @@ export type SendableRow = { projectId: string; name: string; client: string; col
 export type HandoffRow = { id: string; title: string; sub: string; state: "waiting" | "invoiced" | "cancelled"; invoice: string | null; link: string | null };
 type Words = { reports: Catalogue["reports"]; errors: Catalogue["errors"] };
 
-// linked: a tool receives the hand-off now; else the panel says why
-// nothing can be sent (the hand-offs made are still listed).
+// linked: Quotes may receive the hand-off (lib/handoff.ts, reachable: a
+// send that reaches no tool says why); else the panel says it is not
+// installed (the hand-offs made are still listed).
 export function QuotesPanel({ rows, handoffs, from, to, linked, locale, t }: { rows: SendableRow[]; handoffs: HandoffRow[]; from: string; to: string; linked: boolean; locale: string; t: Words }) {
   const [pending, start] = useStep();
   const w = t.reports.quotes;
@@ -36,7 +37,7 @@ export function QuotesPanel({ rows, handoffs, from, to, linked, locale, t }: { r
     <section className="panel quotes" aria-labelledby="quotes-title">
       <h2 id="quotes-title"><Send />{w.title}</h2>
       <p className="small muted">{w.intro}</p>
-      {!linked ? <p className="notice small">{w.notLinked}</p> : rows.length === 0 ? <p className="muted">{w.nothing}</p> : (
+      {!linked ? <p className="notice small">{w.notInstalled}</p> : rows.length === 0 ? <p className="muted">{w.nothing}</p> : (
         <ul className="quotes-list">
           {rows.map(r => (
             <li key={r.projectId}>

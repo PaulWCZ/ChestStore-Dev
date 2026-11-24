@@ -69,7 +69,7 @@ export function ContactForm({ filesOn, locale, embed, error: given, t }: { files
         <textarea id="message" name="message" className="field" required rows={7} maxLength={limits.message} placeholder={w.messagePlaceholder} aria-invalid={invalid("message") || undefined} />
       </div>
       {takesFiles ? (
-        <Attachments files={files} setFiles={setFiles} kind="public" label={w.attach} plainTypes={w.typesPlain} t={{ files: t.files, errors: t.errors }}
+        <Attachments files={files} setFiles={setFiles} kind="public" label={w.attach} plainTypes={w.visitorTypesPlain} t={{ files: t.files, errors: t.errors }}
           grant={async (type, size) => {
             const up = await call("visitorUpload", { secret: "", type, size }, { quiet: true, refresh: false });
             if (!up.ok && up.error === "files_off") setTakesFiles(false);

@@ -129,8 +129,8 @@ minute, in plain words.
   next day, and still answers people already known), a **known address**
   10 per visitor, 10 a day for one address whoever asks, and 5,000 in
   all (a refused request spends its form token and is counted too). The visitor is the address the Chest's
-  front gives (a proposal, `Chest-Visitor-Address`), else the browser's
-  cookie: a Chest of contract 0.4 gives no address, and a robot that drops
+  front gives (a proposal, the Chest-held `Chest-Visitor` key), else the
+  browser's cookie: a Chest of contract 0.7 gives no address, and a robot that drops
   its cookie is counted in the day's totals only — never every customer as
   one visitor. **An address gets three confirmation emails a day at
   most**, ten minutes apart, whoever asks. Without JavaScript, a refused
@@ -169,12 +169,20 @@ minute, in plain words.
   disappears. Editors see these subscriptions on *Subscribers* (the
   address without its secret part, language, what they follow, stopped
   or not) and remove one on request.
-- **Times**: written by the server in the Chest's time zone with its
+- **Times**: written by the server in **the page's time zone** with its
   short name ("14:05 CEST"), readable without JavaScript, then rewritten
-  in the visitor's own zone by the browser.
+  in the visitor's own zone by the browser. The page's zone is the
+  company's (`chest.timeZone`, captured once by the Chest) until an editor
+  chooses another in *Settings* (a company whose customers live
+  elsewhere); it is the zone of the maintenance windows, the history's
+  days, the feeds, the emails and the API's `time_zone`. It never changes
+  the Chest's zone.
 - **Fast**: every public page is rendered on the server and works without
   JavaScript (its scripts rewrite the times in the visitor's zone and
-  read the page again every minute while it is open). The 90 days' bars
+  read the page again every minute while it is open and its reader active
+  in the last ten minutes — idle, it stops and the tool may sleep: SDK
+  0.7.0's realtime serves members' pages only, a visitor has no session
+  to join a channel with). The 90 days' bars
   draw each state's shape once per page (`<symbol>`, then `<use>`): the
   sample shop's page is 133 KB of HTML (7 KB sent, gzipped), was 280 KB;
   at 60 services 1.1 MB (21 KB gzipped), was 2.2 MB. The status page, its
@@ -213,7 +221,7 @@ minute, in plain words.
     both are **logged** — who, when, the earlier text — because a status
     page is evidence (service credits). Rename; remove the whole incident
     (Undo, and editors still see it, marked).
-  - **Plan maintenance**: what, start and end (the Chest's time zone,
+  - **Plan maintenance**: what, start and end (the page's time zone,
     24-hour selects), services, text. It is shown *Planned*, then *In
     progress*, then *Completed* **by the clock** — no job needed for the
     page. *Finish now*, *Cancel*, change the window while it has not
@@ -266,10 +274,15 @@ minute, in plain words.
   - **Subscribers**: who, what they follow, whether email works on this
     Chest, emails still waiting; remove one on request.
   - **History**: every incident and maintenance, removed ones included.
-  - **The other tools are told** (Proposal *events between tools*): see
+  - **The team's pages are live**: SDK 0.7.0's realtime (one channel,
+    `team`, fed by the writes of incidents, updates, services, checks'
+    states and heartbeats — their ids only) reads *Now*, an incident, the
+    history again by itself when someone writes; no timer, so Status
+    sleeps while the pages stay open.
+  - **The other tools are told** (SDK 0.7.0's events between tools): see
     *With the other tools*.
   - **The team is told**: a new incident rings the bell of every editor,
-    in one call (`notifications.broadcast`, Proposal announced for 0.5),
+    in one call (`notifications.broadcast`, SDK 0.7.0),
     each member reading it in their language (the notice's
     `translations`); on a Chest without broadcast, the tool lists its
     editors and notifies them with the same translated notice. Its
@@ -277,8 +290,9 @@ minute, in plain words.
     incidents. How each member is told beyond the bell (an email for each
     notification, once or twice a day, or none) is the member's choice in
     the Chest, not a setting of Status.
-- **Automatic checks** (Proposal *checks*): on *Checks*, an editor gives a
-  service a web address (https), how often (1 to 60 minutes), the answer
+- **Automatic checks** (Proposal *checks*, not in SDK 0.7.0): on
+  *Checks*, an editor gives a service a web address (https), how often
+  (1 to 60 minutes), the answer
   expected (HTTP status) and when it is too slow. Saving hands the whole
   list to the Chest, which opens the addresses **from outside** (the tool
   has no network) and posts each result, signed, to `/chest-checks`.
@@ -303,46 +317,41 @@ minute, in plain words.
 
 ## With the other tools
 
-Status **publishes `status.incident`** (version 1; `chest.proposals.json`
-`"emits"`; a receiving tool declares it, and an administrator links the
-two in the Chest). **Support receives it** (its README, "With the other
-tools"): while an incident is open, its inbox and tickets say "Incident in
-progress: Payments unavailable" with the public page, and its saved
-replies start with one that tells the customer, with the link; both go
-once it is resolved or removed.
+Status **emits `status.incident`** (`chest.json` `"emits"`, with its
+fields; the owner approves the link when a receiving tool is installed).
+**Support receives it** (its README, "With the other tools"): while an
+incident is open, its inbox and tickets say "Incident in progress:
+Payments unavailable" with the public page, and its saved replies start
+with one that tells the customer, with the link; both go once it is
+resolved or removed.
 
 Sent when an incident customers can see is posted (`opened`), gets an
 update or a correction (`updated`; `opened` again when reopened or
 restored), is resolved (`resolved`), or removed (`removed`) — never for a
 maintenance, a backfilled incident (already over) or one only about
-services for the team. Published after the incident is saved; if the
-Chest cannot take it, the incident is kept all the same (the next change
-brings receivers up to date). The same news twice is one event (the key
-is a digest of it).
+services for the team. Emitted after the incident is saved; if the Chest
+cannot take it, the incident is kept all the same (the next change brings
+receivers up to date). The same news twice is one event (the key is a
+digest of it). Its subject is the incident (one incident's events arrive
+in order); no audience: the public page shows it to everyone. Its time
+(`occurredAt`) is the last update's when within the Chest's 72 hours.
 
-```jsonc
-{
-  "v": 1,
-  "action": "opened",                        // opened | updated | resolved | removed
-  "incident": {
-    "id": "42",
-    "title": "Paiements en échec",           // as written, in `language`
-    "language": "fr",
-    "titles": { "fr": "Paiements en échec", "en": "Payments failing" },
-    "status": "investigating",               // investigating | identified | monitoring | resolved
-    "impact": "major",                       // the worst now: degraded | partial | major; operational once resolved
-    "started_at": "2026-09-29T14:00:00.000Z",
-    "resolved_at": null,
-    "url": "https://status.atelier-martin.fr/incidents/42",   // its public page, or null
-    "services": [{ "id": "3", "names": { "fr": "Paiement", "en": "Payments" }, "state": "major" }]
-  },
-  "update": { "id": "311", "status": "investigating", "at": "2026-09-29T14:00:00.000Z" }
-}
-```
+Contract 0.7 carries flat fields of declared kinds only (no object, no
+list), so the texts per language travel as JSON in a text field:
 
-No member, no text of the updates (the public page has them). Events may
-arrive out of order: a receiver orders them by the Chest's `occurredAt`.
-Version 1; a later version adds fields, never changes one.
+| Field | Kind | What |
+|---|---|---|
+| `incident` | id | the incident (`"42"`) |
+| `action` | text | `opened`, `updated`, `resolved`, `removed` |
+| `status`, `impact` | text | `investigating`…`resolved`; `degraded`, `partial`, `major`, `maintenance`, `operational` |
+| `language`, `title` | text | the title as written, and its language |
+| `titles` | text | JSON `{"en": "…", "fr": "…"}`: the title in each language written |
+| `services` | text | JSON `[{"id", "names": {"en", "fr"}, "state"}]`: the public services it touches |
+| `startedAt`, `resolvedAt` | time, time? | |
+| `url` | text? | the incident's public page (none outside a Chest) |
+| `update`, `updatedAt` | id?, time | the last update and when it was posted (orders the news) |
+
+Never a member, never an update's text.
 
 ## Roles
 
@@ -395,14 +404,16 @@ enter as editors.
 
 ## On a Chest
 
-`chest.json` (contract 0.4, `chest check` OK): roles `editor`; a public
-part; capabilities `database`, `members`, `notifications`; `receives:
-["member.*"]`; the `updates` schedule (`*/15 * * * *`, posted to
-`/chest-schedules`); `build.static: ["/assets/"]`. No `"csp"`: the
-Chest's default policy holds on every public page.
-`chest.proposals.json` (the studio's proposals, not yet accepted by a
-Chest): `checks` (`{"max": 10}`), `mail.send`, `emits:
-["status.incident"]`, `webhooks` (`{"max": 200}`), the tile's French words.
+`chest.json` (contract 0.7, SDK 0.7.0, `chest check` OK): roles
+`editor`; a public part; capabilities `database`, `members`,
+`notifications`, `realtime` (channel `team`, feeds of ids on
+`incidents`, `updates`, `components`, `check_states`, `heartbeats`);
+`receives: ["member.*"]`; `emits` `status.incident` with its fields; the
+`updates` schedule (`*/15 * * * *`, posted to `/chest-schedules`);
+`build.static: ["/assets/"]`. No `"csp"`: the Chest's default policy
+holds on every public page. `chest.proposals.json` (the studio's
+proposals, not in 0.7.0): `checks` (`true`), `mail.send`, `webhooks`
+(`true`), the tile's French words.
 
 **The public address** is the Chest's word, `chest.tool.publicUrl`: the
 company's own domain once its owner connected one to Status's public part
@@ -443,31 +454,34 @@ quota used), the public page hides the form and offers the feeds, and
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.5), a packed copy in
-`vendor/`. The member's `language`, the Chest's `organization.name`,
-`timeZone`, `language` and `tool.publicUrl`, and the schedules are the
-released 0.4.1; the table lists what is not in it yet.
+Built on **SDK 0.7.0** (Chest-SDK PR #38) + the studio's proposals
+(`0.7.0-studio.2`) and `@argentic/chest-app` `0.1.0-studio.12`, packed
+copies in `vendor/`. 0.7.0 gives the member, the Chest
+(`organization.name`, `timeZone`, `language`, `tool.publicUrl`),
+`notifications.broadcast` with `translations`, events between tools,
+`realtime` and the schedules; the table lists what is not in it.
 
 | Proposal | Used for | Without it |
 |---|---|---|
-| `mail` | Confirmation and update emails; `mail.available()` (studio.16) before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
-| `notifications.broadcast`, a notice's `translations` | The bell of every editor in one call, each in their language | The tool pages through its members and notifies them (500 a call) |
-| `visitors` | The visitor's address (`Chest-Visitor-Address`, which the package's bound reads — never `X-Forwarded-For`, which the Chest does not set) | The browser's cookie names the visitor; one without it is counted in the day's totals only |
-| `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
-| `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17); `webhooks.available()` (studio.16) before the chat option is offered and on *Subscribers* ("3 of 200 addresses used", or paused by the Chest's owner) | "Or in Slack, Teams…" is not offered |
-| events between tools | `status.incident` to Support | Support shows no incident; nothing else changes |
-| `chest` (studio part) | `theme()` for the look the company chose (a catalogue theme or its brand) | The tool's own look |
+| `mail` | Confirmation and update emails; `mail.available()` before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
+| `visitors` | The visitor's key (`Chest-Visitor`, which the package's bound reads — never `X-Forwarded-For`) | The browser's cookie names the visitor; one without it is counted in the day's totals only |
+| `checks` | The Chest opens the services' addresses every 1 to 60 minutes and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them; incidents are posted by hand as before. **0.7.0 cannot replace it**: a schedule runs 15 minutes apart at least and nothing runs between requests, so a 1-, 2- or 5-minute check is impossible; a 15-minute schedule checking the addresses itself would need `"network": ["*"]` and would look from inside the company's server, not from outside |
+| `webhooks` | Updates delivered to Slack, Teams and web addresses; `webhooks.available()` before the chat option is offered and on *Subscribers* | "Or in Slack, Teams…" is not offered |
+| `chest` (studio part) | `theme()` for the look the company chose | The tool's own look |
+| `translations` | The tile and the role in French | English on the Chest's screens |
+
+**Live public page**: impossible on 0.7.0 — realtime joins a page with
+the member's session on the team host; the public status page keeps its
+idle-stopping refresh (every minute while its reader is active, stopping
+after ten idle minutes), which wakes the tool while a visitor watches.
 
 What it would need next (in the final report of the studio):
 
-- **A banner other sites may frame**: the Chest adds `frame-ancestors
-  'none'` to every answer of a public part (its default policy, and its
-  floor policy with `"csp": "tool"`), so `/embed` — whose own policy names
-  the sites the editors listed — is refused in every frame on a Chest.
-  The Chest would need a way for a tool to name the sites that may frame
-  one public path (a manifest key such as `"frames": ["/embed"]` approved
-  by the owner, the sites from the tool's answer). *Settings* says so; the
-  badge works everywhere.
+- **A banner other sites may frame**: contract 0.7 lets the owner allow
+  sites to frame a tool's public part, in the Chest; `/embed` also sends
+  the sites the editors listed, and both policies apply — *Settings* asks
+  the editor to have the owner allow the site too. One list (the
+  Chest's) would be simpler.
 - **`webhooks.available()`** — built (studio.16), used: the public page
   offers a chat only when the Chest would deliver now, and says "paused"
   when its owner paused the notices (nothing is lost: queued updates wait
@@ -535,8 +549,12 @@ evening, three subscribers.
 
 ## What it does not do yet
 
-- **The banner cannot be framed on a Chest yet** (see *Needs from the
-  SDK*): the badge and the JSON API work on any site.
+- **The banner is framed only on a site the Chest's owner also allows**
+  (see *Needs from the SDK*): the badge and the JSON API work on any site.
+- **Checks every 1, 2 or 5 minutes** need the studio's `checks` proposal:
+  SDK 0.7.0 has no checks and its schedules run 15 minutes apart at least.
+- **The public page is not live**: it reads itself again every minute
+  while a visitor is active (SDK 0.7.0's realtime is for members).
 - **An address of its own** works (the owner connects
   `status.your-company.com` in the Chest); the addresses of a former
   status page's own incidents are not redirected to Status's.

@@ -666,8 +666,9 @@ tests: `test/crm.test.ts` (`chest.deliver`).
 `chest.json` `receives` `timesheets.billable`,
 `timesheets.billable-cancelled` — renamed from `…_cancelled`: 0.7.0's
 types have no underscore —, `emits` `quotes.invoiced`). Contract:
-Timesheets' README, "With the other tools" (version 1).
+Timesheets' README, "With the other tools", and its `chest.json` `emits`.
 
+<<<<<<< HEAD
 - `timesheets.billable {version: 1, handoff, projectName, clientName,
   from, to, currency, minutes, amount, entries, lines (JSON text), path}`
   — flat, as the Chest carries it (the nested `project`, `client`,
@@ -675,6 +676,15 @@ Timesheets' README, "With the other tools" (version 1).
   `version`; `amount` and each line's hourly `rate` in cents, hundredths
   whatever the currency) — **one draft invoice per `handoff`**, in the
   hand-off's own currency, for
+=======
+- `timesheets.billable {handoff, project, projectName, client?, clientName?,
+  from, to, currency, minutes, amount?, entries, lines (JSON text), path}`
+  — flat, as the Chest carries it, and no `version` (the Chest refuses a
+  field Timesheets does not declare; a new shape would be a new type). The
+  shape of before 0.7.0 (`version: 1`, nested `project`, `client`,
+  `period`, `lines[]`, `source`) is read too; another version is ignored — **one draft invoice per `handoff`**, in the hand-off's own
+  currency, for
+>>>>>>> claude/exciting-planck-t5514x
   ever (the `handoffs` table keeps each id: a second delivery, even after
   the draft was dropped, changes nothing). The client is the one whose name
   is Timesheets' (accents, case, spaces and punctuation aside: an indexed key, migration `0015_client_name_key.sql`), when exactly one
@@ -707,7 +717,7 @@ Timesheets' README, "With the other tools" (version 1).
 - A hand-off told for some people only (its audience) makes **no draft**
   (Quotes has no private document); the billing members it names are told
   to invoice it by hand.
-- `timesheets.billable-cancelled {version: 1, handoff}` — the draft is
+- `timesheets.billable-cancelled {handoff}` — the draft is
   deleted if it was not issued; an issued invoice is **kept** (a legal
   record) and billing hear it in the bell ("make a credit note if it
   should not stand").

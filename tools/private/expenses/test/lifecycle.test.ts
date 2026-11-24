@@ -10,6 +10,7 @@ import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
 import { deliver, server } from "./support/server.ts";
+import { tool } from "./support/chest.ts";
 
 atLeast(4);
 const POST = deliver;
@@ -20,7 +21,7 @@ let meals = "";
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
   await server();
   meals = String((await database.sql`select id from categories where key = 'meals'`)[0]!["id"]);
 });
@@ -36,7 +37,7 @@ test("an approver who leaves: the people they approved, and what waits for them,
   await settings.setApprover(sql, asMember(camille), hugo.id, ines.id, yes);
   const a = (await expenses.saveExpense(sql, asMember(hugo), null, lunch("30"))).expense;
   await expenses.submit(sql, asMember(hugo), [a.id], yes);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
   assert.equal(await settings.approverOf(sql, hugo.id), null);
   assert.deepEqual((await expenses.waiting(sql, asMember(camille))).map(e => [e.id, e.approver]), [[a.id, null]]);
   assert.equal(chest.badges.get(camille.id), 1);
@@ -48,7 +49,7 @@ test("someone who leaves: what they sent still waits, for the accountant to appr
   const { sql } = database;
   const a = (await expenses.saveExpense(sql, asMember(lea), null, lunch("12"))).expense;
   await expenses.submit(sql, asMember(lea), [a.id], yes);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: lea.id } }, POST), 204);
   await expenses.decide(sql, asMember(camille), [a.id], "approve");
   await expenses.markPaid(sql, asMember(camille), [a.id], "2026-09-28");
   assert.equal((await expenses.expense(sql, asMember(camille), a.id)).expense.owner, lea.id);
@@ -70,8 +71,8 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
   await expenses.setPriorDistance(sql, asMember(hugo), { year: Number(new Date().getFullYear()), distance: "120" });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const [row] = await sql`select member_id, note, amount_cents, receipt_object, status from expenses where id = ${kept.id}`;
   assert.deepEqual({ ...row }, { member_id: "erased", note: "", amount_cents: "2500", receipt_object: row!["receipt_object"], status: "approved" });

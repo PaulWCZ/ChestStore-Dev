@@ -11,7 +11,6 @@ import { commonCurrencies, inputAmount, rateText } from "../shared/money.ts";
 import { remittance } from "../lib/payments.ts";
 import { holders } from "../lib/people.ts";
 import { vehicleKinds } from "../shared/scale.ts";
-import { sealing } from "../lib/seal.ts";
 import { allowanceUnits, allowances, approverMap, cardRules, categories, memberAccounts, rates, scaleFor, scales, settings, vehicles } from "../lib/settings.ts";
 import { today } from "../lib/today.ts";
 import { allowanceName, categoryName, countryOptions, powerName, vehicleName } from "../shared/words.ts";
@@ -47,22 +46,21 @@ export async function companySettingsPage({ member, t, locale: language }: PageC
           countries: countryOptions(addressCountries, locale),
           bankLocale: company.bankLocale,
           bankTexts: locales.map(l => ({ value: l, label: languageNames[l] ?? l, sample: remittance(l, "E12 E13") })),
-          sealed: sealing(),
           journal: company.journal,
           vehicles: cars.map(c => ({ member: c.member, name: names.get(c.member) ?? t.people.unknown, label: `${vehicleName(c.kind, t)} · ${powerName(c.kind, c.power, t)}${c.electric ? " · " + t.trip.electric : ""}`, proof: c.proof ? `/chest/vehicles/${c.member}/proof` : null, checked: c.checked }))
             .sort((a, b) => a.name.localeCompare(b.name, locale)),
-          allowances: flat.map(a => ({ id: a.id, name: a.name ?? "", placeholder: a.key ? allowanceName({ key: a.key, name: null }, t) : "", amount: inputAmount(a.amount, company.currency, locale), unit: a.unit, account: a.account, archived: a.archived })),
+          allowances: flat.map(a => ({ id: a.id, name: a.name ?? "", placeholder: a.key ? allowanceName({ key: a.key, name: null }, t) : "", amount: inputAmount(a.amount, a.currency, locale), currency: a.currency, unit: a.unit, account: a.account, archived: a.archived })),
           units: allowanceUnits.map(u => ({ value: u, label: t.allowance.units[u] })),
           rates: known.map(r => ({ currency: r.currency, rate: rateText(r.rate, locale) })),
           currency: company.currency,
           currencies: [...new Set([company.currency, ...commonCurrencies])],
           reminder: company.reminder,
-          categories: cats.map(c => ({ id: c.id, name: c.name ?? "", placeholder: c.key ? categoryName({ key: c.key, name: null }, t) : "", account: c.account, vatRecovery: String(c.vatRecovery), cap: c.cap === null ? "" : inputAmount(c.cap, company.currency, locale), mileage: c.mileage, archived: c.archived, guests: c.guests, perNight: c.perNight, allowance: c.key === "allowance" })),
+          categories: cats.map(c => ({ id: c.id, name: c.name ?? "", placeholder: c.key ? categoryName({ key: c.key, name: null }, t) : "", account: c.account, vatRecovery: String(c.vatRecovery), cap: c.cap === null ? "" : inputAmount(c.cap, c.capCurrency ?? company.currency, locale), capCurrency: c.capCurrency ?? company.currency, mileage: c.mileage, archived: c.archived, guests: c.guests, perNight: c.perNight, allowance: c.key === "allowance" })),
           people: withRole.map(h => ({ id: h.id, name: h.name, photo: h.photo, role: t.roles[h.role as keyof typeof t.roles] ?? "", approver: map.get(h.id) ?? "", account: accounts.get(h.id) ?? "", accountant: h.role === "accountant", alone: lonely.includes(h.id) })),
           cardRules: words.map(r => ({ id: r.id, words: r.words, category: r.categoryId })),
           cardCategories: cats.filter(c => !c.archived && !c.mileage && c.key !== "allowance").map(c => ({ value: c.id, label: categoryName(c, t) })),
           approvers: approvers.map(h => ({ id: h.id, name: h.name })),
-          scales: all.map(s => ({ year: s.year, data: s.data, source: s.source })),
+          scales: all.map(s => ({ year: s.year, data: s.data, currency: s.currency, source: s.source })),
           year,
           fallback: all.some(s => s.year === year) ? null : format(t.settings.scale.fallback, { year, from: current.year }),
           kinds: vehicleKinds.map(k => ({ value: k, label: vehicleName(k, t), powers: Object.fromEntries(current.data[k].rows.map(r => [r.power, powerName(k, r.power, t)])) })),

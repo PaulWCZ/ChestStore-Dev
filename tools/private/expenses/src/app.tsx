@@ -56,8 +56,9 @@ export const app = createApp({
 // A page of Expenses: a member whose role gives nothing sees why (the
 // layout's NoAccess) and the page reads nothing; for the others, the
 // numbers of the sections' tabs (what waits for them), for the layout.
-// changing: a page others change, left open (My expenses, To approve: an
-// AutoRefresh island) has a version, so a read with nothing new is a 304.
+// changing: a page others change, left open (My expenses, To approve: a
+// Live island, the Chest's realtime) has a version, so a read with nothing
+// new is a 304.
 const expenses = (render: (p: PageContext) => Promise<View>, { changing = false } = {}) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, counts] = await Promise.all([render(p), sectionCounts(db(), p.member)]);
@@ -126,7 +127,7 @@ app.get("/chest/vehicles/:member/proof", async c => {
 app.get("/chest/pay/files/:id", async c => {
   const { member, t } = viewerOf(c);
   try {
-    const file = await runFile(db(), member, c.req.param("id"));
+    const file = await runFile(db(), member, c.req.param("id"), c.req.raw);
     return download(file.xml, "application/xml; charset=utf-8", file.fileName);
   } catch (error) {
     return refusal(error, t);
@@ -215,7 +216,7 @@ app.post("/chest-schedules", async c => new Response(null, {
     cleanup: async run => {
       const done = await cleanup(db(), run);
       await handled.forget();
-      log.info("cleanup", { uploads: done.uploads, drafts: done.drafts });
+      log.info("cleanup", { uploads: done.uploads, drafts: done.drafts, resealed: done.resealed });
     },
   }, { seen: handled }),
 }));

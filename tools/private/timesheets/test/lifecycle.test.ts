@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest, type FakeEvent } from "@argentic/chest-sdk/testing";
 import { chestEvents as POST } from "../src/calls.ts";
 import { clock, today, zone } from "../src/lib/clock.ts";
 import { addDays, mondayOf, wall } from "../src/shared/days.ts";
@@ -30,10 +30,10 @@ afterEach(() => {
   clock.now = () => new Date();
 });
 
-const event = (type: "access.revoked" | "member.removed" | "member.erased", id: string, n: string) =>
+const event = (type: "access.revoked" | "member.removed" | "member.erased", id: string, n: string): FakeEvent =>
   type === "member.erased"
     ? { type, id: "evt_" + n.repeat(26), data: { id, erasure: "era_" + n.repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } }
-    : { type, id: "evt_" + n.repeat(26), data: { id } };
+    : { type, id: "evt_" + n.repeat(26), data: { id } } as FakeEvent;
 
 test("someone who leaves: their timer stops into an entry, they leave the projects, their time stays", async () => {
   const { sql } = database;
@@ -44,8 +44,8 @@ test("someone who leaves: their timer stops into an entry, they leave the projec
   await startTimer(sql, asMember(hugo), { projectId: secret.id, note: "Running" });
   clock.now = () => new Date();
   await sql`update projects set lead_id = ${hugo.id} where id = ${secret.id}`;
-  assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
-  assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
+  assert.equal(await chest.deliver(event("member.removed", hugo.id, "b"), POST), 204);
+  assert.equal(await chest.deliver(event("member.removed", hugo.id, "b"), POST), 204);
   assert.equal(await timer(sql, asMember(hugo)), null);
   // The timer's entry belongs to the day it started (yesterday, just after midnight).
   const startDay = wall(Date.now() - 30 * 60_000, zone()).day;
@@ -65,7 +65,7 @@ test("a forgotten timer of someone who lost access is dropped, not recorded", as
   clock.now = () => new Date(Date.now() - 12 * 3600_000);
   await startTimer(sql, asMember(tom), { projectId: secret.id });
   clock.now = () => new Date();
-  assert.equal(await chest.emit(event("access.revoked", tom.id, "c"), POST), 204);
+  assert.equal(await chest.deliver(event("access.revoked", tom.id, "c"), POST), 204);
   assert.equal(await timer(sql, asMember(tom)), null);
   const [row] = await sql<{ n: number }[]>`select count(*)::int as n from entries where member_id = ${tom.id}`;
   assert.equal(row?.n, 0);
@@ -77,8 +77,8 @@ test("an erasure keeps the time for the company, anonymous and without notes, an
   await addEntry(sql, asMember(ines), { projectId: secret.id, day, minutes: 90, note: "Called Mrs Dupain about her divorce" });
   await lock(sql, asMember(camille), addDays(today(), -30));
   const e = event("member.erased", ines.id, "d");
-  assert.equal(await chest.emit(e, POST), 204);
-  assert.equal(await chest.emit(e, POST), 204);
+  assert.equal(await chest.deliver(e, POST), 204);
+  assert.equal(await chest.deliver(e, POST), 204);
   assert.deepEqual(chest.acknowledged, ["era_" + "d".repeat(26)]);
   const rows = await sql<{ member_id: string; note: string; minutes: number }[]>`select member_id, note, minutes from entries where day = ${day} and member_id <> ${hugo.id}`;
   assert.deepEqual([...rows], [{ member_id: "erased", note: "", minutes: 90 }]);
@@ -88,7 +88,7 @@ test("an erasure keeps the time for the company, anonymous and without notes, an
   assert.deepEqual(r.lines.filter(l => l.memberId !== hugo.id).map(l => [l.memberId, l.minutes]), [["erased", 90]]);
   assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(ines.id), false);
   // The one who locked the period, erased: the lock stays, anonymous.
-  assert.equal(await chest.emit(event("member.erased", camille.id, "e"), POST), 204);
+  assert.equal(await chest.deliver(event("member.erased", camille.id, "e"), POST), 204);
   const s = await settings(sql);
   assert.equal(s.lockedBy, "erased");
   assert.notEqual(s.lockedUntil, null);

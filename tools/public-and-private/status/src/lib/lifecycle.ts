@@ -23,7 +23,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"member.erased"> {
   return {
     "member.erased": async event => {
       await erase(sql, event.data.id);

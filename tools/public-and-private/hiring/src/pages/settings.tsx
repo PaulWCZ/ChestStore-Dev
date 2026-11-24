@@ -31,7 +31,7 @@ export async function settingsPage({ member, t, locale: tag }: PageContext<Membe
       <div className="narrow">
         <PageHeader title={t.settings.title} />
         <Island id="settings" name="SettingsView" props={{
-          settings: { companyName: s.ownName, intros: Object.fromEntries(locales.map(l => [l, introFor(s, l)])), careersOpen: s.careersOpen, retentionMonths: s.retentionMonths, country: s.country, website: s.website, accent: s.accent },
+          settings: { companyName: s.ownName, intros: Object.fromEntries(locales.map(l => [l, introFor(s, l)])), careersOpen: s.careersOpen, retentionMonths: s.retentionMonths, country: s.country, website: s.website, accent: s.accent, currency: s.currency },
           fallbackName: s.companyName,
           locale,
           address: origin + "/",

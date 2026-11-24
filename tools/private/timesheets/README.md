@@ -89,18 +89,19 @@ the hour and wants to know where its time goes.
 - **Search the notes** (Reports): words of a note ("Feyssine") narrow the
   report, list the entries found (the 100 most recent: day, person,
   project, note, time) and the CSV. A member searches their own.
-- **Draft invoices in Quotes** (managers, when Quotes is installed and an
-  administrator linked it to Timesheets): in "Billable, not invoiced", each
+- **Draft invoices in Quotes** (managers, when Quotes is installed and the
+  owner approved the link to Timesheets): in "Billable, not invoiced", each
   project's billable time of the period is offered as one draft invoice —
   *Draft invoice in Quotes* — sent through events between tools (the
   contract below). Sent once: the entries wait for their invoice, locked,
   **their rates written on them at that moment** (a rate changed later
   never makes the invoice and Timesheets disagree); Quotes' answer marks
   them invoiced, with the invoice's number and a link to it; *Take back*
-  frees them (and their rates) before that. Quotes installed but not
-  linked: the panel says an administrator links them, and offers nothing.
-  A hand-off that reaches no tool is undone at once and said so — the
-  time never waits for an invoice nobody makes.
+  frees them (and their rates) before that. The Chest says which tools an
+  event reached only once it is sent: a hand-off that reaches no tool
+  (Quotes not linked yet) is undone at once and said so — the time never
+  waits for an invoice nobody makes. Quotes not installed: the panel says
+  so.
 - **Invoiced time** (managers): in "Billable, not invoiced", *Mark N
   entries as invoiced* once the invoice is out; that time locks and keeps
   its rates; *Undo* puts it back.
@@ -119,8 +120,18 @@ the hour and wants to know where its time goes.
   forget the name later). Rows in the locked period (or an approved week)
   are imported **only if the manager answers "Yes, it's history"** — the
   page asks. Harvest's Billable/Cost Rate and Clockify's rate columns (and
-  Toggl's Amount) come along when in the Chest's currency, so past amounts
+  Toggl's Amount) come along when in Timesheets' currency, so past amounts
   match the old invoices; Harvest rows marked invoiced come in invoiced.
+- **One currency, the tool's own** (*Settings → Money*): the Chest has no
+  currency (SDK 0.7.0), so Timesheets keeps its own — EUR until a manager
+  picks another (currencies with cents). Every rate, project budget,
+  invoiced entry's rates and hand-off carries that ISO 4217 code beside its
+  amount, and they are always the same one, so no total ever adds two
+  currencies. Changing it **relabels** (80 EUR becomes 80 GBP — a
+  correction, never a conversion), which the page says; once time was
+  invoiced or handed to Quotes, it stays. Moving from an older Timesheets,
+  the currency is the one its hand-offs to Quotes were told in (the
+  Chest's then, `migrations/0008`), else EUR.
 - **Friday reminder** (optional, the schedule `friday` of `chest.json`): on Friday at 15:30,
   whoever is short of their usual week and has not sent it gets one bell
   item in their language — "Your week has 22 h — fill in the rest?". It can
@@ -220,15 +231,17 @@ there is a project" (a member reads that a manager opens projects).
 
 ## On a Chest
 
-- `chest.json` (contract 0.4, `chest check` OK): `capabilities`:
+- `chest.json` (contract **0.7**, `chest check` OK): `capabilities`:
   `database`, `members` (names; people for projects and imports),
-  `notifications` (the Friday reminder); `receives: ["member.*"]`;
-  `schedules: [{"name": "friday", "cron": "30 15 * * 5"}]` (the Chest's
+  `notifications` (the Friday reminder), `realtime` (pages left open);
+  `receives: ["member.*", "quotes.invoiced"]`; `emits`:
+  `timesheets.billable` and `timesheets.billable-cancelled`, each with its
+  fields (below); `realtime`: channels `mine:{member}` and `team`
+  (managers), feeds of `entries` and `weeks` on `team`;
+  `schedules: [{"name": "friday", "cron": "30 15 * * 5"}]` (the company's
   zone); `build.static: ["/assets/"]` (the script, the stylesheet, the
   fonts, the icon — everything the tool serves outside `/chest`).
-  Proposals (`chest.proposals.json`): `emits:
-  ["timesheets.billable", "timesheets.billable_cancelled"]`, `receives:
-  ["quotes.invoiced"]`, the French `translations`.
+  Proposal left in `chest.proposals.json`: the French `translations`.
 - **Someone leaves** (or loses access): their running timer stops and
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
@@ -243,39 +256,48 @@ there is a project" (a member reads that a manager opens projects).
   lock, rate, approval or invoicing they did forgets who did it; the
   erasure is acknowledged.
 - **Nothing runs in the background**: deleted entries are purged after 30
-  days on a later request. No WebSocket: a page reads itself again when
-  its tab is shown again or its window focused (the timer's state from
-  another device), and every minute while its reader was active in the
-  last ten (the package's `useAutoRefresh`) — idle, never, so an open tab
-  does not keep the tool awake. Each page has a version (every row
-  written bumps a sequence, `migrations/0006`): a read with nothing new
-  is a 304, the Reports' and Team's queries not run again.
+  days on a later request. **Pages left open follow the Chest's
+  realtime, never a timer**: every page joins its member's channel
+  `mine:<id>`, where the tool publishes "time.changed" when that member's
+  time changes (a timer started on another device, an entry saved
+  elsewhere, a week approved or sent back by a manager); a manager's pages
+  also join `team`, the feeds of the tables `entries` and `weeks` (their
+  keys only: the page reads the rest, as its reader may). The Chest holds
+  the connections, so an open tab never keeps the tool awake. Each page
+  has a version (the package's change log, `migrations/0006`): a read with
+  nothing new is a 304, the Reports' and Team's queries not run again.
 - A day holds 24 hours at most, per person, checked in one transaction per
   person (two tabs saving at once cannot overflow it).
 
 ## Needs from the SDK
 
-Timesheets runs on SDK 0.4.1 + studio proposals (0.4.1-studio.4) and `@argentic/chest-app` 0.1.0-studio.6, in
-`vendor/`. Official: `member(request)` with the member's `language` (the
+Timesheets runs on SDK 0.7.0 + studio proposals (0.7.0-studio.2) and
+`@argentic/chest-app` 0.1.0-studio.12, in `vendor/`. Official: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone` (when a
 week was sent, approved or locked, shown at their own hour);
-`chest.timeZone` and `chest.today()` — the day an entry belongs to, "this
+`chest.timeZone` and `chest.today()` — the company's zone and day (0.7.0:
+captured once, set on no screen): the day an entry belongs to, "this
 week", the hours of an entry; the database's `current_date` is that day
-too: the Chest makes its zone the TimeZone of the tool's database
-sessions. `chest.currency` — rates and amounts (EUR when the Chest does
-not say). `schedules` — the Friday reminder on `POST /chest-schedules`;
-without it the tool is complete; the setting says so.
+too. No Chest currency (0.7.0): the tool's own setting (above).
+`schedules` — the Friday reminder on `POST /chest-schedules`; without it
+the tool is complete; the setting says so. **Events between tools**
+(official since 0.5): billable time to Quotes and its answer (below).
+**Notices with translations** (0.5): one `notifications.notify` per
+event, its English words with their French in `translations`; the Chest
+shows each member their language (`src/lib/notify.ts`). **`realtime`**
+(0.5): the pages left open (above).
 
 - **`members.leftAt(ids)`** — **Proposal (studio)**: "Left the Chest on
   30 September 2026" on a former member's week. Nothing on a Chest that
   does not say it.
-- **Events between tools** — **Proposal (studio)**: billable time to Quotes
-  (below), `chest.tools.get/link`. Without it the page says Quotes cannot
-  be told; *Mark invoiced* by hand still works.
-- **Notices with translations** — **Proposal (studio, announced for 0.5)**:
-  one `notifications.notify` per event, its English words with their French
-  in `translations`; the Chest shows each member their language
-  (`src/lib/notify.ts`).
+- **`chest.tools.get/link`** — **Proposal (studio)**: whether Quotes is
+  installed (the panel), and the link to the invoice in Quotes. On 0.7.0,
+  which says neither, the panel is offered (a send that reaches no tool
+  says so) and the invoice's number is shown without a link.
+- **Wished — a fake Chest that plays receivers**: 0.7.0's fake answers
+  every emit "written for 0 tools", so a tool cannot test what it does
+  when its event reaches one; Timesheets' tests wrap the SDK's emit
+  (`handoff.outbox`) to play an installed Quotes.
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
   `tasks.timer.start` (a task's title as the note).
@@ -287,50 +309,61 @@ without it the tool is complete; the setting says so.
 
 ## With the other tools
 
-**Timesheets → Quotes: `timesheets.billable`, version 1.** Published when a
-manager presses *Draft invoice in Quotes*, one per project and period, under
-the key `timesheets:billable:<handoff>:<made>` (`<made>`: when the hand-off
-was made, in milliseconds — the same hand-off is never two events, and a
+**Timesheets → Quotes: `timesheets.billable`** (declared in `chest.json`
+`"emits"`, each field typed: 0.7.0's data is flat). Emitted when a manager
+presses *Draft invoice in Quotes*, one per project and period, with the
+subject `handoff:<handoff>` (delivered in order per hand-off) and the key
+`timesheets:billable:<handoff>:<made>` (`<made>`: when the hand-off was
+made, in milliseconds — the same hand-off is never two events, and a
 hand-off id given again after a restore from a backup is not taken for an
-earlier one: sdk/README, "Put the recipient in the key"), with
-`occurredAt` the moment it was made. Taken back:
-`timesheets.billable_cancelled` under `<that key>:cancelled`, `occurredAt`
-the moment it was taken back. `data`:
+earlier one), `occurredAt` the moment it was made, no audience (who sees
+the draft is Quotes' rule: naming Timesheets' managers would hide it from a
+billing team that manages no time). Taken back:
+**`timesheets.billable-cancelled`** `{handoff}` (renamed from
+`timesheets.billable_cancelled`: 0.7.0 refuses an underscore in a type),
+same subject, key `<that key>:cancelled`. `data`:
 
 ```jsonc
 {
-  "version": 1,
-  "handoff": "12",                       // Timesheets' id: quote it back
-  "project": { "id": "3", "name": "Site vitrine" },
-  "client": { "id": "2", "name": "Boulangerie Durand" },   // or null
-  "period": { "from": "2026-09-01", "to": "2026-09-30" },
-  "currency": "EUR",
-  "minutes": 1830,
-  "amount": 274500,                      // cents; null when a line has no rate
-  "entries": 42,
-  "lines": [                             // one per task and hourly rate, largest first
-    { "label": "Design", "task": { "id": "7", "name": "Design" }, "minutes": 450,
-      "rate": 9000, "amount": 67500, "entries": 12 }   // rate: cents per hour, or null
-  ],
-  "source": { "tool": "timesheets", "path": "/chest/projects/3" }   // the project, in Timesheets
+  "handoff": "12",                 // id — Timesheets' id: quote it back
+  "project": "3",                  // id
+  "projectName": "Site vitrine",   // text
+  "client": "2",                   // id?   (absent: no client)
+  "clientName": "Boulangerie Durand", // text?
+  "from": "2026-09-01", "to": "2026-09-30",   // date, date
+  "currency": "EUR",               // text — ISO 4217, the amounts' own
+  "minutes": 1830,                 // number
+  "amount": 274500,                // number? — minor units; absent when a line has no rate
+  "entries": 42,                   // number
+  "lines": "[{\"label\":\"Design\",\"minutes\":450,\"rate\":9000,\"amount\":67500,\"entries\":12}]",
+                                   // text — a JSON array, one per task and hourly rate, largest
+                                   // first, at most 60; rate: minor units an hour, or null
+  "path": "/chest/projects/3"      // text — the project, in Timesheets
 }
 ```
 
 People are never named (no member id either: an invoice line is per task
-and rate). **What Quotes does** (built: Quotes' `lib/timesheets.ts`,
-its `chest.proposals.json` receives `timesheets.billable` and
-`timesheets.billable_cancelled` and emits `quotes.invoiced`): it receives `timesheets.billable` (declare it in `receives`), make one **draft
-invoice** per `handoff` (a second delivery of the same `handoff` changes
-nothing) for the client (matched by name, or asked), one line per `lines[]`
-item (label, quantity `minutes / 60` hours, unit price `rate`), links back
-with `chest.toolLink("timesheets", source.path)`; on
-`timesheets.billable_cancelled {version: 1, handoff}` drops that draft if it
-was not issued (else tells billing); and when the invoice is **issued**, publishes
+and rate). No `version` field: the Chest refuses a field not declared, and
+a new shape would be a new type. Names travel without format characters
+(a zero-width space, a byte-order mark, the joiner inside an emoji): the
+Chest refuses them in a `text` field, so they are left out of the event
+only. **What Quotes does** (its side changes with this shape; the
+studio's agent that moves Quotes to 0.7.0 does it): it receives
+`timesheets.billable` and `timesheets.billable-cancelled` (in its
+`chest.json` `"receives"`), makes one **draft invoice** per `handoff` (a
+second delivery of the same `handoff` changes nothing) for the client
+(matched by `clientName`, or asked), one line per item of `lines` (label,
+quantity `minutes / 60` hours, unit price `rate`); on
+`timesheets.billable-cancelled` drops that draft if it was not issued
+(else tells billing); and when the invoice is **issued**, emits
 **`quotes.invoiced`** `{ handoff: "12", invoice: "F2026-014", path:
-"/chest/invoices/14", by?: "mbr_…" }` (key `quotes:invoiced:<handoff>`).
-Timesheets receives it (`src/calls.ts`, `/chest-events`): the hand-off's
-entries become invoiced, their rates written on them, the report shows
-"Invoiced: F2026-014" with a link; delivered twice, nothing more.
+"/chest/invoices/14", by?: "mbr_…" }`. Timesheets receives it
+(`src/calls.ts`, `/chest-events`): the hand-off's entries become invoiced,
+their rates written on them, the report shows "Invoiced: F2026-014" with a
+link — to the members of the event's audience only (all, or the list Quotes
+named: kept on the hand-off); delivered twice, nothing more. Only from
+Quotes: a type names no tool, so the same type told by another linked
+tool (its `source`, stamped by the Chest) is ignored.
 
 ## How it is made
 
@@ -392,32 +425,37 @@ npm run dev       # rebuilds on every change
 In the studio:
 
 ```sh
-node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --tools quotes --linked --port 5200
+node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --tools quotes --port 5200
 node lab/chest-dev/flows/timesheets.mjs 5200
 node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200
 node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200
 ```
 
-Atelier Martin comes from `seed/sample.sql`. **`--tools quotes --linked`
-is needed by the flow**: Quotes installed beside Timesheets and linked to
-it by an admin, for the hand-off of billable time (without them the
-Reports page offers no *Draft invoice in Quotes*, or says Quotes is not
-linked yet, and the flow's hand-off steps fail). Start the harness again
+Atelier Martin comes from `seed/sample.sql`. **`--tools quotes` is needed
+by the flow**: Quotes installed beside Timesheets, for the hand-off of
+billable time (without it the Reports page says Quotes is not installed). Start the harness again
 with `--reset` before running the flow a second time: it expects the
 sample data as seeded.
 
 ## What it does not do (yet)
 
+- **On SDK 0.7.0**: whether Quotes is installed is not said (the panel is
+  offered and a send that reaches no tool says so), nor its address (the
+  invoice's number shows without a link) — the studio's `chest.tools`
+  proposal; the store's tile and role names stay in English for a French
+  member (`translations`, a proposal); "Left the Chest on…" needs
+  `members.leftAt` (a proposal); the company's theme falls back to
+  Timesheets' own look. **One currency per Timesheets**: a client billed in
+  another currency is invoiced by hand.
 - **Invoices**: it writes no invoice itself — Quotes does, from the
-  hand-off (both sides built; they need a Chest with events between tools,
-  a studio proposal, and an administrator's link). One hand-off per
+  hand-off (both sides need the owner's approval of the link). One hand-off per
   project and period; no grouping of several projects of a client in one
   invoice, no notes on the invoice lines. **Amounts round per entry**: an
   entry's amount is its minutes at its rate, rounded to the cent; a
   report's totals, the CSV and the `amount` of each hand-off line add those
   up. Quotes prices a line itself (`minutes / 60` × `rate`), which may
   differ from the line's `amount` by a cent or so on a long line.
-- **An entry's day is the Chest's day** (its time zone): a timer started
+- **An entry's day is the company's day** (the Chest's zone): a timer started
   in Montréal after 18:00 for a Chest in Paris belongs to the next day, and
   a person's week is the Chest's Monday to Sunday.
 - **No integrations or browser extension**: no timer started from Jira,

@@ -43,7 +43,7 @@ export const app = createApp({
 // does not run; otherwise the page, and the timer above it (the layout's
 // island, src/timer-view.ts).
 // Every page has a version (src/lib/stamp.ts): read again while nothing
-// changed (the layout's AutoRefresh), it is a 304, nothing rendered.
+// changed (the layout's Live islands: realtime), it is a 304, nothing rendered.
 const members = (render: (p: PageContext<MemberContext>) => Promise<View>) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, timer] = await Promise.all([render(p), timerView(db(), p.member, p.locale, p.t, p.url.pathname)]);

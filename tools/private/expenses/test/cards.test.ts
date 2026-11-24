@@ -15,6 +15,7 @@ import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
+import { tool } from "./support/chest.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -23,7 +24,7 @@ const yes = async () => true;
 const team = new Set([camille.id, ines.id, hugo.id, lea.id, tom.id]);
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
   for (const r of await database.sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
 });
 after(async () => {

@@ -12,12 +12,12 @@ own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (contract 0.4: roles `admin`, `agent`, `viewer`; public part; schedules `cleanup` and `late`; `build.static` `/assets/`) and the proposals it uses (`mail`, public uploads, `receives` `forms.request` and `status.incident`, `emits`, `webhooks`) |
-| `vendor/` | SDK 0.4.1-studio.7, the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `chest.json`, `chest.proposals.json` | Manifest (contract 0.7: roles `admin`, `agent`, `viewer`; public part; `realtime` (channel `desk` for the roles that read tickets, `mine:{member}`; feeds of ids); `receives` `member.*`, `forms.request`, `status.incident`; `emits` with their fields; schedules `cleanup` and `late`; `build.static` `/assets/`) and the proposals it still uses (`mail`, `webhooks`, `translations`) |
+| `vendor/` | SDK 0.7.0-studio.2, the UI kit, `@argentic/chest-app` 0.1.0-studio.12: packed copies, never edited |
 | `src/app.tsx` | Every route: the team's pages in their frame (`team()`: a member without a role reaches My requests only), downloads, the public pages, the Chest's deliveries; around them, the frame-ancestors of the public pages and the sandbox of files |
 | `src/actions.ts` | Every change, by name (members' and public); the rules check values and rights |
 | `src/pages/` | Pages (server): `inbox`, `ticket`, `new-ticket`, `settings`, `reports`, `mine`, `contact`, `follow-up`; `frame.tsx` (the team's frame: shell, folders, saved views), `public-shell.tsx` (the public frame, the language switch with `?lang=`) |
-| `src/islands/` | What runs in the browser: the inbox's list and tools, a ticket's composer and side card, settings' boxes, the public form, write again, rate, keys, auto-refresh |
+| `src/islands/` | What runs in the browser: the inbox's list and tools, a ticket's composer and side card, settings' boxes, the public form, write again, rate, keys, the live page (realtime) |
 | `src/components/` | Shared by pages and islands (island rules: no server code): icons, badges, a message's body, attachments (the kit's FilePicker), the incident banner, a settings box |
 | `src/shared/` | Pure rules the islands use too: `model.ts` (bounds, kinds, priorities, folders), `hours.ts` (working hours, time zones, France's holidays), `text.ts` (links, robots' addresses) |
 | `src/lib/` | The rules and the SQL (below), `deliveries.ts` (`/chest-events`, `/chest-schedules`, `/chest-webhooks`), `downloads.ts` (files, the export), `format.ts` (dates, plurals, sizes; Intl objects kept) |
@@ -29,7 +29,8 @@ own:
 | `src/lib/mailer.ts`, `src/lib/mail-checks.ts` | Emails to customers (confirmation, answers: always with the request page's link); whether they arrived (`mail.status`, on the `late` schedule) |
 | `src/lib/notices.ts` | Slack, Teams and web-address notices (`webhooks`) |
 | `src/lib/rules.ts`, `src/lib/views.ts`, `src/lib/reports.ts`, `src/lib/export.ts`, `src/lib/zip.ts` | Rules on arrival, saved views, reports, the ZIP export (streamed: `exportBatches`, deflated as it goes) |
-| `src/lib/attachments.ts` | Files on messages: grants (public: `files.publicUploadUrl`), claims, the nightly sweep |
+| `src/lib/attachments.ts` | Files on messages: grants (a visitor's: `files.uploadUrl("uploads/public/", {public: true})`), taking a name once (stat, move), the nightly sweep of both upload folders |
+| `src/lib/live.ts`, `src/islands/LivePage.tsx` | Live pages (realtime): the frame's island follows `desk` and `mine:<id>`; the tool tells `mine:<requester>` when the team answers or changes a colleague's request |
 | `src/lib/public-origin.ts` | The public and team addresses (`chest.tool.publicUrl`, `teamUrl`; none outside a Chest) and the follow-up link |
 | `src/lib/ticket-events.ts`, `src/lib/tell.ts`, `src/lib/lifecycle.ts`, `src/lib/frame.ts` | Events for Goals; bell and tile; members leaving; the websites that may frame the form |
 | `test/` | `app.test.mjs` (the built server), `stack.test.ts` (the package's rules, words), the rules' own tests |
@@ -108,12 +109,13 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
   content.
 - **Customers are data subjects**: anything new you store about them must
   be deleted by `eraseCustomer` and by `cleanup`.
-- **A visitor's file is theirs only**: public uploads come back as claims,
-  traded once (`files.claim`); never accept an object name from a public
-  page, never list another ticket's files on a link, never a note's. A
+- **A visitor's file is theirs only**: a visitor's upload comes back as
+  the name the Chest gave it (20 random hex characters under
+  `uploads/public/`), taken once (moved to `files/`); never accept any
+  other object name from a public page, never list another ticket's files on a link, never a note's. A
   file is always served as a download with `nosniff` and a sandbox.
 - **Take files after the words are checked** (`withFiles` in
-  `src/lib/tickets.ts`): a refused message must not spend a visitor's claims,
+  `src/lib/tickets.ts`): a refused message must not take a visitor's uploads,
   and a message not saved deletes the files it took.
 - **Email is optional**: every path must work when `mail.send` throws
   (`CapabilityNotGranted`, `Unavailable` when the company's mail is not
@@ -135,7 +137,15 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
   ticket opens the other's conversation).
 - **Framing**: only `/` and `/t/…` may carry the admin's
   `frame-ancestors` (`src/app.tsx`, `framed`); `/chest` always `'none'`.
-  A Chest of contract 0.4 refuses every frame anyway (README).
+  On a Chest the owner must also allow the site (contract 0.7: the
+  Chest's own `frame-ancestors` on the public part; both apply).
+- **Events from other tools honour their audience**: Support shows
+  everything to every agent, so `forms.request` and `status.incident`
+  are taken only with `audience === "all"` (else 204, nothing filed).
+  Data is flat (contract 0.7: no object, no list): lists come as JSON in
+  a text field, parsed defensively.
+- **No timer**: a page others change is live through `LivePage`
+  (`useLive`), never `useAutoRefresh`; feeds carry ids only.
 - **Working hours** are computed on the server (`src/lib/hours.ts`, the
   Chest's time zone); islands write dates with the kit's
   `formatDate` and date words; the server's `Intl` objects are made once
@@ -173,3 +183,4 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
   (`lib/downloads.ts`): two at once; HEAD takes none.
 - **No inline script or style**: no `style={}`, no `<style>`; the look is
   `/chest/look.css` and `/look.css`.
+- **Each received type only from the tool it names** (`fromItsTool`: `forms.request` from Forms, `status.incident` from Status, by the Chest-stamped `source`); read exactly the fields the partner declares in its `chest.json`, require nothing more.

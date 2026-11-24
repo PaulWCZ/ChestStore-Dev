@@ -94,10 +94,10 @@ export async function setRate(sql: Query, actor: Member | null, input: { kind?: 
     if (steps.length === 0 && value === null) return steps;
     if (rateOn(steps, from) === value && !steps.some(x => x.from > from)) return steps;
     await tx`
-      insert into rates (kind, project_id, member_id, from_day, rate_cents, set_by)
-      values (${t.kind}, ${t.projectId}, ${t.memberId}, ${from}, ${value}, ${actor.id})
+      insert into rates (kind, project_id, member_id, from_day, rate_cents, set_by, currency)
+      values (${t.kind}, ${t.projectId}, ${t.memberId}, ${from}, ${value}, ${actor.id}, (select currency from settings where id))
       on conflict (kind, coalesce(project_id, 0), coalesce(member_id, ''), from_day)
-      do update set rate_cents = excluded.rate_cents, set_by = excluded.set_by, set_at = now()`;
+      do update set rate_cents = excluded.rate_cents, currency = excluded.currency, set_by = excluded.set_by, set_at = now()`;
     if (t.kind === "bill" && t.projectId !== null && t.memberId === null) await mirror(tx, t.projectId);
     return history(tx, t);
   });
@@ -167,7 +167,7 @@ export async function projectRates(sql: Query, actor: Member | null, projectId: 
 export async function fixRates(tx: Query, where: { entryIds?: string[]; memberId?: string }): Promise<void> {
   const filter = where.entryIds ? tx`id = any(${where.entryIds}::bigint[])` : tx`member_id = ${where.memberId ?? ""}`;
   await tx`
-    update entries e set rates_fixed = true,
+    update entries e set rates_fixed = true, rates_currency = (select currency from settings where id),
       bill_rate_cents = bill_rate(e.member_id, e.project_id, e.day), cost_rate_cents = cost_rate(e.member_id, e.day)
     where ${filter} and not e.rates_fixed`;
 }

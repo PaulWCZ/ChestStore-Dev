@@ -1,3 +1,4 @@
+import { saveCurrency } from "./lib/money.ts";
 import { action, after, fail, field, type Field } from "@argentic/chest-app";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { KeyResultSent } from "./components/key-result-fields.tsx";
@@ -57,6 +58,8 @@ const keyResult: Field<objectives.KeyResultInput, KeyResultSent> = {
       source: field.choice(["manual", ...sources]).read(v["source"]),
       mine: field.bool().read(v["mine"]),
       scope: field.optional(field.text({ max: 64 })).read(v["scope"]),
+      // "" or absent: the tool's default currency (src/lib/money.ts).
+      currency: v["currency"] === undefined || v["currency"] === "" ? undefined : field.currency().read(v["currency"]),
     };
   },
 };
@@ -240,6 +243,8 @@ export const actions = {
 
   // ---- Settings and teams (admins).
   saveSettings: action({ personal: field.bool() }, async (input, { member: actor }): Promise<{ personal: boolean }> => teams.saveSettings(db(), actor, input)),
+  // The currency a new money key result starts in (the Chest has none).
+  saveCurrency: action({ currency: field.currency() }, async ({ currency }, { member: actor }): Promise<{ currency: string }> => ({ currency: await saveCurrency(db(), actor, currency) })),
   addTeam: action({ name: field.text({ max: limits.teamName }) }, async ({ name }, { member: actor }): Promise<{ id: string }> => ({ id: (await teams.addTeam(db(), actor, name)).id })),
   addGroupTeam: action({ groupId: group }, async ({ groupId }, { member: actor }): Promise<{ id: string }> => ({ id: (await teams.addGroupTeam(db(), actor, groupId)).id })),
   addAllGroups: action({}, async (_input, { member: actor }): Promise<number> => teams.addAllGroups(db(), actor)),

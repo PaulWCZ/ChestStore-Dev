@@ -14,16 +14,18 @@ import { friday } from "./lib/reminder.ts";
 // the Chest send it again: each is idempotent.
 
 // POST /chest-events: the members' lifecycle; and, from the Quotes tool
-// once an admin linked the two (events between tools, a studio proposal),
-// "quotes.invoiced": the time handed to it is invoiced (src/lib/handoff.ts).
+// once the owner approved the link (events between tools, chest.json
+// "receives"), "quotes.invoiced": the time handed to it is invoiced
+// (src/lib/handoff.ts). One map for both (SDK 0.7.0).
 export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
-  return new Response(null, {
-    status: await events.handle(request, handlers(sql), {
-      seen: seen(sql),
-      tools: { "quotes.invoiced": async event => { await invoiced(sql, event.data); } },
-    }),
-  });
+  const all: events.Handlers<"access.revoked" | "member.removed" | "member.erased" | "quotes.invoiced"> = {
+    ...handlers(sql),
+    // Only Quotes says its invoices are issued: a type names no tool, so
+    // another linked tool could emit one; `source` is stamped by the Chest.
+    "quotes.invoiced": async event => { if (event.source === "quotes") await invoiced(sql, event); },
+  };
+  return new Response(null, { status: await events.handle(request, all, { seen: seen(sql) }) });
 }
 
 // POST /chest-schedules: the runs of chest.json's "schedules". On Friday

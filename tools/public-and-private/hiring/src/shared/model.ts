@@ -105,6 +105,11 @@ export const cvTypes = {
 export const isPictureCv = (type: string | null | undefined) => type === "image/jpeg" || type === "image/png";
 export type CvType = keyof typeof cvTypes;
 export const isCvType = (value: unknown): value is CvType => typeof value === "string" && Object.hasOwn(cvTypes, value);
+// What a visitor may send: the Chest takes a visitor's file only of a type
+// it recognises by its bytes (SDK 0.7.0) — an old Word file (.doc) is not
+// one. A recruiter may still add one.
+export const visitorCvTypes = (Object.keys(cvTypes) as CvType[]).filter(type => type !== "application/msword");
+export const isVisitorCvType = (value: unknown): value is CvType => typeof value === "string" && (visitorCvTypes as readonly string[]).includes(value);
 
 // What a file's first bytes say it is: a PDF starts with "%PDF-", an old
 // Word file is an OLE compound file, a new one a ZIP, a JPEG FF D8 FF, a

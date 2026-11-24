@@ -44,9 +44,15 @@ export const isFileType = (value: unknown): value is FileType => typeof value ==
 // systems know a file only by its extension).
 export const fileAccept = [...Object.keys(fileTypes), ...Object.values(fileTypes).map(e => "." + e), ".jpeg"].join(",");
 
-// checkFile says why a file cannot be added, or null: its type, its size.
-export function checkFile(type: unknown, size: unknown): "file_type" | "file_too_large" | null {
-  if (!isFileType(type)) return "file_type";
+// What a visitor may send: the Chest takes a visitor's file only of a type
+// it recognises by its bytes (SDK 0.7.0), and plain text is not one.
+export const visitorFileTypes = (Object.keys(fileTypes) as FileType[]).filter(type => type !== "text/plain");
+export const isVisitorFileType = (value: unknown): value is FileType => typeof value === "string" && (visitorFileTypes as readonly string[]).includes(value);
+
+// checkFile says why a file cannot be added, or null: its type (a
+// visitor's among visitorFileTypes), its size.
+export function checkFile(type: unknown, size: unknown, kind: "public" | "team" = "team"): "file_type" | "file_too_large" | null {
+  if (kind === "public" ? !isVisitorFileType(type) : !isFileType(type)) return "file_type";
   if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1) return "file_type";
   return size > limits.fileSize ? "file_too_large" : null;
 }

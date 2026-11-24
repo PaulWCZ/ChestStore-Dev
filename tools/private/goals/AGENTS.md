@@ -11,15 +11,16 @@ read it first. Goals' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Contract 0.4 (`"chest": "0.4"`, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposals (studio): capability `members.groups` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events, `translations` |
+| `chest.json`, `chest.proposals.json` | Contract 0.7 (`"chest": "0.7"`, capabilities incl. `members.groups` and `realtime`, `receives` of Clients', Tasks', Support's and Hiring's types, `realtime` channel `goals` with its feeds, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposal left: `translations` |
 | `src/app.tsx` | Every route: the pages (a member without a role sees why), the downloads (a cycle as CSV, every update, the import's example), `/chest-events`, `/chest-schedules`; each page's version (`src/lib/stamp.ts`: a refresh with nothing new is a 304) |
 | `src/actions.ts` | Every change, by name; fields read at the boundary (a key result part by part); what only tells people runs in `after()` |
 | `src/pages/` | Pages rendered on the server; `chase-list.tsx` (who waits for an update), `cycle-group.ts` (the cycle filter) |
-| `src/islands/` | What runs in the browser: the update form's list, the objective form, a key result's card, comments, retrospective, cycles' admin, settings, import, the Company tools (filters folding on a phone), Remind, AutoRefresh (the package's `useAutoRefresh`) |
+| `src/islands/` | What runs in the browser: the update form's list, the objective form, a key result's card, comments, retrospective, cycles' admin, settings, import, the Company tools (filters folding on a phone), Remind, Live (realtime: the package's `useLive` on `goals`, never a timer) |
 | `src/components/` | Shared by pages and islands (no server code): the tree (server only, folds with `<details>`), progress and confidence (SVG bars), the chart, the update form, key-result fields and dialog, icons, the mark, contours |
 | `src/layout.tsx`, `src/theme.ts` | The shell; the look (Trail map, `pageLook()`: the company's choice, the dark header in the Trail map only) |
 | `src/lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
-| `src/lib/groups.ts` | Every group a member is in (`member.groups`, every group with `members.groups`), and `readerFor` |
+| `src/lib/groups.ts` | Every group a member is in (`member.groups`, every group with `members.groups`; `null` past ~150 → `members.get`), and `readerFor` |
+| `src/lib/money.ts` | The default currency of a new money key result (the tool's own: the Chest has none); each key result keeps its code |
 | `src/lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
 | `src/lib/read.ts` | Read models; `visibleTo(reader)`: **the one filter of confidential objectives** |
 | `src/lib/cycles.ts`, `teams.ts`, `objectives.ts`, `key-results.ts`, `comments.ts`, `orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |
@@ -47,6 +48,14 @@ TEST_DATABASE_URL=postgres://… npm test   # on a real PostgreSQL (concurrent u
 - **Confidential objectives**: any new query that lists objectives for a
   person adds `visibleTo(sql, readerOf(actor))` (src/lib/read.ts); a test in
   `test/chase.test.ts` shows each place.
+- **Another tool's item counts only when it is for everyone**: a received
+  event's audience is kept (`fed_events.audience`, `crm_deals.audience`)
+  and `refreshFed` counts only rows with `audience is null` — a key
+  result's value is shown to every reader of its objective.
+- **Money keeps its currency**: a money key result's `currency` is the one
+  chosen, else `defaultCurrency()`; never add values of two currencies.
+- **Pages left open follow realtime** (`Live`, channel `goals`), never a
+  timer; a new table a page reads gets a feed in `chest.json`.
 - **Rights live in `src/lib/access.ts`**; every service checks before acting; a
   test in `test/access.test.ts` or `test/goals.test.ts` for each new right.
 - **A closed cycle is frozen** (`openCycle()`): only retrospectives and

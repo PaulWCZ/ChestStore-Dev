@@ -241,13 +241,29 @@ test("SDK 0.7.0's flat shape: names as fields, the lines as JSON text, the path 
 
 test("rates and amounts come in cents (Timesheets counts hundredths in every currency): read in the currency's minor units", () => {
   const flat = {
-    version: 1, handoff: "81", projectName: "Tokyo", currency: "JPY", minutes: 60, amount: 1200000, entries: 1,
+    handoff: "81", projectName: "Tokyo", currency: "JPY", minutes: 60, amount: 1200000, entries: 1,
     lines: JSON.stringify([{ label: "Design", task: null, minutes: 60, rate: 1200000, amount: 1200000, entries: 1 }]),
   };
   const read = readBillable(flat)!;
   assert.deepEqual([read.amount, read.lines[0]!.rate], [12000, 12000], "12,000 yen an hour, not 1,200,000");
   const euro = readBillable({ ...flat, currency: "EUR" })!;
   assert.deepEqual([euro.amount, euro.lines[0]!.rate], [1200000, 1200000], "the euro: the same");
+});
+
+test("what Timesheets emits, field for field (its chest.json \"emits\": no version): a draft, then taken back", async () => {
+  // tools/private/timesheets/src/lib/handoff.ts, sendBillable and cancelHandoff.
+  const emitted = {
+    handoff: "82", project: "3", projectName: "Site vitrine", client: "2", clientName: "Boulangerie Dupain SAS", from: "2026-09-01", to: "2026-09-30",
+    currency: "EUR", minutes: 90, amount: 13500, entries: 2, path: "/chest/projects/3",
+    lines: JSON.stringify([{ label: "Design", minutes: 90, rate: 9000, amount: 13500, entries: 2 }]),
+  };
+  assert.equal(readBillable(emitted)?.lines[0]?.rate, 9000);
+  assert.equal(readBillable({ ...emitted, version: 2 }), null, "another version is not this shape");
+  assert.equal(await told("timesheets.billable", emitted), 204);
+  const id = await draftOf("82");
+  assert.ok(id, "a draft from the event as Timesheets sends it");
+  assert.equal(await told("timesheets.billable-cancelled", { handoff: "82" }), 204);
+  assert.equal(await draftOf("82"), null, "taken back: the draft goes");
 });
 
 test("a hand-off for some people only (its audience): no draft; the billing members it names invoice it by hand", async () => {

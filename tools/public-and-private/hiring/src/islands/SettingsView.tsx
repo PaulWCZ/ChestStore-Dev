@@ -8,10 +8,10 @@ import { cvKinds, cvMaxSize, imageAccept, uploadImage, uploadTeamFile, type Uplo
 import { useWork } from "../components/use-work.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, languageNames, plural } from "../shared/format.ts";
-import { languages, limits, retentionChoices } from "../shared/model.ts";
+import { currencies, languages, limits, retentionChoices } from "../shared/model.ts";
 
 type Words = { settings: Catalogue["settings"]; retention: Catalogue["retention"]; common: Catalogue["common"]; templatesWords: Catalogue["templates"]; files: FileWords; upload: UploadWords; image: UploadWords };
-type Settings = { companyName: string; intros: Record<string, string>; careersOpen: boolean; retentionMonths: number; country: string; website: string; accent: string };
+type Settings = { companyName: string; intros: Record<string, string>; careersOpen: boolean; retentionMonths: number; country: string; website: string; accent: string; currency: string };
 type TemplateFile = { file: string; name: string; type: string; size: number };
 type Template = { id: string; name: string; language: string; subject: string; body: string; attachments: TemplateFile[] };
 // A template's file already kept: in the picker, never sent again.
@@ -41,6 +41,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
             careersOpen: data.get("careersOpen") === "on",
             retentionMonths: Number(data.get("retentionMonths")),
             country: String(data.get("country") ?? ""),
+            currency: String(data.get("currency") ?? ""),
             website: String(data.get("website") ?? ""),
             accent,
           } }, { quiet: true });
@@ -105,6 +106,13 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
               {countryNames.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
             </select>
             <p className="hint" id="country-hint">{w.countryHint}</p>
+          </div>
+          <div className="field-block">
+            <label className="label" htmlFor="currency">{w.currency}</label>
+            <select id="currency" name="currency" className="field" defaultValue={settings.currency} aria-describedby="currency-hint">
+              {currencies.map(code => <option key={code} value={code}>{code}</option>)}
+            </select>
+            <p className="hint" id="currency-hint">{w.currencyHint}</p>
           </div>
           <div className="field-block">
             <label className="label" htmlFor="retentionMonths">{w.retention}</label>

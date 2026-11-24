@@ -1,7 +1,7 @@
 // Timesheets, as people use it, in a real browser: node lab/chest-dev/flows/timesheets.mjs [port]
-// (the harness runs the tool with --reset --tools quotes --linked: Atelier
-// Martin's sample data is there, and Quotes is installed and linked for the
-// hand-off of billable time — without them the two Quotes steps fail).
+// (the harness runs the tool with --reset --tools quotes: Atelier Martin's
+// sample data is there, and Quotes is installed — without it the Quotes
+// step fails).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
@@ -360,13 +360,14 @@ await step("Hugo reads why his week came back and sends it again", async () => {
   await toast("Week sent.");
 });
 
-await step("his week sent again reaches both managers in their inbox, French words with it; nothing is mailed", async () => {
-  // The harness's bell: one item per member, "<b>Name</b> · title".
+await step("his week sent again reaches both managers in their inbox, each in their language; nothing is mailed", async () => {
+  // The harness's bell: one item per member, "<b>Name</b> · title" — each
+  // already in its member's language (SDK 0.7.0): Camille French, Sofia English.
   const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&");
-  const items = dev.split("<li>").filter(li => li.includes("Hugo Bernard sent their week"));
+  const items = dev.split("<li>").filter(li => li.includes("Hugo Bernard sent their week") || li.includes("Hugo Bernard a envoyé sa semaine"));
   const to = [...new Set(items.map(li => /^<b>([^<]+)<\/b>/u.exec(li)?.[1]))].sort();
   expect(to.join(",") === "Camille Martin,Sofia Rossi", "told: " + to.join(","));
-  expect(items.every(li => li.includes("fr: Hugo Bernard a envoyé sa semaine")), "the French words ride with the notice");
+  expect(items.some(li => li.startsWith("<b>Camille Martin</b>") && li.includes("Hugo Bernard a envoyé sa semaine")), "Camille reads it in French");
   expect(!dev.includes("Mail to people outside"), "Timesheets mails nobody (no mail proposal)");
 });
 
@@ -432,46 +433,48 @@ await step("search the notes: the report and the entries found follow the words"
   expect(text.includes("Feyssine") && !text.includes("Formulaire de commande"), "the CSV follows the words");
 });
 
-await step("billable time to Quotes: a draft invoice per project, sent once; Quotes' answer marks it invoiced", async () => {
+// SDK 0.7.0: the Chest says how many tools an event reached only once it
+// is emitted, and 0.7.0's fake Chest (the harness's) answers every emit
+// "written for 0 tools" — it cannot play a Quotes that receives the time.
+// So here the hand-off is refused and nothing is kept, as on a Chest where
+// the owner has not approved the link yet; the whole hand-off (sent once,
+// Quotes' answer, taken back, sent again) is proven by
+// tools/private/timesheets/test/handoff.test.ts, which plays a receiving
+// Quotes around the SDK's emit.
+await step("billable time to Quotes: offered per project; a send no tool receives is refused, and the time stays free", async () => {
   await page.goto(origin + "/chest/reports?preset=month&kind=uninvoiced");
   const panel = page.locator(".quotes");
   const line = panel.locator("li", { hasText: "Identité visuelle" });
   await line.getByRole("button", { name: /^Brouillon de facture dans Devis/u }).click();
-  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Devis ne peut pas encore être prévenu" }).waitFor();
   await page.reload();
-  expect(await panel.locator("li", { hasText: "Identité visuelle" }).getByRole("button").count() === 0 || !(await panel.locator("ul.quotes-list").first().innerText()).includes("Identité visuelle"), "not offered twice");
-  const recent = await panel.locator("#quotes-recent").innerText();
-  expect(recent.includes("Identité visuelle") && recent.includes("En attente de sa facture"), "waiting for its invoice: " + recent);
-  const dev = await (await page.request.get(origin + "/_dev")).text();
-  const handoff = dev.match(/timesheets\.billable<\/code> <small>\{&quot;version&quot;:1,&quot;handoff&quot;:&quot;(\d+)&quot;/u)?.[1];
-  expect(handoff, "published timesheets.billable version 1");
-  await page.request.post(origin + "/_dev/deliver", { form: { type: "quotes.invoiced", data: JSON.stringify({ handoff, invoice: "F2026-014", path: "/chest/invoices/14" }) } });
-  await page.reload();
-  const after = await panel.locator("#quotes-recent").innerText();
-  expect(after.includes("Facturé : F2026-014"), "invoiced by Quotes' answer: " + after);
+  expect(await panel.locator("li", { hasText: "Identité visuelle" }).getByRole("button", { name: /^Brouillon de facture dans Devis/u }).count() === 1, "still offered: nothing was kept");
+  expect(await panel.locator("#quotes-recent").count() === 0, "no hand-off waiting");
+  const left = await db`select count(*)::int as n from handoffs`;
+  expect(left[0].n === 0, "no hand-off kept: " + left[0].n);
 });
 
-await step("taken back and sent again, the same project's time reaches Quotes each time: Quotes is told of the take-back, and the new hand-off is not refused as the old one", async () => {
-  await page.goto(origin + "/chest/reports?preset=month&kind=uninvoiced");
-  const panel = page.locator(".quotes");
-  const offered = panel.locator("ul.quotes-list:not(#quotes-recent) li").filter({ has: page.getByRole("button", { name: /^Brouillon de facture dans Devis/u }) }).first();
-  expect(await offered.count() === 1, "another project's time to send");
-  const project = await offered.locator(".quotes-what strong").innerText();
-  const published = async (type) => ((await (await page.request.get(origin + "/_dev")).text()).match(new RegExp(`${type.replace(".", "\\.")}</code>`, "gu")) ?? []).length;
-  const billable = await published("timesheets.billable");
-  await offered.getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
-  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
-  await page.reload();
-  await panel.locator("#quotes-recent li", { hasText: project }).first().getByRole("button", { name: /^Reprendre/u }).click();
-  await page.locator(".ck-toast", { hasText: "Devis a été prévenu" }).waitFor();
-  expect(await published("timesheets.billable_cancelled") >= 1, "Quotes told of the take-back");
-  await page.reload();
-  await panel.locator("ul.quotes-list:not(#quotes-recent) li", { hasText: project }).getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
-  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
-  expect(await published("timesheets.billable") >= Math.min(billable + 2, 8), "both hand-offs published");
-  await page.reload();
-  const recent = await panel.locator("#quotes-recent").innerText();
-  expect(recent.includes(project) && recent.includes("Repris") && recent.includes("En attente de sa facture"), "one taken back, one waiting: " + recent);
+// SDK 0.7.0: a page left open follows the Chest's realtime, never a timer.
+await step("a timer started on another device shows on Inès's page left open, without a reload", async () => {
+  await as(context, origin, "ines");
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await other.addCookies([{ name: "dev_member", value: id("ines"), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+  const watcher = await other.newPage();
+  const sockets = [];
+  watcher.on("websocket", ws => sockets.push(ws.url()));
+  await watcher.goto(origin + "/chest");
+  await watcher.waitForTimeout(1500);
+  expect(sockets.some(u => u.endsWith("/_chest/realtime")), "the page joined the Chest's realtime");
+  expect(await watcher.locator(".timer").getByRole("button", { name: "Stop" }).count() === 0, "no timer running yet");
+  const [project] = await db`select id::text from projects where name = 'Site vitrine' limit 1`;
+  await page.goto(origin + "/chest/reports");
+  const call = (name, body) => page.evaluate(async ([n, b]) => (await fetch("/chest/actions/" + n, { method: "POST", headers: { "content-type": "application/json", "x-tool-action": "1" }, body: JSON.stringify(b) })).json(), [name, body]);
+  const started = await call("startTimer", { projectId: project.id, taskId: null, note: "Live" });
+  expect(started.ok, "started: " + JSON.stringify(started));
+  await watcher.locator(".timer").getByRole("button", { name: "Stop" }).waitFor({ timeout: 10000 });
+  await call("discardTimer", {});
+  await watcher.locator(".timer").getByRole("button", { name: "Start" }).waitFor({ timeout: 10000 });
+  await other.close();
 });
 
 await step("on a phone, in French: the day replaces the grid; add time there", async () => {
@@ -487,8 +490,7 @@ await step("on a phone, in French: the day replaces the grid; add time there", a
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.locator(".ck-toast", { hasText: "2:30 ajoutées." }).waitFor();
   // Change and delete say so in words on a phone, not only with an icon.
-  // The entry just added (today's other Site vitrine time was handed to
-  // Quotes this month: locked, without these buttons).
+  // The entry just added.
   const entry = page.locator(".entry", { hasText: "Site vitrine" }).filter({ hasText: "2:30" });
   await entry.waitFor();
   expect(await entry.getByRole("button", { name: /^Modifier/u }).isVisible() && (await entry.locator(".entry-actions").innerText()).includes("Modifier") && (await entry.locator(".entry-actions").innerText()).includes("Supprimer"), "labelled buttons");

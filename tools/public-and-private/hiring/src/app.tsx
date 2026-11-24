@@ -21,6 +21,7 @@ import * as outbox from "./lib/outbox.ts";
 import { feedData, salaryWords, xml } from "./lib/public-feed.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
 import { indeedFeed, rssFeed, sitemap } from "./lib/reach.ts";
+import { openerOf, sealPending } from "./lib/sealing.ts";
 import { shareDueBusy, takeBusy } from "./lib/share.ts";
 import { forgotten, interviewsToday, refreshBadges } from "./lib/tell.ts";
 import { zipStream } from "./lib/zip.ts";
@@ -115,15 +116,15 @@ routes.get("/chest/jobs/:id/export", download(async ({ member, t, param }) => {
 }));
 // A candidate's own data, for their right of access: what they sent, what
 // the team wrote about them, the emails and their files, their CV.
-routes.get("/chest/candidates/:id/data", download(async ({ member, t, param }) => {
-  const { name, entries } = await theirData(db(), member, param("id"), t);
+routes.get("/chest/candidates/:id/data", download(async ({ member, t, param, request }) => {
+  const { name, entries } = await theirData(db(), member, param("id"), t, openerOf(request));
   return { name, type: "application/zip", body: zipStream(entries) };
 }));
 // Everything, as one archive: spreadsheets and CVs, words in the reader's
 // language (src/lib/export-all.ts). Streamed: one CV in memory at a time.
 // The rights are checked before the first byte.
-routes.get("/chest/export", download(async ({ member, t }) => {
-  const entries = everything(db(), member, t);
+routes.get("/chest/export", download(async ({ member, t, request }) => {
+  const entries = everything(db(), member, t, openerOf(request));
   const first = await entries.next();
   const rest = (async function* () {
     if (!first.done) yield first.value;
@@ -165,18 +166,17 @@ routes.get("/:slug/thanks", publicPage(thanksPage));
 
 // ---- What the Chest sends by itself, signed (never read the body before
 // handle()); each comes at least once (seen: chest_seen).
-// The members' lifecycle, and what other tools tell (Proposal (studio):
-// events between tools — booking.busy, leave.busy).
+// The members' lifecycle, and what other tools tell (SDK 0.7.0's events
+// between tools, chest.json's "receives" — booking.busy, leave.busy): one
+// map of handlers.
 routes.post("/chest-events", async c => {
   const sql = db();
   return new Response(null, {
-    status: await events.handle(c.req.raw, handlers(sql), {
-      seen,
-      tools: {
-        "booking.busy": async e => { await takeBusy(sql, e); },
-        "leave.busy": async e => { await takeBusy(sql, e); },
-      },
-    }),
+    status: await events.handle(c.req.raw, {
+      ...handlers(sql),
+      "booking.busy": async e => { await takeBusy(sql, e); },
+      "leave.busy": async e => { await takeBusy(sql, e); },
+    }, { seen }),
   });
 });
 // The schedules of chest.json, read on the Chest's clock:
@@ -201,6 +201,8 @@ routes.post("/chest-schedules", async c => new Response(null, {
       // Files the Chest could not delete before: tried again.
       await cv.removeLeft(sql);
       await cv.sweep(at);
+      // Notes and feedback written before Hiring sealed them: sealed now.
+      await sealPending(sql);
       // Template files no template holds any more (taken off, deleted).
       await sweepTemplateFiles(sql, at);
       await refreshBadges(sql);

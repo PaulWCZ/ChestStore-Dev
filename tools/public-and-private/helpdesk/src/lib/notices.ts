@@ -1,6 +1,6 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { log } from "@argentic/chest-app";
-import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, RateLimited } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
 import { can } from "./access.ts";
@@ -127,7 +127,8 @@ export async function addTarget(sql: Sql, actor: Member | null, input: { url: un
   } catch (error) {
     if (error instanceof CapabilityNotGranted) throw new AppError("webhooks_unavailable");
     if (error instanceof ChestError && error.code === "suspended") throw new AppError("webhooks_suspended");
-    if (error instanceof QuotaExceeded) throw new AppError("too_many_targets", { max: noticeLimits.targets });
+    // The Chest's pace on new addresses (60 an hour for a tool): later.
+    if (error instanceof RateLimited) throw new AppError("webhooks_busy");
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("webhook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw new AppError(kind === "slack" ? "webhook_slack" : kind === "teams" ? "webhook_teams" : "webhook_address");
     throw error;

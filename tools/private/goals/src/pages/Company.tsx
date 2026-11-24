@@ -125,7 +125,7 @@ export async function companyPage({ member, t, locale: language, query }: PageCo
     title: t.company.title,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
         <div className="head">
           <div className="titles">
             <h1>{t.company.title}</h1>

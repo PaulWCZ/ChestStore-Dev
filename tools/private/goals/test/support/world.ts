@@ -1,4 +1,5 @@
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import manifest from "../../chest.json" with { type: "json" };
 import { createCycle } from "../../src/lib/cycles.ts";
 import { quarterOf } from "../../src/lib/model.ts";
 import { createObjective } from "../../src/lib/objectives.ts";
@@ -28,8 +29,10 @@ export async function world(options: { groups?: boolean } = {}): Promise<World> 
       // A group that does not give Goals: seen only with "members.groups".
       { id: "grp_warehouseaaaaaaaaaaaaaaaaa", name: "Warehouse", members: [hugo.id], grants: false },
     ],
-    capabilities: ["members", "notifications", ...(options.groups ? ["members.groups" as const] : [])],
-    chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", currency: "EUR", language: "fr", publicUrl: null },
+    capabilities: ["members", "notifications", "realtime", ...(options.groups ? ["members.groups" as const] : [])],
+    receives: manifest.receives,
+    realtime: manifest.realtime as never,
+    chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr", publicUrl: null },
   });
   const database = await testDatabase();
   return { database, chest, async close() { await database.close(); await chest.close(); } };

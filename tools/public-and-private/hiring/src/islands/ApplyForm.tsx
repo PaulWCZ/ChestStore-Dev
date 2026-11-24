@@ -4,7 +4,7 @@ import { FormToken, Honeypot, send } from "@argentic/chest-app/client";
 import { useState, type FormEvent } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 import type { Question } from "../shared/model.ts";
-import { cvKinds, cvMaxSize, uploadPublicCv } from "../components/upload.ts";
+import { cvMaxSize, uploadPublicCv, visitorCvKinds } from "../components/upload.ts";
 
 type Errors = { cv_missing: string; cv_invalid: string; cv_too_large: string; unavailable: string; limit: string; cv_off: string };
 type Words = { apply: Catalogue["apply"]; errors: Errors; files: FileWords };
@@ -12,7 +12,7 @@ const limits = { name: 120, email: 254, phone: 40, link: 500, coverLetter: 10000
 
 // The form a candidate fills. The CV goes as soon as it is chosen, from the
 // browser to the Chest (src/components/upload.ts; the kit's file picker
-// says how it goes), then the form with the claim the Chest gave for it.
+// says how it goes), then the form with the name the Chest gave the file.
 // Nothing typed is lost when something is refused: the form is sent in
 // place and never reset (the refusal is a sentence above the button).
 // Without JavaScript the same form posts to the same action: with a link
@@ -89,7 +89,7 @@ export function ApplyForm({ slug, locale, kept, pool, questions, t }: { slug: st
             label={w.cv}
             files={files}
             onChange={update => { setFiles(update); setError(null); }}
-            accept={cvKinds}
+            accept={visitorCvKinds}
             maxFiles={1}
             maxSize={cvMaxSize}
             labels={t.files}

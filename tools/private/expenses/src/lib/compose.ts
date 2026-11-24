@@ -18,15 +18,16 @@ export type ComposeData = {
   currencies: string[];
   // The company's exchange rates (millionths), by currency.
   rates: Record<string, number>;
-  categories: { id: string; name: string; guests: boolean; perNight: boolean; cap: number | null }[];
+  categories: { id: string; name: string; guests: boolean; perNight: boolean }[];
   // The company's flat rates (archived ones only when the edited expense
   // uses one).
-  allowances: { id: string; name: string; amount: number; unit: string; rate: string }[];
+  // Each in its own currency.
+  allowances: { id: string; name: string; amount: number; currency: string; unit: string; rate: string }[];
   // The team, to name who was at a meal (the actor left out).
   team: { id: string; name: string }[];
   merchants: string[];
   vehicle: (Vehicle & { label: string }) | null;
-  scales: { year: number; data: Scale }[];
+  scales: { year: number; data: Scale; currency: string }[];
   trips: { id: string; day: string; tenths: number; kind: VehicleKind }[];
   // Kilometres driven before the tool, by year and vehicle kind.
   prior: { year: number; kind: VehicleKind; tenths: number }[];
@@ -54,15 +55,15 @@ export async function composeData(sql: Query, actor: Member, t: Catalogue, local
     currency: company.currency,
     currencies: [...new Set([company.currency, ...commonCurrencies])],
     rates: Object.fromEntries(known.map(r => [r.currency, r.rate])),
-    categories: cats.filter(c => !c.mileage && c.key !== "allowance" && (!c.archived || c.id === keep.category)).map(c => ({ id: c.id, name: categoryName(c, t), guests: c.guests, perNight: c.perNight, cap: c.cap })),
+    categories: cats.filter(c => !c.mileage && c.key !== "allowance" && (!c.archived || c.id === keep.category)).map(c => ({ id: c.id, name: categoryName(c, t), guests: c.guests, perNight: c.perNight })),
     allowances: flat.filter(a => !a.archived || a.id === keep.allowance).map(a => ({
-      id: a.id, name: allowanceName(a, t), amount: a.amount, unit: a.unit,
-      rate: format(t.allowance.rate, { amount: formatMoney(a.amount, company.currency, locale), unit: t.allowance.units[a.unit] }),
+      id: a.id, name: allowanceName(a, t), amount: a.amount, currency: a.currency, unit: a.unit,
+      rate: format(t.allowance.rate, { amount: formatMoney(a.amount, a.currency, locale), unit: t.allowance.units[a.unit] }),
     })),
     team: everyone.filter(h => h.id !== actor.id).map(h => ({ id: h.id, name: h.name })).sort((a, b) => a.name.localeCompare(b.name)),
     merchants: merchants.map(m => m.merchant),
     vehicle: vehicle ? { ...vehicle, label: `${vehicleName(vehicle.kind, t)} · ${powerName(vehicle.kind, vehicle.power, t)}${vehicle.electric ? " · " + t.trip.electric : ""}` } : null,
-    scales: all.map(s => ({ year: s.year, data: s.data })),
+    scales: all.map(s => ({ year: s.year, data: s.data, currency: s.currency })),
     trips: trips.map(r => ({ id: String(r.id), day: r.day, tenths: r.tenths, kind: r.kind })),
     prior: prior.map(p => ({ year: p.year, kind: p.kind, tenths: p.tenths })),
     usual: usual.map(u => ({ from: u.from_place, to: u.to_place, tenths: u.distance_tenths })),

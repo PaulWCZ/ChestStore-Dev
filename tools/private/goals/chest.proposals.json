@@ -1,18 +1,4 @@
 {
-  "capabilities": [
-    "members.groups"
-  ],
-  "receives": [
-    "group.*",
-    "crm.deal.won",
-    "crm.deal.reopened",
-    "tasks.card.done",
-    "tasks.card.reopened",
-    "helpdesk.ticket.solved",
-    "helpdesk.ticket.reopened",
-    "hiring.hired",
-    "hiring.hire_cancelled"
-  ],
   "translations": {
     "fr": {
       "title": "Objectifs",

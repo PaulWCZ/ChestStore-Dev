@@ -133,3 +133,19 @@ test("the careers page shows open jobs only, and the salary only when shown", as
   await jobs.removeJob(sql, recruiter(), draft.id);
   await assert.rejects(jobs.job(sql, recruiter(), draft.id), { code: "not_found" });
 });
+
+test("the currency of salaries is Hiring's own (no Chest currency): the country's, else the euro, until chosen; each job keeps its own", async () => {
+  const { sql } = database;
+  assert.equal((await jobs.settings(sql)).currency, "EUR", "France: the euro");
+  await jobs.saveSettings(sql, recruiter(), { country: "GB" });
+  assert.equal((await jobs.settings(sql)).currency, "GBP", "the country's when none is chosen");
+  await jobs.saveSettings(sql, recruiter(), { currency: "CHF" });
+  assert.equal((await jobs.settings(sql)).currency, "CHF");
+  await assert.rejects(jobs.saveSettings(sql, recruiter(), { currency: "XYZ" }), { code: "invalid" });
+  const plain = await jobs.createJob(sql, recruiter(), { title: "Currency default", contract: "permanent", remote: "onsite", salaryMin: 50000 });
+  assert.equal(plain.salaryCurrency, "CHF", "a new salary takes the tool's default");
+  const own = await jobs.createJob(sql, recruiter(), { title: "Currency own", contract: "permanent", remote: "onsite", salaryMin: 50000, salaryCurrency: "USD" });
+  assert.equal(own.salaryCurrency, "USD", "a job keeps its own code");
+  await jobs.saveSettings(sql, recruiter(), { currency: "EUR", country: "FR" });
+  assert.equal((await jobs.job(sql, recruiter(), own.id)).job.salaryCurrency, "USD", "changing the default changes no job");
+});
