@@ -95,6 +95,8 @@ async function importItem(ctx: Context, m: Mapped): Promise<"created" | "duplica
       description: clean(m.description ?? "", limits.description, { optional: true, multiline: true }),
       unit: clean(m.unit ?? "", limits.unit, { optional: true }),
       unit_price: price ?? 0,
+      // The price was read in the tool's default currency: the item keeps it.
+      currency: ctx.currency,
       vat_rate: rate,
       goods: goodsOf(m.kind) ?? false,
       created_by: ctx.actor.id,

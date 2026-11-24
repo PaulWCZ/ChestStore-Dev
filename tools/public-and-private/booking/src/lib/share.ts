@@ -30,9 +30,20 @@ const day = 86_400_000;
 // guest's meeting: the key tells them apart).
 export const guestTag = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16);
 
+// eventText: a text as the Chest takes it in an event's data — no format
+// character (Unicode Cf: a zero-width joiner inside an emoji, a zero-width
+// space, a BOM, a direction mark), no control character but line breaks
+// and tabs, no lone surrogate: SDK 0.7.0 refuses the whole event
+// (invalid_data) for one of them. Only the event is cleaned: what people
+// typed stays as they typed it in the tool.
+export const eventText = (text: string): string =>
+  text.replace(/\r\n?/gu, "\n").replace(/[^\P{Cc}\n\t]|[\p{Cf}\p{Cs}]/gu, "");
+export const eventData = (data: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? eventText(v) : v]));
+
 async function emit(type: string, data: Record<string, unknown>, options: events.EmitOptions): Promise<boolean> {
   try {
-    await events.emit(type, data, options);
+    await events.emit(type, eventData(data), options);
     return true;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
@@ -145,6 +156,10 @@ export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled"
 export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boolean> {
   const source = event.source;
   if (typeof source !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || source.length > 63 || source === "booking") return false;
+  // A type names no tool in 0.7.0 (any linked tool could emit "hiring.busy"):
+  // it is read only from the tool its first word names — Hiring for
+  // hiring.busy, Leave for leave.busy —, the source the Chest stamps.
+  if (source !== event.type.split(".")[0]) return false;
   const s = readBusy(event.data);
   if (!s) return false;
   const audience = event.audience === "all" ? null : sql.json([...new Set(event.audience)].filter(m => /^mbr_[a-z2-7]{26}$/u.test(m)) as never);

@@ -67,13 +67,16 @@ export const busyData = (s: BusySnapshot): Record<string, unknown> => ({ ...s, s
 export const busyFingerprint = (s: BusySnapshot) => JSON.stringify([s.member, s.from, s.to, s.spans]);
 
 // readBusy checks what another tool sent: null when it is not a version 1
-// snapshot within bounds (then nothing is kept). Spans come as JSON text
+// (or unversioned) snapshot within bounds (then nothing is kept). Spans come as JSON text
 // (the flat schema of SDK 0.7.0) or, from a teller of before, as a list.
 export function readBusy(data: unknown): { at: Date; member: string; from: Date; to: Date; spans: Span[] } | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const d = data as Record<string, unknown>;
   const time = (value: unknown) => (typeof value === "string" && instantPattern.test(value) ? Date.parse(value) : NaN);
-  if (d["v"] !== 1 || typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
+  // Version 1, or no version at all: 0.7.0's data carries only the fields a
+  // teller declares, and a teller may declare none (member, at, from, to,
+  // spans). Another version is another shape: ignored.
+  if ((d["v"] !== undefined && d["v"] !== 1) || typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
   const at = time(d["at"]), from = time(d["from"]), to = time(d["to"]);
   if (!Number.isFinite(at) || !Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > busyLimits.readDays * day) return null;
   const list = typeof d["spans"] === "string" ? parseList(d["spans"]) : d["spans"];
