@@ -4,7 +4,7 @@ import { chest as theChest } from "../src/chest.js";
 import { ChestError, Unavailable } from "../src/errors.js";
 import { locales, localeOf, type Locale } from "./member.js";
 
-// Studio proposal (not in 0.4.1): the anonymous visitors of a tool's public host — a
+// Studio proposal (not in 0.7.0): the anonymous visitors of a tool's public host — a
 // contact form, a booking page, a job application, a status subscription.
 // There is no captcha without a third party, so every public tool built the
 // same guard; here it is once:

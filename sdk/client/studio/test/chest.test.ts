@@ -5,27 +5,27 @@ import { ChestError } from "../../src/errors.js";
 import { chest } from "../chest.js";
 import { fakeChest } from "../testing.js";
 
-// The studio's chest is 0.4.1's, member for member, with the studio's
+// The studio's chest is 0.7.0's, member for member, with the studio's
 // members added (tools: tool-urls.test.ts; theme: theme.test.ts; todayIn
-// here). Its currency, teamUrl and publicUrl went: 0.4.1's chest.currency,
-// chest.tool.teamUrl and chest.tool.publicUrl replace them.
+// here). 0.7.0 has no Chest currency: neither has the studio's chest.
 
 const names = ["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL"];
 afterEach(() => { for (const name of names) delete process.env[name]; });
 
-test("0.4.1's members read as 0.4.1 reads them: the same values, the same refusals outside a Chest", () => {
+test("0.7.0's members read as 0.7.0 reads them: the same values, the same refusals outside a Chest", () => {
   for (const name of names) delete process.env[name];
-  for (const read of [() => chest.currency, () => chest.tool, () => chest.organization, () => chest.timeZone, () => chest.language, () => chest.today()]) {
+  for (const read of [() => chest.tool, () => chest.organization, () => chest.timeZone, () => chest.language, () => chest.today()]) {
     assert.throws(read, (error: unknown) => error instanceof ChestError && error.code === "not_in_chest");
   }
   Object.assign(process.env, { CHEST_ORGANIZATION: "Atelier Martin", CHEST_TIME_ZONE: "Europe/Paris", CHEST_LANGUAGE: "fr", CHEST_CURRENCY: "CAD", CHEST_TEAM_URL: "https://booking-chest.atelier.fr", CHEST_PUBLIC_URL: "https://booking.atelier.fr" });
-  assert.deepEqual([chest.organization, chest.timeZone, chest.language, chest.currency, chest.tool], [official.organization, official.timeZone, official.language, official.currency, official.tool]);
+  assert.deepEqual([chest.organization, chest.timeZone, chest.language, chest.tool], [official.organization, official.timeZone, official.language, official.tool]);
   assert.deepEqual(chest.tool, { teamUrl: "https://booking-chest.atelier.fr", publicUrl: "https://booking.atelier.fr" });
   const at = Date.parse("2026-12-31T23:30:00Z");
   assert.equal(chest.today(at), official.today(at));
   assert.equal(chest.today(), official.today());
   assert.throws(() => chest.today(Number.NaN), RangeError);
-  for (const name of ["teamUrl", "publicUrl", "toolUrl", "toolLink"]) assert.equal(name in chest, false, `the studio's ${name} went`);
+  for (const name of ["teamUrl", "publicUrl", "toolUrl", "toolLink", "currency"]) assert.equal(name in chest, false, `the studio's ${name} went`);
+  assert.equal("currency" in official, false, "0.7.0 has no Chest currency");
 });
 
 test("todayIn is the date in another zone: a member's; one the runtime does not know reads as the Chest's", () => {
@@ -48,21 +48,21 @@ test("todayIn is the date in another zone: a member's; one the runtime does not 
   assert.equal(todayIn("Nowhere/Land", at), "2027-01-01");
 });
 
-test("the studio's fakeChest sets 0.4.1's chest options, and restores them", async () => {
-  process.env["CHEST_CURRENCY"] = "JPY";
-  const fake = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Zurich", language: "fr", currency: "CHF", publicUrl: "https://booking.chest.test" } });
+test("the studio's fakeChest sets 0.7.0's chest options, and restores them; a currency is refused", async () => {
+  process.env["CHEST_TIME_ZONE"] = "Asia/Tokyo";
+  const fake = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Zurich", language: "fr", publicUrl: "https://booking.chest.test" } });
   try {
-    assert.deepEqual([chest.organization.name, chest.timeZone, chest.language, chest.currency], ["Atelier Martin", "Europe/Zurich", "fr", "CHF"]);
+    assert.deepEqual([chest.organization.name, chest.timeZone, chest.language], ["Atelier Martin", "Europe/Zurich", "fr"]);
     assert.deepEqual(chest.tool, { teamUrl: "https://tool-chest.chest.test", publicUrl: "https://booking.chest.test" });
   } finally {
     await fake.close();
   }
-  assert.equal(process.env["CHEST_CURRENCY"], "JPY");
+  assert.equal(process.env["CHEST_TIME_ZONE"], "Asia/Tokyo");
   const plain = await fakeChest({ chest: { publicUrl: null } });
   try {
-    assert.equal(chest.currency, "EUR", "0.4.1's default");
     assert.equal(chest.tool.publicUrl, null);
   } finally {
     await plain.close();
   }
+  await assert.rejects(fakeChest({ chest: { currency: "CHF" } as never }), /no currency/u);
 });

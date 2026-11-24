@@ -5,7 +5,7 @@ import { delivery, json, memorySeen, object, type Seen } from "../src/signed.js"
 import { checkChannel } from "./signed.js";
 import { checkChecks, checkPattern } from "./checks-rules.js";
 
-// Studio proposal (not in 0.4.1) — checks run by the Chest. A tool that
+// Studio proposal (not in 0.7.0) — checks run by the Chest. A tool that
 // watches a service (Status) has no process between requests (a schedule
 // runs every 15 minutes at best), and probing the company's own addresses,
 // unknown when the manifest is written, would take "network": ["*"] — a
@@ -30,7 +30,7 @@ import { checkChecks, checkPattern } from "./checks-rules.js";
 // The Chest probes with a GET (no cookie, no body, redirects not followed,
 // its own user agent), from its own address, every `every` minutes (1 to
 // 60), and posts {id, name, at, ok, status, ms, error} to POST /chest-checks
-// through the tool's launcher, signed for this tool (Chest-Check: 0.4.1's
+// through the tool's launcher, signed for this tool (Chest-Check: 0.7.0's
 // signed deliveries, as Chest-Event and Chest-Schedule). ok is the
 // expectation met: the status (200 by default) within maxMs (10,000 by
 // default). error, when not ok: "timeout", "dns", "tls", "refused",
@@ -106,7 +106,7 @@ const remembered = memorySeen();
 // handle verifies one delivery and hands its result to the handler, once:
 // the status to answer the Chest. 401 for a delivery that is not the
 // Chest's, 204 once the handler returned or for a result already handled
-// (seen.has, as in 0.4.1's events and schedules). A handler that throws
+// (seen.has, as in 0.7.0's events and schedules). A handler that throws
 // leaves the result unseen and handle throws: answer 500, the Chest
 // delivers it again. seen is memorySeen by default; events' durable store
 // serves here too (the ids never meet).

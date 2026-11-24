@@ -5,7 +5,7 @@ import { delivery as signedDelivery, json, memorySeen, type Seen } from "../src/
 import { idempotencyKey } from "./keys.js";
 import { webhooksChannel } from "./signed.js";
 
-// Studio proposal (not in 0.4.1) — webhooks: notices the Chest delivers, on the tool's
+// Studio proposal (not in 0.7.0) — webhooks: notices the Chest delivers, on the tool's
 // behalf, to web addresses the company's admins or the tool's subscribers
 // give (a Slack or Teams channel, Zapier, Make, the customer's own server).
 // A tool has no outbound network but the hosts its manifest names, and a
@@ -14,7 +14,7 @@ import { webhooksChannel } from "./signed.js";
 // So the Chest delivers: it checks each address, signs, retries, disables
 // what keeps failing, and journals every delivery for the owner.
 //
-//   // chest.proposals.json (a 0.4 Chest refuses keys it does not know in
+//   // chest.proposals.json (a 0.7 Chest refuses keys it does not know in
 //   // chest.json) — a permission:
 //   // “Sends notices to web addresses your admins or subscribers give,
 //   //  signed by your Chest (up to 200 addresses)”
@@ -255,7 +255,7 @@ export async function journal(options: { target?: string; after?: string; limit?
 // Webhooks v1" keyed by CHEST_TOKEN, naming the tool, the event's id and
 // the digest of the body).
 // What the Chest tells the tool, on POST /chest-webhooks: signed with
-// 0.4.1's signed deliveries (src/signed.ts) under the label "Chest-Webhooks
+// 0.7.0's signed deliveries (src/signed.ts) under the label "Chest-Webhooks
 // v1", in the header Chest-Webhooks. verify returns the event a delivery
 // carries, or null when it is not one the Chest made for this tool. It
 // reads the body (4 KiB at most) and never throws for what a request
@@ -278,7 +278,7 @@ const remembered = memorySeen();
 // once handled or for an event already handled (seen.has). A handler that
 // throws leaves the event unseen and handle throws: answer 500, the Chest
 // delivers again (for 72 hours). seen is memorySeen by default, as in
-// 0.4.1's events and schedules.
+// 0.7.0's events and schedules.
 export async function handle(request: IncomingMessage | Request, handlers: { disabled?: (event: WebhookEvent) => void | Promise<void> }, options: { seen?: Seen } = {}): Promise<number> {
   const event = await verify(request);
   if (!event) return 401;

@@ -1,12 +1,12 @@
 import type { Channel } from "../src/signed.js";
 
-// Studio proposals (not in 0.4.1): the channels on which the Chest would
-// post the studio's deliveries to a tool. Each is 0.4.1's one mechanism
+// Studio proposals (not in 0.7.0): the channels on which the Chest would
+// post the studio's deliveries to a tool. Each is 0.7.0's one mechanism
 // (src/signed.ts: a compact JWS, HS256, under HMAC-SHA256 of the channel's
 // label keyed by the text of CHEST_TOKEN, naming the tool, the delivery and
 // the SHA-256 of the body) with a header, a label and identifiers of its
 // own — so a delivery of one channel is never read as another's, and the
-// modules below verify with 0.4.1's delivery() instead of a copy of it. Not
+// modules below verify with 0.7.0's delivery() instead of a copy of it. Not
 // a published module.
 
 // The results of the checks the Chest runs (checks): POST /chest-checks.

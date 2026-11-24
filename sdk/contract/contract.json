@@ -1,5 +1,5 @@
 {
-  "contract": "0.4",
+  "contract": "0.7",
   "manifest": {
     "file": "chest.json",
     "maxBytes": 16384,
@@ -9,12 +9,12 @@
         "required": true,
         "rule": "The version of the tool contract the tool is written for, \"MAJOR.MINOR\" — the SDK's MAJOR.MINOR. A Chest serves every version up to its own; an older Chest refuses the tool before reading anything else: \"This tool needs a newer version of your Chest\".",
         "pattern": "^(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})$",
-        "example": "0.4"
+        "example": "0.7"
       },
       {
         "key": "name",
         "required": true,
-        "rule": "The tool's name and the label of its address: a lowercase letter, then up to 47 lowercase letters, digits or dashes; never login, node, nor a name ending in -chest. Whoever installs the tool may give it another address.",
+        "rule": "The tool's name and the label of its address: a lowercase letter, then up to 47 lowercase letters, digits or dashes; never login, node, documents, nor a name ending in -chest. Whoever installs the tool may give it another address.",
         "pattern": "^[a-z][a-z0-9-]{0,47}$",
         "example": "tasks"
       },
@@ -39,6 +39,20 @@
         "rule": "A picture of the tool for the catalogue, a file of the chest/ directory: PNG, JPEG or WebP, 512 KiB at most.",
         "pattern": "^chest/[a-z0-9][a-z0-9._-]{0,63}\\.(png|jpg|jpeg|webp)$",
         "example": "chest/preview.png"
+      },
+      {
+        "key": "description_file",
+        "rule": "Optional long description: a local UTF-8 Markdown file, 32 KiB at most, never fetched from a URL. Render as text-based Markdown, never raw HTML; links only HTTP(S), no embedded remote media.",
+        "pattern": "^chest/[a-z0-9][a-z0-9._-]{0,63}\\.md$",
+        "example": "chest/description.md"
+      },
+      {
+        "key": "previews",
+        "rule": "Ordered gallery: 1 to 6 distinct preview paths under chest/, each PNG, JPEG or WebP, 512 KiB at most. Without previews, the gallery uses preview if present; preview remains the list thumbnail.",
+        "example": [
+          "chest/board.png",
+          "chest/calendar.png"
+        ]
       },
       {
         "key": "roles",
@@ -68,21 +82,25 @@
       },
       {
         "key": "capabilities",
-        "rule": "What the tool uses of its Chest, each at most once, each approved as a permission: database (its own PostgreSQL), files (its private files), members (who has the tool), members.email (their addresses; with members), notifications (badges and inbox items), ai (AI models through the Chest; with the key ai).",
+        "rule": "What the tool uses of its Chest, each at most once, each approved as a permission: database (its own PostgreSQL), sealed (values it seals, which only its members open through it; every version of the tool then waits for the owner or an admin), files (its private files), members (who has the tool), members.email (their addresses; with members), members.groups (every group of the Chest, and which of those members are in each; with members), notifications (badges and inbox items), ai (AI models through the Chest; with the key ai), folders (the folders of Files, the company's storage, that the owner or an admin gives the tool after it is installed; with the key folders), realtime (live updates to its members' open pages; its channels in the key realtime), todo (dated items in its members' To do, with how far ahead it suggests warning them; each member decides when, and is told by their own notification settings).",
         "example": [
           "database",
+          "sealed",
           "files",
           "members",
           "members.email",
+          "members.groups",
           "notifications",
-          "ai"
+          "ai",
+          "folders",
+          "realtime",
+          "todo"
         ]
       },
       {
         "key": "files",
-        "rule": "With the capability files: \"quota\" and \"maxObject\", sizes such as \"5 GiB\" or \"100 MiB\" — the quota from 100 MiB to 100 GiB (1 GiB without it), the largest object from 1 MiB to 512 MiB (32 MiB without it).",
+        "rule": "With the capability files: \"maxObject\", the largest object, a size such as \"100 MiB\" from 1 MiB to 512 MiB (32 MiB without it). No quota: the tool's files share the server's workload volume with every tool's, and a write is refused only when it is full (storage_full).",
         "example": {
-          "quota": "5 GiB",
           "maxObject": "100 MiB"
         }
       },
@@ -99,11 +117,104 @@
         }
       },
       {
+        "key": "folders",
+        "rule": "Required with the capability folders: \"level\", \"view\" (open and read the documents) or \"edit\" (also add and remove them), the most any folder given to the tool lets it do; \"purpose\", what it keeps there, 1 to 120 printable characters. Installing gives no folder: the owner or an admin gives each one from the tool's page. On a member's request (its Chest-Opener ticket) the tool reaches only what that member also sees.",
+        "example": {
+          "purpose": "Keeps receipts with their expenses",
+          "level": "edit"
+        }
+      },
+      {
+        "key": "realtime",
+        "rule": "With the capability realtime: the channels the members' pages join, and the tables whose writes become live events. \"channels\", 1 to 32 patterns, no channel name matched by two: \"name\", segments of ^[a-z0-9_-]{1,64}$ joined by colons, 128 characters at most, its last segment possibly {member} (the joining member's own id only), * (any segment) or {key} (a membership table decides); \"join\", absent for every member who has the tool, a list of the tool's roles, or {\"table\", \"key\", \"member\"} — a member joins {key} when a row of table has the key in column key and their id in column member (requires database; a row deleted removes them at once); \"send\" true lets those who join send ephemeral messages; \"presence\" true lets them appear in its presence. \"feeds\", up to 16: \"table\", whose inserts, updates and deletes become events \u003ctable\u003e.insert, .update, .delete on \"channel\" — a declared channel, or prefix:{column} of a variable pattern, the column giving the last segment —, each carrying \"columns\" (1 to 32, the primary key first) of the row. Names of tables and columns are ^[a-z_][a-z0-9_]{0,62}$. Never approved: only the capability is.",
+        "example": {
+          "channels": [
+            {
+              "name": "everyone",
+              "presence": true
+            },
+            {
+              "name": "room:{id}",
+              "join": {
+                "table": "room_members",
+                "key": "room_id",
+                "member": "member_id"
+              },
+              "send": true,
+              "presence": true
+            },
+            {
+              "name": "inbox:{member}"
+            }
+          ],
+          "feeds": [
+            {
+              "table": "messages",
+              "channel": "room:{room_id}",
+              "columns": [
+                "id",
+                "room_id",
+                "author",
+                "text",
+                "created_at"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "key": "emits",
+        "rule": "The events the tool tells the other tools of the Chest, by type: two to four dotted words of lowercase letters, digits and dashes (64 characters at most; never member.*, access.* nor folders.*), each {\"description\", \"data\"} — what happened in a sentence of 1 to 80 printable characters, and every field its data carries with its kind: id, text, number, boolean, time, date, member, members, ? after the kind for an optional field (camelCase names; {} for none). Data with any other field is refused, 16 KiB at most. Each type approved as a permission, with the tools it reaches; a type's data only grows from one version to the next: a field is never removed, retyped nor made optional — a new shape is a new type.",
+        "example": {
+          "task.done": {
+            "description": "A task is done",
+            "data": {
+              "task": "id",
+              "project": "id",
+              "doneBy": "member",
+              "note": "text?"
+            }
+          }
+        }
+      },
+      {
         "key": "receives",
-        "rule": "[\"member.*\"]: the members' lifecycle events, posted to POST /chest-events. Requires the capability members; approved as a permission.",
+        "rule": "The events posted to POST /chest-events: \"member.*\", the members' lifecycle (requires the capability members), and event types, from whichever other tool emits them — never the tool's own events. Each approved as a permission, with the tools it comes from.",
         "example": [
-          "member.*"
+          "member.*",
+          "quote.accepted"
         ]
+      },
+      {
+        "key": "actions",
+        "rule": "What Perseus may read and do in the tool, 1 to 16, by name: one to three words of lowercase letters and digits joined by dashes (48 characters at most), each {\"description\", \"input\", \"changes\"} — what it does in a sentence a member reads in Perseus's proposal, 1 to 80 printable characters; every field of its input with its kind: id, text, number, boolean, time, date, member, members, document, amount, ? after the kind for an optional field (camelCase names, up to 16; {} for none), a document being a link to a document of Files the member may read, which the tool opens once, an amount {\"value\": \"240.00\", \"currency\": \"GBP\"} (ISO 4217); \"changes\", false for an action that only reads, which Perseus calls by itself, true for one Perseus only proposes and the member's Confirm calls. The Chest posts {\"input\": {…}} (64 KiB at most) to POST /chest-actions/\u003cname\u003e, signed (Chest-Action) and in the member's name (Chest-Member), with an input of exactly that shape, and waits 10 seconds for {\"said\", \"data\"}: the sentence Perseus shows, and what a read returns (64 KiB at most). Each action approved as a permission.",
+        "example": {
+          "add-paper": {
+            "description": "Add a paper to a section of the company",
+            "input": {
+              "section": "text",
+              "document": "document",
+              "valid": "date?"
+            },
+            "changes": true
+          },
+          "record": {
+            "description": "Read the company's record",
+            "input": {},
+            "changes": false
+          }
+        }
+      },
+      {
+        "key": "papers",
+        "rule": "With the capability folders: the sections of the tool that take papers, 1 to 16, by key (the grammar of an action's name), each {\"name\", \"folder\"} — how it is shown (1 to 40 printable characters) and the folder of Files given to the tool that keeps its papers (1 to 80) — and an optional \"action\", a declared action that changes and takes a required document, which the mail room calls once it filed a paper there. The mail room offers them beside the folders of Files. Never approved: the tool only reaches the folders it is given.",
+        "example": {
+          "insurance": {
+            "name": "Insurance",
+            "folder": "Company",
+            "action": "add-paper"
+          }
+        }
       },
       {
         "key": "schedules",
@@ -178,7 +289,7 @@
       },
       {
         "key": "build.static",
-        "rule": "The path prefixes of built files, served as they are on both hosts: up to 4, each \"/…/\" (/_next/static/ without it); never /chest/, /_chest/, /chest-events/ or /chest-schedules/.",
+        "rule": "The path prefixes of built files, served as they are on both hosts: up to 4, each \"/…/\" (/_next/static/ without it); never /chest/, /_chest/, /chest-events/, /chest-schedules/ or /chest-actions/.",
         "example": [
           "/_next/static/"
         ]
@@ -207,7 +318,7 @@
     "max": 256,
     "maxBytes": 1048576,
     "maxTotalBytes": 8388608,
-    "rule": "Played in the order of their names, each once, as one simple query in a transaction of its own, as the tool's database role: the owner of its database, not a superuser. Only with the capability database. UTF-8 SQL text without NUL; a migration played is never changed: a change is a new one.",
+    "rule": "Played in the order of their names, each once, as one simple query in a transaction of its own, as the tool's database role: the owner of its database, not a superuser. Only with the capability database. UTF-8 SQL text without NUL; a migration played is never changed: a change is a new one. Expand, then contract: the version in service runs on the new schema while the next one starts, and after a rollback without its data, so a migration only adds; what a version stops reading is dropped, renamed or retyped by the release after it, in a migration marked with the line \"-- chest: contract\" (chest check warns about any other).",
     "trustedExtensions": [
       "btree_gin",
       "btree_gist",

@@ -1,86 +1,71 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
-import { isIP, type AddressInfo } from "node:net";
-import { groupIdPattern, member as memberOf, memberIdPattern, type Member } from "../src/member.js";
-import { forget } from "./members.js";
-import { eventChannel, sign } from "../src/signed.js";
-import { fakeChest as officialFakeChest, signAssertion as officialSignAssertion, withMember as officialWithMember, type AssertionOptions, type FakeChest as OfficialFakeChest, type FakeChestOptions as OfficialFakeChestOptions, type FakeEvent as OfficialFakeEvent, type FakeNotification as OfficialFakeNotification } from "../src/testing.js";
+import { connect as connectSocket, isIP, type AddressInfo } from "node:net";
+import type { Duplex } from "node:stream";
+import { member as memberOf, memberIdPattern, type Member } from "../src/member.js";
+import { forget } from "../src/members.js";
+import { sign, type Channel } from "../src/signed.js";
+import { fakeChest as officialFakeChest, signAssertion as officialSignAssertion, withMember as officialWithMember, type AssertionOptions, type FakeChest as OfficialFakeChest, type FakeChestOptions as OfficialFakeChestOptions, type FakeFormer as OfficialFakeFormer } from "../src/testing.js";
 import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar-rules.js";
 import { forgetTheme, toolNamePattern } from "./chest.js";
-import { occurredAtOf, type GroupChanged, type GroupRemoved } from "./events.js";
 import { isAddress } from "./mail.js";
-import { locales } from "./member.js";
 import { checkChannel, webhooksChannel } from "./signed.js";
 import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, deliveryIdPattern as webhookDeliveryPattern, format as formatWebhook, isPublicAddress, keyPattern as wireKeyPattern, limits as webhookLimits, shownUrl, sign as signWebhook, targetIdPattern as webhookTargetPattern, type WebhookDelivery, type WebhookKind, type WebhookTarget } from "./webhooks-rules.js";
 
-// @argentic/chest-sdk/testing as the studio publishes it: 0.4.1's fake
-// Chest, unchanged, with the fakes of the studio's proposals layered on it.
+// @argentic/chest-sdk/testing as the studio publishes it (0.7.0-studio.N):
+// 0.7.0's fake Chest, unchanged, with the fakes of the studio's proposals
+// layered on it.
 //
-// How the layers sit. fakeChest() starts 0.4.1's fakeChest — its members,
-// groups, files (stat, move, links and uploads on its own origin, content
-// sniffed), badges, notifications, AI, erasures, emit() and run(), with its
-// bounds, quotas and errors — then a second server on 127.0.0.1, the
-// studio's, which CHEST_API points to. The studio's server answers the
-// routes of the proposals itself (mail, calendar, events between tools,
-// members.groups, notices' translations, broadcast, public uploads and
-// files, theme, visitors, checks, webhooks, matchEmails, leftAt, members'
-// photos)
-// and passes every other request to 0.4.1's server as it came, its answer
-// back as it went — so a call the official SDK makes meets the official
-// fake. Two answers only are completed on the way back, and only for what
-// the studio's options add: the members API leaves out of a member's
-// groups those that do not give the tool (FakeGroup.grants: false) unless
-// the tool holds "members.groups", and
-// lookup answers as "former" the people a test put in chest.former after
-// the start (0.4.1 reads options.former once). The fake's address (api,
-// CHEST_API) is the studio's server, and 0.4.1's links and uploads are
-// signed for it: the files module takes them there, as 0.4.1 takes its
-// fake's.
+// How the layers sit. fakeChest() starts 0.7.0's fakeChest — its members,
+// groups (with "members.groups" and groups that do not give the tool),
+// files (links, a member's and a visitor's uploads on its own origin),
+// folders of Files, badges, notifications (translations, broadcast, the
+// pace), AI, erasures, emits and deliveries of events between tools,
+// sealed values, realtime, schedules' runs and actions' calls, with its
+// bounds and errors — then a second server on 127.0.0.1, the studio's,
+// which CHEST_API points to. The studio's server answers the routes of the
+// proposals itself (mail, calendar, theme, visitors, checks, webhooks,
+// matchEmails, leftAt, public files, members' photos) and passes every
+// other request to 0.7.0's server as it came — a page's realtime connection
+// (an HTTP upgrade) included — its answer back as it went, so a call the
+// official SDK makes meets the official fake. One answer only is completed
+// on the way back: lookup answers as former the people a test put in
+// chest.former after the start (0.7.0 reads options.former once). The
+// fake's address (api, CHEST_API) is the studio's server, and 0.7.0's links,
+// uploads and realtime addresses are written for it.
 //
 //   import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 //   const chest = await fakeChest({ tool: "booking", members: [camille], capabilities: ["members", "notifications", "mail"], mail: { replyTo: "contact@atelier.test" } });
 //   await app(withMember(new Request("http://tool/chest"), camille));
-//   assert.equal(chest.outbox[0]?.subject, "Your booking on 3 November");     // mail to someone outside
-//   assert.equal(chest.notifications[0]?.translations?.fr?.title, "Nouvelle réservation");
-//   assert.equal(await chest.run("morning", request => app(request)), 204);   // 0.4.1's
+//   assert.equal(chest.outbox[0]?.subject, "Your booking on 3 November");     // mail to someone outside (studio)
+//   assert.equal(chest.notifications[0]?.title, "Nouvelle réservation");    // 0.7.0's: in the member's language
+//   assert.equal(await chest.run("morning", request => app(request)), 204);   // 0.7.0's
 //   await chest.close();
 //
-// What 0.4.1 now gives, the studio's fake dropped: its schedules option,
-// run() on /chest-jobs/<name> (Chest-Job) and runs (0.4.1's run(name, to,
-// {id, scheduledAt, attempt}) on /chest-schedules); its own links and
-// uploads (0.4.1's front, on the fake's origin) and with them the origin
-// option; the chest options currency and publicUrl set only when named
-// (0.4.1's chest: {organization, timeZone, language, currency, teamUrl,
-// publicUrl}, EUR and https://<tool>.chest.test by default, publicUrl: null
-// for a tool without a public part); former's erased: true (0.4.1's status:
-// "erased", and "no_access").
+// What 0.7.0 now gives, the studio's fake dropped (0.4.1-studio.7 →
+// 0.7.0-studio.1): its groups (grants, "members.groups", groups.all), its
+// notify and broadcast with translations (FakeNotification.translations,
+// shownTo: 0.7.0 keeps each item in the member's language), its events
+// between tools (options emits as a list, receivers, linked; published,
+// linked, deliver: 0.7.0's emits {type: {description, data}}, emitted,
+// deliver({type, source, audience, subject, data})), its group events
+// (group.changed, group.removed: 0.7.0 has none), its public uploads
+// (publicUploadUrl, claim, publicApi, storage.publicUploads: 0.7.0's
+// uploadUrl(folder, {public: true})), and the Chest's currency (0.7.0 has
+// none: options chest.currency and CHEST_CURRENCY are gone).
 
 // A member as a test names them: a Member whose language and time zone may
 // be left out — the fake Chest then gives the Chest's own (options.chest:
-// "en" and "UTC" unless said), as a real Chest gives its default to a
-// member who chose none. A value given is signed as given: one the Chest
-// never sends makes member() refuse it.
+// "en" and "UTC" unless said), as a real Chest gives a member its default
+// language and, until their browser said its zone, the Chest's zone. A
+// value given is signed as given: one the Chest never sends makes member()
+// refuse it.
 export type FakeMember = Omit<Member, "language" | "timeZone"> & { language?: string; timeZone?: string };
 // A member as the fake Chest keeps them (chest.members).
 export type StudioMember = Member;
-// A group as a fake Chest keeps it: 0.4.1's, and grants (true by default):
-// whether it gives the tool. 0.4.1's groups.list() shows only those that
-// do; a member's groups (member(request), the members API) and
-// members.list({group}) show only those too, unless the tool holds
-// "members.groups" — then every group of the Chest (and members.groups.all
-// lists them). As in 0.4.1's fake, a member's groups are their own
-// member.groups: name a membership there and in the group's members. No
-// fixed cap on members or groups: member(request) and members.* read a
-// member in any number of groups and a group of any size (studio.7); an
-// assertion longer than maxAssertionLength (about 300 groups) is signed as
-// given and refused by member(), as a tool's Node server would refuse it.
-export type FakeGroup = { id: string; name: string; members: string[]; grants?: boolean };
-// Someone the tool had who no longer has it: 0.4.1's, and when they left
+// Someone the tool had who no longer has it: 0.7.0's, and when they left
 // the Chest (members.leftAt), for "former" and "erased".
-export type FakeFormer = { id: string; name?: string; status?: "no_access" | "former" | "erased"; leftAt?: string };
-// An event emit() delivers: 0.4.1's member events, and the Chest's group
-// events (with "members.groups").
-export type FakeEvent = OfficialFakeEvent | { type: "group.changed"; data: GroupChanged["data"]; id?: string; occurredAt?: string } | { type: "group.removed"; data: GroupRemoved["data"]; id?: string; occurredAt?: string };
+export type FakeFormer = OfficialFakeFormer & { leftAt?: string };
 // What answers a request the tool's fetch() made to a declared host.
 export type FakeNetworkHandler = (request: Request) => Response | Promise<Response>;
 // A request the tool's fetch() made to the outside while the fake ran:
@@ -127,26 +112,21 @@ export type FakeTheme = { all?: FakeThemeChoice | null; tools?: Record<string, F
 // keeps it: replyTo is the Reply-To it went with — the tool's, or the
 // company's reply address (mail.replyTo) — absent when there was none.
 export type FakeMail = { id: string; messageId: string; from: string; fromName: string | null; to: string[]; cc: string[]; subject: string; text: string; html?: string; replyTo?: string; attachments: { name: string; type: string; size: number }[]; key?: string; status: "sent" | "bounced" | "complained" };
-// A notification as the fake Chest keeps it: 0.4.1's (the English words,
-// path, key), and the translations the tool gave (notify, broadcast).
-// shownTo(notification, language) is what the member of that language sees.
-export type FakeNotification = OfficialFakeNotification & { translations?: Partial<Record<string, { title: string; body?: string }>> };
 // An event of the calendar as the fake Chest keeps it.
 export type FakeCalendarEvent = KeptEvent;
 type Target = string | ((request: Request) => Response | Promise<Response>);
 
-// What a fake Chest is given: 0.4.1's options — members (FakeMember here),
-// former, groups (FakeGroup here), capabilities ("members.groups", "mail"
-// and "calendar" too), receives, files, ai, chest — and the options of the
-// studio's proposals.
-export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "former" | "groups"> & {
+// What a fake Chest is given: 0.7.0's options — members (FakeMember here),
+// former (FakeFormer here), groups, capabilities ("mail" and "calendar"
+// too), roles, receives, emits, files, folders, ai, realtime, chest — and
+// the options of the studio's proposals.
+export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "former"> & {
   // The tool's name (chest.json "name"), set as CHEST_TOOL while the fake
-  // runs — what events.publish, member() and the signatures read. The
-  // environment's CHEST_TOOL, or "tool", when left out (0.4.1's rule).
+  // runs — what member() and the signatures read. The environment's
+  // CHEST_TOOL, or "tool", when left out (0.7.0's rule).
   tool?: string;
   members?: FakeMember[];
   former?: FakeFormer[];
-  groups?: FakeGroup[];
   // The other tools installed on this Chest, by name (chest.tools,
   // CHEST_TOOL_URLS): true for a team host at
   // https://<name>-chest.chest.test, or its addresses. This tool is always
@@ -155,23 +135,15 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
   // The Chest's ceiling per visitor's address across the tools, an hour
   // (visitors.count).
   visitors?: { perAddressHour?: number };
-  // false: a Chest without notifications.broadcast (404), to test a tool's
-  // fallback.
-  broadcast?: boolean;
   // Checks run by the Chest (chest.proposals.json "checks": {max}).
   checks?: { max: number };
-  // The events this tool publishes (chest.proposals.json "emits"), and how
-  // many tools receive them; linked: the tools an admin linked to receive
-  // each type ({"forms.contact": ["crm"]}), which events.receivers answers
-  // and publish counts (instead of receivers) — also chest.linked.
-  emits?: string[];
-  receivers?: number;
-  linked?: Record<string, string[]>;
   // Whether the Chest delivers mail and webhooks (mail.available,
   // webhooks.available): "ready" by default; also chest.delivery.
   delivery?: Partial<FakeDelivery>;
-  // The storage spec's public uploads and public files.
-  storage?: { publicUploads?: boolean; publicFiles?: boolean };
+  // The storage spec's public files (chest.proposals.json "files":
+  // {"publicFiles": true}): objects under public/ served on the front's
+  // /_chest/public/.
+  storage?: { publicFiles?: boolean };
   // Mail to people outside (with "mail" in capabilities). connected: false
   // is a Chest whose owner has not connected the company's mail provider
   // (available() says "not_connected", send throws Unavailable) — the same
@@ -198,48 +170,34 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
   // target answers 200 until chest.webhooks.respond() says otherwise; to is
   // where webhook.disabled is posted (also chest.webhooks.to).
   webhooks?: { max: number; resolve?: Record<string, string>; deliver?: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string }) => Promise<Response | number>; to?: Target };
-  // The hosts the tool declares (chest.json "network", 0.4) and who answers
-  // for each — "graph.microsoft.com", "*.icloud.com" for every name below
-  // it, "*" for any host. While the fake runs, the tool's plain fetch()
-  // goes as through the Chest's egress proxy (below). Without this option,
-  // fetch() is left alone.
+  // The hosts the tool declares (chest.json "network") and who answers for
+  // each — "graph.microsoft.com", "*.icloud.com" for every name below it,
+  // "*" for any host. While the fake runs, the tool's plain fetch() goes as
+  // through the Chest's egress proxy (below). Without this option, fetch()
+  // is left alone.
   network?: Record<string, FakeNetworkHandler>;
 };
 
-// A fake Chest: 0.4.1's (api — here the studio's server —, token, tool,
-// members, groups, files, notifications, badges, acknowledged, ai, emit,
-// run, close: the same values, read and written through), and what the
-// studio's fakes keep and do.
-export type FakeChest = Omit<OfficialFakeChest, "members" | "groups" | "emit" | "notifications"> & {
+// A fake Chest: 0.7.0's (api — here the studio's server —, token, tool,
+// members, groups, files, folders, full, notifications, badges,
+// acknowledged, ai, opens, realtime, emitted, deliver, run, act, close: the
+// same values, read and written through), and what the studio's fakes keep
+// and do.
+export type FakeChest = Omit<OfficialFakeChest, "members"> & {
   members: StudioMember[];
-  // The notifications the tool gave (notify, broadcast), with their
-  // translations.
-  notifications: FakeNotification[];
-  // The origin of the public uploads' addresses (files.publicUploadUrl):
-  // api unless set — a harness that serves the public host's
-  // /_chest/upload/ sets it to the public host's origin.
-  publicApi: string;
-  // Every group of the Chest, those that do not give the tool included.
-  groups: FakeGroup[];
   // Those the tool had who no longer have it: what lookup answers "former"
-  // for, and leftAt. A test that removes a member from chest.members moves
-  // them here, as a real Chest would, then calls clearCaches().
+  // for (beside options.former, which 0.7.0's fake reads once), and leftAt.
+  // A test that removes a member from chest.members moves them here, as a
+  // real Chest would, then calls clearCaches().
   former: FakeFormer[];
-  emit(event: FakeEvent, to: Target): Promise<number>;
   // upload plays a member's (or a visitor's) browser sending a file to an
-  // uploadUrl's or a publicUploadUrl's answer: a PUT of data, of that type.
+  // uploadUrl's answer: a PUT of data, of that type — a visitor's path is
+  // sent to the fake's origin (api).
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
   // Forgets what this process keeps of the Chest's answers — lookup's
-  // minute (the studio's forget, 0.4.1's with it) and the theme — after a test changed
-  // chest.members, chest.former or chest.theme by hand.
+  // minute and the theme — after a test changed chest.members, chest.former
+  // or chest.theme by hand.
   clearCaches(): void;
-  // Events between tools: the events the tool published (occurredAt: the
-  // one it gave, or the time of the publish), the tools linked to receive
-  // each type, and deliver(), which hands the tool an event of another tool
-  // as the Chest would (signed Chest-Event, on /chest-events).
-  published: { id: string; type: string; data: Record<string, unknown>; key?: string; occurredAt: string }[];
-  linked: Record<string, string[]>;
-  deliver(event: { type: string; source?: string; data: Record<string, unknown>; id?: string; occurredAt?: string }, to: Target): Promise<number>;
   // Whether mail and webhooks deliver (available()).
   delivery: FakeDelivery;
   // Checks: those the tool configured, and check(), which delivers a result
@@ -289,20 +247,22 @@ function completed<M extends FakeMember>(given: M, language = process.env["CHEST
 // The groups of the running fake Chest that do not give the tool
 // (FakeGroup.grants: false), for a tool without "members.groups": a real
 // Chest never puts them in that member's assertion, so signAssertion
-// leaves them out while a fake runs.
+// leaves them out while a fake runs (0.7.0's signs a member's groups as
+// given).
 let hiddenGroups: () => Set<string> = () => new Set();
 const asserted = (member: FakeMember): StudioMember => {
   const full = completed(member);
   const hidden = hiddenGroups();
-  return hidden.size === 0 ? full : { ...full, groups: full.groups.filter(g => !hidden.has(g)) };
+  return hidden.size === 0 || full.groups === null ? full : { ...full, groups: full.groups.filter(g => !hidden.has(g)) };
 };
 
-// signAssertion and withMember are 0.4.1's, for a member whose language and
-// zone may be left out (the Chest's, CHEST_LANGUAGE and CHEST_TIME_ZONE;
-// "en" and "UTC" outside a fake Chest), and whose groups that do not give
-// the tool (while a fake runs, without "members.groups") are left out as
-// the Chest leaves them out.
-// The assertion carries exactly 0.4.1's claims.
+// signAssertion and withMember are 0.7.0's — withMember carries the
+// member's Chest-Opener ticket for sealed values and folders while a fake
+// runs —, for a member whose language and zone may be left out (the
+// Chest's, CHEST_LANGUAGE and CHEST_TIME_ZONE; "en" and "UTC" outside a
+// fake Chest), and whose groups that do not give the tool (while a fake
+// runs, without "members.groups") are left out as the Chest leaves them
+// out. The assertion carries exactly 0.7.0's claims.
 export function signAssertion(member: FakeMember, options: AssertionOptions = {}): string {
   return officialSignAssertion(asserted(member), options);
 }
@@ -310,39 +270,11 @@ export function withMember<R extends Request | IncomingMessage>(request: R, memb
   return officialWithMember(request, asserted(member), options);
 }
 
-// 0.4.1's types and helpers that the studio does not redefine.
-export type { AssertionOptions, FakeAi, FakeAiCall, FakeAiModel, FakeAiReply, FakeFile, FakeRun } from "../src/testing.js";
+// 0.7.0's types that the studio does not redefine.
+export type { AssertionOptions, FakeAi, FakeAiCall, FakeAiModel, FakeAiReply, FakeChannelRule, FakeDocument, FakeDocumentOpen, FakeEmits, FakeEmitted, FakeEvent, FakeFeed, FakeFile, FakeFolder, FakeFolders, FakeFoldersOptions, FakeGroup, FakeNotification, FakeOpen, FakePublished, FakeRealtime, FakeRealtimeOptions, FakeRun, FakeSent } from "../src/testing.js";
 
-// shownTo is a notification as a member of that language sees it: the
-// translation in their language (its primary subtag), the English words
-// otherwise.
-export function shownTo(notification: FakeNotification, language: string): { title: string; body?: string } {
-  const primary = typeof language === "string" ? language.split(/[-_]/u)[0]!.toLowerCase() : "en";
-  const words = primary !== "en" ? notification.translations?.[primary] : undefined;
-  if (words) return { title: words.title, ...(words.body ? { body: words.body } : {}) };
-  return { title: notification.title, ...(notification.body ? { body: notification.body } : {}) };
-}
-
-// The bounds the studio's fakes keep (0.4.1's own are in its fake).
+// The bounds the studio's fakes keep (0.7.0's own are in its fake).
 const callsPerMinute = 600, matchPerCall = 200, matchPerDay = 5000;
-const maxObjects = 10000, maxTotal = 1 << 30, publicMaxObject = 10 << 20;
-const namePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$/u;
-const mediaPattern = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,62}\/(\*|[a-z0-9][a-z0-9!#$&^_.+-]{0,62})$/u;
-const maxTitle = 80, maxText = 280, maxPath = 512, itemsPerDay = 100;
-const keyPattern = /^[a-z0-9._:-]{1,64}$/u;
-const reordering = /[؜‎‏‪-‮⁦-⁩]/gu;
-const cleanTitle = (s: string): string => s.replace(/[\t\r\n]/gu, " ").replace(/\p{Cc}/gu, "").replace(reordering, "").trim();
-const cleanText = (s: string): string => s.replace(/\r\n?/gu, "\n").replace(/\t/gu, " ").replace(/[^\P{Cc}\n]/gu, "").replace(reordering, "").trim();
-const isPath = (p: unknown): boolean => typeof p === "string" && p.length <= maxPath && /^\/chest([/?#][\x21-\x5b\x5d-\x7e]*)?$/u.test(p) && !p.includes("//") && !p.split(/[?#]/u)[0]!.split("/").some(x => /^(\.|%2e){1,2}$/iu.test(x));
-const fold = (s: string): string => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
-// The first bytes an upload of a type must start with (0.4.1's fake).
-const starts = (...heads: string[]) => (data: Buffer): boolean => heads.some(head => data.subarray(0, head.length).equals(Buffer.from(head, "latin1")));
-const signatures: Record<string, (data: Buffer) => boolean> = {
-  "image/jpeg": starts("\xff\xd8\xff"), "image/png": starts("\x89PNG\r\n\x1a\n"), "image/gif": starts("GIF87a", "GIF89a"),
-  "image/webp": data => data.subarray(0, 4).toString("latin1") === "RIFF" && data.subarray(8, 12).toString("latin1") === "WEBP", "application/pdf": starts("%PDF-"),
-};
-const extensions: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp", "image/avif": ".avif", "image/heic": ".heic", "application/pdf": ".pdf", "text/plain": ".txt", "text/csv": ".csv", "application/json": ".json", "application/zip": ".zip", "video/mp4": ".mp4", "audio/mpeg": ".mp3" };
-const newToken = (): string => randomBytes(18).toString("base64url") + "." + randomBytes(12).toString("base64url");
 
 function send(response: ServerResponse, status: number, value?: unknown, headers: Record<string, string> = {}): void {
   if (value === undefined) return void response.writeHead(status, headers).end();
@@ -360,10 +292,11 @@ async function body(request: IncomingMessage, limit: number): Promise<Buffer | n
   return Buffer.concat(chunks);
 }
 
+
 // ---- The declared network (0.3.0-studio.15) ----------------------------------------
 //
-// 0.4 declares a tool's hosts in chest.json ("network") and gives the tool
-// the Chest's egress proxy; 0.4.1's fake has nothing for it: this plays it.
+// 0.7 declares a tool's hosts in chest.json ("network") and gives the tool
+// the Chest's egress proxy; 0.7.0's fake has nothing for it: this plays it.
 //
 // A tool that declares hosts (chest.json "network") reaches them with plain
 // fetch(): in a Chest, the launcher gives it HTTP_PROXY, HTTPS_PROXY (and
@@ -439,11 +372,12 @@ function routeNetwork(network: Record<string, FakeNetworkHandler>, log: FakeEgre
   };
 }
 
-// fakeChest starts 0.4.1's fake Chest and the studio's in front of it (see
-// above), and points the environment at them: 0.4.1's variables (CHEST_API —
+
+// fakeChest starts 0.7.0's fake Chest and the studio's in front of it (see
+// above), and points the environment at them: 0.7.0's variables (CHEST_API —
 // the studio's server —, CHEST_TOKEN, CHEST_TOOL, CHEST_ORGANIZATION,
-// CHEST_TIME_ZONE, CHEST_LANGUAGE, CHEST_CURRENCY, CHEST_TEAM_URL,
-// CHEST_PUBLIC_URL) and the studio's CHEST_TOOL_URLS.
+// CHEST_TIME_ZONE, CHEST_LANGUAGE, CHEST_TEAM_URL, CHEST_PUBLIC_URL) and the
+// studio's CHEST_TOOL_URLS.
 export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChest> {
   // Checked before anything starts: a wrong option leaves nothing running.
   if (options.tool !== undefined && !toolNamePattern.test(options.tool)) throw new Error(`fakeChest: ${JSON.stringify(options.tool)} is not a tool's name (chest.json "name")`);
@@ -451,65 +385,35 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const givenReply = options.mail?.replyTo;
   if (givenReply !== undefined && givenReply !== null && !isAddress(givenReply)) throw new Error("fakeChest: mail.replyTo is an email address, or null");
   if (options.mail && Object.keys(options.mail).some(k => !["connected", "replyTo", "domain", "perDay", "suppressed"].includes(k))) throw new Error("fakeChest: mail is {connected, replyTo, domain, perDay, suppressed} (mailboxes and received mail are gone: the Chest receives no mail)");
+  if (options.storage && Object.keys(options.storage).some(k => k !== "publicFiles")) throw new Error("fakeChest: storage is {publicFiles} (a visitor's upload is 0.7.0's files.uploadUrl(folder, {public: true}))");
+  if (options.chest && Object.hasOwn(options.chest, "currency")) throw new Error("fakeChest: the Chest has no currency (0.7.0): a tool keeps its own");
   for (const name of Object.keys(options.tools ?? {})) if (!toolNamePattern.test(name)) throw new Error(`fakeChest: ${JSON.stringify(name)} is not a tool's name (chest.json "name")`);
   const saved = { CHEST_TOOL: process.env["CHEST_TOOL"], CHEST_TOOL_URLS: process.env["CHEST_TOOL_URLS"] };
   if (options.tool !== undefined) process.env["CHEST_TOOL"] = options.tool;
   const capabilities = new Set(options.capabilities ?? ["members", "files", "notifications", "ai"]);
   const language = options.chest?.language ?? "en", zone = options.chest?.timeZone ?? "UTC";
-  const { tool: _tool, members: givenMembers, former: givenFormer, groups: givenGroups, tools: _tools, visitors: _visitors, broadcast: _broadcast, checks: _checks, emits: _emits, receivers: _receivers, linked: _linked, delivery: _delivery, storage: _storage, mail: _mail, calendar: _calendar, theme: _theme, themeFiles: _themeFiles, webhooks: _webhooks, network: _network, ...officialOptions } = options;
-  void [_tool, _tools, _visitors, _broadcast, _checks, _emits, _receivers, _linked, _delivery, _storage, _mail, _calendar, _theme, _themeFiles, _webhooks, _network];
-  // 0.4.1's fake keeps the members (completed: a Chest gives every member a
-  // language and a zone) and answers the groups the studio's list says give
-  // the tool; the former are the studio's (read at each lookup).
-  const official = await officialFakeChest({ ...officialOptions, members: (givenMembers ?? []).map(m => completed(m, language, zone)), former: [] });
+  const { tool: _tool, members: givenMembers, former: givenFormer, tools: _tools, visitors: _visitors, checks: _checks, delivery: _delivery, storage: _storage, mail: _mail, calendar: _calendar, theme: _theme, themeFiles: _themeFiles, webhooks: _webhooks, network: _network, ...officialOptions } = options;
+  void [_tool, _tools, _visitors, _checks, _delivery, _storage, _mail, _calendar, _theme, _themeFiles, _webhooks, _network];
+  // 0.7.0's fake keeps the members (completed: a Chest gives every member a
+  // language and a zone) and the former as given (without leftAt, the
+  // studio's).
+  const official = await officialFakeChest({ ...officialOptions, members: (givenMembers ?? []).map(m => completed(m, language, zone)), former: (givenFormer ?? []).map(({ leftAt: _leftAt, ...f }) => f) });
   const upstream = official.api;
-  let groups: FakeGroup[] = [...(givenGroups ?? [])];
-  const granting = () => groups.filter(g => g.grants !== false);
-  // With "members.groups", a member's groups are every group they are in.
-  const hiding = () => capabilities.has("members.groups") ? new Set<string>() : new Set(groups.filter(g => g.grants === false).map(g => g.id));
+  // Without "members.groups", the groups that do not give the tool are not
+  // in an assertion (signAssertion, withMember).
+  const hiding = () => capabilities.has("members.groups") ? new Set<string>() : new Set(official.groups.filter(g => g.grants === false).map(g => g.id));
   hiddenGroups = hiding;
-  Object.defineProperty(official, "groups", { get: () => granting().map(g => ({ id: g.id, name: g.name, members: g.members })), set: (value: FakeGroup[]) => void (groups = value), configurable: true, enumerable: true });
   const tool = official.tool, token = official.token;
-  const files = official.files;
   const teamOrigin = (): string => process.env["CHEST_TEAM_URL"] ?? `https://${tool}-chest.chest.test`;
 
-  // The studio's object: 0.4.1's fields read and written through (a test
-  // that sets chest.members sets 0.4.1's), and the studio's own.
-  let publicApi: string | undefined;
+  // The studio's object: every field of 0.7.0's read and written through
+  // (a test that sets chest.members sets 0.7.0's; chest.deliver is 0.7.0's),
+  // and the studio's own.
   const chest = {
-    get api() { return official.api; },
-    set api(value: string) { official.api = value; },
-    // The origin of the public uploads' addresses: the public host's on a
-    // Chest; the fake's own (api) unless a harness that serves the public
-    // host's /_chest/upload/ sets it.
-    get publicApi() { return publicApi ?? official.api; },
-    set publicApi(value: string) { publicApi = value; },
-    get token() { return official.token; },
-    get tool() { return official.tool; },
-    get members() { return official.members as StudioMember[]; },
-    set members(value: StudioMember[]) { official.members = value; },
-    get groups() { return groups; },
-    set groups(value: FakeGroup[]) { groups = value; },
-    get files() { return official.files; },
-    set files(value: OfficialFakeChest["files"]) { official.files = value; },
-    get notifications() { return official.notifications as FakeNotification[]; },
-    set notifications(value: FakeNotification[]) { official.notifications = value; },
-    get badges() { return official.badges; },
-    set badges(value: OfficialFakeChest["badges"]) { official.badges = value; },
-    get acknowledged() { return official.acknowledged; },
-    set acknowledged(value: string[]) { official.acknowledged = value; },
-    get ai() { return official.ai; },
-    set ai(value: OfficialFakeChest["ai"]) { official.ai = value; },
-    emit: (event: FakeEvent, to: Target) => official.emit(event as OfficialFakeEvent, to),
-    run: (name: string, to: Target, run?: Parameters<OfficialFakeChest["run"]>[2]) => official.run(name, to, run),
-    close: async () => {},
     former: [...(givenFormer ?? [])],
-    // A path (a public upload's) is sent to the host its page is on: here, publicApi.
-    upload: async (url: string, data: Uint8Array | string, type: string) => fetch(new URL(url, chest.publicApi), { method: "PUT", body: typeof data === "string" ? data : new Uint8Array(data), headers: { "Content-Type": type } }),
+    // A path (a visitor's upload) is sent to the fake's own origin.
+    upload: async (url: string, data: Uint8Array | string, type: string) => fetch(new URL(url, official.api), { method: "PUT", body: typeof data === "string" ? data : new Uint8Array(data), headers: { "Content-Type": type } }),
     clearCaches: () => {},
-    published: [],
-    linked: Object.fromEntries(Object.entries(options.linked ?? {}).map(([t, l]) => [t, [...l]])),
-    deliver: async () => 0,
     delivery: { mail: options.delivery?.mail ?? (options.mail?.connected === false ? "not_connected" : "ready"), webhooks: options.delivery?.webhooks ?? "ready" },
     checks: [],
     check: async () => 0,
@@ -526,7 +430,16 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     tools: {},
     installTool: () => {},
     removeTool: () => {},
-  } as FakeChest;
+  } as unknown as FakeChest;
+  for (const name of Object.keys(official) as (keyof OfficialFakeChest)[]) {
+    if (name === "close") continue;
+    Object.defineProperty(chest, name, {
+      get: () => official[name],
+      set: (value: unknown) => { (official as Record<string, unknown>)[name] = value; },
+      enumerable: true,
+      configurable: true,
+    });
+  }
 
   // The windows of the studio's quotas, each from the first call it counts.
   type Window = { start: number; count: number };
@@ -538,9 +451,9 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   };
   const access = (id: string) => chest.members.some(m => m.id === id);
   // post delivers what the Chest posts to the tool on one of its channels —
-  // at its address, or to a handler — signed with 0.4.1's signed.ts, and
+  // at its address, or to a handler — signed with 0.7.0's signed.ts, and
   // says the status it answered.
-  const deliverTo = async (path: string, channel: typeof eventChannel, id: string, body: string, to: Target): Promise<number> => {
+  const deliverTo = async (path: string, channel: Channel, id: string, body: string, to: Target): Promise<number> => {
     const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + path, { method: "POST", headers: { "Content-Type": "application/json", [channel.header]: sign(channel, id, body, { token, tool }) }, body });
     const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
     await answer.body?.cancel();
@@ -798,44 +711,6 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 200, { allowed: true, retry_after: 0 });
   }
 
-  // Events between tools (Studio proposal): what the tool publishes.
-  const emits = new Set(options.emits ?? []);
-  const publishedKeys = new Map<string, { id: string; fingerprint: string; at: number }>();
-  async function eventsRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    // Proposal (0.3.0-studio.16): which tools receive a type this tool emits —
-    // those an admin linked (chest.linked).
-    if (url.pathname === "/events/receivers") {
-      if (request.method !== "GET") return send(response, 404, { error: "not_found" });
-      const type = url.searchParams.get("type") ?? "";
-      if (!emits.has(type)) return send(response, 400, { error: "invalid_event" });
-      return send(response, 200, { tools: [...new Set(chest.linked[type] ?? [])].sort() });
-    }
-    if (request.method !== "POST") return send(response, 404, { error: "not_found" });
-    const raw = await body(request, 32 << 10);
-    let e: Record<string, unknown>;
-    try { e = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_event" }); }
-    const type = e["type"], data = e["data"], key = e["key"], occurred = e["occurred_at"];
-    if (typeof type !== "string" || !emits.has(type) || data === null || typeof data !== "object" || Array.isArray(data)) return send(response, 400, { error: "invalid_event" });
-    if (key !== undefined && (typeof key !== "string" || !wireKeyPattern.test(key))) return send(response, 400, { error: "invalid_event" });
-    // Proposal (0.3.0-studio.16): when it happened, within the last 24 hours and
-    // not ahead beyond a minute — checked again against the Chest's clock.
-    let occurredAt: string | undefined;
-    if (occurred !== undefined) {
-      try { occurredAt = occurredAtOf(occurred as string); } catch { return send(response, 400, { error: "invalid_event" }); }
-    }
-    // The same key within 24 hours is the same event — for the same type,
-    // data and occurredAt only: another event under it is refused, never
-    // answered with the first (0.3.0-studio.15).
-    const fingerprint = JSON.stringify([type, data, occurredAt ?? null]);
-    const first = typeof key === "string" ? publishedKeys.get(key) : undefined;
-    const receiving = () => (chest.linked[type] ? new Set(chest.linked[type]).size : options.receivers ?? 0);
-    if (first && Date.now() - first.at < 86_400_000) return first.fingerprint === fingerprint ? send(response, 200, { id: first.id, receivers: receiving() }) : send(response, 409, { error: "key_conflict" });
-    const id = newId("evt_");
-    chest.published.push({ id, type, data: data as Record<string, unknown>, ...(typeof key === "string" ? { key } : {}), occurredAt: occurredAt ?? new Date().toISOString() });
-    if (typeof key === "string") publishedKeys.set(key, { id, fingerprint, at: Date.now() });
-    send(response, 201, { id, receivers: receiving() });
-  }
-
   // Mail to people outside (Studio proposal): send, status, available.
   const mailOptions = options.mail ?? {};
   const domain = mailOptions.domain ?? "company.test";
@@ -1016,7 +891,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     return calendarFeed(events.map(e => ({ ...e, tool, origin: teamOrigin(), ...(calendarOptions?.toolTitle ? { toolTitle: calendarOptions.toolTitle } : {}) })), { locale: locale ?? who?.language ?? "en", domain: calendarDomain, name: feedName(), ...(now ? { now } : {}) });
   };
 
-  // ---- Members: matchEmails, leftAt, every group (with "members.groups") ----
+  // ---- Members: matchEmails, leftAt ----
   let window = 0, calls = 0;
   const matchDay: Window = { start: 0, count: 0 }, matchedToday = new Set<string>();
   const readJson = async (request: IncomingMessage, limit: number): Promise<Record<string, unknown> | null> => {
@@ -1029,8 +904,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     }
   };
   async function membersRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    const groupRoute = url.pathname.startsWith("/groups/");
-    if (!capabilities.has(groupRoute ? "members.groups" : "members")) return send(response, 403, { error: "capability_not_granted" });
+    if (!capabilities.has("members")) return send(response, 403, { error: "capability_not_granted" });
     const now = Date.now();
     if (now - window >= 60_000) [window, calls] = [now, 0];
     if (++calls > callsPerMinute) return send(response, 429, { error: "rate_limited" }, { "Retry-After": "60" });
@@ -1062,33 +936,17 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       });
       return send(response, 200, { left });
     }
-    if (request.method !== "GET") return send(response, 404, { error: "not_found" });
-    const has = new Set(chest.members.map(m => m.id));
-    if (url.pathname === "/groups/all") {
-      const all = [...groups].sort((a, b) => fold(a.name) < fold(b.name) ? -1 : fold(a.name) > fold(b.name) ? 1 : a.id < b.id ? -1 : 1);
-      return send(response, 200, { groups: all.map(g => ({ id: g.id, name: g.name, size: g.members.filter(id => has.has(id)).length })) });
-    }
     send(response, 404, { error: "not_found" });
   }
 
-  // completeMembers is what the studio adds to 0.4.1's answers of the
-  // members API: without "members.groups", a member's groups are those that
-  // give the tool (when the test named groups that do not) and a list of a
-  // group that does not give it is empty; lookup's "former" are the
-  // studio's list as it is now.
+  // completeMembers is what the studio adds to 0.7.0's answer of lookup:
+  // its "former" are also the studio's list as it is now (chest.former, which
+  // a test may change after the start; 0.7.0's fake reads options.former
+  // once).
   const completeMembers = (url: URL, answer: unknown): unknown => {
     const path = url.pathname;
     const o = answer !== null && typeof answer === "object" && !Array.isArray(answer) ? answer as Record<string, unknown> : null;
     if (!o) return answer;
-    const hidden = hiding();
-    if (path === "/members" && hidden.has(url.searchParams.get("group") ?? "")) return { ...o, members: [], next: null };
-    const shown = (m: unknown) => {
-      const one = m as { groups?: unknown } | null;
-      if (hidden.size > 0 && one && Array.isArray(one.groups)) one.groups = (one.groups as string[]).filter(g => !hidden.has(g));
-      return m;
-    };
-    if (Array.isArray(o["members"])) o["members"] = (o["members"] as unknown[]).map(shown);
-    else if (path.startsWith("/members/") && path !== "/members/lookup") shown(o);
     if (path === "/members/lookup" && Array.isArray(o["unknown"]) && Array.isArray(o["former"])) {
       const unknown: string[] = [];
       for (const id of o["unknown"] as string[]) {
@@ -1104,148 +962,6 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     return o;
   };
 
-  // ---- Notifications: broadcast ----
-  // 30 broadcasts an hour; each member's 100 items a day are counted here
-  // for broadcasts only (0.4.1's fake counts notify's on its own).
-  const broadcasts: Window = { start: 0, count: 0 }, days = new Map<string, Window>();
-  const drop = (gone: (n: FakeNotification) => boolean): void => {
-    for (let i = chest.notifications.length - 1; i >= 0; i--) if (gone(chest.notifications[i]!)) chest.notifications.splice(i, 1);
-  };
-  // translationsOf reads a notice's translations as the Chest would: the
-  // store's languages but English, each {title, body?} within the bounds of
-  // the English words; null when they are not that.
-  const translatedLocales = locales.filter(l => l !== "en") as readonly string[];
-  const translationsOf = (value: unknown): Record<string, { title: string; body?: string }> | { error: string } => {
-    const given = value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-    if (!given) return { error: "invalid_body" };
-    const out: Record<string, { title: string; body?: string }> = {};
-    for (const [language, words] of Object.entries(given)) {
-      const w = words !== null && typeof words === "object" && !Array.isArray(words) ? words as Record<string, unknown> : null;
-      if (!translatedLocales.includes(language) || !w || Object.keys(w).some(k => k !== "title" && k !== "body")) return { error: "invalid_body" };
-      const { title, body: text } = w;
-      if (typeof title !== "string" || [...title].length < 1 || [...title].length > maxTitle || cleanTitle(title) === "") return { error: "invalid_title" };
-      if (text !== undefined && (typeof text !== "string" || [...text].length > maxText)) return { error: "invalid_text" };
-      const cleaned = typeof text === "string" ? cleanText(text) : "";
-      out[language] = { title: cleanTitle(title), ...(cleaned ? { body: cleaned } : {}) };
-    }
-    return out;
-  };
-
-  // notify with translations (Studio proposal): the Chest keeps them with
-  // the notice. The fake checks them, hands the notice without them to
-  // 0.4.1's fake (its bounds, quotas, errors, what it keeps), then adds them
-  // to the items 0.4.1's fake kept. Without translations, the request goes
-  // to 0.4.1's fake as it came.
-  async function notifyRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    const raw = await body(request, 64 << 10);
-    let command: Record<string, unknown> | null = null;
-    try {
-      const value = JSON.parse(raw?.toString() ?? "") as unknown;
-      if (value !== null && typeof value === "object" && !Array.isArray(value)) command = value as Record<string, unknown>;
-    } catch {
-      command = null;
-    }
-    const translations = command && command["translations"] !== undefined ? translationsOf(command["translations"]) : undefined;
-    if (!capabilities.has("notifications")) return send(response, 403, { error: "capability_not_granted" });
-    if (translations && "error" in translations && typeof translations.error === "string") return send(response, 400, translations);
-    const { translations: _t, ...rest } = command ?? {};
-    void _t;
-    const forwarded = command === null ? new Uint8Array(raw ?? []) : JSON.stringify(rest);
-    const answer = await fetch(upstream + url.pathname, { method: "POST", headers: { "Content-Type": "application/json", ...(request.headers.authorization ? { Authorization: request.headers.authorization } : {}) }, body: forwarded });
-    const text = await answer.text();
-    if (answer.status === 200 && translations && Object.keys(translations).length > 0) {
-      const delivered = ((JSON.parse(text) as { delivered?: unknown }).delivered ?? []) as string[];
-      for (const id of delivered) {
-        const kept = [...chest.notifications].reverse().find(n => n.member === id);
-        if (kept) kept.translations = translations as Record<string, { title: string; body?: string }>;
-      }
-    }
-    const headers: Record<string, string> = {};
-    for (const name of ["content-type", "retry-after"]) { const v = answer.headers.get(name); if (v) headers[name] = v; }
-    response.writeHead(answer.status, { ...headers, "Content-Length": String(Buffer.byteLength(text)) }).end(text);
-  }
-
-  async function broadcastRoute(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    if (!capabilities.has("notifications")) return send(response, 403, { error: "capability_not_granted" });
-    if (options.broadcast === false || request.method !== "POST") return send(response, 404, { error: "not_found" });
-    const command = await readJson(request, 1 << 20);
-    if (!command || !Object.keys(command).every(k => ["title", "body", "path", "key", "translations", "to", "except"].includes(k))) return send(response, 400, { error: "invalid_body" });
-    const { title, body: text, path, key } = command;
-    if (typeof title !== "string" || [...title].length < 1 || [...title].length > maxTitle || cleanTitle(title) === "") return send(response, 400, { error: "invalid_title" });
-    if (text !== undefined && (typeof text !== "string" || [...text].length > maxText)) return send(response, 400, { error: "invalid_text" });
-    if (path !== undefined && !isPath(path)) return send(response, 400, { error: "invalid_path" });
-    if (key !== undefined && (typeof key !== "string" || !keyPattern.test(key))) return send(response, 400, { error: "invalid_key" });
-    const translations = command["translations"] === undefined ? {} : translationsOf(command["translations"]);
-    if ("error" in translations && typeof translations.error === "string") return send(response, 400, translations);
-    const given = command["except"];
-    if (given !== undefined && (!Array.isArray(given) || !given.every(id => typeof id === "string" && memberIdPattern.test(id)))) return send(response, 400, { error: "invalid_id" });
-    const except = new Set((given ?? []) as string[]);
-    const to = (command["to"] ?? {}) as { roles?: unknown; groups?: unknown };
-    if (to === null || typeof to !== "object" || Array.isArray(to) || Object.keys(to).some(k => k !== "roles" && k !== "groups")
-      || (to.roles !== undefined && (!Array.isArray(to.roles) || !to.roles.every(r => typeof r === "string")))
-      || (to.groups !== undefined && (!Array.isArray(to.groups) || !to.groups.every(g => typeof g === "string" && groupIdPattern.test(g))))) return send(response, 400, { error: "invalid_body" });
-    if (command["to"] !== undefined && to.roles === undefined && to.groups === undefined) return send(response, 400, { error: "invalid_body" });
-    // A group the tool does not know (one that does not give it, without
-    // "members.groups") tells nobody.
-    const unseen = hiding();
-    const roles = (to.roles ?? []) as string[], targets = ((to.groups ?? []) as string[]).filter(g => !unseen.has(g));
-    const now = Date.now();
-    if (live(broadcasts, 3_600_000, now) && broadcasts.count >= 30) return send(response, 429, { error: "quota_exceeded" }, wait(broadcasts, 3_600_000, now));
-    count(broadcasts, 3_600_000, now, 1);
-    const everyone = to.roles === undefined && to.groups === undefined;
-    const cleaned = typeof text === "string" ? cleanText(text) : "";
-    const kept = translations as Record<string, { title: string; body?: string }>;
-    let told = 0;
-    for (const m of chest.members) {
-      if (except.has(m.id)) continue;
-      if (!everyone && !roles.includes(m.role ?? "") && !m.groups.some(g => targets.includes(g)) && !groups.some(g => targets.includes(g.id) && g.members.includes(m.id))) continue;
-      const w = days.get(m.id);
-      if (w && live(w, 86_400_000, now) && w.count >= itemsPerDay) continue;
-      if (!days.has(m.id)) days.set(m.id, { start: 0, count: 0 });
-      count(days.get(m.id)!, 86_400_000, now, 1);
-      if (key !== undefined) drop(n => n.member === m.id && n.key === key);
-      chest.notifications.push({ member: m.id, title: cleanTitle(title), ...(cleaned ? { body: cleaned } : {}), path: (path as string | undefined) ?? "/chest", ...(key !== undefined ? { key: key as string } : {}), ...(Object.keys(kept).length > 0 ? { translations: kept } : {}) });
-      told++;
-    }
-    send(response, 200, { delivered: told });
-  }
-
-  // ---- Files: public uploads and public files (the storage spec) ----
-  const storage = options.storage ?? {};
-  const publicUploads = new Map<string, { name: string; types: string[]; maxSize: number; until: number; unclaimed?: number }>();
-  // Uploads a visitor sent, waiting for the tool to claim them: the claim →
-  // the object, and when the Chest deletes it unclaimed.
-  const claims = new Map<string, { name: string; deleteAt: number | null }>();
-  const sweep = () => {
-    const now = Date.now();
-    for (const [claim, c] of claims) if (c.deleteAt !== null && c.deleteAt <= now) { claims.delete(claim); files.delete(c.name); }
-  };
-  const described = (name: string, f: { data: Uint8Array; type: string; updated: string }) => ({ name, type: f.type, size: f.data.byteLength, sha256: createHash("sha256").update(f.data).digest("hex"), updated: f.updated });
-  async function publicFilesRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    sweep();
-    if (!capabilities.has("files")) return send(response, 403, { error: "capability_not_granted" });
-    if (request.method !== "POST") return send(response, 404, { error: "not_found" });
-    const command = (await readJson(request, 4096)) ?? {};
-    if (url.pathname === "/files/claim") {
-      const claim = command["claim"];
-      const c = typeof claim === "string" ? claims.get(claim) : undefined;
-      if (!c || !files.has(c.name)) return send(response, 404, { error: "not_found" });
-      claims.delete(claim as string);
-      return send(response, 200, described(c.name, files.get(c.name)!));
-    }
-    if (!storage.publicUploads) return send(response, 403, { error: "capability_not_granted" });
-    const { name, types, max_size: maxSize, expires_in: life, expires_unclaimed_after: unclaimed } = command;
-    if (typeof name !== "string" || !name.startsWith("uploads/public/") || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) : namePattern.test(name))) return send(response, 400, { error: "invalid_name" });
-    if (!(types === undefined || (Array.isArray(types) && types.length <= 8 && types.every(t => typeof t === "string" && mediaPattern.test(t))))) return send(response, 400, { error: "invalid_type" });
-    if (!(maxSize === undefined || (typeof maxSize === "number" && Number.isSafeInteger(maxSize) && maxSize > 0)) || !(life === undefined || (typeof life === "number" && Number.isInteger(life) && life > 0 && life <= 900)) || !(unclaimed === undefined || (typeof unclaimed === "number" && Number.isInteger(unclaimed) && unclaimed >= 60 && unclaimed <= 604800))) return send(response, 400, { error: "invalid_body" });
-    if ((maxSize as number | undefined ?? 0) > publicMaxObject) return send(response, 413, { error: "too_large" });
-    const grant = newToken(), seconds = (life as number | undefined) ?? 900;
-    publicUploads.set(grant, { name, types: (types as string[] | undefined) ?? [], maxSize: (maxSize as number | undefined) ?? publicMaxObject, until: Date.now() + seconds * 1000, ...(typeof unclaimed === "number" ? { unclaimed } : {}) });
-    // The public host's route, on the fake's own origin (as 0.4.1's fake
-    // serves the team host's).
-    send(response, 200, { url: `${chest.publicApi}/_chest/upload/${grant}`, method: "PUT", expires_in: seconds });
-  }
-
   // ---- The look ----
   // This tool's override, or the company's choice for all tools, or nothing
   // (its own identity) — never kept by the tool (max-age=0), so a test's or
@@ -1259,37 +975,17 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   }
 
   // ---- The front's routes of the proposals ----
-  // What a Chest's front would serve beside the tool, under /_chest/: a
-  // visitor's upload, the public files, the look's files, a member's
-  // calendar feed and its page, the members' photos. 0.4.1's fake serves
-  // the team host's links and uploads (/_chest/files/).
+  // What a Chest's front would serve beside the tool, under /_chest/: the
+  // public files, the look's files, a member's calendar feed and its page,
+  // the members' photos. 0.7.0's fake serves the rest of /_chest/ (files'
+  // links and uploads, a visitor's upload, realtime) and the documents
+  // host of Files (/d/, /u/).
   async function frontRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    const upload = /^\/_chest\/upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u.exec(url.pathname);
-    if (upload && request.method === "PUT") {
-      sweep();
-      const grant = publicUploads.get(upload[1]!);
-      publicUploads.delete(upload[1]!);
-      if (!grant || grant.until < Date.now()) return send(response, 403, { error: "invalid_token" });
-      const type = (request.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
-      if (!mediaPattern.test(type) || type.endsWith("/*") || (grant.types.length > 0 && !grant.types.some(t => t === type || (t.endsWith("/*") && type.startsWith(t.slice(0, -1)))))) return send(response, 415, { error: "type_refused" });
-      const data = await body(request, grant.maxSize);
-      if (data === null) return send(response, 413, { error: "too_large" });
-      if (signatures[type] && !signatures[type]!(data)) return send(response, 400, { error: "type_mismatch" });
-      const name = grant.name.endsWith("/") ? grant.name + randomBytes(10).toString("hex") + (extensions[type] ?? "") : grant.name;
-      const total = [...files.entries()].reduce((sum, [n, f]) => n === name ? sum : sum + f.data.byteLength, 0);
-      if (total + data.length > maxTotal || (!files.has(name) && files.size >= maxObjects)) return send(response, 429, { error: "quota_exceeded" });
-      files.set(name, { data: new Uint8Array(data), type, updated: new Date().toISOString() });
-      // A visitor's upload: what they hand to the tool's form is a claim, not
-      // the name — only the one who uploaded holds it.
-      const claim = randomBytes(24).toString("base64url") + ".claim";
-      claims.set(claim, { name, deleteAt: grant.unclaimed === undefined ? null : Date.now() + grant.unclaimed * 1000 });
-      return send(response, 201, { type, size: data.length, claim });
-    }
     const shared = /^\/_chest\/public\/(.+)$/u.exec(url.pathname);
     if (shared && request.method === "GET") {
       let name = "";
       try { name = "public/" + decodeURIComponent(shared[1]!); } catch { name = ""; }
-      const object = storage.publicFiles ? files.get(name) : undefined;
+      const object = options.storage?.publicFiles ? chest.files.get(name) : undefined;
       if (!object) return send(response, 404, { error: "not_found" });
       return void response.writeHead(200, { "Content-Type": object.type, "Content-Length": String(object.data.byteLength), "Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff" }).end(object.data);
     }
@@ -1339,12 +1035,12 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 404, { error: "not_found" });
   }
 
-  // ---- 0.4.1's fake, behind ----
-  // relay passes a request to 0.4.1's fake as it came, and its answer back
-  // as it went — completed, for the members API, by completeMembers.
+  // ---- 0.7.0's fake, behind ----
+  // relay passes a request to 0.7.0's fake as it came, and its answer back
+  // as it went — completed, for lookup, by completeMembers.
   const upstreamPort = Number(new URL(upstream).port);
   function relay(request: IncomingMessage, response: ServerResponse, url: URL): void {
-    const complete = request.method !== "PUT" && (url.pathname === "/members" || url.pathname.startsWith("/members/"));
+    const complete = url.pathname === "/members/lookup";
     const headers = { ...request.headers, host: `127.0.0.1:${upstreamPort}` };
     const forward = httpRequest({ host: "127.0.0.1", port: upstreamPort, method: request.method, path: request.url, headers }, answer => {
       if (!complete || answer.statusCode !== 200 || !(answer.headers["content-type"] ?? "").startsWith("application/json")) {
@@ -1372,23 +1068,20 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
-    const route = path === "/members/match" || path === "/members/left" || path.startsWith("/groups/") ? membersRoute
-      : path === "/notifications/broadcast" ? (request: IncomingMessage, response: ServerResponse) => broadcastRoute(request, response)
-      : path === "/notifications" && request.method === "POST" ? notifyRoute
-      : path === "/files/public-upload-url" || path === "/files/claim" ? publicFilesRoute
-      : path.startsWith("/_chest/") && !path.startsWith("/_chest/files/") ? frontRoute
+    const front = path.startsWith("/_chest/public/") || path.startsWith("/_chest/theme/") || path === "/_chest/calendar" || path.startsWith("/_chest/calendar/") || /^\/_chest\/members\/[^/]+\/photo$/u.test(path);
+    const route = path === "/members/match" || path === "/members/left" ? membersRoute
+      : front ? frontRoute
       : path.startsWith("/mail/") ? mailRoute
       : path === "/calendar/events" || path.startsWith("/calendar/events/") ? calendarRoute
-      : path === "/events" || path === "/events/receivers" ? eventsRoute
       : path === "/theme" ? themeRoute
       : path === "/visitors/count" ? (request: IncomingMessage, response: ServerResponse) => visitorsRoute(request, response)
       : path === "/checks" ? (request: IncomingMessage, response: ServerResponse) => checksRoute(request, response)
       : path === "/webhooks" || path.startsWith("/webhooks/") ? webhooksRoute
       : null;
     if (!route) {
-      // The members API's 600 calls a minute are one budget for 0.4.1's
-      // routes and the studio's (matchEmails, leftAt, groups.all): counted
-      // here too before 0.4.1's fake counts its own.
+      // The members API's 600 calls a minute are one budget for 0.7.0's
+      // routes and the studio's (matchEmails, leftAt): counted here too
+      // before 0.7.0's fake counts its own.
       if (path === "/members" || path.startsWith("/members/") || path === "/groups") {
         const now = Date.now();
         if (now - window >= 60_000) [window, calls] = [now, 0];
@@ -1398,9 +1091,29 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     }
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
+  // A page's realtime connection (an HTTP upgrade on /_chest/realtime) goes
+  // to 0.7.0's fake as it came, byte for byte both ways.
+  server.on("upgrade", (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+    const upstreamSocket = connectSocket(upstreamPort, "127.0.0.1", () => {
+      const lines = [`${request.method ?? "GET"} ${request.url ?? "/"} HTTP/${request.httpVersion}`];
+      for (let i = 0; i < request.rawHeaders.length; i += 2) {
+        const name = request.rawHeaders[i]!, value = request.rawHeaders[i + 1]!;
+        lines.push(`${name}: ${name.toLowerCase() === "host" ? `127.0.0.1:${upstreamPort}` : value}`);
+      }
+      upstreamSocket.write(lines.join("\r\n") + "\r\n\r\n");
+      if (head.length > 0) upstreamSocket.write(head);
+      socket.pipe(upstreamSocket).pipe(socket);
+    });
+    const end = () => { socket.destroy(); upstreamSocket.destroy(); };
+    upstreamSocket.on("error", end);
+    socket.on("error", end);
+    upstreamSocket.on("close", () => socket.destroy());
+    socket.on("close", () => upstreamSocket.destroy());
+  });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   // The fake's address is the studio's server: CHEST_API, and the origin of
-  // the links and uploads 0.4.1's fake signs (it writes them with its api).
+  // the links, uploads and realtime addresses 0.7.0's fake writes (it
+  // writes them with its api).
   official.api = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
   process.env["CHEST_API"] = official.api;
 
@@ -1444,14 +1157,6 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const body = JSON.stringify({ id, name, at: given.at ?? new Date().toISOString(), ok, status: given.status === undefined ? (ok ? 200 : 503) : given.status, ms: given.ms ?? 120, error: given.error === undefined ? (ok ? null : "status") : given.error });
     return deliverTo("/chest-checks", checkChannel, id, body, to);
   };
-  // deliver hands the tool an event of another tool (its source is the part
-  // of the type before the first dot), signed as the Chest signs events.
-  chest.deliver = async (event, to) => {
-    const id = event.id ?? newId("evt_");
-    const source = event.source ?? event.type.split(".")[0]!;
-    const body = JSON.stringify({ id, type: event.type, source, occurredAt: event.occurredAt ?? new Date().toISOString(), data: event.data });
-    return deliverTo("/chest-events", eventChannel, id, body, to);
-  };
   // bounce plays a message that could not be delivered (or that the
   // person marked as spam): its status says so, and the address is
   // suppressed when the failure is permanent or a complaint. Nothing is
@@ -1493,3 +1198,4 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   };
   return chest;
 }
+

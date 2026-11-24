@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import * as events from "../events.js";
+import * as events from "../../src/events.js";
 import type { Member } from "../member.js";
 import * as members from "../members.js";
 import { fakeChest } from "../testing.js";
@@ -100,11 +100,11 @@ test("network: redirects are followed through declared hosts only; an abort stop
 test("tool: the fake runs as the tool a test names; clearCaches() forgets what lookup kept", async () => {
   const saved = process.env["CHEST_TOOL"];
   const camille = person("camille");
-  const chest = await fakeChest({ tool: "leave", emits: ["leave.approved"], members: [camille] });
+  const chest = await fakeChest({ tool: "leave", emits: { "leave.approved": { description: "A leave is approved", data: { request: "number" } } }, members: [camille] });
   try {
     assert.equal(process.env["CHEST_TOOL"], "leave");
     assert.equal(chest.tool, "leave");
-    assert.equal((await events.publish("leave.approved", { request: 1 })).receivers, 0);
+    assert.equal((await events.emit("leave.approved", { request: 1 })).receivers, 0);
     assert.equal((await members.lookup([camille.id])).members.length, 1);
     // A test moves Camille out by hand: lookup still answers from its minute…
     chest.members.splice(0, 1);

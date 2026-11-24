@@ -1,7 +1,7 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.4.1-studio.7",
-  "description": "The client a Chest server tool embeds — the official @argentic/chest-sdk 0.4.1 (the member the Chest asserts, the Chest itself, its members, database, files, notifications, members' events, schedules, AI, a fake Chest for tests), unchanged, with the studio's proposals on top: mail, calendar, webhooks, visitors, checks, events between tools, every group of the Chest, broadcast, public uploads and files, the addresses of the other tools, the company's look.",
+  "version": "0.7.0-studio.1",
+  "description": "The client a Chest server tool embeds — the official @argentic/chest-sdk 0.7.0 (Chest-SDK PR #38, 1a825a6: the member the Chest asserts, the Chest itself, its members and groups, database, sealed values, files, folders of Files, notifications and broadcast, events of the members and between tools, schedules, actions, AI, realtime and its browser client, a fake Chest for tests, the tool contract 0.7 and chest check), unchanged, with the studio's proposals on top: mail to people outside, the calendar feed, webhooks, visitors, checks, public files, the addresses of the other tools, the company's look.",
   "keywords": [
     "chest",
     "argentic",
@@ -9,13 +9,17 @@
     "chest-tool",
     "member",
     "files",
+    "folders",
     "database",
     "members",
     "notifications",
     "events",
     "schedules",
+    "actions",
     "ai",
     "llm",
+    "sealed",
+    "realtime",
     "mail",
     "calendar",
     "webhooks"
@@ -35,6 +39,9 @@
     "node": ">=22"
   },
   "sideEffects": false,
+  "workspaces": [
+    "check"
+  ],
   "exports": {
     ".": {
       "types": "./dist/studio/index.d.ts",
@@ -60,25 +67,45 @@
       "types": "./dist/studio/files.d.ts",
       "default": "./dist/studio/files.js"
     },
+    "./folders": {
+      "types": "./dist/src/folders.d.ts",
+      "default": "./dist/src/folders.js"
+    },
     "./members": {
       "types": "./dist/studio/members.d.ts",
       "default": "./dist/studio/members.js"
     },
     "./notifications": {
-      "types": "./dist/studio/notifications.d.ts",
-      "default": "./dist/studio/notifications.js"
+      "types": "./dist/src/notifications.d.ts",
+      "default": "./dist/src/notifications.js"
     },
     "./events": {
-      "types": "./dist/studio/events.d.ts",
-      "default": "./dist/studio/events.js"
+      "types": "./dist/src/events.d.ts",
+      "default": "./dist/src/events.js"
     },
     "./schedules": {
       "types": "./dist/src/schedules.d.ts",
       "default": "./dist/src/schedules.js"
     },
+    "./actions": {
+      "types": "./dist/src/actions.d.ts",
+      "default": "./dist/src/actions.js"
+    },
     "./ai": {
       "types": "./dist/src/ai.d.ts",
       "default": "./dist/src/ai.js"
+    },
+    "./sealed": {
+      "types": "./dist/src/sealed.d.ts",
+      "default": "./dist/src/sealed.js"
+    },
+    "./realtime": {
+      "types": "./dist/src/realtime.d.ts",
+      "default": "./dist/src/realtime.js"
+    },
+    "./realtime/client": {
+      "types": "./dist/src/realtime-client.d.ts",
+      "default": "./dist/src/realtime-client.js"
     },
     "./mail": {
       "types": "./dist/studio/mail.d.ts",
@@ -109,6 +136,7 @@
   "files": [
     "dist/src",
     "dist/studio",
+    "client/index.ts",
     "client/src/api.ts",
     "client/src/signed.ts",
     "client/src/errors.ts",
@@ -117,18 +145,24 @@
     "client/src/members.ts",
     "client/src/database.ts",
     "client/src/files.ts",
+    "client/src/folders.ts",
     "client/src/notifications.ts",
     "client/src/events.ts",
+    "client/src/eventrules.ts",
     "client/src/schedules.ts",
     "client/src/ai.ts",
+    "client/src/sealed.ts",
+    "client/src/realtime.ts",
+    "client/src/realtime-client.ts",
     "client/src/testing.ts",
+    "client/src/testing-realtime.ts",
+    "client/src/actions.ts",
+    "client/src/testing-folders.ts",
     "client/studio/index.ts",
     "client/studio/member.ts",
     "client/studio/chest.ts",
     "client/studio/members.ts",
     "client/studio/files.ts",
-    "client/studio/notifications.ts",
-    "client/studio/events.ts",
     "client/studio/keys.ts",
     "client/studio/signed.ts",
     "client/studio/mail.ts",
@@ -141,16 +175,13 @@
     "client/studio/calendar-rules.ts",
     "client/studio/checks-rules.ts"
   ],
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
   "scripts": {
     "clean": "node -e \"for (const d of ['dist', 'build']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
     "build": "npm run clean && tsc -p tsconfig.studio.json",
-    "test": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js build/client/studio/test/*.test.js",
-    "test:official": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js",
+    "test": "npm run build && tsc -p tsconfig.json && node scripts/check-studio-contract.mjs && node --test build/client/test/*.test.js build/client/studio/test/*.test.js && npm test -w check",
+    "test:official": "npm run build && tsc -p tsconfig.json && node scripts/check-studio-contract.mjs && node --test build/client/test/*.test.js && npm test -w check",
     "test:studio": "npm run build && tsc -p tsconfig.json && node --test build/client/studio/test/*.test.js",
+    "contract": "node scripts/contract.mjs",
     "check:package": "node scripts/check-studio-package.mjs",
     "prepack": "npm run build"
   },
@@ -158,5 +189,9 @@
     "@types/node": "24.13.5",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

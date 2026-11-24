@@ -4,23 +4,23 @@ import { localeOf, locales, member } from "../member.js";
 import * as members from "../members.js";
 import { fakeChest, withMember } from "../testing.js";
 
-// The studio's member module (not in 0.4.1): the store's languages (locales,
+// The studio's member module (not in 0.7.0): the store's languages (locales,
 // localeOf) that a tool narrows member.language to, and the fake's members
 // without a language or a zone.
 
 const base = { firstName: "Léa", lastName: "Roy", name: "Léa Roy", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "America/Montreal" };
 
-test("the studio's member module is 0.4.1's: the same values, and the assertion its claims only", async () => {
+test("the studio's member module is 0.7.0's: the same values, and the assertion its claims only", async () => {
   const official = await import("../../src/member.js");
   const studio = await import("../member.js");
-  // member() is the studio's (studio.7: any number of groups,
-  // member-groups.test.ts); every other name is 0.4.1's value.
-  for (const [name, value] of Object.entries(official)) if (name !== "member") assert.equal((studio as Record<string, unknown>)[name], value, name);
-  assert.notEqual(studio.member, official.member);
+  // Every name is 0.7.0's value, member() included (studio.1 of 0.7.0
+  // dropped the studio's own: 0.7.0 reads any number of groups).
+  for (const [name, value] of Object.entries(official)) assert.equal((studio as Record<string, unknown>)[name], value, name);
+  assert.equal(studio.member, official.member);
   const lea = { ...base, id: "mbr_" + "lea".padEnd(26, "a") };
   const fake = await fakeChest({ members: [lea], capabilities: ["members"] });
   try {
-    // The assertion carries 0.4.1's claims only, and the members API the
+    // The assertion carries 0.7.0's claims only, and the members API the
     // same member.
     const signed = member(withMember(new Request("http://tool.test/chest"), lea));
     assert.ok(signed);

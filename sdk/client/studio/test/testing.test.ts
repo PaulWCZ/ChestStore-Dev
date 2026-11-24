@@ -1,34 +1,34 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, TooLarge } from "../../src/errors.js";
+import { CapabilityNotGranted, ChestError, QuotaExceeded } from "../../src/errors.js";
 import * as files from "../files.js";
 import type { Member } from "../member.js";
 import * as members from "../members.js";
 import { fakeChest } from "../testing.js";
 
-// The studio's fake Chest on 0.4.1's: 0.4.1's front through the studio's
-// server, the members' photos, public uploads and public files,
-// members.matchEmails and members.leftAt.
+// The studio's fake Chest on 0.7.0's: 0.7.0's front through the studio's
+// server, the members' photos, public files, members.matchEmails and
+// members.leftAt.
 
 const id = (name: string): string => "mbr_" + name + "a".repeat(26 - name.length);
 const nord = "grp_nordaaaaaaaaaaaaaaaaaaaaaa";
 const camille: Member = { id: id("camille"), firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [nord], language: "fr", timeZone: "Europe/Paris", email: "camille@example.test" };
 const emile: Member = { id: id("emile"), firstName: "Émile", lastName: "Durand", name: "Émile Durand", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [], language: "en", timeZone: "America/New_York" };
-// The first bytes of a PNG, as 0.4.1's fake checks them.
+// The first bytes of a PNG, as 0.7.0's fake checks them.
 const png = Buffer.from("\x89PNG\r\n\x1a\n0000", "latin1");
 const zoe: Member = { id: id("zoe"), firstName: "Zoé", lastName: "Petit", name: "Zoé Petit", photo: null, role: "reader", isAdmin: false, isBuilder: true, groups: [], language: "en", timeZone: "UTC" };
 
-test("0.4.1's front answers through the studio's: uploads and links on the fake's own origin, and the members' photos", async () => {
+test("0.7.0's front answers through the studio's: uploads and links on the fake's own origin, and the members' photos", async () => {
   const chest = await fakeChest({ members: [camille] });
   try {
     assert.equal(process.env["CHEST_API"], chest.api, "CHEST_API is the studio's server");
     const up = await files.uploadUrl("photos/", { maxSize: 16, types: ["image/*"] });
-    assert.ok(up.url.startsWith(chest.api + "/_chest/files/upload/"), "0.4.1's upload, signed for the fake's address");
+    assert.ok(up.url.startsWith(chest.api + "/_chest/files/upload/"), "0.7.0's upload, signed for the fake's address");
     assert.equal((await chest.upload(up.url, "not an image", "text/plain")).status, 415);
     // A token serves once, even refused.
     assert.equal((await chest.upload(up.url, png, "image/png")).status, 403);
     const again = await files.uploadUrl("photos/", { maxSize: 16, types: ["image/*"] });
-    assert.equal((await chest.upload(again.url, "123456789", "image/png")).status, 400, "0.4.1 sniffs the content: type_mismatch");
+    assert.equal((await chest.upload(again.url, "123456789", "image/png")).status, 400, "0.7.0 sniffs the content: type_mismatch");
     const third = await files.uploadUrl("photos/", { maxSize: 16, types: ["image/*"] });
     const sent = await chest.upload(third.url, png, "image/png");
     assert.equal(sent.status, 201);
@@ -37,7 +37,7 @@ test("0.4.1's front answers through the studio's: uploads and links on the fake'
     assert.equal(size, png.length);
     const stat = await files.stat(name);
     assert.equal(stat?.type, "image/png");
-    assert.match(stat?.sha256 ?? "", /^[0-9a-f]{64}$/u, "0.4.1's FileObject.sha256");
+    assert.match(stat?.sha256 ?? "", /^[0-9a-f]{64}$/u, "0.7.0's FileObject.sha256");
     const link = await files.url(name);
     assert.ok(link.url.startsWith(chest.api + "/_chest/files/"));
     const served = await fetch(link.url);
@@ -50,36 +50,9 @@ test("0.4.1's front answers through the studio's: uploads and links on the fake'
   }
 });
 
-test("public uploads (proposal): a visitor sends to the public host, 10 MiB at most, under uploads/public/; public files are served", async () => {
-  const chest = await fakeChest({ members: [camille], storage: { publicUploads: true, publicFiles: true } });
+test("public files (proposal): objects under public/ are served on the front's /_chest/public/, only with publicFiles", async () => {
+  const chest = await fakeChest({ members: [camille], storage: { publicFiles: true } });
   try {
-    await assert.rejects(files.publicUploadUrl("cv/"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
-    await assert.rejects(files.publicUploadUrl("uploads/public/", { maxSize: 11 << 20 }), TooLarge);
-    const up = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"] });
-    // A path: the browser sends to the host its page is on (the company's
-    // own domain once connected), never another (connect-src 'self').
-    assert.match(up.url, /^\/_chest\/upload\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u);
-    // A public token does not work on the team host's route.
-    assert.equal((await chest.upload(chest.api + up.url.replace("/_chest/upload/", "/_chest/files/upload/"), "%PDF", "application/pdf")).status, 403);
-    const again = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"] });
-    assert.equal((await chest.upload(again.url, "not a pdf", "application/pdf")).status, 400, "the content checked as 0.4.1's uploads are");
-    const third = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"] });
-    const sent = await chest.upload(third.url, "%PDF-1.7", "application/pdf");
-    assert.equal(sent.status, 201);
-    // The visitor gets a claim, never the object's name; the tool trades it once.
-    const answer = (await sent.json()) as { name?: string; claim: string; size: number };
-    assert.equal(answer.name, undefined);
-    assert.equal(answer.size, 8);
-    const claimed = await files.claim(answer.claim);
-    assert.match(claimed.name, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
-    assert.match(claimed.sha256, /^[0-9a-f]{64}$/u);
-    await assert.rejects(files.claim(answer.claim), (e: unknown) => e instanceof ChestError && e.code === "not_found");
-    await assert.rejects(files.claim("guessed" + "x".repeat(20) + ".claim"), (e: unknown) => e instanceof ChestError && e.code === "not_found");
-    // Unclaimed within its time, the Chest deletes it by itself.
-    await assert.rejects(files.publicUploadUrl("uploads/public/", { expiresUnclaimedAfter: 5 }), (e: unknown) => e instanceof ChestError);
-    const short = await files.publicUploadUrl("uploads/public/", { expiresUnclaimedAfter: 60 });
-    const left = (await (await chest.upload(short.url, "%PDF-1.7", "application/pdf")).json()) as { claim: string };
-    assert.ok(left.claim);
     await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
     assert.equal(files.publicPath("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
     assert.throws(() => files.publicPath("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
@@ -91,13 +64,15 @@ test("public uploads (proposal): a visitor sends to the public host, 10 MiB at m
   }
   const closed = await fakeChest({ members: [camille] });
   try {
-    await assert.rejects(files.publicUploadUrl("uploads/public/"), CapabilityNotGranted);
+    await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
+    assert.equal((await fetch(closed.api + "/_chest/public/logo.svg")).status, 404);
   } finally {
     await closed.close();
   }
+  await assert.rejects(fakeChest({ storage: { publicUploads: true } as never }), /0\.7\.0's files\.uploadUrl/u);
 });
 
-test("members.leftAt (proposal): when former members left, kept after an erasure; lookup answers the studio's former as 0.4.1's", async () => {
+test("members.leftAt (proposal): when former members left, kept after an erasure; lookup answers the studio's former as 0.7.0's", async () => {
   const left = "2026-09-30T16:00:00Z";
   const chest = await fakeChest({ members: [camille], former: [{ id: id("dan"), name: "Dan Roy", leftAt: left }, { id: id("eve"), status: "erased", leftAt: left }, { id: id("fay"), name: "Fay", status: "no_access" }, { id: id("gus"), name: "Gus" }], capabilities: ["members"] });
   try {

@@ -2,28 +2,31 @@ import { ask, json } from "../src/api.js";
 import { chest as official, type Chest } from "../src/chest.js";
 import { timeZonePattern } from "../src/member.js";
 
-// @argentic/chest-sdk/chest as the studio publishes it: 0.4.1's chest —
-// organization, timeZone, language, currency, tool.teamUrl, tool.publicUrl
-// and today(), read exactly as 0.4.1 reads them (each member below is the
-// official one's) — with the studio's proposals as more members of the same
-// object, so that a tool reads everything about its Chest in one place:
+// @argentic/chest-sdk/chest as the studio publishes it (0.7.0-studio.N):
+// 0.7.0's chest — organization, timeZone, language, tool.teamUrl,
+// tool.publicUrl and today(), read exactly as 0.7.0 reads them (each member
+// below is the official one's) — with the studio's proposals as more
+// members of the same object, so that a tool reads everything about its
+// Chest in one place:
 //
 //   chest.tools.get("forms")                    // another tool's addresses, chest.tool's shape
 //   chest.tools.link("forms", "/chest/forms/5") // a link to a page of it
 //   await chest.theme()                         // the look the company chose
 //   chest.todayIn(who.timeZone)                 // the date in a member's own zone
 //
-// What 0.4.1 now gives, the studio dropped: its chest.currency (EUR when
-// unset), chest.teamUrl and chest.publicUrl (null outside a Chest) are
-// 0.4.1's chest.currency, chest.tool.teamUrl and chest.tool.publicUrl,
-// which throw ChestError "not_in_chest" outside a Chest like the others.
+// 0.7.0 has no Chest currency (the owner's decision, Chest-SDK PR #38 8299bf8: a
+// company may work in several; each tool keeps an amount's ISO 4217 code
+// beside it and its own default in its settings), so neither has the
+// studio's chest: chest.currency is gone. chest.timeZone is the company's
+// reference zone, taken once from the owner's browser and set on no screen;
+// a member's zone is their browser's (member.timeZone).
 export type { Chest } from "../src/chest.js";
 
 // ---- chest.tools: the other tools of the Chest (Studio proposal) -------------
 //
 // A tool that received an event of another tool links the member back to
 // it (Clients and Support to the answer in Forms; Timesheets to Quotes).
-// 0.4.1 gives a tool its own addresses (chest.tool, from CHEST_TEAM_URL and
+// 0.7.0 gives a tool its own addresses (chest.tool, from CHEST_TEAM_URL and
 // CHEST_PUBLIC_URL); the proposal gives the others' the same way, in one
 // more variable the Chest writes at each start:
 //
@@ -37,13 +40,13 @@ export type { Chest } from "../src/chest.js";
 // and meaning. The Chest rewrites it when a tool is installed or removed and
 // when a public part opens or closes, and starts the awake tools again, as
 // for its other variables. CHEST_* names are the Chest's own: no admin
-// setting can shadow it (0.4's "env" refuses them).
+// setting can shadow it (0.7's "env" refuses them).
 //
 //   chest.tools.get("forms");                     // {teamUrl, publicUrl}, or null: not installed
 //   chest.tools.link("forms", "/chest/forms/5/answers/k3abc");
 //   chest.tools.link("forms", "/f/contact", { surface: "public" }); // null while closed
 //
-// An address is an origin as 0.4.1's chest.tool reads them (https, lower
+// An address is an origin as 0.7.0's chest.tool reads them (https, lower
 // case, no path); an entry that is not one is ignored — that tool is then
 // "not installed" here —, never the whole map. This tool's own name answers
 // chest.tool. Store the other tool's name and a path, never an origin
@@ -55,9 +58,9 @@ export type { Chest } from "../src/chest.js";
 export type ToolAddresses = { readonly teamUrl: string; readonly publicUrl: string | null };
 export type ToolSurface = "team" | "public";
 
-// A tool's name as chest.json writes it (0.4's grammar of "name").
+// A tool's name as chest.json writes it (0.7's grammar of "name").
 export const toolNamePattern = /^[a-z][a-z0-9-]{0,47}$/u;
-// An origin as 0.4.1's chest module reads CHEST_TEAM_URL.
+// An origin as 0.7.0's chest module reads CHEST_TEAM_URL.
 const originPattern = /^https:\/\/[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?$/u;
 const maxToolUrls = 64 * 1024;
 const maxLinkPath = 512;
@@ -299,7 +302,7 @@ export function forgetTheme(): void {
 
 // ---- chest.todayIn(): the date in a member's zone (Studio proposal) ----------
 //
-// 0.4.1's chest.today() is the date in the Chest's zone: what concerns
+// 0.7.0's chest.today() is the date in the Chest's zone: what concerns
 // everyone (due today, the company's day). What concerns one person — the
 // whole days of their leave, "today" on their own page — is their day, in
 // member.timeZone. A zone this runtime does not know reads as the Chest's
@@ -336,7 +339,7 @@ function todayIn(zone: string, at: Date | number = Date.now()): string {
 
 // ---- The object --------------------------------------------------------------
 
-// The members the studio adds to 0.4.1's chest.
+// The members the studio adds to 0.7.0's chest.
 export type StudioChest = {
   // The other tools installed on this Chest (see chest.tools above).
   readonly tools: {
@@ -349,7 +352,7 @@ export type StudioChest = {
   todayIn(zone: string, at?: Date | number): string;
 };
 
-// chest is 0.4.1's object, member for member (each getter reads the official
+// chest is 0.7.0's object, member for member (each getter reads the official
 // one at each access), and the studio's members.
 export const chest: Chest & StudioChest = {
   get organization() {
@@ -360,9 +363,6 @@ export const chest: Chest & StudioChest = {
   },
   get language() {
     return official.language;
-  },
-  get currency() {
-    return official.currency;
   },
   get tool() {
     return official.tool;

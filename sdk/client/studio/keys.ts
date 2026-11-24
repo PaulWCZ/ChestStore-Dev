@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 
-// Studio proposal (not in 0.4.1; 0.3.0-studio.15): idempotency keys of any length.
-// Not a published module: mail, events (publish) and webhooks use it, and
+// Studio proposal (not in 0.7.0; 0.3.0-studio.15): idempotency keys of any length.
+// Not a published module: mail and webhooks use it, and
 // mail re-exports idempotencyKey for tools that store the key the Chest saw.
 //
-// A key that makes a retry harmless (mail.send, events.publish,
+// A key that makes a retry harmless (mail.send,
 // webhooks.send) is the tool's name for one thing sent: the Chest keeps 1 to
 // 64 of A-Z a-z 0-9 . _ : -. Tools build theirs from parts — a digest, a
 // day, a member id — and a cap of 64 made them cut the end off: past 33

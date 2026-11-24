@@ -3,19 +3,20 @@ import { test } from "node:test";
 import { idempotencyKey } from "../keys.js";
 import * as calendar from "../calendar.js";
 import { ChestError } from "../../src/errors.js";
-import * as events from "../events.js";
 import type { Member } from "../member.js";
-import * as notifications from "../notifications.js";
+import * as notifications from "../../src/notifications.js";
 import { fakeChest } from "../testing.js";
 import * as webhooks from "../webhooks.js";
 import * as webhooksRules from "../webhooks-rules.js";
 
 // 0.3.0-studio.15: every key a tool gives the Chest, reviewed after the mail bug
 // (a key cut to 64 characters lost its recipient). Keys that make a retry
-// harmless (mail, events.publish, webhooks.send) take any length and are
-// sent whole or as their digest, never cut; keys that name a thing for as
-// long as it lives (calendar, notifications) are refused beyond 64, never
-// cut — and the Chest refuses a retry key reused for something else.
+// harmless (mail, webhooks.send) take any length and are sent whole or as
+// their digest, never cut; keys that name a thing for as long as it lives
+// (calendar, 0.7.0's notifications) are refused beyond 64, never cut — and
+// the Chest refuses a retry key reused for something else. (events.publish
+// went with studio.1 of 0.7.0: 0.7.0's events.emit takes a key of 1 to 128
+// of A-Z a-z 0-9 . _ : -, and refuses another, never cut.)
 
 const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" });
 const camille = person("camille"), hugo = person("hugo");
@@ -39,27 +40,6 @@ test("idempotencyKey: a key that fits goes as is; any other, whole, as its SHA-2
   // Not keys.
   for (const bad of ["", "a".repeat(513), "a\nb", "tab\there", 42, null]) assert.equal(idempotencyKey(bad), null, `${JSON.stringify(bad)} is not a key`);
   assert.notEqual(idempotencyKey("a".repeat(512)), null);
-});
-
-test("events.publish: a long key is kept whole (hashed); the same key for another event is refused", async () => {
-  const chest = await fakeChest({ tool: "leave", emits: ["leave.approved"] });
-  try {
-    const first = await events.publish("leave.approved", { request: 1 }, { key: long("1") });
-    const second = await events.publish("leave.approved", { request: 2 }, { key: long("2") });
-    assert.notEqual(first.id, second.id);
-    assert.equal(chest.published.length, 2);
-    assert.equal(chest.published[0]?.key, idempotencyKey(long("1")));
-    // A retry of the same event under the same key is the same event.
-    assert.equal((await events.publish("leave.approved", { request: 1 }, { key: long("1") })).id, first.id);
-    // What a cut key did: another event under the first one's key.
-    const cut = (tail: string) => long(tail).slice(0, 64);
-    await events.publish("leave.approved", { request: 3 }, { key: cut("3") });
-    await assert.rejects(events.publish("leave.approved", { request: 4 }, { key: cut("4") }), code("key_conflict"));
-    assert.equal(chest.published.length, 3);
-    await assert.rejects(events.publish("leave.approved", {}, { key: "a\u0000b" }), code("invalid_event"));
-  } finally {
-    await chest.close();
-  }
 });
 
 test("webhooks.send: a long key is kept whole (hashed); the same key for another event is refused, nothing sent", async () => {

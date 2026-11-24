@@ -2,7 +2,7 @@ import { ask, json, refusal } from "../src/api.js";
 import { CapabilityNotGranted, ChestError, TooLarge, Unavailable } from "../src/errors.js";
 import { idempotencyKey } from "./keys.js";
 
-// Studio proposal (not in 0.4.1) — email to people OUTSIDE the company.
+// Studio proposal (not in 0.7.0) — email to people OUTSIDE the company.
 //
 // The owner's decisions of 6 October 2026 (brief/08, addendum):
 // - Mail to members is never a tool's job. A tool tells a member with a
