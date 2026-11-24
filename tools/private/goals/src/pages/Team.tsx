@@ -7,6 +7,7 @@ import { format, localeOf, plural } from "../i18n/index.ts";
 import { mayCreate } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { groupsOf, readerFor } from "../lib/groups.ts";
+import { admit, feeds } from "../lib/live.ts";
 import { context } from "../lib/page-data.ts";
 import { cycleObjectives, defaultCycle } from "../lib/read.ts";
 import { settings, team as readTeam } from "../lib/teams.ts";
@@ -29,6 +30,9 @@ export async function teamPage({ member, t, locale: language, param, query }: Pa
   const ours = all.filter(o => o.level === "team" && o.teamId === team.id);
   const ourIds = new Set(ours.map(o => o.id));
   const personal = all.filter(o => o.level === "personal" && o.parentId && ourIds.has(o.parentId));
+  // Followed live: what every member sees, and the confidential objectives
+  // this reader was just let see (lib/live.ts).
+  const live = await admit(sql, member, [...ours, ...personal]);
   const who = await ctx.people(idsOf([...ours, ...personal]));
   const vctx = { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle?.closed ?? true, teams: ctx.teams };
   const canWrite = cycle && !cycle.closed && mayCreate(member, "team", team, (await settings(sql)).personal, await groupsOf(member));
@@ -39,7 +43,7 @@ export async function teamPage({ member, t, locale: language, param, query }: Pa
     title: team.name,
     body: (
       <div className="page narrow">
-        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
+        <Island name="Live" props={{ follow: live, names: feeds }} />
         <a className="link-button" href="/chest/teams"><Back />{t.teams.title}</a>
         <div className="head">
           <div className="titles">

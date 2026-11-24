@@ -15,7 +15,9 @@ import { camille, everyone, groups, hugo, ines, sofia } from "./members.ts";
 // outbound host (network: {}), as the Chest's egress does.
 export type World = { database: TestDatabase; chest: FakeChest; close(): Promise<void> };
 
-export async function world(options: { groups?: boolean } = {}): Promise<World> {
+// membership: who is in a membership table, as the Chest reads it at each
+// join (test/live.test.ts).
+export async function world(options: { groups?: boolean; membership?: (table: string, key: string, member: string) => boolean } = {}): Promise<World> {
   const chest = await fakeChest({
     tool: "goals",
     network: {},
@@ -31,7 +33,7 @@ export async function world(options: { groups?: boolean } = {}): Promise<World> 
     ],
     capabilities: ["members", "notifications", "realtime", ...(options.groups ? ["members.groups" as const] : [])],
     receives: manifest.receives,
-    realtime: manifest.realtime as never,
+    realtime: { ...manifest.realtime, ...(options.membership ? { membership: options.membership } : {}) } as never,
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr", publicUrl: null },
   });
   const database = await testDatabase();

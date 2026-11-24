@@ -12,6 +12,7 @@ import type { Query, Sql } from "./db.ts";
 import { clean, id, isLevel, isVisibility, limits, measure, memberId, optionalId, score as readScore, type Level, type Measure, type Visibility } from "./model.ts";
 import { objectiveById, visibleTo, type Clock, type Objective } from "./read.ts";
 import { settings, team } from "./teams.ts";
+import * as live from "./live.ts";
 
 // Objectives: what the company, a team or a person commits to this cycle,
 // why it matters, and the key results that say it is reached. Services
@@ -209,6 +210,7 @@ export async function updateObjective(sql: Sql, actor: Member | null, objectiveI
   if (parent !== undefined && parent === o.id) throw new AppError("parent_invalid");
   const seen = input.visibility === undefined ? null : await checkVisibility(input.visibility, input.viewers, o.level, o.level === "team" ? await team(sql, teamId ?? o.teamId!) : null, owner);
   const before = seen ? new Set((await sql<{ member_id: string }[]>`select member_id from objective_viewers where objective_id = ${o.id}`).map(r => r.member_id)) : new Set<string>();
+  let was: string | null = null;
   await sql.begin(async tx => {
     await tx`
       update objectives set
@@ -219,11 +221,15 @@ export async function updateObjective(sql: Sql, actor: Member | null, objectiveI
         team_id = coalesce(${teamId ?? null}::bigint, team_id)
       where id = ${o.id}`;
     if (seen) {
+      was = (await tx<{ visibility: string }[]>`select visibility from objectives where id = ${o.id}`)[0]?.visibility ?? null;
       await tx`update objectives set visibility = ${seen.visibility} where id = ${o.id}`;
       await tx`delete from objective_viewers where objective_id = ${o.id}`;
       for (const v of seen.viewers) await tx`insert into objective_viewers (objective_id, member_id) values (${o.id}, ${v})`;
     }
   });
+  // Made confidential or for everyone: its rows now go to another channel
+  // (lib/live.ts); the pages on either read themselves again.
+  if (seen && was !== null && (seen.visibility === "everyone") !== (was === "everyone")) await live.moved(o.id);
   return { previousOwner: o.owner, owner, title: title ?? o.title, newViewers: seen ? seen.viewers.filter(v => !before.has(v)) : [] };
 }
 

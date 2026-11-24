@@ -17,7 +17,14 @@ import { clockAt } from "./tell.ts";
 // a member's name or photo, the company's look (its sheet changes
 // address, the page does not), a team's groups and members as kept a
 // minute (lib/teams.ts).
+// How many times the reader was taken out of a live channel (lib/live.ts,
+// migration 0009) is in it too: then the page is read again (never a 304)
+// and lets them in again.
 export async function stamp(sql: Query, reader: Member, now: Date = new Date()): Promise<string> {
-  const [n, groups] = await Promise.all([changeStamp(sql as Parameters<typeof changeStamp>[0]), groupsOf(reader)]);
-  return [n, clockAt(now).today, Math.floor(now.getTime() / 600_000), reader.role ?? "", [...groups].sort().join(",")].join(":");
+  const [n, groups, marks] = await Promise.all([
+    changeStamp(sql as Parameters<typeof changeStamp>[0]),
+    groupsOf(reader),
+    sql<{ m: string | null }[]>`select n::text as m from live_out where member_id = ${reader.id}`,
+  ]);
+  return [n, clockAt(now).today, Math.floor(now.getTime() / 600_000), reader.role ?? "", [...groups].sort().join(","), marks[0]?.m ?? ""].join(":");
 }

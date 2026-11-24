@@ -1,6 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import { seenIn } from "@argentic/chest-app/db";
 import type { Sql } from "./db.ts";
+import * as live from "./live.ts";
 import { forgetGroups } from "./teams.ts";
 import { tellAdminsOfOrphans } from "./tell.ts";
 
@@ -16,8 +17,13 @@ import { tellAdminsOfOrphans } from "./tell.ts";
 //   reminders they got and the confidential objectives
 //   opened to them are forgotten. Check-ins and comments stay, signed
 //   "Former member". Then the erasure is acknowledged.
+// In each case, and when their groups or role change, they follow nothing
+// live until a page lets them in again (lib/live.ts).
 export async function leave(sql: Sql, memberId: string): Promise<void> {
-  await sql`insert into departed (member_id) values (${memberId}) on conflict do nothing`;
+  await sql.begin(async tx => {
+    await tx`insert into departed (member_id) values (${memberId}) on conflict do nothing`;
+    await live.forget(tx, memberId);
+  });
 }
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
@@ -40,6 +46,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update nudges set sent_by = 'erased' where sent_by = ${memberId}`;
     await tx`delete from departed where member_id = ${memberId}`;
     await tx`update fed_events set members = array_replace(members, ${memberId}, 'erased') where ${memberId} = any(members)`;
+    await live.forget(tx, memberId);
+    await tx`delete from live_out where member_id = ${memberId}`;
   });
 }
 
@@ -58,7 +66,12 @@ export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.r
     // groups come with each request, member(request).groups). SDK 0.7.0
     // has no group events: a renamed group is read at the next minute
     // (lib/teams.ts keeps the list a minute).
-    "member.updated": async () => { forgetGroups(); },
+    // Their groups or role decide which confidential objectives they see:
+    // what they follow live is checked again (lib/live.ts).
+    "member.updated": async event => {
+      forgetGroups();
+      if (event.data.changed.includes("groups") || event.data.changed.includes("role")) await live.forget(sql, event.data.id);
+    },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

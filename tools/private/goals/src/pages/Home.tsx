@@ -13,6 +13,7 @@ import { orphans } from "../lib/orphans.ts";
 import { context, cycleWords, quarterName } from "../lib/page-data.ts";
 import { noCycleWords } from "../lib/people.ts";
 import { ownedBy } from "../lib/read.ts";
+import { admit, feeds } from "../lib/live.ts";
 import { refreshBadges } from "../lib/tell.ts";
 import { idsOf, objectiveView, pctText } from "../lib/views.ts";
 
@@ -59,6 +60,9 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
   }
 
   const owned = await ownedBy(sql, member.id, clock);
+  // Followed live: what every member sees, and the confidential objectives
+  // they own or hold a key result of (lib/live.ts).
+  const live = await admit(sql, member, owned);
   const who = await ctx.people(idsOf(owned));
   const byId = new Map(ctx.cycles.map(c => [c.id, c]));
   const views = owned.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: clock.now, closed: byId.get(o.cycleId)?.closed ?? true, teams: ctx.teams }));
@@ -88,7 +92,7 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
     title: t.home.title,
     body: (
       <div className="narrow">
-        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
+        <Island name="Live" props={{ follow: live, names: feeds }} />
         {head(chip, actions)}
 
         {lost > 0 && (

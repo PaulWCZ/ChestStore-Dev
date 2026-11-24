@@ -34,34 +34,39 @@
   "realtime": {
     "channels": [
       {
-        "name": "goals"
+        "name": "objective:{key}",
+        "join": {
+          "table": "objective_live",
+          "key": "objective_key",
+          "member": "member_id"
+        }
       }
     ],
     "feeds": [
       {
         "table": "objectives",
-        "channel": "goals",
+        "channel": "objective:{live_key}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "key_results",
-        "channel": "goals",
+        "channel": "objective:{live_key}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "check_ins",
-        "channel": "goals",
+        "channel": "objective:{live_key}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "comments",
-        "channel": "goals",
+        "channel": "objective:{live_key}",
         "columns": [
           "id"
         ]

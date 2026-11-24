@@ -215,8 +215,9 @@ proposal moved from the old read-only `groups` key to the capability `members.gr
   it, only the groups that give Goals); `notifications` (the bell and the
   tile's number); `realtime` (pages left open); `receives`: `member.*` and
   the other tools' types (see *With the other tools*); `realtime`: the
-  channel `goals`, the feeds of `objectives`, `key_results`, `check_ins`
-  and `comments` (their ids only); `schedules` `reminder` (Friday 08:45)
+  channel `objective:{key}`, joined through the table `objective_live`,
+  and the feeds of `objectives`, `key_results`, `check_ins` and `comments`
+  on `objective:{live_key}` (their ids only); `schedules` `reminder` (Friday 08:45)
   and `week` (Monday 06:50), in the company's zone. Proposal left in
   `chest.proposals.json`: the store's words in French (`translations`).
   `chest check` warns that `migrations/0007_no_email.sql` drops a table
@@ -249,12 +250,26 @@ proposal moved from the old read-only `groups` key to the capability `members.gr
   Chest currency (SDK 0.7.0) — each money key result keeps its ISO 4217
   code; Goals' own default fills a new one's.
 - **Pages left open follow the Chest's realtime, never a timer**: *My
-  goals*, the company's, a team's and an objective's page join the channel
-  `goals`, where each write of an objective, a key result (a check-in, a
-  value fed by another tool), an update or a comment arrives — its id only:
-  the page reads the rest, as its reader may (a confidential objective stays
-  its readers'). The Chest holds the connections, so Goals sleeps while
-  tabs stay open.
+  goals*, the company's, a team's and an objective's page join
+  `objective:everyone`, where each write of an objective every member
+  sees, of its key results (a check-in, a value fed by another tool) and
+  comments arrives — its id only: the page reads the rest, as its reader
+  may —, and `objective:<id>` of each confidential objective they show.
+  **A confidential objective is heard of only by who sees it**: its rows
+  carry their channel (`live_key`: `everyone`, or the objective's id; set
+  by triggers, migration 0009, and moved with the objective when it is
+  made confidential or for everyone, the pages on both channels told to
+  read again), and the Chest checks the table `objective_live` at every
+  join, where Goals writes a row once a page checked the member sees the
+  objective (`everyone` once they have a role). The rows go, in the
+  database itself, whenever who sees an objective may change — its
+  visibility, owner, team or people, a key result's owner, a key result
+  archived or deleted, a team's group, the objective deleted —, and in the
+  code when a member's groups or role change, they lose access, leave or
+  are erased; the Chest takes them out at once, and their page, read
+  again (a count of exits is part of its version: never a 304), lets them
+  in again if still allowed. The Chest holds the connections, so Goals
+  sleeps while tabs stay open.
 
 ## With the other tools
 

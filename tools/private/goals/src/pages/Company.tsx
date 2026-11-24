@@ -10,6 +10,7 @@ import { format, localeOf, plural, relative } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { readerFor } from "../lib/groups.ts";
+import { admit, feeds } from "../lib/live.ts";
 import { memberPattern, objectiveProgress, percent, runsOn } from "../lib/model.ts";
 import { context, cycleWords } from "../lib/page-data.ts";
 import { noCycleWords } from "../lib/people.ts";
@@ -45,6 +46,9 @@ export async function companyPage({ member, t, locale: language, query }: PageCo
     };
   }
   const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member));
+  // Followed live: what every member sees, and the confidential objectives
+  // cycleObjectives just let this reader see (lib/live.ts).
+  const live = await admit(sql, member, objectives);
   const who = await ctx.people(idsOf(objectives));
   const views = objectives.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle.closed, teams: ctx.teams }));
   const byId = new Map(views.map(o => [o.id, o]));
@@ -125,7 +129,7 @@ export async function companyPage({ member, t, locale: language, query }: PageCo
     title: t.company.title,
     body: (
       <div className="page">
-        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
+        <Island name="Live" props={{ follow: live, names: feeds }} />
         <div className="head">
           <div className="titles">
             <h1>{t.company.title}</h1>

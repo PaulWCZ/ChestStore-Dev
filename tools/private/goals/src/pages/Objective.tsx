@@ -10,6 +10,7 @@ import { can, mayEdit } from "../lib/access.ts";
 import { comments as readComments } from "../lib/comments.ts";
 import { db } from "../lib/db.ts";
 import { readerFor } from "../lib/groups.ts";
+import { admit, feeds } from "../lib/live.ts";
 import { addDays, cycleTime, percent, undoMinutes } from "../lib/model.ts";
 import { readObjective } from "../lib/objectives.ts";
 import { context } from "../lib/page-data.ts";
@@ -44,6 +45,9 @@ export async function objectivePage({ member, t, locale: language, param, query 
     keyResultChanges(sql, o.keyResults.map(k => k.id)),
     o.visibility === "people" ? viewersOf(sql, o.id) : Promise.resolve([] as string[]),
   ]);
+  // Followed live: what every member sees, this objective and those around
+  // it this reader was just let see (lib/live.ts).
+  const live = await admit(sql, member, [o, ...siblings]);
   const siblingById = new Map(siblings.map(s => [s.id, s]));
   const parent = o.parentId ? siblingById.get(o.parentId) ?? null : null;
   const grandParent = parent?.parentId ? siblingById.get(parent.parentId) ?? null : null;
@@ -74,7 +78,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
     title: o.title,
     body: (
       <div className="page">
-        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
+        <Island name="Live" props={{ follow: live, names: feeds }} />
         <nav className="crumbs" aria-label={t.objective.breadcrumb}>
           <a href={`/chest/company?cycle=${cycle.id}`}>{t.company.title} · {cycle.name}</a>
           {grandParent && <><Chevron /><a href={`/chest/objectives/${grandParent.id}`}>{grandParent.title}</a></>}

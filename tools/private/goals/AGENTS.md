@@ -11,11 +11,11 @@ read it first. Goals' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Contract 0.7 (`"chest": "0.7"`, capabilities incl. `members.groups` and `realtime`, `receives` of Clients', Tasks', Support's and Hiring's types, `realtime` channel `goals` with its feeds, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposal left: `translations` |
+| `chest.json`, `chest.proposals.json` | Contract 0.7 (`"chest": "0.7"`, capabilities incl. `members.groups` and `realtime`, `receives` of Clients', Tasks', Support's and Hiring's types, `realtime` channel `objective:{key}` joined through `objective_live`, feeds on `objective:{live_key}`, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposal left: `translations` |
 | `src/app.tsx` | Every route: the pages (a member without a role sees why), the downloads (a cycle as CSV, every update, the import's example), `/chest-events`, `/chest-schedules`; each page's version (`src/lib/stamp.ts`: a refresh with nothing new is a 304) |
 | `src/actions.ts` | Every change, by name; fields read at the boundary (a key result part by part); what only tells people runs in `after()` |
 | `src/pages/` | Pages rendered on the server; `chase-list.tsx` (who waits for an update), `cycle-group.ts` (the cycle filter) |
-| `src/islands/` | What runs in the browser: the update form's list, the objective form, a key result's card, comments, retrospective, cycles' admin, settings, import, the Company tools (filters folding on a phone), Remind, Live (realtime: the package's `useLive` on `goals`, never a timer) |
+| `src/islands/` | What runs in the browser: the update form's list, the objective form, a key result's card, comments, retrospective, cycles' admin, settings, import, the Company tools (filters folding on a phone), Remind, Live (realtime: the package's `useLive` on the channels `src/lib/live.ts`'s `admit` gives once a page checked what its reader sees, never a timer; a new table fed needs a `live_key` set like migration 0009's, a new way to change who sees an objective a trigger or `live.forget`) |
 | `src/components/` | Shared by pages and islands (no server code): the tree (server only, folds with `<details>`), progress and confidence (SVG bars), the chart, the update form, key-result fields and dialog, icons, the mark, contours |
 | `src/layout.tsx`, `src/theme.ts` | The shell; the look (Trail map, `pageLook()`: the company's choice, the dark header in the Trail map only) |
 | `src/lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
