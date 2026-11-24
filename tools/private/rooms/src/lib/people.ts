@@ -6,7 +6,7 @@ import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
 // "former" left the Chest (their name kept), "no_access" is still in the
-// Chest but lost access to Rooms (their name kept, SDK 0.4.1), "erased" had
+// Chest but lost access to Rooms (their name kept, SDK 0.7.0), "erased" had
 // their data erased, "unknown" is an id the Chest does not know here (or
 // the Chest could not be asked: the page still renders).
 export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "no_access" | "erased" | "unknown"; locale: Locale; groups: string[] };
@@ -17,7 +17,7 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const [answer, inGroups] = await Promise.all([members.lookup(wanted), membership()]);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: isLocale(m.language) ? m.language : "en", groups: inGroups.get(m.id) ?? m.groups });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: isLocale(m.language) ? m.language : "en", groups: inGroups.get(m.id) ?? m.groups ?? [] });
     for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en", groups: [] });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;

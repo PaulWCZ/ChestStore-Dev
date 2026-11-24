@@ -151,7 +151,8 @@ export const actions = {
   // ---------- Places (admins) ----------
 
   addOffice: action({ name: given<string>(), address: given<string>() }, async (input, { member }): Promise<{ id: string }> => places.addOffice(db(), member, input)),
-  updateOffice: action({ officeId: id(), name: given<string>(), address: given<string>() }, async ({ officeId, ...input }, { member }): Promise<null> => {
+  // timeZone: the office's own ("" or null: the Chest's; left out: unchanged).
+  updateOffice: action({ officeId: id(), name: given<string>(), address: given<string>(), timeZone: given<string | null>() }, async ({ officeId, ...input }, { member }): Promise<null> => {
     await places.updateOffice(db(), member, officeId, input);
     calendars();
     return null;

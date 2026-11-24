@@ -7,6 +7,7 @@ import { dayKey, enqueue } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { groupsOf } from "./groups.ts";
 import { addDays, day, id, isPart, memberId, mondayOf, partMinutes, type Part } from "../shared/model.ts";
+import { deskZone } from "./zone.ts";
 
 // Desks booked for a day or half a day. PostgreSQL refuses two live
 // bookings of a desk that overlap (desk_taken), and two desks for one
@@ -40,7 +41,9 @@ export async function bookDesk(sql: Sql, actor: Member | null, input: { deskId?:
   const [start, end] = partMinutes[part];
   const who = await bookedFor(actor, input.for);
   return sql.begin(async tx => {
-    const m = await moment(tx, actor, zone);
+    // The desk's office keeps its own clock (lib/zone.ts).
+    const z = await deskZone(tx, deskId, zone);
+    const m = await moment(tx, actor, z);
     checkWhen(m, d, { start, end }, "desk");
     const [desk] = await tx<{ assigned_to: string | null; office_id: string; group_id: string | null }[]>`
       select d.assigned_to, f.office_id, a.group_id from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
@@ -66,7 +69,7 @@ export async function bookDesk(sql: Sql, actor: Member | null, input: { deskId?:
     const replaced = input.move
       ? (await tx<{ id: string }[]>`
           update desk_bookings set cancelled_at = now(), cancelled_by = ${actor.id}
-          where member_id = ${who.id} and cancelled_at is null and desk_id <> ${deskId} and during && ${span(tx, d, start, end, zone)}
+          where member_id = ${who.id} and cancelled_at is null and desk_id <> ${deskId} and during && ${span(tx, d, start, end, z)}
           returning id`).map(r => String(r.id))
       : [];
     let bookingId: string;
@@ -74,7 +77,7 @@ export async function bookDesk(sql: Sql, actor: Member | null, input: { deskId?:
       bookingId = await tx.savepoint(async sp => {
         const [row] = await sp<{ id: string }[]>`
           insert into desk_bookings (desk_id, member_id, day, part, during, lent)
-          values (${deskId}, ${who.id}, ${d}, ${part}, ${span(sp, d, start, end, zone)}, ${lent}) returning id`;
+          values (${deskId}, ${who.id}, ${d}, ${part}, ${span(sp, d, start, end, z)}, ${lent}) returning id`;
         return String(row!.id);
       });
     } catch (error) {

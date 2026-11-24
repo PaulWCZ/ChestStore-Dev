@@ -28,7 +28,7 @@ export async function desksPage(p: PageContext): Promise<View> {
   const forParam = p.query("for");
   const target = exempt && forParam !== undefined && memberPattern.test(forParam) ? everyone.find(x => x.id === forParam && x.id !== member.id) ?? null : null;
   // Whom the page books for: me, or the person an admin chose.
-  const me = target ? { id: target.id, groups: target.groups } : { id: member.id, groups: await groupsOf(member) };
+  const me = target ? { id: target.id, groups: target.groups ?? [] } : { id: member.id, groups: await groupsOf(member) };
   const href = (changes: Record<string, string | null>) => {
     const q = new URLSearchParams();
     const base: Record<string, string | null> = { day, part: part === "day" ? null : part, view: view === "plan" ? null : view, f: wanted.join(",") || null, office: office?.id ?? null, for: target?.id ?? null, ...changes };
@@ -70,7 +70,7 @@ export async function desksPage(p: PageContext): Promise<View> {
     title: t.desks.title,
     body: (
       <div className="wide">
-        <Island name="AutoRefresh" props={{ seconds: 20 }} />
+        <Island name="Live" props={{ tables: ["desk_bookings", "desks", "areas", "floors", "offices", "presence", "settings"] }} />
         {/* The day strip, the other day, the part of day, the view and the
             five feature filters come before the first desk: one Tab stop
             jumps over them. */}

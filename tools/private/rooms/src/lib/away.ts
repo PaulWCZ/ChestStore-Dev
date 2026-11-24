@@ -5,15 +5,18 @@ import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { presenceHorizon } from "./presence.ts";
 
-// What Leave tells Rooms (Proposal (studio): events between tools, once an
-// admin linked the two): a leave approved marks its whole days "Off" for
+// What Leave tells Rooms (SDK 0.7.0: events between tools, chest.json
+// "receives"; the owner approves the link): a leave approved marks its whole days "Off" for
 // that person and frees their desk those days (told again with fewer days,
 // the others open again); a leave cancelled takes back the days it marked
 // (never what the person set themselves since). Events come at least once
 // and not always in order: each request keeps Leave's latest word, by when
 // it happened (leave_words, below). Half
 // days change nothing: the person may come for the other half. The kind of
-// leave never comes: colleagues see "Off", as in Leave.
+// leave never comes: colleagues see "Off", as in Leave — only those Leave
+// allows (the event's audience: "all", or a list of Rooms' members), and
+// the person themself; for the others the day reads as nothing said
+// (presence.ts presenceOf). The freed desk is free for everyone.
 //
 // Data, as Leave publishes it: { member, from, to, fromHalf, toHalf, request }
 // — dates "YYYY-MM-DD", halves "am" | "pm" | "day".
@@ -75,10 +78,11 @@ export async function leaveApproved(sql: Sql, event: ToolEvent, zone: string): P
   const at = toldAt(event.occurredAt);
   const now = today(zone);
   const days = wholeDays(t, now);
+  const audience = event.audience === "all" ? null : event.audience.filter(id => /^mbr_[a-z2-7]{26}$/u.test(id)).slice(0, 5000);
   return sql.begin(async tx => {
     const latest = await tx`
-      insert into leave_words (request, member_id, told_at, cancelled, to_day) values (${t.request}, ${t.member}, ${at}, false, ${t.to})
-      on conflict (request) do update set told_at = excluded.told_at, cancelled = false, to_day = excluded.to_day
+      insert into leave_words (request, member_id, told_at, cancelled, to_day, audience) values (${t.request}, ${t.member}, ${at}, false, ${t.to}, ${audience})
+      on conflict (request) do update set told_at = excluded.told_at, cancelled = false, to_day = excluded.to_day, audience = excluded.audience
       where leave_words.member_id = excluded.member_id and leave_words.told_at <= excluded.told_at
       returning request`;
     if (latest.length === 0) return 0;

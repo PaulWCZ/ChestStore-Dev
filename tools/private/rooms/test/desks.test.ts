@@ -133,12 +133,12 @@ test("changing desks: with move, my desk at that time is freed in the same step;
 test("a page's version: it changes with any booking, and with the quarter hour; none for a member without a role", async () => {
   const { sql } = database;
   const at = new Date("2026-10-07T08:05:00Z");
-  const before = await stamp(sql, asMember(hugo), zone, at);
-  assert.equal(await stamp(sql, asMember(hugo), zone, at), before, "nothing changed: the same");
+  const before = await stamp(sql, asMember(hugo), at);
+  assert.equal(await stamp(sql, asMember(hugo), at), before, "nothing changed: the same");
   const b = await desks.bookDesk(sql, asMember(sofia), { deskId: o.desks[2], day: workday(9) }, zone);
-  const after = await stamp(sql, asMember(hugo), zone, at);
+  const after = await stamp(sql, asMember(hugo), at);
   assert.notEqual(after, before, "a booking changes it");
-  assert.notEqual(await stamp(sql, asMember(hugo), zone, new Date("2026-10-07T08:20:00Z")), after, "the next quarter hour too");
+  assert.notEqual(await stamp(sql, asMember(hugo), new Date("2026-10-07T08:20:00Z")), after, "the next quarter hour too");
   await desks.cancelDesk(sql, asMember(sofia), b.id);
-  assert.equal(await stamp(sql, asMember(nora), zone, at), null);
+  assert.equal(await stamp(sql, asMember(nora), at), null);
 });

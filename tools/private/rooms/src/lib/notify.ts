@@ -4,8 +4,7 @@ import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "
 
 // Items in the Chest's bell. One notice per moment, in every language of
 // the tool: English is its own title and body (the fallback), the others
-// its translations — the Chest shows each member theirs (SDK
-// 0.4.1-studio.5). The Chest also mails members their notifications, by
+// its translations — the Chest shows each member theirs (SDK 0.7.0). The Chest also mails members their notifications, by
 // each member's choice: Rooms never mails a member itself. A notification
 // is a courtesy: when the Chest cannot take it (not granted, quota,
 // unreachable), the action that sent it still succeeds.
@@ -20,7 +19,7 @@ export function notice(message: (t: Catalogue, locale: Locale) => Words, options
   };
   const translations: Record<string, Words> = {};
   for (const locale of locales) if (locale !== defaultLocale) translations[locale] = words(locale);
-  return { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations: translations as notifications.Translations };
+  return { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
 }
 
 export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => Words, options: { path: string; key?: string }): Promise<boolean> {

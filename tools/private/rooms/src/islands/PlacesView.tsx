@@ -27,9 +27,13 @@ type RoomFields = { name: string; capacity: number; equipment: string[]; note: s
 type DeskFields = { name: string; features: string[]; assignedTo: string | null; areaId: string };
 type Editing = { kind: "room"; floorId: string; room: RoomView | null } | { kind: "desk"; areaId: string; desk: DeskView } | null;
 
-export function PlacesView({ offices, office, people, groups, names, locale, t }: {
+export function PlacesView({ offices, office, zones, companyZone, people, groups, names, locale, t }: {
   offices: { id: string; name: string; address: string }[];
   office: OfficeView | null;
+  // The zones an office may take, and the Chest's (an office without its
+  // own keeps it).
+  zones: string[];
+  companyZone: string;
   people: { id: string; name: string; photo: string | null }[];
   // The Chest's groups a room or an area may be kept for.
   groups: { id: string; name: string }[];
@@ -84,7 +88,7 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
 
       <section className="panel" aria-labelledby="office-title">
         <h2 id="office-title" className="annotation">{office.name}</h2>
-        <OfficeForm key={office.id} t={t} busy={pending} initial={office} onSave={v => run(() => call("updateOffice", { officeId: office.id, ...v }), () => toast({ id: "office", text: t2.saved }))} />
+        <OfficeForm key={office.id} t={t} busy={pending} initial={office} zones={zones} companyZone={companyZone} onSave={v => run(() => call("updateOffice", { officeId: office.id, name: v.name, address: v.address, timeZone: v.timeZone ?? office.timeZone ?? "" }), () => toast({ id: "office", text: t2.saved }))} />
         <button type="button" className="link-button danger small" onClick={() => run(() => call("removeOffice", { officeId: office.id }), () => { toast({ id: "office", text: t2.removed }); void navigate("/chest/places"); })}>{t2.removeOffice}</button>
       </section>
 
@@ -180,11 +184,23 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
   );
 }
 
-function OfficeForm({ initial, t, busy, onSave }: { initial?: { name: string; address: string }; t: Words; busy: boolean; onSave: (v: { name: string; address: string }) => void }) {
+// An office's name and address; once it exists, its time zone too (an
+// office in another city keeps its own clock; empty: the company's).
+function OfficeForm({ initial, zones, companyZone, t, busy, onSave }: {
+  initial?: { name: string; address: string; timeZone: string | null };
+  zones?: string[];
+  companyZone?: string;
+  t: Words;
+  busy: boolean;
+  // timeZone: "" for the company's.
+  onSave: (v: { name: string; address: string; timeZone?: string }) => void;
+}) {
   const [name, setName] = useState(initial?.name ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
+  const [timeZone, setTimeZone] = useState(initial?.timeZone ?? "");
+  const withZone = initial !== undefined && zones !== undefined && companyZone !== undefined;
   return (
-    <form className="form-grid office-form" onSubmit={e => { e.preventDefault(); onSave({ name, address }); }}>
+    <form className="form-grid office-form" onSubmit={e => { e.preventDefault(); onSave(withZone ? { name, address, timeZone } : { name, address }); }}>
       <label className="span-2">
         <span className="label">{t.places.officeName}</span>
         <input className="field" value={name} required maxLength={limits.officeName} placeholder={t.places.officeNamePlaceholder} onChange={e => setName(e.target.value)} />
@@ -193,10 +209,23 @@ function OfficeForm({ initial, t, busy, onSave }: { initial?: { name: string; ad
         <span className="label">{t.places.address}</span>
         <input className="field" value={address} maxLength={limits.address} placeholder={t.places.addressPlaceholder} onChange={e => setAddress(e.target.value)} />
       </label>
+      {withZone && (
+        <label className="span-4">
+          <span className="label">{t.places.timeZone}</span>
+          <select className="field" value={timeZone} aria-describedby="office-zone-hint" onChange={e => setTimeZone(e.target.value)}>
+            <option value="">{format(t.places.sameAsCompany, { zone: zoneLabel(companyZone) })}</option>
+            {zones.map(z => <option key={z} value={z}>{zoneLabel(z)}</option>)}
+          </select>
+          <span className="hint" id="office-zone-hint">{t.places.timeZoneHint}</span>
+        </label>
+      )}
       <div className="span-4"><button type="submit" className="button" disabled={busy}>{initial ? t.places.save : t.places.addOffice}</button></div>
     </form>
   );
 }
+
+// A zone as people read it: "America/New York".
+const zoneLabel = (zone: string): string => zone.replaceAll("_", " ");
 
 function AddInline({ label, placeholder, max, busy, onSave }: { label: string; placeholder: string; max: number; busy: boolean; onSave: (name: string) => void }) {
   const [open, setOpen] = useState(false);

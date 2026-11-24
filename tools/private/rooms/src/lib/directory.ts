@@ -16,7 +16,7 @@ export async function directory(q?: string, group?: string): Promise<Person[]> {
     let after: string | undefined;
     for (let page = 0; page < 4; page++) {
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}), ...(q ? { q } : {}), ...(group ? { group } : {}) });
-      for (const m of answer.members) if (m.role !== null) found.push({ id: m.id, name: m.name, firstName: m.firstName || m.name, photo: m.photo, groups: inGroups.get(m.id) ?? m.groups });
+      for (const m of answer.members) if (m.role !== null) found.push({ id: m.id, name: m.name, firstName: m.firstName || m.name, photo: m.photo, groups: inGroups.get(m.id) ?? m.groups ?? [] });
       if (!answer.next) break;
       after = answer.next;
     }

@@ -62,7 +62,7 @@ in?*
   the start keeps the length chosen. Days beyond how far ahead one may book
   say "Not open for booking yet: it opens on …" instead of offering desks
   and rooms that would then be refused.
-- **Check-in** (off by default; **Proposal (studio)**: `schedules`): a
+- **Check-in** (off by default; the `quarter` schedule): a
   reminder in the bell a quarter of an hour before each meeting; when an
   admin turns check-in on, people tap *I'm here* (from ten minutes before),
   and a room nobody checked in to is freed 15 to 30 minutes after its
@@ -73,7 +73,7 @@ in?*
   same moment. The second person is told *Someone just took it*.
 - **Who's where**: everyone on a day, grouped *at the office / remote / off
   / not said*, with their desk; a team chip (the Chest's groups: Sales,
-  Tech…; **Proposal (studio)**: `members.groups`) keeps that team; search a name —
+  Tech…; capability `members.groups`) keeps that team; search a name —
   *Where is Léa today?* — to see that person's coming days too.
 - **Given desks lent**: a desk given to someone is booked by others on the
   days its holder said *Remote* or *Off* (or Leave told Rooms they are
@@ -255,26 +255,36 @@ bound the visit stands and the invitation reads *not sent*, as above
 
 ## On a Chest
 
-- `capabilities`: `database`, `files` (room photos), `members` (names,
-  photos, the guest picker, *Who's where*; with `members.matchEmails`, the
-  addresses an imported file carries are matched to members by the Chest),
-  `notifications` (guests told; one notice with its French translation);
-  `receives: ["member.*"]`; `schedules`: `quarter` (`*/15 * * * *`), run
-  on `POST /chest-schedules` (contract 0.4, `"chest": "0.4"`). Proposals in
-  `chest.proposals.json`: `calendar`, `capabilities: ["members.groups"]`,
-  `mail.send` (visitors' invitations only), and
-  `receives` Leave's events and `group.*` (a group changed: the kept
-  memberships are read again).
+- Contract 0.7 (`"chest": "0.7"`, SDK 0.7.0). `capabilities`: `database`,
+  `files` (room photos), `members` (names, photos, the guest picker, *Who's
+  where*; with `members.matchEmails`, the addresses an imported file
+  carries are matched to members by the Chest), `members.groups` (every
+  group of the Chest: a place kept for Sales follows who is in Sales),
+  `notifications` (guests told; one notice with its French translation),
+  `realtime` (pages left open follow what others change, below);
+  `receives`: `member.*` and Leave's `leave.approved`, `leave.cancelled`;
+  `schedules`: `quarter` (`*/15 * * * *`), run on `POST /chest-schedules`.
+  Proposals in `chest.proposals.json`: `calendar`, `mail.send` (visitors'
+  invitations only), `translations` (the store's words in French).
 - **PostgreSQL extension `btree_gist` is required.** The first migration
   runs `create extension if not exists btree_gist`: PostgreSQL marks it
   *trusted*, so the database's owner (the tool's role on a Chest) may create
   it; the Chest's PostgreSQL must ship the contrib extensions (standard
   packages do).
-- **Time zone**: every office lives in the Chest's time zone
-  (`chest.timeZone`, which the Chest's owner sets; the Chest also runs the
-  database's sessions in it). Bookings are stored as instants; days and
-  hours are computed by PostgreSQL in that zone, named in each query
-  (daylight saving tested).
+- **Time zones**: each office keeps its own clock. An admin gives an
+  office in another city its zone (*Places*, the office's *Time zone*);
+  an office without one keeps the company's (`chest.timeZone`: the Chest's
+  reference zone, taken once from its owner's browser and set on no
+  screen — Rooms offers no control that pretends to change it). An
+  office's rooms' hours, its desks' mornings and afternoons, its visitors'
+  times and "today" on its pages are read in its zone; a reader elsewhere
+  reads "times in New York" after the day. Bookings are stored as
+  instants; days and hours are computed by PostgreSQL in the office's zone,
+  named in each query (`rooms_floor_zone`, `migrations/0013`; daylight
+  saving tested). An office that changes its zone keeps its coming
+  bookings at the same time on its clock (a 9:00 meeting stays at 9:00
+  there); if that would make one person's two desks overlap, the change is
+  refused and says so.
 - **The bell**: guests of a room booking hear of it, of its changes and of
   its cancellation (one item per booking, replaced as it changes; one per
   weekly series). Booking a desk for oneself is silent; a desk or room an
@@ -284,7 +294,7 @@ bound the visit stands and the invitation reads *not sent*, as above
   on the meeting, no approval). A count of today's bookings
   would sit on the tile every day and mean nothing; keeping it right would
   also need a schedule every morning.
-- **One schedule** (`chest.json`, contract 0.4):
+- **One schedule** (`chest.json`):
   `quarter`, every 15 minutes — reminders before meetings (marked sent
   once the bell took them: a failed run reminds again), with check-in on
   freeing unclaimed rooms, and deleting what the rules no longer keep
@@ -296,14 +306,19 @@ bound the visit stands and the invitation reads *not sent*, as above
   host is the UID's domain) and across a database restored from a backup,
   whose new bookings may reuse ids. Bookings made before keep `room:<id>`,
   so the events calendars already hold are still updated.
-- **Pages others change** read themselves again while open (the package's
-  `useAutoRefresh`: on focus, and while the reader was active in the last
-  ten minutes) and answer 304 when nothing changed: a page's version is
-  the package's change stamp (`migrations/0011`: one log row per
-  transaction that changed rows, seen at its commit), the day and the
-  quarter hour (`src/lib/stamp.ts`).
-- **Calendar, email, groups** (**Proposals (studio)**): `"calendar": true`,
-  `"mail": {"send": true}`, `"capabilities": ["members.groups"]`. Each change writes the keys
+- **Pages others change follow them live** (SDK 0.7.0 `realtime`, never a
+  timer): My week, Desks, Rooms, Who's where and Visitors join the
+  `office` channel; the Chest tells them each row written to the tables
+  they show (`chest.json` `"feeds"`: the rows' keys only — never a visit's
+  name nor a leave) and the page is read again from the server, which
+  decides what its reader may see (`src/islands/Live.tsx`). The tool
+  sleeps while pages stay open. A read with nothing new is a 304: a page's
+  version is the package's change stamp (`migrations/0011`: one log row
+  per transaction that changed rows, seen at its commit) and the quarter
+  hour (`src/lib/stamp.ts`). What follows the clock (the line of now,
+  *I'm here* from ten minutes before) moves in the browser.
+- **Calendar, email** (**Proposals (studio)**): `"calendar": true`,
+  `"mail": {"send": true}`. Each change writes the keys
   it touched in `calendar_queue` in its own transaction; the tool then puts
   or removes each event from what the database holds, so a Chest that did
   not answer is asked again at the next change or page read. An event
@@ -319,20 +334,22 @@ bound the visit stands and the invitation reads *not sent*, as above
   and is acknowledged.
 - Private part in the member's language (`member.language`), English first,
   French second (`src/i18n/`); dates as in Europe (24-hour clock).
-- No network, no disk writes, nothing in the background; pages that others
-  change re-read themselves every 20–30 s while visible.
+- No network, no disk writes, nothing in the background, no polling.
 
 ## With the other tools
 
-Rooms hears from **Leave** (**Proposal (studio)**: events between tools;
-`chest.proposals.json` `"receives": ["leave.approved", "leave.cancelled"]`),
-once an administrator linked the two: an approved leave marks its whole
-days "Off" for the person (half days are left alone: they may come for the
+Rooms hears from **Leave** (SDK 0.7.0 events between tools; `chest.json`
+`"receives": ["leave.approved", "leave.cancelled"]`), once the owner
+approved the link: an approved leave marks its whole days "Off" for the
+person (half days are left alone: they may come for the
 other half) and frees their desk those days; a cancelled leave takes back
 the days it marked — never what the person set themselves since — and
 leaves them to the person's usual week again. A freed desk is not booked
 again by itself; the days leave the person's calendar feed; a given desk
-is lent to others on those days (`src/lib/away.ts`).
+is lent to others on those days (`src/lib/away.ts`). Leave says who may
+see a leave (the event's `audience`): the "Off" is shown only to them and
+to the person — for the others the day reads as nothing said — while the
+freed desk is free for everyone (`leave_words.audience`, `presenceOf`).
 
 Leave shortens a leave by telling `leave.cancelled`, then `leave.approved`
 for the days that remain (the same request, the same moment). Events come
@@ -348,15 +365,20 @@ back), an approval until its last day is past; an erasure forgets them.
 
 ## Needs from the SDK
 
-All in the SDK working copy packed in `vendor/`: SDK 0.4.1 + studio
-proposals (0.4.1-studio.6).
+The SDK working copy packed in `vendor/`: **SDK 0.7.0** (official) +
+studio proposals (`0.7.0-studio.2`).
 
-- `member.language`, `chest.timeZone`, `chest.language`,
-  `chest.tool.teamUrl`, `schedules` — SDK 0.4.1 (official).
+- Official 0.7.0: `member`, `members` (`groups.list` paged, capability
+  `members.groups`), `notifications` with `translations` (each bell item
+  one notice, English and French; the Chest shows each member theirs:
+  `src/lib/notify.ts`), `events` (`handle`: the members' lifecycle and
+  Leave's events, with their `audience`), `realtime` (the pages' feeds),
+  `chest.timeZone`, `chest.language`, `chest.tool.teamUrl`, `files`,
+  `schedules`.
 - `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`) — **Proposal (studio)**:
   the members' calendar feeds, the `.ics` files. What changed goes in one
-  `putMany` (studio.15: up to 100 events, one write of the minute); the
-  Chest answers each event (studio.16): one it took is remembered as sent,
+  `putMany` (up to 100 events, one write of the minute); the
+  Chest answers each event: one it took is remembered as sent,
   one it refuses for good (too far ahead, long past) leaves the queue
   without being remembered as sent, one refused because the Chest holds
   its 5,000 events waits in the queue.
@@ -365,23 +387,10 @@ proposals (0.4.1-studio.6).
   each keyed by the visit and its sequence. `mail.available()` says on the
   form whether an invitation can go now, and where replies land (the
   connector's reply address). See "Mail to people outside the company".
-- `notifications` with `translations` (studio.5, announced for 0.5): each
-  bell item is one notice, English and French; the Chest shows each member
-  theirs (`src/lib/notify.ts`).
-- `members.groups` — **Proposal (studio)**, announced for 0.5
-  (`chest.proposals.json` `"capabilities": ["members.groups"]`): a member's
-  groups are every group of the Chest they are in (`members.get`), and
-  `members.list({ group })` lists a group's members, so a place kept for
-  Sales follows who is in Sales even when no group gives Rooms
-  (`src/lib/groups.ts`: `groupsOf` (kept a minute, forgotten on `group.*`
-  and `member.updated`) for one member, `membership` for the teams of
-  "Who's where"). Without it, the groups that give Rooms. The official
-  0.4.1 parser refuses a member listed in more than 16 groups; the
-  vendored SDK 0.4.1-studio.7 lifts it (an assertion up to 16 KiB, about
-  300 groups).
-- `members.matchEmails` (studio.15): an import's addresses matched to
+- `translations` in `chest.proposals.json` — **Proposal (studio)**: the
+  store's tile, description and role names in French.
+- `members.matchEmails` (studio): an import's addresses matched to
   members without `members.email`.
-- Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.
 - Would help, not built: a way for a tool to know the UID the Chest's feed
   gives one of its events (today the `.ics` files use the team host as
   domain, the feed the Chest's: a person who both imports a file and
@@ -451,4 +460,13 @@ screenshots in `docs/screens/`.
 - **Door tablets**, sensors, parking spaces and other resources.
 - Check-in is **15 to 30 minutes** late at worst (the Chest calls the tool
   every quarter of an hour), and reminders come 0–15 minutes before.
-- Offices in **different time zones** within one Chest.
+- **On a Chest of SDK 0.7.0 alone** (without the studio's proposals):
+  no event in the members' calendar feeds (0.7.0 has no calendar: the
+  `.ics` downloads still work), no invitation email to a visitor (0.7.0
+  sends no mail to people outside: the host tells them), the store's tile
+  and role names in English only (no per-language store words), and an
+  imported file's addresses matched by name only (no
+  `members.matchEmails`). The pages say only what is true in each case.
+- `migrations/0012` drops two columns without the `-- chest: contract`
+  line 0.7.0's checker asks (it shipped before that rule; a shipped
+  migration is never edited): `chest check` warns about it.
