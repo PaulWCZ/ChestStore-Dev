@@ -406,9 +406,12 @@ proposals (`0.7.0-studio.2`).
   (`items.currency`, `history.currency`, `migrations/0009`); the tool's
   default currency is a manager's setting (`settings`, EUR until set);
   repair costs are totalled per currency, never added across. The amounts
-  written before 0.7.0 were in the Chest's currency and are marked EUR (the
-  Chest's default then): a company whose Chest used another corrects them
-  on each item's form.
+  written before 0.7.0 were in the Chest's currency, which Equipment never
+  wrote down (no hand-off, event or file kept it): they are taken as EUR
+  and marked guessed (`migrations/0010`). Settings says so, and the first
+  currency a manager saves becomes theirs, each amount read again in that
+  currency's minor unit (¥1,300 for 1299.90); an item whose price, cost or
+  currency a manager changed by hand keeps what they wrote.
 - `members.matchEmails` (studio proposal) — which member each Intune
   device's address is, without `members.email`; the tests answer Microsoft
   with `fakeChest({ network })` (studio).

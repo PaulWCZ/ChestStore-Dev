@@ -5,7 +5,7 @@ import { db } from "../lib/db.ts";
 import { allFields } from "../lib/fields.ts";
 import { currentCharter } from "../lib/receipts.ts";
 import { charterText, fieldName } from "../shared/words.ts";
-import { defaultCurrency } from "../lib/settings.ts";
+import { currencyGuessed, defaultCurrency } from "../lib/settings.ts";
 import { knownCurrencies } from "../shared/model.ts";
 
 // The categories (managers): rename, change the icon, add, remove an empty
@@ -14,7 +14,7 @@ import { knownCurrencies } from "../shared/model.ts";
 export async function settingsPage({ member, locale: language, t }: PageContext): Promise<View> {
   const locale = localeOf(language);
   const sql = db();
-  const [counts, fields, charter, currency] = await Promise.all([categoryCounts(sql, member), allFields(sql), currentCharter(sql), defaultCurrency(sql)]);
+  const [counts, fields, charter, currency, guessed] = await Promise.all([categoryCounts(sql, member), allFields(sql), currentCharter(sql), defaultCurrency(sql), currencyGuessed(sql)]);
   return { title: t.settings.title, body: (
     <div className="narrow">
       <h1 className="page-title">{t.settings.title}</h1>
@@ -27,7 +27,7 @@ export async function settingsPage({ member, locale: language, t }: PageContext)
         t: { settings: t.settings, icons: t.icons, common: t.common },
         locale,
       }} />
-      <Island id="currency" name="CurrencyView" props={{ currency, currencies: knownCurrencies(), t: { settings: t.settings } }} />
+      <Island id="currency" name="CurrencyView" props={{ currency, guessed, currencies: knownCurrencies(), t: { settings: t.settings } }} />
       <Island id="rules" name="RulesView" props={{ body: charter ? charterText(charter, t) : "", t: { settings: t.settings, common: t.common } }} />
     </div>
   ) };
