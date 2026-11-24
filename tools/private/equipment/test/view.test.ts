@@ -13,7 +13,7 @@ import { endingOf, holderIds, isLow, rowOf } from "../src/lib/view.ts";
 const laptop = { id: "1", key: "laptop", name: null, icon: "laptop", kind: "asset", membersSee: true } as const;
 const item = (over: Partial<Item> = {}): Item => ({
   id: "7", category: laptop, tag: "EQ-0007", name: "ThinkPad T14", serial: "PF-1", status: "in_use", purchasedOn: null, priceCents: null, supplier: null,
-  warrantyUntil: null, notes: null, photo: null, seats: null, seatsUsed: 0, renewsOn: null, costCents: null, period: null, holder: null, place: null,
+  warrantyUntil: null, notes: null, photo: null, seats: null, seatsUsed: 0, renewsOn: null, costCents: null, currency: null, period: null, holder: null, place: null,
   heldSince: null, createdAt: "2026-01-01T00:00:00.000Z", openProblems: 0, extra: {}, quantity: null, minQuantity: null, invoice: null, holderHidden: false, ...over,
 });
 const hugo = "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa";

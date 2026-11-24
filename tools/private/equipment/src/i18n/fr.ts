@@ -307,6 +307,7 @@ export const fr: Catalogue = {
     usedBy: "Distribué",
   },
   form: {
+    currency: "Devise",
     newTitle: "Ajouter du matériel",
     editTitle: "Modifier {name}",
     what: "Qu’est-ce que c’est ?",
@@ -558,7 +559,10 @@ export const fr: Catalogue = {
     addPlaceholder: "Mobilier, outillage, appareils photo…",
     added: "{name} ajoutée.",
     licenceKind: "Postes et renouvellement",
-    currency: "Les prix sont en {currency}, la devise de votre Chest.",
+    currencyTitle: "Devise par défaut",
+    currencyIntro: "Remplit la devise d’un nouveau prix ou coût. Chaque montant garde la sienne : ceux déjà saisis ne changent pas.",
+    currencySave: "Enregistrer",
+    currencySaved: "Les nouveaux prix seront en {currency}.",
     kind: "Elle contient",
     kinds: {
       asset: "Des objets, un par un",
@@ -627,6 +631,7 @@ export const fr: Catalogue = {
     invalid_tag: "Une étiquette, ce sont des lettres, des chiffres et - . _ /, 32 au maximum.",
     tag_taken: "{tag} est déjà sur un autre objet.",
     invalid_money: "Saisissez un montant comme 1299,90.",
+    invalid_currency: "Choisissez une devise dans la liste.",
     invalid_seats: "Postes : un nombre entier, 1 ou plus.",
     invalid_date: "Vérifiez la date (pas dans le futur pour une remise).",
     not_available: "Un objet réformé ne peut pas être remis. Remettez-le d’abord en stock.",

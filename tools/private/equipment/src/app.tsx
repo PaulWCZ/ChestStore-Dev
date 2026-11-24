@@ -113,7 +113,6 @@ app.get("/chest/export", managers(({ member, locale: language, query }) => {
   const sort = query("sort") ?? "tag";
   const filters = { q: query("q") ?? "", category: query("category") ?? "", status: query("status") ?? "", holder: query("holder") ?? "", sort: sorts.includes(sort as never) ? sort : "tag" };
   const headers = { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${t.export.filename}-${chest.today()}.csv"`, "Cache-Control": "no-store" };
-  const currency = chest.currency;
   const separator = separatorOf(locale);
   // Written as it is read, 500 items at a time; the next page is read only
   // when the browser took the last (textStream: backpressure).
@@ -124,7 +123,7 @@ app.get("/chest/export", managers(({ member, locale: language, query }) => {
       const items = await listItems(db(), member, filters, 500, offset);
       if (items.length === 0) return;
       const names = await people(holderIds(items));
-      yield items.map(i => csvRow(exportRow(i, t, currency, id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale)), header), separator)).join("");
+      yield items.map(i => csvRow(exportRow(i, t, id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale)), header), separator)).join("");
       if (items.length < 500) return;
     }
   }

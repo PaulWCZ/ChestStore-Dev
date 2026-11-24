@@ -44,6 +44,7 @@ export async function itemsPage({ member, locale: language, t, query: param }: P
 
   return { title: t.list.title, body: (
     <div className="wide">
+      {can(member, "items.manage") && <Island name="Live" props={{ channel: "managers", tables: ["items"] }} />}
       <PageHeader size="m" title={t.list.title} intro={plural(t.list.count, total, locale)}
         action={manager ? <a className="button" href="/chest/items/new"><Plus />{t.overview.add}</a> : undefined} />
       <Island id="items-list" name="ItemsView" props={{

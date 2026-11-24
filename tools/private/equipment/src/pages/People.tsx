@@ -32,6 +32,7 @@ export async function peoplePage({ member, locale: language, t }: PageContext): 
   const members: Entry[] = team.people.map(p => ({ id: p.id, name: p.name, photo: p.photo, text: describe(p.id), count: (counts.get(p.id)?.items ?? 0) + (counts.get(p.id)?.seats ?? 0) }));
   return { title: t.peopleList.title, body: (
     <div className="wide">
+      <Island name="Live" props={{ channel: "managers", tables: ["items"] }} />
       <PageHeader size="m" title={t.peopleList.title} intro={t.peopleList.intro} />
       {!team.ok && <p className="notice">{t.peopleList.unavailable}</p>}
       <Island id="people" name="PeopleView" props={{ leavers, members, t: t.peopleList, search: t.search }} />

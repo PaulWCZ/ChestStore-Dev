@@ -11,8 +11,9 @@ people. French name: **Matériel**.
 - **Items**: category (laptop, phone, screen, accessory, licence and
   subscription, key and badge, vehicle, supplies, other — renamed,
   re-iconed or added by a manager), name or model, serial number, **asset tag** (`EQ-0042`,
-  given automatically, unique, or your own), purchase date and price (in the
-  Chest's currency), supplier, warranty end, notes, a photo (the Chest's
+  given automatically, unique, or your own), purchase date and price (each
+  in its own currency: the tool's default, which a manager sets in
+  *Categories*, or another chosen beside the amount), supplier, warranty end, notes, a photo (the Chest's
   files), a status: *in stock, in use, in repair, lost, retired*.
 - **Fields per category**: a manager gives a category its own fields —
   an IMEI for phones, RAM and OS for laptops, a licence plate and the next
@@ -201,8 +202,8 @@ uses it.
 
 ## With the other tools
 
-**People → Equipment** (Proposal (studio): events between tools, once an
-admin linked the two; `chest.proposals.json` `receives`):
+**People → Equipment** (SDK 0.7.0 events between tools, `chest.json`
+`receives`; the owner approves the link):
 
 - `people.leaving` `{member, lastDay}` — HR started a leaving checklist in
   People. If the person holds something, every equipment manager hears it
@@ -212,7 +213,9 @@ admin linked the two; `chest.proposals.json` `receives`):
   day), their page says *"Last day: Monday 12 October. Take everything back
   before then."*, and the People list adds their last day. Nothing is taken
   back by itself.
-- `people.leaving_cancelled` `{member}` — the departure was stopped in
+- `people.leaving-cancelled` `{member}` (named `people.leaving_cancelled`
+  before 0.7.0, whose types take no underscore: People emits the new name)
+  — the departure was stopped in
   People: the bell item is withdrawn and the list forgets them. Told again
   later, it comes back.
 - **Both paths stay coherent**: when everything is back, the notice goes.
@@ -222,18 +225,23 @@ admin linked the two; `chest.proposals.json` `receives`):
   who left* take over, as before. The departure itself is kept (until 30
   days after the last day), so that People still hears when their things
   come back. An erasure forgets it.
-- Every field is checked; an event of another shape, from another tool, or
-  about someone who is not a member is ignored. Events come at least once
+- **Who may see it**: each word comes with People's audience. When it
+  names some members only (HR and the person's manager, say), only the
+  equipment managers among them are told and see the departure in their
+  lists and on the person's page; the others see nothing of it.
+- Every field is checked; an event of another shape, or about someone who
+  is not a member, is ignored (types, never tools: whichever tool the
+  owner linked to say `people.leaving` is heard). Events come at least once
   and not always in order: each departure keeps when People said so, and
   an older word delivered late changes nothing (a cancelled departure keeps
   only that time, for a week). A departure is forgotten 30 days after the
   last day (weekly run and overview).
 
-**Equipment → People** — everything is back (`chest.proposals.json`
-`emits`). The contract, v1, is People's (its README, "With the other
+**Equipment → People** — everything is back (`chest.json` `emits`, with
+its schema: `member`, a member id). The contract, v1, is People's (its README, "With the other
 tools"; its `lib/returns.ts` reads it):
 
-- `equipment.returned` `{member: "mbr_…"}`, key
+- `equipment.returned` `{member: "mbr_…"}`, subject the member, key
   `equipment:<member>:returned:<time>` (`<time>` in milliseconds) — the
   last thing a **leaving** person held is back. People ticks their leaving
   checklist's "Return the laptop, badge and keys" step.
@@ -254,10 +262,10 @@ tools"; its `lib/returns.ts` reads it):
   (something given back since, a departure cancelled in People or an
   erasure: dropped). Told a day ago, it is forgotten; refused for a week,
   too. The same key twice is one event.
-- **When it happened** (`occurredAt`, studio.16): the word carries the
+- **When it happened** (`occurredAt`): the word carries the
   time the last thing came back, even when the schedule tells it later.
-  The Chest takes a time at most 24 hours back (five minutes of margin are
-  kept for the clocks); an older word — a Chest down for a night — goes
+  The Chest takes a time at most 72 hours back (five minutes of margin are
+  kept for the clocks); an older word — a Chest down for days — goes
   without it and is dated when the Chest took it (its key keeps the real
   time).
 - **What it does not do**: an *Undo* after the word left does not take it
@@ -375,42 +383,45 @@ notification only (the bell item rung again, with the day it was given).
 
 ## Needs from the SDK
 
-All in `vendor/` (the studio's working copy: SDK 0.4.1 + studio proposals
-(0.4.1-studio.7)):
+All in `vendor/`: **SDK 0.7.0** (official; contract 0.7) + the studio's
+proposals (`0.7.0-studio.2`).
 
-- `member.language` (0.3.0) — the interface and the bell in each member's
-  language.
-- `schedules` — the Monday "ending soon" word, the nightly Intune read,
-  and `returns` (People told again what the Chest could not take yet)
-  (official since 0.4: `chest.json` `schedules`, run on `POST /chest-schedules`,
-  `src/lib/deliveries.ts`). Without it,
-  the overview shows the same list at any time, and Intune is read when a
-  manager asks.
-- `network` and `env` (real contract) — Microsoft's two hosts and the
-  three Intune settings. Plain `fetch` follows the Chest's proxy
-  (`NODE_USE_ENV_PROXY=1`, as Booking); the tests answer Microsoft with
-  `fakeChest({ network })` (studio.15). The local harness cannot yet: its
-  tool runs in another process, so a successful read is shown by the tests
-  only (`test/intune.test.ts`).
-- `members.matchEmails` (studio.15) — which member each Intune device's
-  address is, without `members.email`.
-- `chest` — `chest.today()` and `chest.timeZone` (0.3.0) for "ends within
-  60 days" and every day the tool writes; the database's `current_date`
-  (the seed's too) is the same day, since the Chest puts the sessions in
-  its zone. `chest.organization.name` (0.3.0) on the labels and sheets;
-  `chest.currency` for prices and `chest.tool.teamUrl` for the QR codes' links
-  (0.4; outside a Chest, the host the request came to).
-- `translations` in `chest.proposals.json` — the tile's French title.
-- **Events between tools** — receives `people.leaving`,
-  `people.leaving_cancelled`; emits `equipment.returned` (see "With the
-  other tools"; the `returns` schedule tells it again). Without it,
-  departures are seen only when the person leaves the Chest, and HR ticks
-  People's "Return the laptop" step by hand.
+- Official 0.7.0: `member.language`; `schedules` (the Monday "ending soon"
+  word, the nightly Intune read, and `returns`: People told again what the
+  Chest could not take yet); `network` and `env` (Microsoft's two hosts and
+  the three Intune settings; plain `fetch` follows the Chest's proxy);
+  `chest.today()` for "ends within 60 days" and every day the tool writes
+  (the company's day; the database's `current_date` is the same day),
+  `chest.organization.name` on labels and sheets, `chest.tool.teamUrl` for
+  the QR codes' links; `files` (photos, invoices); `notifications` with
+  `translations` (each bell item one notice, English and French);
+  **events between tools** (receives `people.leaving`,
+  `people.leaving-cancelled` with their audience; emits
+  `equipment.returned`); **`realtime`** — the managers' pages (overview,
+  list, an item, people, an inventory under way) follow the `managers`
+  channel's feeds (keys only), and a member's *My equipment* its own
+  `mine:{member}` channel, told `mine.changed` when what they hold changes:
+  no page polls, the tool sleeps while pages stay open.
+- **Currency**: 0.7.0 has none. Each amount keeps its ISO 4217 code
+  (`items.currency`, `history.currency`, `migrations/0009`); the tool's
+  default currency is a manager's setting (`settings`, EUR until set);
+  repair costs are totalled per currency, never added across. The amounts
+  written before 0.7.0 were in the Chest's currency and are marked EUR (the
+  Chest's default then): a company whose Chest used another corrects them
+  on each item's form.
+- `members.matchEmails` (studio proposal) — which member each Intune
+  device's address is, without `members.email`; the tests answer Microsoft
+  with `fakeChest({ network })` (studio).
+- `translations` in `chest.proposals.json` (studio proposal) — the tile's
+  French title.
 
-- `files` — besides photos, each item's purchase invoice (PDF or picture).
-- `notifications` with `translations` (studio.5, announced for 0.5) — each
-  bell item is one notice, its English words and their French translation;
-  the Chest shows each member theirs (`src/lib/notify.ts`).
+**On SDK 0.7.0 alone** (no studio proposals): the tile and role names are
+in English only (0.7.0 has no store words per language), and Intune's
+devices are matched to members by name only. A member's *My equipment*
+cannot follow a feed (0.7.0 feeds no `{member}` channel and a table feeds
+one channel only), so the tool publishes `mine.changed` itself. Without the
+events link approved, departures are seen only when the person leaves the
+Chest, and HR ticks People's "Return the laptop" step by hand.
 
 Not in the SDK, and not faked here: a **signature** a person draws or a
 qualified electronic signature (the receipt is a confirmation in the

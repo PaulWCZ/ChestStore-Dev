@@ -75,6 +75,7 @@ export async function minePage({ member, locale: language, t, f }: PageContext):
   const ask = <Island id="ask" name="AskButton" props={{ categories: categories.map(c => ({ id: c.id, name: categoryName(c, t) })), t: { requests: t.requests, common: t.common, dialog: t.dialog }, primary: empty }} />;
   return { title: t.mine.title, body: (
     <div className="wide">
+      <Island name="Live" props={{ channel: `mine:${member.id}`, tables: ["mine.changed"] }} />
       <PageHeader
         size="m"
         title={t.mine.title}

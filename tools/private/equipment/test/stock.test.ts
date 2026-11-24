@@ -105,7 +105,7 @@ test("a repair: its ticket and return day when it goes, its cost when it comes b
   assert.equal(ov.repair.find(i => i.id === mac!.id)?.repair?.due, "2030-01-20");
   await items.setStatus(sql, M, mac!.id, "in_stock", null, { cost: "189,90" });
   assert.equal(await items.repairOf(sql, mac!.id), null);
-  assert.deepEqual(await items.repairCosts(sql, mac!.id), { count: 1, cents: 18990 });
+  assert.deepEqual(await items.repairCosts(sql, mac!.id), { count: 1, totals: [{ currency: "EUR", cents: 18990 }] });
 });
 
 test("the list in pages of 100", async () => {

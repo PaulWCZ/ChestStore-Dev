@@ -3,6 +3,7 @@ import { fold } from "../shared/model.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import type { Item } from "./items.ts";
 import { categoryName, fieldName } from "../shared/words.ts";
+import { currencyDecimals } from "../i18n/format.ts";
 
 // The equipment as a spreadsheet, in the reader's language: one row per
 // item, amounts as plain numbers (a spreadsheet reads them), days as
@@ -19,8 +20,11 @@ export function exportHeader(t: Catalogue, fields: Field[] = []): ExportHeader {
   return { cells: [h.tag, h.name, h.category, h.status, h.holder, h.place, h.since, h.serial, h.bought, h.price, h.currency, h.supplier, h.warranty, h.seats, h.seatsUsed, h.renews, h.cost, h.period, h.quantity, h.minimum, h.notes, ...names], names, fields };
 }
 
-export function exportRow(i: Item, t: Catalogue, currency: string, holderName: (id: string) => string, header: ExportHeader): (string | number)[] {
-  const amount = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2));
+// Amounts in the item's own currency (its code in the next column), as
+// many decimals as that currency has.
+export function exportRow(i: Item, t: Catalogue, holderName: (id: string) => string, header: ExportHeader): (string | number)[] {
+  const decimals = i.currency ? currencyDecimals(i.currency) : 2;
+  const amount = (minor: number | null) => (minor === null ? "" : (minor / 10 ** decimals).toFixed(decimals));
   return [
     i.tag,
     i.name,
@@ -32,7 +36,7 @@ export function exportRow(i: Item, t: Catalogue, currency: string, holderName: (
     i.serial ?? "",
     i.purchasedOn ?? "",
     amount(i.priceCents),
-    i.priceCents !== null || i.costCents !== null ? currency : "",
+    i.priceCents !== null || i.costCents !== null ? i.currency ?? "" : "",
     i.supplier ?? "",
     i.warrantyUntil ?? "",
     i.seats ?? "",
@@ -51,7 +55,7 @@ export function exportRow(i: Item, t: Catalogue, currency: string, holderName: (
 }
 
 // The whole file's rows at once (the tests read them back).
-export function exportRows(items: Item[], t: Catalogue, currency: string, holderName: (id: string) => string, fields: Field[] = []): unknown[][] {
+export function exportRows(items: Item[], t: Catalogue, holderName: (id: string) => string, fields: Field[] = []): unknown[][] {
   const header = exportHeader(t, fields);
-  return [header.cells, ...items.map(i => exportRow(i, t, currency, holderName, header))];
+  return [header.cells, ...items.map(i => exportRow(i, t, holderName, header))];
 }

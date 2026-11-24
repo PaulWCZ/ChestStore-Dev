@@ -5,9 +5,11 @@ import { AppError } from "@argentic/chest-app";
 import { parseCsv } from "./csv.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, locales } from "../i18n/index.ts";
-import { addMonths, clean, day, fieldValue, fold, limits, makeTag, money, statuses, tag as readTag, type CategoryKey, type FieldType, type Kind, type Status } from "../shared/model.ts";
+import { addMonths, clean, day, fieldValue, fold, limits, makeTag, money, currencyCode, statuses, tag as readTag, type CategoryKey, type FieldType, type Kind, type Status } from "../shared/model.ts";
 import { allFields, namesOf, type Field as CategoryField } from "./fields.ts";
 import { everyone, type Colleague } from "./people.ts";
+import { defaultCurrency } from "./settings.ts";
+import { currencyDecimals } from "../i18n/format.ts";
 
 // Import from Snipe-IT's CSV (its Custom Asset Report, its assets list's
 // export, or the file one imports into it — test/fixtures/ has one of each,
@@ -31,7 +33,7 @@ type Field =
   | "tag" | "name" | "model" | "manufacturer" | "category" | "serial" | "status"
   | "holder" | "holderFirst" | "holderLast" | "holderEmail" | "holderUser" | "place" | "location" | "since"
   | "purchasedOn" | "price" | "supplier" | "warrantyUntil" | "warrantyMonths" | "notes"
-  | "seats" | "renewsOn" | "cost" | "period" | "checkoutType" | "quantity" | "minQuantity";
+  | "seats" | "renewsOn" | "cost" | "period" | "checkoutType" | "quantity" | "minQuantity" | "currency";
 
 // Header words, folded (lower case, no accents, anything else a space).
 const aliases: Record<Field, string[]> = {
@@ -64,6 +66,9 @@ const aliases: Record<Field, string[]> = {
   checkoutType: ["checkout type", "checked out type", "type d attribution"],
   quantity: ["quantity", "qty", "quantite", "qte", "in stock", "en stock", "stock"],
   minQuantity: ["min qty", "min quantity", "minimum quantity", "minimum", "stock minimum", "seuil", "seuil d alerte", "quantite minimum"],
+  // The price's and the cost's currency (an ISO 4217 code); the tool's
+  // default when absent or unknown.
+  currency: ["currency", "devise", "monnaie"],
 };
 
 // Columns of Snipe-IT's own exports that are not worth a field here (who
@@ -75,7 +80,7 @@ const notFields = new Set([
   "manager", "department", "title", "phone", "user address", "user city", "user state", "user country", "user zip", "last checkin date",
   "expected checkin date", "created at", "updated at", "deleted", "deleted at", "last audit", "next audit date", "url", "checkouts", "checkins",
   "requests", "image", "device image", "age", "requestable", "created by", "byod", "default location", "asset serial", "icon", "share this template",
-  "currency", "devise", "seats used", "postes utilises", "location", "localisation",
+  "seats used", "postes utilises", "location", "localisation",
 ]);
 
 const headerKey = (text: string) => fold(text).replace(/[^a-z0-9]+/gu, " ").trim();
@@ -83,7 +88,7 @@ const headerKey = (text: string) => fold(text).replace(/[^a-z0-9]+/gu, " ").trim
 // This tool's own export, in every language, reads back.
 function ownHeaders(): Record<string, Field> {
   const map: Record<string, Field> = {};
-  const fields: Record<string, Field | null> = { tag: "tag", name: "name", category: "category", status: "status", holder: "holder", place: "place", since: "since", serial: "serial", bought: "purchasedOn", price: "price", currency: null, supplier: "supplier", warranty: "warrantyUntil", seats: "seats", seatsUsed: null, renews: "renewsOn", cost: "cost", period: "period", quantity: "quantity", minimum: "minQuantity", notes: "notes" };
+  const fields: Record<string, Field | null> = { tag: "tag", name: "name", category: "category", status: "status", holder: "holder", place: "place", since: "since", serial: "serial", bought: "purchasedOn", price: "price", currency: "currency", supplier: "supplier", warranty: "warrantyUntil", seats: "seats", seatsUsed: null, renews: "renewsOn", cost: "cost", period: "period", quantity: "quantity", minimum: "minQuantity", notes: "notes" };
   for (const locale of locales) {
     for (const [key, text] of Object.entries(catalogue(locale).export.headers)) {
       const field = fields[key];
@@ -267,6 +272,8 @@ export type PlanRow = {
   seats: number | null;
   renewsOn: string | null;
   costCents: number | null;
+  // The code of the price and the cost (null without either).
+  currency: string | null;
   period: "month" | "year" | null;
   quantity: number | null;
   minQuantity: number | null;
@@ -286,7 +293,7 @@ export type Plan = {
   // manager said otherwise), and the fields they make.
   offered: string[]; newFields: NewField[];
 };
-export type Context = { people: Colleague[]; tags: Set<string>; serials: Set<string>; categories: CategoryRef[]; fields: CategoryField[] };
+export type Context = { people: Colleague[]; tags: Set<string>; serials: Set<string>; categories: CategoryRef[]; fields: CategoryField[]; currency: string };
 export type Options = { keep?: string[] };
 
 export function plan(text: unknown, source: Source, context: Context, options: Options = {}): Plan {
@@ -413,8 +420,11 @@ export function plan(text: unknown, source: Source, context: Context, options: O
     const months = cell(row, "warrantyMonths");
     if (!licence && !consumable && !warrantyUntil && /^\d{1,3}$/u.test(months) && Number(months) > 0 && Number(months) <= 240 && purchasedOn) warrantyUntil = addMonths(purchasedOn, Number(months));
     const since = heldBy || heldAt ? safe(() => readDate(cell(row, "since"), order), "bad_date", null) : null;
-    const priceCents = safe(() => money(cell(row, "price")), "bad_price", null);
-    const costCents = licence ? safe(() => money(cell(row, "cost")), "bad_price", null) ?? priceCents : null;
+    // A currency the row names (an ISO 4217 code), else the tool's default.
+    const currency = safe(() => currencyCode(cell(row, "currency")), "bad_price", null) ?? context.currency;
+    const decimals = currencyDecimals(currency);
+    const priceCents = safe(() => money(cell(row, "price"), decimals), "bad_price", null);
+    const costCents = licence ? safe(() => money(cell(row, "cost"), decimals), "bad_price", null) ?? priceCents : null;
     const readCount = (t: string) => {
       const n = t.replace(/[\s.,]/gu, "");
       if (!/^\d{1,7}$/u.test(n) || Number(n) > limits.quantity) throw new AppError("invalid_quantity");
@@ -451,6 +461,7 @@ export function plan(text: unknown, source: Source, context: Context, options: O
       warrantyUntil, notes: clip(notes, limits.notes), seats,
       renewsOn: licence ? safe(() => readDate(cell(row, "renewsOn"), order), "bad_date", null) : null,
       costCents,
+      currency: (licence ? costCents : priceCents) === null ? null : currency,
       period: licence ? readPeriod(cell(row, "period")) ?? "year" : null,
       quantity, minQuantity, extra, extraNew,
       problems: problems.filter((p, k) => problems.findIndex(q => q.code === p.code) === k),
@@ -508,6 +519,7 @@ async function context(sql: Query): Promise<Context> {
     serials: new Set(items.flatMap(i => (i.serial ? [fold(i.serial)] : []))),
     categories: categories.map(c => ({ id: String(c.id), key: c.key, name: c.name, kind: c.kind })),
     fields: await allFields(sql),
+    currency: await defaultCurrency(sql),
   };
 }
 
@@ -595,10 +607,10 @@ export async function applyImport(sql: Sql, actor: Member | null, source: unknow
         if (fieldId) extra[fieldId] = value;
       }
       const [row] = await tx<{ id: string }[]>`
-        insert into items (category_id, tag, name, serial, status, purchased_on, price_cents, supplier, warranty_until, notes, seats, renews_on, cost_cents, period,
+        insert into items (category_id, tag, name, serial, status, purchased_on, price_cents, supplier, warranty_until, notes, seats, renews_on, cost_cents, currency, period,
           holder, place, held_since, quantity, min_quantity, extra, created_by)
         values (${categoryId}, ${tag}, ${r.name}, ${r.serial}, ${r.status}, ${r.purchasedOn}, ${r.priceCents}, ${r.supplier}, ${r.warrantyUntil}, ${r.notes},
-          ${r.seats}, ${r.renewsOn}, ${r.costCents}, ${r.period}, ${r.holder}, ${r.place}, ${since}, ${r.quantity}, ${r.minQuantity}, ${tx.json(extra)}, ${actor.id})
+          ${r.seats}, ${r.renewsOn}, ${r.costCents}, ${r.priceCents === null && r.costCents === null ? null : r.currency}, ${r.period}, ${r.holder}, ${r.place}, ${since}, ${r.quantity}, ${r.minQuantity}, ${tx.json(extra)}, ${actor.id})
         returning id`;
       await tx`insert into history (item_id, actor, kind, status, note) values (${row!.id}, ${actor.id}, 'imported', ${r.status}, ${note})`;
       if (held) await tx`insert into history (item_id, actor, kind, member, place, day) values (${row!.id}, ${actor.id}, 'given', ${r.holder}, ${r.place}, ${since})`;

@@ -189,7 +189,7 @@ await step("People tells that Tom leaves: the managers hear it once, see what to
   expect((await page.locator(".notice").innerText()).startsWith("Last day:"), "person page");
   await page.goto(origin + "/chest/people");
   expect((await page.locator("main").innerText()).includes("last day"), "people list");
-  await deliver("people.leaving_cancelled", { member: id("tom") });
+  await deliver("people.leaving-cancelled", { member: id("tom") });
   expect(!/Tom Walker leaves on/u.test(await dev()), "notice withdrawn");
   await page.goto(origin + "/chest");
   // Others may be leaving too (the sample data): only Tom's entry is checked.
@@ -308,9 +308,10 @@ await step("the overview: remind the holder of a receipt nobody confirmed (a not
   expect(/asks: did you receive|vous demande[\u202f\u00a0 ]?: avez-vous reçu/u.test(await dev()), "the holder's bell, in their language");
 });
 
-await step("the reminder is a notice in the holder's bell, its French beside it, with the day it was given; Equipment sends no email (the outbox stays empty)", async () => {
+await step("the reminder is a notice in the holder's bell, in their language, with the day it was given; Equipment sends no email (the outbox stays empty)", async () => {
   const board = await dev();
-  expect(/asks: did you receive [^<]+<br><small>Given on [^<]+<\/small><br><small lang="fr">fr: [^<]+ vous demande/u.test(board), "English words, the French translation");
+  // SDK 0.7.0: the Chest keeps each item in its member's language.
+  expect(/(asks: did you receive [^<]+<br><small>Given on|vous demande[\u202f\u00a0 ]?: avez-vous reçu [^<]+<br><small>Remis le)/u.test(board), "the words and the day it was given, in the holder's language");
   expect(!board.includes("Mail to people outside") && !/Did you receive|Avez-vous reçu/u.test(board), "no mail panel, no reminder email");
 });
 
