@@ -22,6 +22,15 @@ const unzip = (data) => {
   return files;
 };
 let lucie = 0;
+// "forms.request" as Forms emits it on contract 0.7 (flat fields of
+// declared kinds, the answers as one JSON text), from the request as Forms
+// keeps it.
+const formsRequest = ({ form, answer, subject, details, requester, fields }) => ({
+  form: form.id, formTitle: form.title, answer: answer.id, language: answer.language ?? null, path: answer.path ?? null,
+  subject: subject ?? null, details: details ?? null,
+  requester: requester.member ?? null, requesterName: requester.name ?? null, requesterEmail: requester.email ?? null,
+  fields: JSON.stringify((fields ?? []).map(({ label, value }) => ({ label, value }))),
+});
 // Small files as a browser would pick them.
 const png = { name: "box.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]) };
 const pdf = (name) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\n% sample\n") });
@@ -259,12 +268,12 @@ await step("search by customer email and by number", async () => {
 
 await step("Forms sends a request (forms.request): a ticket from the form, once; a colleague's request names them", async () => {
   const request = (answer, requester, subject) => ({
-    v: 1, form: { id: "5", title: "Contact us" },
+    form: { id: "5", title: "Contact us" },
     answer: { id: answer, at: new Date().toISOString(), language: "en", path: `/chest/forms/5/answers/${answer}` },
     subject, details: "Six oak chairs, delivered in October.", requester,
     fields: [{ question: "q1dxyz", label: "Your phone number", value: "+33 6 12 34 56 78" }],
   });
-  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify(data) } });
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", source: "forms", data: JSON.stringify(formsRequest(data)) } });
   const nina = request("flowNinaAnswer01", { name: "Nina Roux", email: "nina.roux@example.com", member: null }, "Quote for oak chairs");
   await deliver(nina);
   // Forms (or the Chest) delivers the same answer again: nothing more.
@@ -638,10 +647,10 @@ await step("a request sent twice is one ticket; the second sending lands on it",
 
 await step("a colleague without a role reads the answer to their IT request in My requests, and nothing else (critique 3, N1)", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
-  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify(data) } });
-  await deliver({ v: 1, form: { id: "9", title: "Demande informatique" }, answer: { id: "flowNoraItReq001", at: new Date().toISOString(), language: "fr", path: null },
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", source: "forms", data: JSON.stringify(formsRequest(data)) } });
+  await deliver({ form: { id: "9", title: "Demande informatique" }, answer: { id: "flowNoraItReq001", at: new Date().toISOString(), language: "fr", path: null },
     subject: "Écran noir", details: "Mon écran reste noir depuis ce matin.", requester: { name: null, email: null, member: id("nora") }, fields: [] });
-  await deliver({ v: 1, form: { id: "9", title: "Demande informatique" }, answer: { id: "flowLeaItReq0001", at: new Date().toISOString(), language: "fr", path: null },
+  await deliver({ form: { id: "9", title: "Demande informatique" }, answer: { id: "flowLeaItReq0001", at: new Date().toISOString(), language: "fr", path: null },
     subject: "Clavier cassé", details: "La touche A ne marche plus.", requester: { name: null, email: null, member: id("lea") }, fields: [] });
   // Inès answers Nora, and leaves a note the colleague must never see.
   await as(context, origin, "ines");
@@ -691,15 +700,15 @@ await step("a colleague without a role reads the answer to their IT request in M
 
 await step("a ticket from the store's Contact form: a real subject, the message first, call and email in one tap (critique 3, N2, N5)", async () => {
   await as(context, origin, "hugo");
-  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify({
-    v: 1, form: { id: "101", title: "Contactez-nous" }, answer: { id: "flowNinaContact1", at: new Date().toISOString(), language: "fr", path: "/chest/forms/101/answers/flowNinaContact1" },
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", source: "forms", data: JSON.stringify(formsRequest({
+    form: { id: "101", title: "Contactez-nous" }, answer: { id: "flowNinaContact1", at: new Date().toISOString(), language: "fr", path: "/chest/forms/101/answers/flowNinaContact1" },
     subject: "Contactez-nous", details: null, requester: { name: "Nina Roux", email: "nina.roux@gmail.com", member: null },
     fields: [
       { question: "5jvdruf4", label: "Votre numéro de téléphone", value: "06 12 34 56 78" },
       { question: "mdxjrkxm", label: "C’est à quel sujet ?", value: "Un devis" },
       { question: "bfpmf8qf", label: "Votre message", value: "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci" },
     ],
-  }) } });
+  })) } });
   await page.goto(origin + "/chest?q=nina.roux@gmail.com");
   const row = page.locator(".tickets a", { hasText: "Un devis — Bonjour, je voudrais un devis pour six chaises en chêne." });
   expect(await row.count() === 1, "the subject says what it is about");
@@ -735,10 +744,10 @@ await step("an admin sends new requests to a Slack channel; the channel gets the
   await page.waitForSelector(".notice-target >> text=Support channel");
   const box = await page.locator("#notices").innerText();
   expect(!box.includes("flowSecretPart0123456789"), "the address is never shown whole again");
-  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify({
-    v: 1, form: { id: "5", title: "Contact us" }, answer: { id: "flowSlackNotice1", at: new Date().toISOString(), language: "en", path: null },
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", source: "forms", data: JSON.stringify(formsRequest({
+    form: { id: "5", title: "Contact us" }, answer: { id: "flowSlackNotice1", at: new Date().toISOString(), language: "en", path: null },
     subject: "Wobbly table leg", details: "The left leg of my table is loose. My order is 4417.", requester: { name: "Paul Martin", email: "paul.m@example.com", member: null }, fields: [],
-  }) } });
+  })) } });
   const dev = (await (await page.request.get(origin + "/_dev")).text()).replace(/<[^>]*>/gu, " ");
   const posted = /ticket\.new\s+→\s+Support channel:\s+delivered[^{]*(\{[^}]*Paul Martin[^}]*\})/u.exec(dev)?.[1] ?? "";
   expect(/New request [0-9]+ from Paul Martin: Wobbly table leg\\nhttps?:\/\/(?:localhost|127\.0\.0\.1):[0-9]+\/chest\/tickets\/[0-9]+/u.test(posted), "the channel is told: " + posted);
@@ -757,10 +766,12 @@ await step("Slack and Teams says the truth before anything is sent (SDK studio.1
 
 await step("Status says an incident is in progress: a banner above the inbox and a saved reply with the public page; gone once resolved (critique 3, N3)", async () => {
   await as(context, origin, "hugo");
-  const incident = (action, at) => ({ v: 1, action, incident: { id: "77", title: "Payments unavailable", language: "en", titles: { en: "Payments unavailable", fr: "Paiement indisponible" },
-    status: action === "resolved" ? "resolved" : "investigating", impact: action === "resolved" ? "operational" : "major", started_at: new Date(Date.now() - 600000).toISOString(), resolved_at: null,
-    url: "https://status.atelier-martin.test/incidents/77", services: [{ id: "3", names: { en: "Payments", fr: "Paiement" }, state: "major" }] }, update: { id: "900", status: "investigating", at } });
-  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", data: JSON.stringify(incident("opened", new Date().toISOString())) } });
+  // "status.incident" as Status emits it on contract 0.7: flat fields, the
+  // texts per language as JSON.
+  const incident = (action, at) => ({ incident: "77", action, title: "Payments unavailable", language: "en", titles: JSON.stringify({ en: "Payments unavailable", fr: "Paiement indisponible" }),
+    status: action === "resolved" ? "resolved" : "investigating", impact: action === "resolved" ? "operational" : "major", startedAt: new Date(Date.now() - 600000).toISOString(), resolvedAt: null,
+    url: "https://status.atelier-martin.test/incidents/77", services: JSON.stringify([{ id: "3", names: { en: "Payments", fr: "Paiement" }, state: "major" }]), update: "900", updatedAt: at });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", source: "status", subject: "77", data: JSON.stringify(incident("opened", new Date().toISOString())) } });
   await page.goto(origin + "/chest");
   const banner = await page.locator(".incidents").innerText();
   expect(banner.includes("Incident in progress: Payments unavailable") && banner.includes("Affected: Payments"), "the banner: " + banner);
@@ -772,7 +783,7 @@ await step("Status says an incident is in progress: a banner above the inbox and
   const reply = await page.locator("#answer").inputValue();
   expect(reply.includes("https://status.atelier-martin.test/incidents/77"), "the saved reply links the public page: " + reply.slice(0, 80));
   await page.locator("#answer").fill("");
-  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", data: JSON.stringify(incident("resolved", new Date(Date.now() + 1000).toISOString())) } });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", source: "status", subject: "77", data: JSON.stringify(incident("resolved", new Date(Date.now() + 1000).toISOString())) } });
   await page.goto(origin + "/chest");
   expect(await page.locator(".incidents").count() === 0, "gone once resolved");
 });
@@ -802,11 +813,32 @@ await step("Settings says where customers' email replies land; without the compa
   }
 });
 
+await step("a page left open follows what others write, never on a timer (SDK 0.7.0's realtime): idle, it asks nothing; a new request appears by itself", async () => {
+  await as(context, origin, "hugo");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest");
+  await page.waitForTimeout(2000);
+  const reads = [];
+  const count = request => { if (new URL(request.url()).pathname.startsWith("/chest")) reads.push(request.url()); };
+  page.on("request", count);
+  try {
+    // The old page read itself every 20 seconds: now nothing, while nobody writes.
+    await page.waitForTimeout(25000);
+    expect(reads.length === 0, "idle, the page asks the tool nothing: " + reads.join(", "));
+    await visitorRequest({ name: "Rémi Live", email: "remi.live@example.com", subject: "Arrived while you watched", message: "Is the shop open on Sunday?" });
+    await page.waitForSelector(".tickets >> text=Arrived while you watched", { timeout: 15000 });
+    expect(reads.length >= 1 && reads.length <= 4, "read again once the Chest said a ticket came: " + reads.length);
+  } finally {
+    page.off("request", count);
+  }
+});
+
 await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {
   await context.clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/");
-  expect((await page.locator("form").innerText()).includes("photos, PDF, Word, Excel and text files"), "kinds of files in words");
+  // A visitor's file is told by its bytes (SDK 0.7.0): no plain text.
+  expect((await page.locator("form").innerText()).includes("photos, PDF, Word and Excel files"), "kinds of files in words");
   await page.getByLabel("Your name").fill("Marc Lenoir");
   await page.getByLabel("Your email address").fill("marc.lenoir@gmail");
   await page.getByLabel("Subject").fill("Missing screws");

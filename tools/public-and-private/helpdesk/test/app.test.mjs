@@ -21,7 +21,7 @@ let chest, database, app;
 const logs = [];
 const log = console.log;
 before(async () => {
-  chest = await fakeChest({ tool: "helpdesk", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, storage: { publicUploads: true }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" } });
+  chest = await fakeChest({ tool: "helpdesk", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -330,8 +330,8 @@ test("the Chest's deliveries: schedules, events, each delivered at least once", 
   assert.equal(await chest.run("late", to), 204);
   assert.equal(await chest.run("nothing", to), 404, "a schedule without a handler");
   const removed = { type: "member.removed", id: "evt_" + "c".repeat(26), data: { id: hugo.id } };
-  assert.equal(await chest.emit(removed, to), 204);
-  assert.equal(await chest.emit(removed, to), 204);
+  assert.equal(await chest.deliver(removed, to), 204);
+  assert.equal(await chest.deliver(removed, to), 204);
   const [{ n }] = await database.sql`select count(*)::int as n from tickets where assignee = ${hugo.id}`;
   assert.equal(n, 0, "their tickets went back to the shared inbox");
   assert.equal((await app.fetch(new Request(team + "/chest-schedules", { method: "POST", body: "{}" }))).status, 401, "unsigned");

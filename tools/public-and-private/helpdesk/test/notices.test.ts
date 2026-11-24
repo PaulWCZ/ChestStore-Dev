@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { to: hooks } });
 });
 after(async () => {
   await chest.close();
@@ -29,9 +29,9 @@ const refused = (code: string) => (error: unknown) => error instanceof AppError 
 const slack = "https://hooks.slack.com/services/T0001/B0001/abcdefghijklmnopqrstuvwx";
 let n = 0;
 const request = (subject: string, member: string | null = null) => ({
-  v: 1, form: { id: "5", title: "Contact us" }, answer: { id: "ntc" + String(++n).padStart(8, "0"), at: "2026-09-29T10:00:00.000Z", language: "en", path: null },
+  form: "5", formTitle: "Contact us", answer: "ntc" + String(++n).padStart(8, "0"), language: "en", path: null,
   subject, details: "Six oak chairs, delivered in October. Call me on 06 12 34 56 78.",
-  requester: member ? { name: null, email: null, member } : { name: "Nina Roux", email: "nina@example.com", member: null }, fields: [],
+  ...(member ? { requester: member, requesterName: null, requesterEmail: null } : { requester: null, requesterName: "Nina Roux", requesterEmail: "nina@example.com" }), fields: null,
 });
 const lastNumber = async () => (await database.sql<{ number: number; id: string }[]>`select number, id from tickets order by id desc limit 1`)[0]!;
 const deliveriesTo = (id: string) => chest.webhooks.deliveries.filter(d => d.target === id);
@@ -62,7 +62,7 @@ test("a new request and a customer writing again reach the channels that asked; 
   const [target] = (await notices.targets(sql, asMember(camille))).targets.filter(x => x.label === "Support channel");
   const zapier = (await notices.targets(sql, asMember(camille))).targets.find(x => x.label === "Zapier")!;
   const before = deliveriesTo(target!.id).length;
-  assert.equal(await chest.deliver({ type: "forms.request", data: request("A quote") }, events), 204);
+  assert.equal(await chest.deliver({ type: "forms.request", source: "forms", data: request("A quote") }, events), 204);
   const t = await lastNumber();
   const sent = deliveriesTo(target!.id).slice(before);
   assert.equal(sent.length, 1);
@@ -73,7 +73,7 @@ test("a new request and a customer writing again reach the channels that asked; 
   assert.ok(!body.includes("oak chairs") && !body.includes("06 12 34 56 78"), "no word of the message");
   assert.equal(deliveriesTo(zapier.id).filter(d => d.event === "ticket.new").length, 0, "Zapier asked for late requests only");
   // A colleague writes again from My requests.
-  await chest.deliver({ type: "forms.request", data: request("Screen", nora.id) }, events);
+  await chest.deliver({ type: "forms.request", source: "forms", data: request("Screen", nora.id) }, events);
   const mine = await lastNumber();
   await tickets.reply(sql, asMember(hugo), mine.number, "On it.");
   await tickets.writeMine(sql, asMember(nora), mine.number, "Still black.");
@@ -89,7 +89,7 @@ test("a request waiting too long is told once per wait, in working hours", async
   const { sql } = database;
   const zapier = (await notices.targets(sql, asMember(camille))).targets.find(x => x.label === "Zapier")!;
   await sql`insert into settings (key, value) values ('hours', ${sql.json({ on: false, days: [null, null, null, null, null, null, null], holidays: [] } as never)}) on conflict (key) do update set value = excluded.value`;
-  await chest.deliver({ type: "forms.request", data: request("Late one") }, events);
+  await chest.deliver({ type: "forms.request", source: "forms", data: request("Late one") }, events);
   const t = await lastNumber();
   // Waiting 30 hours (the threshold is 24 by default; every hour counts here).
   await sql`update tickets set waiting_since = now() - interval '30 hours' where id = ${t.id}`;
@@ -110,7 +110,7 @@ test("a channel that keeps failing is stopped by the Chest: Settings says so, th
   const { sql } = database;
   const target = (await notices.targets(sql, asMember(camille))).targets.find(x => x.label === "Support channel")!;
   chest.webhooks.respond(target.id, 404);
-  await chest.deliver({ type: "forms.request", data: request("Gone channel") }, events);
+  await chest.deliver({ type: "forms.request", source: "forms", data: request("Gone channel") }, events);
   const listed = (await notices.targets(sql, asMember(camille))).targets.find(x => x.id === target.id)!;
   assert.equal(listed.disabled, true);
   const [row] = await sql<{ disabled_at: Date | null; last_error: string }[]>`select disabled_at, last_error from notice_targets where id = ${target.id}`;
@@ -161,7 +161,7 @@ test("a Chest that paused the tool's notices: Settings says so, adding is refuse
 test("a long key goes whole (the SDK hashes it): two events sharing their first 64 characters are two notices, the same one twice is one", async () => {
   const { sql } = database;
   const target = await notices.addTarget(sql, asMember(camille), { url: "https://hooks.slack.com/services/T0009/B0009/zyxwvutsrqponmlkjihgfedc", kind: "slack", label: "Long keys", events: ["new"] });
-  await chest.deliver({ type: "forms.request", data: request("Long keys") }, events);
+  await chest.deliver({ type: "forms.request", source: "forms", data: request("Long keys") }, events);
   const t = await lastNumber();
   const ticket = { id: t.id, number: t.number, subject: "Long keys", customerName: "Nina Roux", customerEmail: "nina@example.com", requester: null, channel: "form" as const, priority: "normal" as const, status: "open" as const };
   const common = "new:" + "x".repeat(70);

@@ -12,10 +12,13 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
 
-// Requests from Forms (Proposal (studio): events between tools): the event
-// "forms.request", version 1 (Forms' README, "With the other tools"),
-// delivered by the Chest to POST /chest-events, opens a ticket as the
-// public form does — once per event and per answer, whatever it carries.
+// Requests from Forms (events between tools, SDK 0.7.0): the event
+// "forms.request" — flat fields, the answers as a JSON text (Forms'
+// README, "With the other tools") — delivered by the Chest to POST
+// /chest-events, opens a ticket as the public form does — once per event
+// and per answer, whatever it carries. The tests write a request as
+// Forms keeps it (form, answer, requester, fields) and flat() turns it
+// into what the Chest delivers.
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
@@ -36,8 +39,18 @@ let n = 0;
 // An event id of the Chest's shape (evt_ and 26 of a-z, 2-7), new each time.
 const eventId = () => "evt_" + (++n).toString(32).replace(/[0-9]/gu, d => "abcdefghij"[Number(d)]!).padStart(26, "q");
 const answerId = () => "k3ans" + String(++n).padStart(8, "0");
-const request = (over: Record<string, unknown> = {}) => ({
-  v: 1,
+type Nested = { form?: { id?: unknown; title?: unknown }; answer?: { id?: unknown; language?: unknown; path?: unknown }; requester?: unknown; fields?: unknown; subject?: unknown; details?: unknown };
+function flat(n: Nested): Record<string, unknown> {
+  const requester = n.requester !== null && typeof n.requester === "object" ? (n.requester as { name?: unknown; email?: unknown; member?: unknown }) : null;
+  return {
+    form: n.form?.id, formTitle: n.form?.title,
+    answer: n.answer?.id, language: n.answer?.language ?? null, path: n.answer?.path ?? null,
+    subject: n.subject ?? null, details: n.details ?? null,
+    ...(requester ? { requester: requester.member ?? null, requesterName: requester.name ?? null, requesterEmail: requester.email ?? null } : { requester: n.requester ?? null }),
+    fields: Array.isArray(n.fields) ? JSON.stringify(n.fields.map(({ label, value }: { label: unknown; value: unknown }) => ({ label, value }))) : n.fields ?? null,
+  };
+}
+const request = (over: Record<string, unknown> = {}) => flat({
   form: { id: "5", title: "Contact us" },
   answer: { id: answerId(), at: "2026-09-29T10:00:00.000Z", language: "fr", path: "/chest/forms/5/answers/k3abc" },
   subject: "A quote",
@@ -45,8 +58,8 @@ const request = (over: Record<string, unknown> = {}) => ({
   requester: { name: "Nina Roux", email: "Nina@Example.com", member: null },
   fields: [{ question: "q1dxyz", label: "Your phone number", value: "+33 6 12 34 56 78" }],
   ...over,
-});
-const deliver = (data: Record<string, unknown>, id?: string) => chest.deliver({ type: "forms.request", data, ...(id ? { id } : {}) }, POST);
+} as Nested);
+const deliver = (data: Record<string, unknown>, id?: string, audience: "all" | string[] = "all") => chest.deliver({ type: "forms.request", source: "forms", audience, data, ...(id ? { id } : {}) }, POST);
 const count = async () => (await database.sql<{ n: number }[]>`select count(*)::int as n from tickets`)[0]!.n;
 const last = async () => (await database.sql<{ number: number }[]>`select number from tickets order by id desc limit 1`)[0]!.number;
 const ticketOf = async (number: number) => tickets.ticket(database.sql, asMember(hugo), number);
@@ -101,6 +114,14 @@ test("the same event again, or another event for the same answer, opens nothing 
   assert.equal(await count(), total + 1);
 });
 
+test("a request only some people may see in Forms is not filed: every agent reads the inbox", async () => {
+  const total = await count();
+  assert.equal(await deliver(request(), undefined, [hugo.id]), 204, "accepted, never delivered again");
+  assert.equal(await count(), total);
+  assert.equal(chest.outbox.length, 0);
+  assert.equal(chest.notifications.length, 0);
+});
+
 test("a team form's request comes from the colleague: their member id only, never a name or an address; no email", async () => {
   // Ines has Support: she is named; the address and name in the event are not kept.
   assert.equal(await deliver(request({ requester: { name: "Inès Moreau", email: "ines@company.test", member: ines.id }, answer: { id: answerId(), at: "2026-09-29T10:00:00.000Z", language: "en", path: null } })), 204);
@@ -129,7 +150,7 @@ test("a team form's request comes from the colleague: their member id only, neve
   await assert.rejects(tickets.merge(database.sql, asMember(hugo), other.number, number), refused("merge_other_customer"));
   // Erased: the request stays, no longer theirs.
   const erasure = "era_" + "e".repeat(26);
-  assert.equal(await chest.emit({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
   assert.equal((await ticketOf(number)).requester, "erased");
 });
 
@@ -150,12 +171,11 @@ test("untrusted data: nobody to answer, another shape, or nonsense opens nothing
     request({ requester: { name: "Nina", email: "not an address", member: null } }),
     request({ requester: { name: "Nina", email: "a@b", member: "mbr_NOTANID" } }),
     request({ requester: "nina@example.com" }),
-    request({ v: 0 }),
-    request({ v: "1" }),
+    request({ form: { id: 5, title: "Contact us" } }),
     request({ form: { id: "5", title: "   " } }),
     request({ form: { id: "5; drop table tickets", title: "Contact" } }),
     request({ answer: { id: "../../x", language: "fr" } }),
-    { v: 1 },
+    {},
   ];
   for (const data of ignored) assert.equal(await deliver(data as Record<string, unknown>), 204);
   assert.equal(await count(), total, "nothing opened, and the Chest is not asked to deliver again");

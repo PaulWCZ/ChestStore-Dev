@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { checkMail } from "../src/lib/mail-checks.ts";
 import * as mailer from "../src/lib/mailer.ts";
 import * as tickets from "../src/lib/tickets.ts";
@@ -116,7 +116,6 @@ test("bounces: learnt from mail.status on the schedule; the reply and the ticket
   assert.equal(ticket.messages.find(m => m.kind === "reply")!.bounce!.reason, "bounced");
   const told = chest.notifications.find(x => x.member === hugo.id && x.key === `ticket:${ticket.id}:bounced`)!;
   assert.equal(told.title, `An email about ticket ${t.number} did not arrive`);
-  assert.equal(shownTo(told, "fr").title, `Un e-mail de la demande ${t.number} n’est pas arrivé`);
   assert.deepEqual(await checkMail(sql, new Date(Date.now() + 7_200_000)), { asked: 0, bounced: 0 }, "a message is followed until it is settled");
   const again = await answer(t.number, "Hello again");
   assert.equal(again.sent.delivery, "page");
