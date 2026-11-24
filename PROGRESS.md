@@ -5,6 +5,8 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
+**Update from the owner (2026-11-24): SDK 0.7.0 (Chest-SDK PR #38, not merged).** Every tool should use it; where impossible, a precise list of why. Owner's decision: currency and time zone are the apps' business, not the Chest's (PR #38 `8299bf8`, `50c8153`: no `chest.currency`; `chest.timeZone` is the company's reference zone captured once from the owner's browser; `member.timeZone` is the member's browser zone). Main (SDK 0.5.1 references, brief 09) and PR #9 (reference to 0.7.0 at `2581b22`, older than the PR head `1a825a6` used here) merged into the work branch. Done: `sdk/` → `0.7.0-studio.1` (official 1a825a6 verbatim, 194 tests; proposals kept only where 0.7.0 lacks them; checker 0.7.0). Running: package `app/` studio.11 without Chest currency, review of the SDK rebase; then the 18 tools on `"chest": "0.7"`, reviews, and the list of impossibilities (`reports/08-sdk-0.7.md`).
+
 Official SDK reference refreshed to 0.5.1 (`8630b83`). The official standalone
 browser realtime module and recovery regressions are backported into the SDK
 fork as `0.3.1-studio.2`, preserving its experimental server APIs. Full rebasing
