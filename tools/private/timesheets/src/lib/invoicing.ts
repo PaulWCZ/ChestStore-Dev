@@ -27,7 +27,7 @@ export async function markInvoiced(sql: Query, actor: Member | null, q: ReportQu
     const ids = found.map(f => f.id);
     const fixed = found.filter(f => !f.fixed).map(f => f.id);
     await tx`
-      update entries e set invoiced_at = now(), invoiced_by = ${actor.id}, rates_fixed = true,
+      update entries e set invoiced_at = now(), invoiced_by = ${actor.id}, rates_fixed = true, rates_currency = (select currency from settings where id),
         bill_rate_cents = case when e.rates_fixed then e.bill_rate_cents else bill_rate(e.member_id, e.project_id, e.day) end,
         cost_rate_cents = case when e.rates_fixed then e.cost_rate_cents else cost_rate(e.member_id, e.day) end
       where id = any(${ids}::bigint[])`;

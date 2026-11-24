@@ -29,7 +29,7 @@ after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const admin = asMember(camille);
-const deliver = (type: string, data: Record<string, unknown>, occurredAt = new Date().toISOString()) => w.chest.deliver({ type, data, occurredAt } as never, POST);
+const deliver = (type: string, data: Record<string, unknown>, occurredAt = new Date().toISOString(), audience?: string[]) => w.chest.deliver({ type, source: type.split(".")[0]!, data, occurredAt, ...(audience ? { audience } : {}) } as never, POST);
 
 test("cards done, tickets solved and hires follow what the tools tell — per board, per owner, undone when reopened", async () => {
   const { sql } = w.database;
@@ -60,7 +60,7 @@ test("cards done, tickets solved and hires follow what the tools tell — per bo
   // Undone: a card reopened, a ticket reopened, a hire cancelled.
   await deliver("tasks.card.reopened", { card: "C-1" });
   await deliver("helpdesk.ticket.reopened", { ticket: "T-1" });
-  await deliver("hiring.hire_cancelled", { candidate: "K-1" });
+  await deliver("hiring.hire-cancelled", { candidate: "K-1" });
   assert.deepEqual(await read(), [2, 0, 0, 0]);
   // Done again (the same card): counted once.
   await deliver("tasks.card.done", { card: "C-1", board: "B-web", boardName: "Website (new name)", assignees: [ines.id] });
@@ -154,7 +154,7 @@ test("a group that does not give Goals is still a team its members write for and
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
   // With "members.groups", the Chest names every group of the member, as
   // member(request) carries them: Warehouse too, which does not give Goals.
-  const asserted = (await members.get(hugo.id))!.groups;
+  const asserted = (await members.get(hugo.id))!.groups ?? [];
   assert.ok(asserted.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
   const hugoM = { ...asMember(hugo), groups: asserted }, sofiaM = asMember(sofia);
   assert.ok((await groupsOf(hugoM)).includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
@@ -198,4 +198,20 @@ test("a key result's unit is kept with its writer's language", async () => {
 test("a member's empty page names whom to ask", async () => {
   assert.equal(await whoStarts("en"), "Camille Martin");
   assert.equal(await noCycleWords("fr"), "Demandez à Camille Martin de lancer le premier trimestre. D’ici là, rien à fixer.");
+});
+
+test("an item another tool shows to some members only (its audience) is kept, never counted in a value everyone reads", async () => {
+  const { sql } = w.database;
+  const { cycle } = await running(w);
+  const o = await createObjective(sql, admin, {
+    cycleId: cycle.id, level: "company", title: "Serve quietly",
+    keyResults: [{ title: "Tickets solved", source: "helpdesk.solved", start: "0", target: "10", owner: ines.id }],
+  });
+  const read = async () => (await objectiveById(sql, o.id, clockAt(), null))!.keyResults[0]!.current;
+  const before = await read();
+  await deliver("helpdesk.ticket.solved", { ticket: "T-open", assignee: ines.id });
+  await deliver("helpdesk.ticket.solved", { ticket: "T-hr", assignee: ines.id }, new Date().toISOString(), [ines.id]);
+  assert.equal(await read(), before + 1, "only the item for everyone counts");
+  const [kept] = await sql<{ audience: string[] | null }[]>`select audience from fed_events where ref = 'T-hr'`;
+  assert.deepEqual(kept!.audience, [ines.id], "kept, with who may see it");
 });

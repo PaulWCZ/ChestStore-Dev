@@ -1,5 +1,5 @@
 import { ToastHost } from "@argentic/chest-app/client";
-import { AutoRefresh } from "./AutoRefresh.tsx";
+import { Live } from "./Live.tsx";
 import { AutoSubmit } from "./AutoSubmit.tsx";
 import { ClientsView, ExampleButton } from "./Clients.tsx";
 import { Importer } from "./Importer.tsx";
@@ -21,7 +21,7 @@ import { WeekView } from "./WeekView.tsx";
 // field — is just a component inside it).
 export const islands = {
   // The layout: the toasts, the timer on every page, the page read again.
-  ToastHost, TimerBar, AutoRefresh,
+  ToastHost, TimerBar, Live,
   // My week.
   WeekView,
   // Team (managers).

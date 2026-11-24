@@ -42,7 +42,8 @@ export function MembersLayout({ viewer: { member, t }, look, notice, path, data,
     <>
       <AppShell brand={brand} nav={nav} path={path} member={{ name: member.name, role: t.roles[role], photo: member.photo }} labels={labels} width="full">
         {data.timer && <Island id="timer" name="TimerBar" props={data.timer} />}
-        <Island id="auto-refresh" name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island id="live-mine" name="Live" props={{ channel: `mine:${member.id}`, names: ["time.changed"] }} />
+        {can(member, "approve") && <Island id="live-team" name="Live" props={{ channel: "team", names: ["entries", "weeks"] }} />}
         {notice && <div className="page"><p className="notice" role="alert">{notice}</p></div>}
         {children}
       </AppShell>

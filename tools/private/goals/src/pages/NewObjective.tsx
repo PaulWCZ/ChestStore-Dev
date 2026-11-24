@@ -1,5 +1,5 @@
+import { defaultCurrency } from "../lib/money.ts";
 import { Island, type PageContext, type View } from "@argentic/chest-app";
-import { chest } from "@argentic/chest-sdk/chest";
 import { Filters } from "@argentic/chest-ui/components";
 import { Back, Lock } from "../components/icons.tsx";
 import { MapEmpty } from "../components/map-empty.tsx";
@@ -53,7 +53,7 @@ export async function newObjectivePage({ member, t, locale: language, query }: P
           me: member.id,
           initial: { level, teamId: team?.id ?? "", parentId: parent ? parent.id : "", owner: member.id, title: "", why: "", visibility: "everyone", viewers: [] },
           locale,
-          currency: chest.currency,
+          currency: await defaultCurrency(db()),
           boards,
           personalNote: true,
           t: { form: t.form, tools: t.tools, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker },

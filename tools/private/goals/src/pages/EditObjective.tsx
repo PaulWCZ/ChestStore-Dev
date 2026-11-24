@@ -1,5 +1,5 @@
+import { defaultCurrency } from "../lib/money.ts";
 import { Island, notFound, type PageContext, type View } from "@argentic/chest-app";
-import { chest } from "@argentic/chest-sdk/chest";
 import { Back } from "../components/icons.tsx";
 import { localeOf } from "../i18n/index.ts";
 import { mayEdit } from "../lib/access.ts";
@@ -39,7 +39,7 @@ export async function editObjectivePage({ member, t, locale: language, param }: 
           me: member.id,
           initial: { level: o.level, teamId: o.teamId ?? "", parentId: o.parentId ?? "", owner: o.owner, title: o.title, why: o.why, visibility: o.visibility, viewers },
           locale,
-          currency: chest.currency,
+          currency: await defaultCurrency(db()),
           boards,
           personalNote: false,
           t: { form: t.form, tools: t.tools, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker },

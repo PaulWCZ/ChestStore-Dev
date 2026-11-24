@@ -13,7 +13,7 @@ import { db } from "./lib/db.ts";
 import { checkInsCsv, cycleCsv, fileName } from "./lib/export.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
 import { stamp } from "./lib/stamp.ts";
-import { handlers as fed } from "./lib/sources.ts";
+import { handlers as fed, type FedType } from "./lib/sources.ts";
 import { refreshBadges, weeklyReminder } from "./lib/tell.ts";
 import { zone } from "./lib/time.ts";
 import { companyPage } from "./pages/Company.tsx";
@@ -97,16 +97,15 @@ app.get("/", publicPage(publicHome));
 // src/lib/crm.ts, src/lib/sources.ts).
 app.post("/chest-events", async c => {
   const sql = db();
-  return new Response(null, {
-    status: await events.handle(c.req.raw, handlers(sql), {
-      seen,
-      tools: {
-        "crm.deal.won": async e => { await dealWon(sql, e); },
-        "crm.deal.reopened": async e => { await dealReopened(sql, e); },
-        ...fed(sql),
-      },
-    }),
-  });
+  // One map for the members' lifecycle and the other tools' types (SDK
+  // 0.7.0); chest.json "receives" names them all.
+  const all: events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased" | "crm.deal.won" | "crm.deal.reopened" | FedType> = {
+    ...handlers(sql),
+    "crm.deal.won": async e => { await dealWon(sql, e); },
+    "crm.deal.reopened": async e => { await dealReopened(sql, e); },
+    ...fed(sql),
+  };
+  return new Response(null, { status: await events.handle(c.req.raw, all, { seen }) });
 });
 
 // The schedules of chest.json, on the Chest's clock: Friday morning, the

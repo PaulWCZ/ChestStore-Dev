@@ -27,7 +27,9 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
   rule whoever reads it — "0 customers" for an English unit, "0 client" for
   a French one; units written before this rule was kept use the form for
   one at 1 only), a
-  percentage, an amount of money (in the Chest's currency), or done / not
+  percentage, an amount of money (in its own currency: the Chest has none —
+  a new one starts in Goals' default, *Settings → Money*, EUR until an
+  administrator picks another; each keeps the one chosen in its form), or done / not
   done — or **fed by another tool of the Chest**, counted in the cycle's
   dates from what that tool reports: the amount or number of **deals won
   in Clients** (the CRM), the **cards done in Tasks** (on one board or
@@ -96,8 +98,8 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
 ### Teams: the Chest's groups first
 
 A team is **a group of the Chest** when the company has made one — every
-group, even when Goals is given to everyone (the `members.groups` proposal, as
-News, Wiki and Polls) — its name
+group, even when Goals is given to everyone (the capability `members.groups`,
+official since SDK 0.5, as News, Wiki and Polls) — its name
 and members come from the Chest, so nobody keeps a second list, and only its
 members write its objectives — or **a name** given here (many small
 companies give their tools to everyone and have no groups): anyone may write
@@ -207,17 +209,24 @@ proposal moved from the old read-only `groups` key to the capability `members.gr
 
 ## On a Chest
 
-- `capabilities`: `database`; `members` (names, photos, groups for teams);
-  `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
-  `schedules` `reminder` (Friday 08:45) and `week` (Monday 06:50).
-  Proposals (studio, `chest.proposals.json`): the capability
-  `members.groups` with `receives` `group.*` (every group of the Chest may
-  become a team; without it, only the groups that give Goals),
-  `receives` of the other tools' events (see *With the other tools*).
-- **Fed by Clients (the CRM)**: once an admin links Clients to Goals in the
+- Contract **0.7** (SDK 0.7.0, `chest check` OK). `capabilities`:
+  `database`; `members` (names, photos, groups for teams);
+  `members.groups` (every group of the Chest may become a team; without
+  it, only the groups that give Goals); `notifications` (the bell and the
+  tile's number); `realtime` (pages left open); `receives`: `member.*` and
+  the other tools' types (see *With the other tools*); `realtime`: the
+  channel `goals`, the feeds of `objectives`, `key_results`, `check_ins`
+  and `comments` (their ids only); `schedules` `reminder` (Friday 08:45)
+  and `week` (Monday 06:50), in the company's zone. Proposal left in
+  `chest.proposals.json`: the store's words in French (`translations`).
+  `chest check` warns that `migrations/0007_no_email.sql` drops a table
+  without the `-- chest: contract` line: it shipped before the rule (a
+  played migration is never edited); the version before it no longer read
+  that table.
+- **Fed by Clients (the CRM)**: once the owner approves the link from Clients to Goals in the
   Chest, each deal won or reopened there reaches Goals; a key result fed by
-  it shows the amount won (in its currency; deals in another currency are
-  counted as deals, not added) or the number of deals won between its
+  it shows the amount won (in the key result's own currency; deals in another currency are
+  counted as deals, not added: no conversion) or the number of deals won between its
   cycle's first and last day. Goals keeps only each deal's reference,
   amount, currency and when it was won. Its owner still updates it weekly to
   say how sure they are; the value is the CRM's.
@@ -234,18 +243,28 @@ proposal moved from the old read-only `groups` key to the capability `members.gr
   are forgotten; updates and comments stay, signed "Former member"; their
   id leaves what the other tools told (cards, tickets, hires); then the
   erasure is acknowledged.
-- Dates: "today" and "this week" (from Monday 00:00) are the Chest's, in its
-  time zone (`chest.timeZone` / `chest.today()`), the same day as the
-  database's `current_date` (the Chest puts its sessions in that zone); an
-  amount is in the Chest's currency (`chest.currency`), kept on each key
-  result.
-- No WebSocket: the open pages re-read themselves every minute while visible.
+- Dates: "today" and "this week" (from Monday 00:00) are the company's, in
+  the Chest's zone (`chest.timeZone` / `chest.today()`, captured once, set
+  on no screen), the same day as the database's `current_date`. Money: no
+  Chest currency (SDK 0.7.0) — each money key result keeps its ISO 4217
+  code; Goals' own default fills a new one's.
+- **Pages left open follow the Chest's realtime, never a timer**: *My
+  goals*, the company's, a team's and an objective's page join the channel
+  `goals`, where each write of an objective, a key result (a check-in, a
+  value fed by another tool), an update or a comment arrives — its id only:
+  the page reads the rest, as its reader may (a confidential objective stays
+  its readers'). The Chest holds the connections, so Goals sleeps while
+  tabs stay open.
 
 ## With the other tools
 
-Goals receives what the store's other tools publish (Proposal (studio):
-events between tools; an admin links the tools in the Chest, and Goals
-hears from then on). Each contract is **v1**: Goals reads the fields below
+Goals receives what the store's other tools emit (SDK 0.5+: events between
+tools, `"receives"` in `chest.json`; the owner approves each link, and
+Goals hears from then on). **Who may see each**: an event carries its
+audience — "all", or the members the sender allowed; Goals shows a key
+result's value to everyone who reads its objective, so **an item for some
+members only is kept (with its audience) but never counted** — a
+confidential deal never moves a number everyone sees. Goals reads the fields below
 and ignores any other; an event of another shape is accepted and ignored,
 never half-kept. References are 1–64 of `A-Z a-z 0-9 . _ : -`; people are
 member ids (`mbr_…`). Goals keeps only what a count needs — a reference,
@@ -257,7 +276,7 @@ candidate's name (`src/lib/sources.ts`, `src/lib/crm.ts`; table `fed_events`).
 | `crm.deal.won` (Clients) | `{deal, amount: cents \| null, currency}` | "Amount won", "Deals won" | Sent by Clients today |
 | `crm.deal.reopened` (Clients) | `{deal}` | takes the deal back | Sent by Clients today |
 | `hiring.hired` (Hiring) | `{candidate, hiredBy: mbr_…}` (Hiring's own shape; the name, email, job are not kept) | "People hired" (only theirs: `hiredBy`) | Sent by Hiring today |
-| `hiring.hire_cancelled` (Hiring) | `{candidate}` | takes the hire back | Sent by Hiring today |
+| `hiring.hire-cancelled` (Hiring) | `{candidate}` | takes the hire back | Renamed from `hiring.hire_cancelled` (0.7.0 refuses an underscore): Hiring renames it too |
 | `tasks.card.done` (Tasks) | `{card, board, boardName, assignees: [mbr_…]}` | "Cards done" (a board or all; only theirs: in `assignees`) | Sent by Tasks today |
 | `tasks.card.reopened` (Tasks) | `{card}` | takes the card back | Sent by Tasks today |
 | `helpdesk.ticket.solved` (Support) | `{ticket, assignee: mbr_… \| null}` | "Tickets solved" (only theirs: `assignee`) | Sent by Support today |
@@ -280,8 +299,8 @@ digits, `"42"`, `"1042"`):
   `{ticket, assignee}` when a ticket is solved (the agent who solved it, or
   null), key `helpdesk:<ticket>:solved:<time>`; `helpdesk.ticket.reopened`
   `{ticket}` when the customer or an agent reopens it.
-- **Hiring** already publishes `hiring.hired` and `hiring.hire_cancelled`
-  (its README); Goals needs `hiredBy` to count "only theirs".
+- **Hiring** emits `hiring.hired` and `hiring.hire-cancelled` (its
+  README); Goals needs `hiredBy` to count "only theirs".
 - The event's `occurredAt` is when the sender published it: Goals counts
   it in the cycle whose dates hold it (the Chest's calendar). Both senders
   publish right after the action, and again every quarter of an hour
@@ -296,32 +315,35 @@ form from then on) — both need a query between tools (below).
 
 ## Needs from the SDK
 
-The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.3.0 +
-studio proposals (0.4.1-studio.4), on the tool contract 0.4 (`"chest": "0.4"` in `chest.json`).
+The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.7.0 +
+studio proposals (0.7.0-studio.2), `@argentic/chest-app` 0.1.0-studio.12,
+on the tool contract 0.7 (`"chest": "0.7"` in `chest.json`).
 
 - `member.language` (0.3.0): the interface and the bell in each member's
   language.
-- `chest` (0.3.0): `chest.timeZone`, `chest.today()`, `chest.language`;
-  `chest.currency` is a **Proposal (studio)**.
+- `chest` (0.3.0): `chest.timeZone`, `chest.today()`, `chest.language`.
+  No Chest currency (0.7.0): Goals keeps its own default (`src/lib/money.ts`).
 - **Schedules** (contract 0.4, in `chest.json`, posted to `/chest-schedules`):
   `reminder` (Friday 08:45: the weekly update reminder) and `week` (Monday
   06:50: every tile's number for the new week). **Without schedules** the
   tool works: badges are set whenever someone updates, changes an owner or
   opens *My goals*; only the Friday bell item and the Monday refresh wait for
   the Chest to run schedules.
-- **Notices with translations** — **Proposal (studio, announced for
-  0.5)**: one `notifications.notify` per event, English words with their
-  French in `translations` (`src/lib/notify.ts`).
-- **Events between tools** — **Proposal (studio)**: the events of Clients,
-  Tasks, Support and Hiring feed key results (*With the other tools*).
-- `members.groups` — **Proposal (studio, the name announced for 0.5)**:
-  every group of the Chest may become a team (`members.groups.all()`,
-  `members.list({ group })`, `group.*` events), and `member.groups` names
-  every group a member is in (`src/lib/groups.ts`: who writes for a team,
-  who reads its confidential objectives); without it, only the groups that
-  give Goals. The official 0.4.1 refuses an assertion with more than 16
-  groups; the vendored SDK 0.4.1-studio.7 lifts it (an assertion up to
-  16 KiB, about 300 groups).
+- **Notices with translations** (official since 0.5): one
+  `notifications.notify` per event, English words with their French in
+  `translations` (`src/lib/notify.ts`).
+- **Events between tools** (official since 0.5): the events of Clients,
+  Tasks, Support and Hiring feed key results (*With the other tools*),
+  their audience honoured.
+- `members.groups` (official since 0.5): every group of the Chest may
+  become a team (`members.groups.list({after})`, paged to the end;
+  `members.list({ group })`), and `member.groups` names every group a
+  member is in (`src/lib/groups.ts`: who writes for a team, who reads its
+  confidential objectives) — `null` past about 150 groups, then read with
+  `members.get`. No group events in 0.7.0: a renamed group shows within a
+  minute (the list is kept a minute); a member joining or leaving one is
+  `member.updated`.
+- **`realtime`** (0.5): the pages left open (above).
 - `chest.theme()` — **Proposal (studio)**: the company's look (a catalogue
   theme or its brand); outside a Chest that has it, Goals wears its own.
 - **Not in the SDK, needed** (see the final report / SDK report):
@@ -333,11 +355,9 @@ studio proposals (0.4.1-studio.4), on the tool contract 0.4 (`"chest": "0.4"` in
     `tools.query("tasks", "boards")`, read-only, granted like events): a
     fed key result counts only what happened after the tools were linked;
     the past, and Tasks' boards before a card is done, are out of reach.
-  - **When an event happened** (`events.publish(type, data, {key,
-    occurredAt})`): `occurredAt` is when the sender published; a sender
-    that retries later (Tasks and Support do, every quarter of an hour,
-    while the Chest refuses) cannot say when the card was done, so one done
-    at a cycle's last minute and told after midnight counts in the next.
+  - **When an event happened**: official since 0.5 (`events.emit(…,
+    {occurredAt})`, 72 hours back): a sender that retries says when the
+    card was done; Goals counts it in the cycle of that moment.
 
 ## How it is made
 
@@ -348,9 +368,9 @@ Pages are `src/pages/`, every change an action of `src/actions.ts` read
 field by field, the rules and SQL in `src/lib/`. The look is served as its
 own stylesheet (`/chest/look.css`): no inline script or style, the strict
 policy on every page. A page read again with nothing changed answers 304
-(its version: `src/lib/stamp.ts`), and pages read themselves again only
-while their reader is active (`useAutoRefresh`): the Chest can put Goals
-to sleep. Measured on the studio's machine (lab/measure, 6 October 2026,
+(its version: `src/lib/stamp.ts`), and pages read themselves again when
+the Chest's realtime says a row changed (`useLive`), never on a timer: the
+Chest can put Goals to sleep while tabs stay open. Measured on the studio's machine (lab/measure, 6 October 2026,
 Node 24.21, the same 12 pages): at rest 68 MiB PSS (Next.js: 126), first
 answer after a cold start 501 ms (913), image 29 MiB (457), `npm ci` and
 the build fit 512 MiB.
@@ -383,6 +403,13 @@ after another, the audit cannot reach its *check-in-undo* screen and the
 flow's first steps find nothing to check in.
 
 ## What it does not do (yet)
+
+- **On SDK 0.7.0**: the store's tile and role names stay in English for a
+  French member (`translations` is a studio proposal); the company's theme
+  falls back to Goals' own look (`chest.theme()`, a proposal); an item
+  another tool restricted to some members is never counted in a key
+  result's value (above); amounts of different currencies are never
+  converted (no exchange rates).
 
 - **Import**: a CSV only (not .xlsx: save as CSV first); owners are matched
   by name, or by the name in an email address — Goals does not read

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
 import * as expenses from "../src/lib/expenses.ts";
 import { today } from "../src/lib/today.ts";
@@ -13,6 +13,10 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
+import { tool } from "./support/chest.ts";
+
+// A notification as its member reads it (0.7.0's fake keeps each in the member's language).
+const shown = (n: { title: string; body?: string }) => ({ title: n.title, ...(n.body !== undefined ? { body: n.body } : {}) });
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -20,7 +24,7 @@ const cat: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
   for (const r of await database.sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
 });
 after(async () => {
@@ -126,7 +130,7 @@ test("send, then the named approver approves; the owner hears it in their langua
   const sent = await expenses.submit(sql, asMember(hugo), [a.id, b.id], yes);
   assert.equal(sent.approver, ines.id);
   await tell.sent(sql, asMember(hugo), sent);
-  assert.deepEqual(chest.notifications.map(n => [n.member, spaces(shownTo(n, "fr").title), n.key]), [[ines.id, "Hugo Bernard a envoyé 2 dépenses · 60,50 €", `waiting:${hugo.id}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, spaces(shown(n).title), n.key]), [[ines.id, "Hugo Bernard a envoyé 2 dépenses · 60,50 €", `waiting:${hugo.id}`]]);
   assert.equal(chest.badges.get(ines.id), 2);
   // Sent: no more changes, no second sending.
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), a.id, lunch()), refuses("not_draft"));
@@ -159,12 +163,15 @@ test("a refusal needs a reason and brings the expense back to its owner's drafts
   await assert.rejects(expenses.decide(sql, asMember(camille), [a.id], "refuse", "  "), refuses("reason_needed"));
   await assert.rejects(expenses.decide(sql, asMember(ines), [a.id], "refuse", "No"), refuses("not_found"));
   const decisions = await expenses.decide(sql, asMember(camille), [a.id], "refuse", "The date is missing on the receipt");
+  chest.realtime.published.length = 0;
   await tell.decided(sql, asMember(camille), decisions, "refuse", "The date is missing on the receipt");
+  // Léa's "My expenses", left open, is told to read itself again (realtime, no timer).
+  assert.ok(chest.realtime.published.some(p => p.channel === `mine:${lea.id}` && p.event === "expenses.changed"));
   const back = (await expenses.expense(sql, asMember(lea), a.id)).expense;
   assert.equal(back.status, "draft");
   assert.equal(back.refusedReason, "The date is missing on the receipt");
   const bell = chest.notifications.find(n => n.member === lea.id)!;
-  assert.equal(spaces(shownTo(bell, "fr").title), "Camille Martin a refusé une dépense : Chez Paul · 42,50 €");
+  assert.equal(spaces(shown(bell).title), "Camille Martin a refusé une dépense : Chez Paul · 42,50 €");
   assert.equal(bell.body, "The date is missing on the receipt");
   assert.equal(chest.badges.get(lea.id), 1);
   assert.equal(chest.badges.get(camille.id), undefined);
@@ -286,7 +293,7 @@ test("flat rates: units × the rate, in the company's currency, no receipt asked
   assert.equal(one.nights, 1);
   const found = await expenses.warnings(sql, [two, one]);
   assert.equal(found.get(two.id)?.some(w => w.code.startsWith("over_cap")), false);
-  assert.deepEqual(found.get(one.id)?.filter(w => w.code.startsWith("over_cap")), [{ code: "over_cap_night", cap: 10000 }]);
+  assert.deepEqual(found.get(one.id)?.filter(w => w.code.startsWith("over_cap")), [{ code: "over_cap_night", cap: 10000, capCurrency: "EUR" }]);
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ categoryId: cat["lodging"], nights: "0" })), refuses("count_invalid"));
   // Other categories keep no nights.
   assert.equal((await expenses.saveExpense(sql, asMember(hugo), null, lunch({ nights: "3" }))).expense.nights, null);
@@ -514,7 +521,7 @@ test("a limit is in the company's money: an expense in pounds over it is warned,
     const small = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "40", currency: "GBP", rate: "1,20", merchant: "Pret" }))).expense;
     const noRate = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "400", currency: "CHF", merchant: "Kronenhalle" }))).expense;
     const found = await expenses.warnings(sql, [pounds, small, noRate]);
-    assert.deepEqual(found.get(pounds.id)?.filter(w => w.code === "over_cap"), [{ code: "over_cap", cap: 5000 }], "£45 = €54 > €50");
+    assert.deepEqual(found.get(pounds.id)?.filter(w => w.code === "over_cap"), [{ code: "over_cap", cap: 5000, capCurrency: "EUR" }], "£45 = €54 > €50");
     assert.equal(found.get(small.id)?.some(w => w.code === "over_cap") ?? false, false, "£40 = €48");
     assert.deepEqual(found.get(noRate.id)?.map(w => w.code).filter(c => c.startsWith("over")), [], "no rate: said apart");
     // The bound of one expense is in euros too: ten million dong is €360.
@@ -525,5 +532,45 @@ test("a limit is in the company's money: an expense in pounds over it is warned,
     await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "1O,50" })), refuses("amount_invalid"));
   } finally {
     await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: null });
+  }
+});
+
+test("the currency people are paid back in is the tool's own setting: limits, flat rates and the mileage scale keep the code they were entered in", async () => {
+  const { sql } = database;
+  await settings.setVehicle(sql, asMember(lea), { kind: "car", power: "4", electric: false });
+  await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: "50" });
+  const [rate] = await settings.allowances(sql);
+  try {
+    assert.equal((await settings.settings(sql)).currency, "EUR", "EUR until the accountant picks another");
+    await settings.updateSettings(sql, asMember(camille), { currency: "GBP" });
+    // Nothing entered in euros reads as pounds now.
+    assert.equal((await settings.categories(sql)).find(c => c.id === cat["meals"])?.capCurrency, "EUR");
+    assert.equal((await settings.allowances(sql)).find(a => a.id === rate!.id)?.currency, "EUR");
+    assert.equal((await settings.scaleFor(sql, 2026)).currency, "EUR");
+    // A new expense starts in pounds; a lunch of £45 without a rate for the
+    // euro is not compared with the €50 limit (never through a guessed rate).
+    const lunchGbp = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "45" }))).expense;
+    assert.deepEqual([lunchGbp.currency, lunchGbp.base, lunchGbp.baseCurrency], ["GBP", 4500, "GBP"]);
+    assert.deepEqual((await expenses.warnings(sql, [lunchGbp])).get(lunchGbp.id)?.filter(w => w.code.startsWith("over")) ?? [], []);
+    // A flat rate and a trip stay in euros, paid back in pounds once the
+    // company has a rate for the euro; until then, "no rate".
+    const night = await expenses.saveAllowance(sql, asMember(lea), null, { spentOn: "2026-09-10", allowanceId: rate!.id, units: 1 });
+    assert.deepEqual([night.currency, night.amount, night.base], ["EUR", rate!.amount, null]);
+    const trip = await expenses.saveTrip(sql, asMember(lea), null, { spentOn: "2026-09-11", from: "Lyon", to: "Grenoble", distance: "100" });
+    assert.deepEqual([trip.currency, trip.base], ["EUR", null]);
+    assert.ok((await expenses.warnings(sql, [trip])).get(trip.id)?.some(w => w.code === "no_rate"));
+    await settings.setRate(sql, asMember(camille), "EUR", "0,85");
+    const [nightNow, tripNow] = await Promise.all([night.id, trip.id].map(async id => (await expenses.expense(sql, asMember(lea), id)).expense));
+    assert.deepEqual([nightNow!.baseCurrency, nightNow!.base], ["GBP", Math.round(rate!.amount * 0.85)]);
+    assert.deepEqual([tripNow!.currency, tripNow!.baseCurrency, tripNow!.base], ["EUR", "GBP", Math.round(tripNow!.amount * 0.85)]);
+    // Entered again, a limit is in pounds.
+    await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: "40" });
+    assert.equal((await settings.categories(sql)).find(c => c.id === cat["meals"])?.capCurrency, "GBP");
+    assert.deepEqual((await expenses.warnings(sql, [lunchGbp])).get(lunchGbp.id)?.filter(w => w.code === "over_cap"), [{ code: "over_cap", cap: 4000, capCurrency: "GBP" }]);
+  } finally {
+    await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: null });
+    await settings.setRate(sql, asMember(camille), "EUR", "").catch(() => undefined);
+    await settings.updateSettings(sql, asMember(camille), { currency: "EUR" });
+    await sql`delete from expenses where member_id = ${lea.id}`;
   }
 });

@@ -1,9 +1,10 @@
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
-import { refreshFed } from "./sources.ts";
+import { audienceOf, refreshFed } from "./sources.ts";
 
-// Key results fed by Clients, the CRM (Proposal (studio): events between
-// tools, once an admin linked the two in the Chest). Clients tells each
+// Key results fed by Clients, the CRM (SDK 0.5+: events between tools,
+// once the owner approved the link). A deal Clients shows to some members
+// only (its audience) is kept, never counted (lib/sources.ts). Clients tells each
 // deal won and each won deal reopened; Goals keeps only what a key result
 // needs — the deal's reference, amount, currency and when it was won —
 // and sets the value of every key result fed by it: the amount won, or the
@@ -30,8 +31,8 @@ export async function dealWon(sql: Sql, event: ToolEvent): Promise<void> {
   const code = typeof currency === "string" && /^[A-Z]{3}$/u.test(currency) ? currency : null;
   const at = Number.isNaN(Date.parse(event.occurredAt)) ? new Date() : new Date(event.occurredAt);
   await sql`
-    insert into crm_deals (deal, amount_cents, currency, won_at) values (${deal}, ${cents}, ${code}, ${at})
-    on conflict (deal) do update set amount_cents = excluded.amount_cents, currency = excluded.currency, won_at = excluded.won_at, updated_at = now()`;
+    insert into crm_deals (deal, amount_cents, currency, won_at, audience) values (${deal}, ${cents}, ${code}, ${at}, ${audienceOf(event)})
+    on conflict (deal) do update set amount_cents = excluded.amount_cents, currency = excluded.currency, won_at = excluded.won_at, audience = excluded.audience, updated_at = now()`;
   await refreshFed(sql);
 }
 

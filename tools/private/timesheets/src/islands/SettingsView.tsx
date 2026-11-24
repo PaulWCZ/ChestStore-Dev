@@ -2,7 +2,7 @@ import { call, toast } from "@argentic/chest-app/client";
 import { useStep } from "../components/step.ts";
 import { DateField, Segmented } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import { Lock } from "../components/icons.tsx";
+import { Lock, People } from "../components/icons.tsx";
 import { hoursText, parseHours } from "../shared/amounts.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay } from "../i18n/format.ts";
@@ -15,6 +15,9 @@ type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; dat
 export function SettingsView(props: {
   today: string; lockedUntil: string | null; lockText: string | null; lastMonth: { day: string; label: string; done: boolean };
   reminder: { enabled: boolean; minutes: number }; approvals: boolean; hoursStyle: HoursStyle; comma: boolean; locale: string; t: Words;
+  // The tool's currency (the Chest has none): fixed once time was invoiced
+  // or handed to Quotes (src/lib/money.ts).
+  money: { currency: string; currencies: string[]; fixed: boolean };
 }) {
   const { t } = props;
   const w = t.settings;
@@ -27,6 +30,16 @@ export function SettingsView(props: {
   const [threshold, setThreshold] = useState(hoursText(props.reminder.minutes, props.comma));
   const [approvals, setApprovals] = useState(props.approvals);
   const [style, setStyle] = useState(props.hoursStyle);
+  const [code, setCode] = useState(props.money.currency);
+  function chooseCurrency(next: string) {
+    const before = code;
+    setCode(next);
+    start(async () => {
+      const r = await call("saveCurrency", { currency: next });
+      if (!r.ok) return void setCode(before);
+      toast({ id: "currency", text: w.money.saved });
+    });
+  }
   function choose(input: { approvals?: boolean; hoursStyle?: HoursStyle }) {
     start(async () => {
       const r = await call("saveChoices", input);
@@ -92,6 +105,18 @@ export function SettingsView(props: {
       <section className="panel" aria-labelledby="hours-title">
         <h2 id="hours-title">{w.hours.title}</h2>
         <Segmented label={w.hours.title} name="hours-style" value={style} options={(["clock", "decimal"] as const).map(k => ({ value: k, label: w.hours[k] }))} onChange={k => { setStyle(k); choose({ hoursStyle: k }); }} />
+      </section>
+      <section className="panel" aria-labelledby="money-title">
+        <h2 id="money-title">{w.money.title}</h2>
+        <p>{w.money.body}</p>
+        <div className="inline-form">
+          <label className="label" htmlFor="currency">{w.money.currency}</label>
+          <select id="currency" className="field short" value={code} disabled={pending || props.money.fixed} aria-describedby="currency-hint" onChange={e => chooseCurrency(e.target.value)}>
+            {props.money.currencies.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <p id="currency-hint" className="hint">{props.money.fixed ? format(w.money.fixed, { currency: code }) : w.money.correct}</p>
+        <p><a className="button quiet" href="/chest/people"><People />{w.peopleLink}</a></p>
       </section>
     </>
   );

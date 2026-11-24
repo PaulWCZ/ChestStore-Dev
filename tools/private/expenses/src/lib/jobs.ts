@@ -5,6 +5,7 @@ import { plural } from "../i18n/index.ts";
 import { cut, notify } from "./notify.ts";
 import { accountants } from "./people.ts";
 import { cleanUploads, forget } from "./receipts.ts";
+import { resealLegacy } from "./bank.ts";
 import { settings } from "./settings.ts";
 import { totalText } from "./tell.ts";
 
@@ -46,11 +47,13 @@ export async function reminder(sql: Sql, _run?: Run): Promise<number> {
 
 // "cleanup", every night: receipts uploaded but never put on an expense
 // (after a day), and deleted drafts (after a week, the time of Undo), go
-// with their files.
-export async function cleanup(sql: Sql, _run?: Run): Promise<{ uploads: number; drafts: number }> {
+// with their files; bank details kept in the tool's own formats before the
+// Chest sealed them are sealed by the Chest (src/lib/seal.ts).
+export async function cleanup(sql: Sql, _run?: Run): Promise<{ uploads: number; drafts: number; resealed: number }> {
   const uploads = await cleanUploads(sql);
   const gone = await sql<{ receipt_object: string | null }[]>`
     delete from expenses where deleted_at is not null and deleted_at < now() - interval '7 days' and status = 'draft' returning receipt_object`;
   await forget(gone.map(g => g.receipt_object).filter((o): o is string => o !== null));
-  return { uploads, drafts: gone.length };
+  const resealed = await resealLegacy(sql);
+  return { uploads, drafts: gone.length, resealed };
 }

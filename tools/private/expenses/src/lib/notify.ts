@@ -1,5 +1,6 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as notifications from "@argentic/chest-sdk/notifications";
+import * as realtime from "@argentic/chest-sdk/realtime";
 import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 
 // Items in the Chest's inbox. One notice per call, written in every
@@ -73,4 +74,22 @@ const breakable = /[^\S\u00a0\u2007\u202f]+/gu;
 export function cut(text: string, max: number): string {
   const chars = [...text.replace(breakable, " ").trim()];
   return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("") + "…";
+}
+
+// live tells the open pages of these members ("My expenses", joined to
+// their own channel `mine:<id>`, chest.json "realtime") that someone else
+// changed their expenses — approved, refused, paid, a card payment's draft —
+// so the page reads itself again; the Chest holds the connection, the tool
+// sleeps meanwhile. The approvers' page follows the table itself (the feed
+// of `expenses` on `desk`). A courtesy too: when the Chest cannot take it,
+// the page is right at its next reading.
+export async function live(members: Iterable<string>): Promise<void> {
+  for (const id of new Set(members)) {
+    if (!id.startsWith("mbr_")) continue;
+    try {
+      await realtime.publish(`mine:${id}`, "expenses.changed");
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
+  }
 }

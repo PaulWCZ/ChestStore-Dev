@@ -1,4 +1,4 @@
-import { chest } from "@argentic/chest-sdk/chest";
+import { currencyFor, defaultCurrency } from "./money.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, mayCheckIn, mayEdit } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -30,7 +30,7 @@ export async function addKeyResult(sql: Sql, actor: Member | null, objectiveId: 
   if (!o) throw new AppError("not_found");
   if (!mayEdit(actor, o)) throw new AppError("forbidden");
   await openCycle(sql, String(o.cycle_id));
-  const k = await checkKeyResult(input, o.owner);
+  const k = await checkKeyResult(sql, input, o.owner);
   const [{ n }] = (await sql<{ n: string }[]>`select count(*) as n from key_results where objective_id = ${o.id} and archived_at is null`) as unknown as [{ n: string }];
   if (Number(n) >= limits.keyResultsPerObjective) throw new AppError("too_many", { max: limits.keyResultsPerObjective });
   return { id: await insertKeyResult(sql, actor, String(o.id), k), owner: k.owner, title: k.title, objectiveTitle: o.title };
@@ -50,6 +50,10 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
   let m: { kind: Kind; unit: string; start: number; target: number } | undefined;
   if (source) input = { ...input, kind: sourceKind(source) };
   const feed = checkFeed(source, input.mine === undefined ? k.source_mine : input.mine, input.scope === undefined ? k.source_scope : input.scope);
+  // A money key result's currency: the one chosen now, else its own, else
+  // the tool's default (the Chest has none).
+  const chosen = input.currency === undefined || input.currency === null || input.currency === "" ? null : await currencyFor(sql, input.currency);
+  const fallback = await defaultCurrency(sql);
   if (input.kind !== undefined || input.start !== undefined || input.target !== undefined || input.unit !== undefined) {
     const kind = input.kind ?? k.kind;
     m = measure({ kind, unit: input.unit ?? k.unit, start: input.start ?? k.start_value, target: input.target ?? k.target_value });
@@ -85,7 +89,7 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
       await tx`
         update key_results set kind = ${m.kind}, unit = ${m.unit}, start_value = ${m.start}, target_value = ${m.target},
           current_value = case when ${checked}::boolean or current_value <> start_value then current_value else ${m.start} end,
-          currency = case when ${m.kind} = 'money' then coalesce(currency, ${chest.currency}) else null end
+          currency = case when ${m.kind} = 'money' then coalesce(${chosen}, currency, ${fallback}) else null end
         where id = ${k.id}`;
     }
     if (source !== k.source || feed.mine !== k.source_mine || feed.scope !== k.source_scope) await tx`update key_results set source = ${source}, source_mine = ${feed.mine}, source_scope = ${feed.scope} where id = ${k.id}`;

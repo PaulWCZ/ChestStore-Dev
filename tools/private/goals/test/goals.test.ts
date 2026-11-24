@@ -9,6 +9,7 @@ import { archiveObjective, carryOver, createObjective, readObjective, restoreObj
 import { cycleObjectives, cycles, objectiveById, ownedBy, waitingCounts } from "../src/lib/read.ts";
 import { addAllGroups, addGroupTeam, addTeam, archiveTeam, renameTeam, saveSettings, settings, teams } from "../src/lib/teams.ts";
 import { clockAt } from "../src/lib/tell.ts";
+import { defaultCurrency, saveCurrency } from "../src/lib/money.ts";
 import { today } from "../src/lib/time.ts";
 import { asMember } from "./support/member.ts";
 import { camille, groups, hugo, ines, nora, sofia } from "./support/members.ts";
@@ -265,4 +266,27 @@ test("comments: everyone with a role writes; authors edit theirs; authors and ad
   await restoreComment(sql, sofiaM, comment.id);
   const list = await comments(sql, company.id);
   assert.deepEqual(list.map(c => [c.body, c.edited]).at(-1), ["Can the workshop help with deliveries?", true]);
+});
+
+test("money: the Chest has none — a new money key result starts in the tool's default currency, or keeps the one chosen; changing the default changes none", async () => {
+  const { sql } = w.database;
+  const [cycle] = (await cycles(sql)).filter(c => c.current);
+  const goal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
+  assert.equal(await defaultCurrency(sql), "EUR");
+  await assert.rejects(saveCurrency(sql, hugoM, "GBP"), refused("forbidden"));
+  await assert.rejects(saveCurrency(sql, admin, "XYZ"), refused("invalid"));
+  const euros = await addKeyResult(sql, inesM, goal.id, { title: "Revenue (EUR)", kind: "money", start: "0", target: "1000" });
+  const yen = await addKeyResult(sql, inesM, goal.id, { title: "Revenue in Japan", kind: "money", start: "0", target: "500000", currency: "JPY" });
+  await assert.rejects(addKeyResult(sql, inesM, goal.id, { title: "Bad", kind: "money", target: "1", currency: "XYZ" }), refused("invalid"));
+  assert.equal(await saveCurrency(sql, admin, "gbp"), "GBP");
+  const pounds = await addKeyResult(sql, inesM, goal.id, { title: "Revenue (GBP)", kind: "money", start: "0", target: "800" });
+  const byId = async (id: string) => (await objectiveById(sql, goal.id, clockAt(), null))!.keyResults.find(k => k.id === id)!.currency;
+  assert.deepEqual([await byId(euros.id), await byId(yen.id), await byId(pounds.id)], ["EUR", "JPY", "GBP"], "each keeps its own");
+  // Edited without a currency: it keeps its own; with one: that one.
+  await updateKeyResult(sql, inesM, euros.id, { kind: "money", target: "2000" });
+  assert.equal(await byId(euros.id), "EUR");
+  await updateKeyResult(sql, inesM, euros.id, { kind: "money", target: "2000", currency: "CHF" });
+  assert.equal(await byId(euros.id), "CHF");
+  await saveCurrency(sql, admin, "EUR");
+  for (const k of [euros, yen, pounds]) await archiveKeyResult(sql, inesM, k.id, true);
 });

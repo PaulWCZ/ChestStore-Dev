@@ -88,7 +88,7 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
     title: t.home.title,
     body: (
       <div className="narrow">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
         {head(chip, actions)}
 
         {lost > 0 && (

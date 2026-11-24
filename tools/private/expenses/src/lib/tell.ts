@@ -3,7 +3,7 @@ import type { Query } from "./db.ts";
 import { decideCounts, waitingCounts, totals, type Decision, type Expense, type Total } from "./expenses.ts";
 import { format, formatDate, plural, shortDate } from "../i18n/index.ts";
 import { formatMoney } from "../shared/money.ts";
-import { badges, notify, withdraw } from "./notify.ts";
+import { badges, live, notify, withdraw } from "./notify.ts";
 import { receiptsOwed } from "./cards.ts";
 import { accountants } from "./people.ts";
 
@@ -74,6 +74,7 @@ export async function paid(sql: Query, actor: Member, decisions: Decision[], pai
       body: d.expenses.map(e => what(e, locale)).join("\n"),
     }), { path: "/chest", key: `paid:${d.owner}` });
   }
+  await live(decisions.map(d => d.owner).filter(owner => owner !== actor.id));
   await refresh(sql, [actor.id]);
 }
 
@@ -85,8 +86,10 @@ export async function unpaid(sql: Query, owners: string[]): Promise<void> {
   await refresh(sql, owners);
 }
 
-// refresh sets the tile's number of these members and of the accountants.
+// refresh sets the tile's number of these members and of the accountants,
+// and tells these members' open pages to read themselves again.
 export async function refresh(sql: Query, people: string[]): Promise<void> {
+  await live(people);
   const accounting = await accountants();
   const ids = [...new Set([...people, ...accounting])].filter(p => p.startsWith("mbr_"));
   if (ids.length === 0) return;

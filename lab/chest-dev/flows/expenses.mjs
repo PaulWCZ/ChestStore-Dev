@@ -2,10 +2,11 @@
 // (the harness runs the tool with --reset: the sample month is there).
 // Hugo (employee, English) on a phone after lunch; Inès (approver, French);
 // Camille (accountant, French) pays and exports; Tom and Nora are refused.
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4900);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, allow404: /\/chest\/expenses\/1$|\/chest\/receipts\/\d+\?size=256$/u });
+// 404s expected: Hugo's expense 1 for Tom (rights), the draft 10 (Chez Janou) once deleted (the page reads itself again).
+const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, allow404: /\/chest\/expenses\/(?:1|10)$|\/chest\/receipts\/\d+\?size=256$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
 // The steps save and pay on the day they run: the exports ask for that month.
 const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
@@ -164,7 +165,7 @@ await step("send the drafts to Inès in one tap", async () => {
   expect(text.includes("Chez Janou"), "the unticked one stays a draft");
   // Inès hears of it in her inbox, in French (the notice's translation).
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  expect(dev.includes("Hugo Bernard sent 3 expenses") && dev.includes("fr: Hugo Bernard a envoyé 3 dépenses"), "Inès told, the French words with the notice");
+  expect(dev.includes("Hugo Bernard a envoyé 3 dépenses"), "Inès told, in her language (French)");
 });
 
 await step("Inès, in French: refuses the taxi without receipt, approves the rest of Hugo's", async () => {
@@ -502,7 +503,8 @@ await step("the 25th: a reminder to those with drafts, and to approvers with exp
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Send your expenses before the end of the month") && dev.includes("Envoyez vos notes de frais avant la fin du mois"), "reminders in English and French");
-  expect(/<b>Inès Moreau<\/b>[^<]*· \d+ expenses? waits? for your approval/u.test(dev) && /fr: \d+ dépenses? attendent? votre validation/u.test(dev), "Inès nudged of what waits for her, in both languages");
+  // Each member reads the Chest's item in their own language (SDK 0.7.0): Inès in French.
+  expect(/<b>Inès Moreau<\/b>[^<]*· \d+ dépenses? attendent? votre validation/u.test(dev), "Inès nudged of what waits for her, in her language");
 });
 
 await step("Tom claims a flat rate: two meals away from home", async () => {
@@ -651,6 +653,40 @@ await step("rights: an employee cannot pay or see another's expense; no role, no
   await as(context, origin, "nora");
   await page.goto(origin + "/chest");
   expect((await page.locator("main").innerText()).includes("Tu ne peux") || (await page.locator("main").innerText()).includes("pas encore accès"), "no role");
+});
+
+// SDK 0.7.0: a page left open follows the Chest's realtime, never a timer.
+// (The harness's fake Chest relays what the tool publishes; it turns no
+// database write into a feed's row, so "To approve" — the feed of the table
+// expenses on `desk` — is proven by the tests, and "My expenses" — what the
+// tool publishes on `mine:<id>` — here.)
+await step("a page left open follows the Chest's realtime: Inès refuses Hugo's new expense, Hugo's open page shows it without a reload", async () => {
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await other.addCookies([{ name: "dev_member", value: id("hugo"), url: origin }]);
+  const watcher = await other.newPage();
+  const sockets = [];
+  watcher.on("websocket", ws => sockets.push(ws.url()));
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  const sent = await page.evaluate(async () => {
+    const call = (name, body) => fetch("/chest/actions/" + name, { method: "POST", headers: { "content-type": "application/json", "x-tool-action": "1" }, body: JSON.stringify(body) }).then(r => r.json());
+    const saved = await call("saveExpense", { id: null, input: { spentOn: "2026-09-29", amount: "9,40", categoryId: "1", merchant: "Boulangerie du Live", paidBy: "me", alone: true } });
+    if (!saved.ok) return saved;
+    const out = await call("sendExpenses", { ids: [saved.value.id] });
+    return { ...out, id: saved.value.id };
+  });
+  expect(sent.ok, "sent: " + JSON.stringify(sent));
+  await watcher.goto(origin + "/chest");
+  await watcher.waitForTimeout(1500);
+  expect(sockets.some(u => u.endsWith("/_chest/realtime")), "the page joined the Chest's realtime: " + sockets.join(", "));
+  const row = watcher.locator(".row", { hasText: "Boulangerie du Live" });
+  expect(!(await row.innerText()).includes("Refused"), "not refused yet: " + (await row.innerText()));
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/approve");
+  const refused = await page.evaluate(async id => (await fetch("/chest/actions/decideExpenses", { method: "POST", headers: { "content-type": "application/json", "x-tool-action": "1" }, body: JSON.stringify({ ids: [id], verdict: "refuse", reason: "Pas de justificatif" }) })).json(), sent.id);
+  expect(refused.ok, "refused: " + JSON.stringify(refused));
+  await watcher.waitForFunction(() => [...document.querySelectorAll(".row")].some(r => r.textContent.includes("Boulangerie du Live") && r.textContent.includes("Pas de justificatif")), null, { timeout: 10000 });
+  await other.close();
 });
 
 await step("phone width: no page scrolls sideways", async () => {

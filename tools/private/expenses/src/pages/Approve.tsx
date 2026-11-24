@@ -42,7 +42,7 @@ export async function approvePage({ member, t, locale: language }: PageContext):
     title: t.approve.title,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ channel: "desk", names: ["expenses"] }} />
         <div className="page-head"><h1>{t.approve.title}</h1></div>
         <Island
           name="ApproveView"
