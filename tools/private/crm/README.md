@@ -241,6 +241,11 @@ Data are flat: the contract's kinds have no object.
 
 ### What Clients tells
 
+An `amount` in an event between tools is, by the studio's rule, an integer
+in its currency's ISO 4217 minor unit (¥10,000 is 10000, 12.340 KWD is
+12340). Clients keeps hundredths of every currency (`deals.value_cents`)
+and converts when it emits (`src/lib/share.ts` `minorUnits`).
+
 | Event | When | Data |
 |---|---|---|
 | `crm.deal.won` | A deal enters Won (board drop or the Won button, after the reason) | `{ deal, title, amount` (in the currency's minor unit) `, currency` (the deal's, ISO 4217) `, owner?, companyRef?, companyName?, companyAddress?, companyPostcode?, companyCity?, companyCountry?, companySiren?, companyVat?, companyEmail?, contactName?, contactEmail? }` — subject `deal:<deal>`, key `crm:<deal>:won:<time>`, no audience (every member of Clients reads every deal) |

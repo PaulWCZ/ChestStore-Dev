@@ -309,6 +309,10 @@ shows each member their language (`src/lib/notify.ts`). **`realtime`**
 
 ## With the other tools
 
+An `amount` (and a rate) in an event between tools is, by the studio's
+rule, an integer in its currency's ISO 4217 minor unit. Timesheets allows
+only currencies with two decimals, so its cents are that unit.
+
 **Timesheets → Quotes: `timesheets.billable`** (declared in `chest.json`
 `"emits"`, each field typed: 0.7.0's data is flat). Emitted when a manager
 presses *Draft invoice in Quotes*, one per project and period, with the

@@ -63,3 +63,24 @@ test("amount and number of deals won in the cycle follow what Clients tells", as
   await sql`delete from cycles`;
   await sql`delete from teams`;
 });
+
+// The rule of every event between tools: an amount is in its currency's
+// ISO 4217 minor unit. Exactly what Clients emits (flat, minor units,
+// optional fields left out): ¥10,000 is 10000, 12.340 KWD is 12340.
+test("an amount won in yen or in dinars is read in the currency's minor unit, as Clients emits it", async () => {
+  const { sql } = w.database;
+  const { cycle } = await running(w);
+  const o = await createObjective(sql, admin, {
+    cycleId: cycle.id, level: "company", title: "Grow abroad",
+    keyResults: [
+      { title: "Revenue in Japan", source: "crm.won_amount", start: "0", target: "100000", currency: "JPY", owner: ines.id },
+      { title: "Revenue in Kuwait", source: "crm.won_amount", start: "0", target: "100", currency: "KWD", owner: ines.id },
+    ],
+  });
+  const emitted = (deal: string, amount: number, currency: string) =>
+    w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal, title: "Deal " + deal, amount, currency, owner: ines.id, companyRef: "co-" + deal, companyName: "Client " + deal } }, POST);
+  assert.equal(await emitted("JP-1", 10000, "JPY"), 204);
+  assert.equal(await emitted("KW-1", 12340, "KWD"), 204);
+  const current = (await objectiveById(sql, o.id, clockAt(), null))!.keyResults.map(k => k.current);
+  assert.deepEqual(current, [10000, 12.34]);
+});

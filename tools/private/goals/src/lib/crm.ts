@@ -17,7 +17,10 @@ import { audienceOf, refreshFed } from "./sources.ts";
 // query between tools (reports/03-sdk-report.md).
 //
 // Data, as Clients publishes it (tools/private/crm/lib/share.ts):
-//   crm.deal.won      { deal, title, amount: cents | null, currency, company, contact, owner }
+//   crm.deal.won      { deal, title, amount: minor units of currency | null, currency, owner?, company…, contact… }
+// The rule of every event between tools: an amount is in its currency's
+// ISO 4217 minor unit (¥10,000 is 10000, 12.340 KWD is 12340); kept as it
+// comes (crm_deals.amount_cents holds minor units, whatever its name).
 //   crm.deal.reopened { deal }
 // Anything of another shape is accepted and ignored. The other tools'
 // sources, and the one refresh of every fed value, are lib/sources.ts.
