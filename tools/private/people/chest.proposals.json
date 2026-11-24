@@ -2,18 +2,6 @@
   "mail": {
     "send": true
   },
-  "emits": [
-    "people.leaving",
-    "people.leaving_cancelled",
-    "people.record"
-  ],
-  "receives": [
-    "hiring.hired",
-    "hiring.hire_cancelled",
-    "leave.approved",
-    "leave.cancelled",
-    "equipment.returned"
-  ],
   "translations": {
     "fr": {
       "title": "Équipe",

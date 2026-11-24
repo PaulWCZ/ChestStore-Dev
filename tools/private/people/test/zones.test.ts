@@ -16,7 +16,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase({ timeZone: zone });
-  chest = await fakeChest({ network: {}, tool: "people", chest: { timeZone: zone }, members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, tool: "people", chest: { timeZone: zone }, members: everyone });
 });
 after(async () => {
   await chest.close();

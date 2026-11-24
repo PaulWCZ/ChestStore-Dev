@@ -223,7 +223,7 @@ await step("a departure is told to the other tools; stopped, it is taken back; U
   await page.locator(".ck-toast", { hasText: "Checklist stopped." }).locator(".ck-toast-undo").click();
   await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   const after = await published();
-  expect(after.length === 3 && after[1].includes("people.leaving_cancelled") && after[0].includes("people.leaving ") && after[0].includes("2026-12-18"), "stopped then restarted: " + after.join(" | "));
+  expect(after.length === 3 && after[1].includes("people.leaving-cancelled") && after[0].includes("people.leaving ") && after[0].includes("2026-12-18"), "stopped then restarted: " + after.join(" | "));
 });
 
 await step("HR imports a spreadsheet: sees the plan, imports", async () => {
@@ -469,7 +469,7 @@ await step("People tells Leave what a record says of Tom: his number, first day 
   await page.locator(".ck-toast", { hasText: "Record saved." }).waitFor();
   await page.goto(origin + "/_dev");
   const told = await page.locator("li", { has: page.locator("code", { hasText: "people.record" }) }).allInnerTexts();
-  expect(told.some(x => x.includes(id("tom")) && x.includes("T-0019") && x.includes("[1,2,3,4,5]")), "people.record told: " + told.join(" | "));
+  expect(told.some(x => x.includes(id("tom")) && x.includes("T-0019") && x.includes('"workDays":"1,2,3,4,5"')), "people.record told: " + told.join(" | "));
 });
 
 await step("HR imports HR records from Lucca's export: the plan, a column left out named, a new record for someone without the Chest", async () => {
@@ -570,15 +570,20 @@ async function deliver(type, data) {
 
 await step("Hiring tells of a hire: HR sees the arrival and prepares it before he has access", async () => {
   await as(context, origin, "camille");
-  await deliver("hiring.hired", { candidate: "cand_7", name: "Marc Lefort", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: id("ines") });
+  // A first day three weeks ahead (a past one gets no welcome line).
+  const first = new Date(Date.now() + 21 * 864e5);
+  const firstIso = first.toISOString().slice(0, 10);
+  const firstLong = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }).format(first);
+  const firstShort = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(first);
+  await deliver("hiring.hired", { candidate: "cand_7", name: "Marc Lefort", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: firstIso, hiredBy: id("ines") });
   await page.goto(origin + "/chest/checklists");
   const arrival = page.locator(".arrival", { hasText: "Marc Lefort" });
-  expect((await arrival.innerText()).includes("Sales associate") && (await arrival.innerText()).includes("2 November"), "arrival shown");
+  expect((await arrival.innerText()).includes("Sales associate") && (await arrival.innerText()).includes(firstLong), "arrival shown");
   await arrival.getByRole("link", { name: "Start the arrival checklist" }).click();
   await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
   await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
   await page.getByRole("option", { name: "Inès Moreau" }).click();
-  expect((await page.getByLabel("First day").inputValue()) === "02/11/2026", "first day from Hiring: " + await page.getByLabel("First day").inputValue());
+  expect((await page.getByLabel("First day").inputValue()) === firstShort, "first day from Hiring: " + await page.getByLabel("First day").inputValue());
   // Hiring's personal address is never kept: the form says, before
   // starting, that no welcome email will leave (and why).
   const noWelcome = await page.locator("[data-welcome]").innerText();
@@ -590,7 +595,7 @@ await step("Hiring tells of a hire: HR sees the arrival and prepares it before h
 });
 
 await step("a hire cancelled after the checklist started: marked cancelled, HR removes it", async () => {
-  await deliver("hiring.hire_cancelled", { candidate: "cand_7" });
+  await deliver("hiring.hire-cancelled", { candidate: "cand_7" });
   await page.goto(origin + "/chest/checklists");
   const arrival = page.locator(".arrival", { hasText: "Marc Lefort" });
   expect((await arrival.innerText()).includes("Hire cancelled"), "cancelled");
@@ -791,8 +796,9 @@ await step("a member's welcome checklist: the form promises a welcome in her not
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   await page.locator(".ck-toast", { hasText: "Started. Léa Dubois finds a short welcome in their notifications." }).waitFor();
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const item = (dev.match(/<li><b>Léa Dubois<\/b> · Welcome to Atelier Martin, Léa[\s\S]*?<\/li>/u) ?? [""])[0];
-  expect(item.includes("fr: Bienvenue chez Atelier Martin, Léa") && item.includes("/chest/todo"), "her welcome notice: " + item);
+  // Sent in English with its French: the Chest shows Léa (French) hers.
+  const item = (dev.match(/<li><b>Léa Dubois<\/b> · Bienvenue chez Atelier Martin, Léa[\s\S]*?<\/li>/u) ?? [""])[0];
+  expect(item.includes("Bienvenue chez Atelier Martin, Léa") && item.includes("/chest/todo"), "her welcome notice: " + item);
   expect(!/<pre>[^<]*Hello Léa/u.test(dev), "no welcome email to a member");
 });
 

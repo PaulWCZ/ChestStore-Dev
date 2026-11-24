@@ -17,12 +17,12 @@ import { BackLink } from "./parts.tsx";
 // One employee record. HR edits it (every visit and change is noted); the
 // person it is about reads it; anyone else is told it does not exist
 // (lib/records.ts refuses not_found: a 404 page).
-export async function recordPage({ member, locale, t, param }: PageContext): Promise<View> {
+export async function recordPage({ member, locale, t, param, request }: PageContext): Promise<View> {
   const sql = db();
-  const { record: r, access } = await record(sql, member, param("id"));
+  const { record: r, access } = await record(sql, member, param("id"), request);
   const edit = access === "edit";
   // A change the person asked (address, emergency contact), waiting for HR.
-  const asked = await waitingChange(sql, member, r.id);
+  const asked = await waitingChange(sql, member, r.id, request);
   const waiting = asked ? { id: asked.id, changes: asked.changes, note: asked.note, asked: formatDate(asked.createdAt, locale, member.timeZone, { day: "numeric", month: "long" }) } : null;
   const askableNow = { address: r.address, emergencyName: r.emergencyName, emergencyRelation: r.emergencyRelation, emergencyPhone: r.emergencyPhone };
   const letterList = edit ? (await listLetters(sql, member)).map(l => ({ id: l.id, name: shown(l, t).name })) : [];
@@ -60,6 +60,8 @@ export async function recordPage({ member, locale, t, param }: PageContext): Pro
         </div>
         <p className="banner private"><Lock />{edit ? (r.memberId ? format(t.record.hrOnly, { name: personName }) : t.record.hrOnlyOther) : t.record.readOnly}</p>
         {r.erased && <p className="banner warn"><Shield />{t.records.erased}</p>}
+        {r.sealed === "locked" && <p className="banner warn" role="status"><Lock />{t.record.sealedLocked}</p>}
+        {edit && r.sealed === "open" && <p className="muted small"><Lock /> {t.record.sealedNote}</p>}
         {edit && gaps.length > 0 && <p className="banner warn" role="status">{format(t.record.missing, { list: gaps.map(fieldWord).join(", ") })}</p>}
 
         {edit && waiting && <Island id={`answer-${waiting.id}`} name="AnswerChange" props={{ name: personName, waiting, current: askableNow, t: changeWords }} />}
@@ -151,6 +153,9 @@ type RecordWords = Catalogue["record"];
 // The person's own record, read-only: what HR keeps about them.
 function ReadOnly({ r, day, tutor, locale, t }: { r: HrRecord; day: (d: string | null) => string; tutor: string; locale: string; t: RecordWords }) {
   const item = (label: string, value: string) => <div><dt>{label}</dt><dd>{value || <span className="muted">{t.empty}</span>}</dd></div>;
+  // The sealed part (address, emergency contact): its value, or why it
+  // cannot be shown.
+  const sealedItem = (label: string, value: string) => (r.sealed === "open" ? item(label, value) : <div><dt>{label}</dt><dd><span className="muted">{r.sealed === "locked" ? t.sealedLocked : t.sealedHidden}</span></dd></div>);
   return (
     <>
       <section className="card-block readonly">
@@ -162,7 +167,7 @@ function ReadOnly({ r, day, tutor, locale, t }: { r: HrRecord; day: (d: string |
           {item(t.fields.nationality, r.nationality)}
           {r.workPermit && item(t.fields.workPermit, r.workPermit)}
           {r.permitEnd && item(t.fields.permitEnd, day(r.permitEnd))}
-          {item(t.fields.address, r.address)}
+          {sealedItem(t.fields.address, r.address)}
         </dl>
       </section>
       <section className="card-block readonly section">
@@ -186,10 +191,11 @@ function ReadOnly({ r, day, tutor, locale, t }: { r: HrRecord; day: (d: string |
       <section className="card-block readonly section">
         <h2 className="legend">{t.emergency}</h2>
         <dl className="grid-2">
-          {item(t.fields.emergencyName, r.emergencyName)}
-          {item(t.fields.emergencyRelation, r.emergencyRelation)}
-          {item(t.fields.emergencyPhone, r.emergencyPhone)}
+          {sealedItem(t.fields.emergencyName, r.emergencyName)}
+          {sealedItem(t.fields.emergencyRelation, r.emergencyRelation)}
+          {sealedItem(t.fields.emergencyPhone, r.emergencyPhone)}
         </dl>
+        <p className="muted small"><Lock /> {t.sealedNote}</p>
       </section>
     </>
   );

@@ -7,7 +7,7 @@ import { stepText } from "../lib/examples.ts";
 import { myItems } from "../lib/journeys.ts";
 import { people, subjectOf } from "../lib/people.ts";
 import { refreshBadges } from "../lib/tell.ts";
-import { todayOf } from "../lib/zone.ts";
+import { today } from "../lib/zone.ts";
 import { dueState } from "../shared/model.ts";
 import type { Group } from "../islands/TodoList.tsx";
 
@@ -21,8 +21,9 @@ export async function todoPage({ member, locale, t }: PageContext): Promise<View
   // two morning runs): set it right here.
   await refreshBadges(sql, [member.id]);
   const who = await people(groups.flatMap(g => (g.journey.personId ? [g.journey.personId] : [])));
-  // "Today" and "late" as the reader lives them: their own zone.
-  const now = todayOf(member);
+  // "Today" and "late": the company's day, the same for every member
+  // (SDK 0.7.0's Times: a deadline's day is the company's).
+  const now = today();
   const shown: Group[] = groups.map(g => {
     const person = subjectOf(g.journey, who, locale);
     const mine = g.journey.personId === member.id;
@@ -43,7 +44,7 @@ export async function todoPage({ member, locale, t }: PageContext): Promise<View
     title: t.todo.title,
     body: (
       <div className="page narrow">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ follow: [{ channel: "people", names: ["journeys", "journey_items"] }] }} />
         <PageHeader title={t.todo.title} intro={plural(t.todo.summary, open, locale)} />
         {shown.length === 0 ? (
           <EmptyState icon={<CheckList />} title={t.todo.empty.title} body={t.todo.empty.body} />

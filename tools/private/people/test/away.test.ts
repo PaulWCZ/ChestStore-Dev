@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -76,21 +76,21 @@ test("a leave approved in Leave shows the person away; cancelled, it goes — an
   const now = today();
   const leave = { member: hugo.id, from: addDays(now, -1), to: addDays(now, 2), fromHalf: "am", toHalf: "pm", request: "42" };
   assert.equal(await told("leave.approved", leave, { occurredAt: new Date(Date.now() - 60_000).toISOString() }), 204);
-  assert.deepEqual([...(await awayOf(sql, [hugo.id, ines.id], now)).keys()], [hugo.id]);
+  assert.deepEqual([...(await awayOf(sql, [hugo.id, ines.id], now, hugo.id)).keys()], [hugo.id]);
   // Only the dates: never the kind of leave nor a note.
   const columns = (await sql`select column_name from information_schema.columns where table_name = 'away' order by column_name`).map(c => c["column_name"]);
-  assert.deepEqual(columns, ["cancelled", "from_day", "from_half", "member_id", "request", "to_day", "to_half", "told_at"]);
+  assert.deepEqual(columns, ["audience", "cancelled", "from_day", "from_half", "member_id", "request", "to_day", "to_half", "told_at"]);
   // Approved again with new dates (the same request): the new dates.
   assert.equal(await told("leave.approved", { ...leave, to: addDays(now, 5) }, { occurredAt: new Date(Date.now() - 30_000).toISOString() }), 204);
   assert.equal((await sql`select to_char(to_day, 'YYYY-MM-DD') as d from away where request = '42'`)[0]!["d"], addDays(now, 5));
   assert.equal(await told("leave.cancelled", leave), 204);
-  assert.equal((await awayOf(sql, [hugo.id], now)).size, 0);
+  assert.equal((await awayOf(sql, [hugo.id], now, hugo.id)).size, 0);
   // The first approval, delivered again late: still cancelled.
   assert.equal(await told("leave.approved", leave, { occurredAt: new Date(Date.now() - 60_000).toISOString() }), 204);
-  assert.equal((await awayOf(sql, [hugo.id], now)).size, 0);
+  assert.equal((await awayOf(sql, [hugo.id], now, hugo.id)).size, 0);
   // Approved again later (a new fact): away again.
   assert.equal(await told("leave.approved", leave), 204);
-  assert.equal((await awayOf(sql, [hugo.id], now)).size, 1);
+  assert.equal((await awayOf(sql, [hugo.id], now, hugo.id)).size, 1);
 });
 
 test("only members of the Chest, only Leave, only well-formed events; past leaves are forgotten, and those of someone who leaves", async () => {
@@ -101,8 +101,8 @@ test("only members of the Chest, only Leave, only well-formed events; past leave
   assert.equal(await told("leave.approved", { member: id("stranger"), from: now, to: now, request: "70" }), 204);
   assert.equal(await told("leave.approved", { member: tom.id, from: "x", to: now, request: "71" }), 204);
   assert.equal(await told("leave.approved", { member: tom.id, from: addDays(now, -9), to: addDays(now, -2), request: "72" }), 204);
-  // A "leave." event another tool would send is refused by the SDK.
-  assert.equal(await told("leave.approved", { member: tom.id, from: now, to: now, request: "73" }, { source: "rooms" }), 401);
+  // A "leave.approved" another tool sent: handled, changes nothing.
+  assert.equal(await told("leave.approved", { member: tom.id, from: now, to: now, request: "73" }, { source: "rooms" }), 204);
   assert.equal(await count(), before);
   // Léa is away until tomorrow; the day after, it is forgotten.
   assert.equal(await told("leave.approved", { member: lea.id, from: now, to: addDays(now, 1), request: "80" }), 204);
@@ -110,12 +110,12 @@ test("only members of the Chest, only Leave, only well-formed events; past leave
   assert.equal(await purgeAway(sql, addDays(now, 2)), 1);
   // Tom is away; then he leaves the Chest: forgotten.
   assert.equal(await told("leave.approved", { member: tom.id, from: now, to: addDays(now, 3), request: "81" }), 204);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: tom.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: tom.id } }, POST), 204);
   assert.equal((await sql`select 1 from away where member_id = ${tom.id}`).length, 0);
   // Inès is away; then her data is erased: forgotten too.
   assert.equal(await told("leave.approved", { member: ines.id, from: now, to: addDays(now, 3), request: "82" }), 204);
   const erasure = "era_" + "b".repeat(26);
-  assert.equal(await chest.emit({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
   assert.equal((await sql`select 1 from away where member_id = ${ines.id}`).length, 0);
 });
 
@@ -142,7 +142,7 @@ test("a shortened leave (cancelled, then approved for fewer days): the approval 
     else { assert.equal(await approve(), 204); assert.equal(await cancel(), 204); }
     assert.deepEqual(await kept(c.request), { d: addDays(now, 1), cancelled: false }, `request ${c.request}: ${c.same ? "same time" : "a millisecond later"}, ${c.cancelFirst ? "cancellation" : "approval"} delivered first`);
   }
-  assert.equal((await awayOf(sql, [hugo.id], now)).size, 1);
+  assert.equal((await awayOf(sql, [hugo.id], now, hugo.id)).size, 1);
   // A cancellation at the same time as a cancellation already kept: still cancelled (harmless).
   const at = new Date(Date.now() - 10_000).toISOString();
   assert.equal(await told("leave.cancelled", { ...whole, request: "94" }, { occurredAt: at }), 204);

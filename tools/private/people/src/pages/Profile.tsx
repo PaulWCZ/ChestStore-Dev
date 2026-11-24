@@ -39,7 +39,7 @@ export async function profilePage({ member, locale, t, param }: PageContext): Pr
   const now = today();
   const checklists = await journeysAbout(sql, member, person.id, now);
   // Away today (Leave tells People): never why.
-  const gone = (await awayOf(sql, [person.id], now)).get(person.id);
+  const gone = (await awayOf(sql, [person.id], now, member.id)).get(person.id);
   const away = gone ? awayText(gone, now, t.away, d => formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" }), format) : null;
   // HR: is this newcomer someone Hiring told of? Offer to link them.
   const match = can(member, "checklists.manage") ? [...suggestions((await listArrivals(sql, member)).filter(a => a.status === "expected"), [person])][0] : undefined;

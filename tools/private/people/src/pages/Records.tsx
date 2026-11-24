@@ -50,7 +50,7 @@ export async function recordsPage({ member, locale, t }: PageContext): Promise<V
     title: t.records.title,
     body: (
       <div className="page narrow">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ follow: [{ channel: "hr", names: ["records", "record_requests"] }] }} />
         <PageHeader
           title={t.records.title}
           intro={<span className="lead"><Shield /> {t.records.lead}</span>}
@@ -81,7 +81,7 @@ export async function recordsPage({ member, locale, t }: PageContext): Promise<V
                     <li key={a.id} id={`asked-${a.id}`}>
                       <a href={`/chest/records/${a.recordId}`}>
                         <span className="moment-text"><strong>{nameOfRecord(a.recordId, a.legalName)}</strong></span>
-                        <span className="moment-date">{format(t.records.asks, { fields: Object.keys(a.changes).map(f => t.record.fields[f as keyof typeof t.record.fields]).join(", ") })}</span>
+                        <span className="moment-date">{format(t.records.asks, { fields: a.fields.map(f => t.record.fields[f as keyof typeof t.record.fields]).join(", ") })}</span>
                       </a>
                     </li>
                   ))}
