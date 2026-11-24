@@ -6,11 +6,13 @@ import { allQuestions, isMemberId, type Definition, type Kind, type Question } f
 
 // Where an answer goes besides Forms, as the form's author maps it (the
 // form's Settings, "With the other tools"): a new contact in Clients, a new
-// ticket in Support. Forms publishes one typed event per answer (Proposal
-// (studio): events between tools); the receiving tools, once an
-// administrator linked them, make the contact or open the ticket. The
+// ticket in Support. Forms emits one typed event per answer (SDK 0.7.0
+// events between tools, chest.json "emits"); the receiving tools, once the
+// owner approved the link, make the contact or open the ticket. The
 // contract (README, "With the other tools") is here: `ContactEvent` and
-// `RequestEvent`, version 1. Pure: tested alone.
+// `RequestEvent`, version 1, as Forms builds them, and `contactData` /
+// `requestData`, the flat data the Chest carries (fields of its kinds
+// only: the list of answers is JSON text). Pure: tested alone.
 
 // Which question gives each piece — question ids of the form, or null.
 export type ContactRoute = { name: string | null; email: string | null; phone: string | null; company: string | null; message: string | null };
@@ -158,8 +160,25 @@ function source(form: FormLike, def: Definition, answer: Answered): Source {
   return { form: { id: form.id, title: def.title }, answer: { id: answer.id, at: answer.createdAt ?? new Date().toISOString(), language: answer.language, path: `/chest/forms/${form.id}/answers/${answer.id}` } };
 }
 
-// Within the Chest's 16 KiB for an event: the longest text gives way.
+// Within the Chest's 16 KiB for an event, as it travels: the longest text
+// gives way.
 const fits = (data: unknown) => Buffer.byteLength(JSON.stringify(data)) <= eventLimits.bytes;
+
+// The data the Chest carries (chest.json "emits"): flat, of its kinds —
+// "id", "text", "time", "member" —, no object, no list but of members.
+// forms.contact: v, form, formTitle, answer, answeredAt, language, path,
+// contactName?, contactEmail?, contactPhone?, contactCompany?, message?,
+// member?. forms.request: v, form, formTitle, answer, answeredAt,
+// language, path, subject, details?, requester? (the member of a team
+// form), requesterName?, requesterEmail?, fields (JSON text: [{question,
+// label, value}]).
+const sourceData = (e: Source) => ({ form: e.form.id, formTitle: e.form.title, answer: e.answer.id, answeredAt: e.answer.at, language: e.answer.language, path: e.answer.path });
+export function contactData(e: ContactEvent): Record<string, unknown> {
+  return { v: e.v, ...sourceData(e), contactName: e.contact.name, contactEmail: e.contact.email, contactPhone: e.contact.phone, contactCompany: e.contact.company, message: e.message, member: e.member };
+}
+export function requestData(e: RequestEvent): Record<string, unknown> {
+  return { v: e.v, ...sourceData(e), subject: e.subject, details: e.details, requester: e.requester.member, requesterName: e.requester.name, requesterEmail: e.requester.email, fields: JSON.stringify(e.fields) };
+}
 
 export function contactEvent(form: FormLike, def: Definition, answer: Answered, route: ContactRoute | null): ContactEvent | null {
   if (!route || form.anonymous) return null;
@@ -172,7 +191,7 @@ export function contactEvent(form: FormLike, def: Definition, answer: Answered, 
   };
   if (!contact.email && !contact.phone) return null;
   const event: ContactEvent = { v: 1, ...source(form, def, answer), contact, message: text(def, answer, route.message, eventLimits.message), member: answer.respondent && isMemberId(answer.respondent) ? answer.respondent : null };
-  while (!fits(event) && event.message) event.message = event.message.length > 200 ? cut(event.message, Math.floor([...event.message].length * 0.8)) : null;
+  while (!fits(contactData(event)) && event.message) event.message = event.message.length > 200 ? cut(event.message, Math.floor([...event.message].length * 0.8)) : null;
   return event;
 }
 
@@ -198,7 +217,7 @@ export function requestEvent(form: FormLike, def: Definition, answer: Answered, 
     requester,
     fields,
   };
-  while (!fits(event) && event.fields.length > 0) event.fields.pop();
-  while (!fits(event) && event.details) event.details = event.details.length > 200 ? cut(event.details, Math.floor([...event.details].length * 0.8)) : null;
+  while (!fits(requestData(event)) && event.fields.length > 0) event.fields.pop();
+  while (!fits(requestData(event)) && event.details) event.details = event.details.length > 200 ? cut(event.details, Math.floor([...event.details].length * 0.8)) : null;
   return event;
 }

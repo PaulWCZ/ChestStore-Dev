@@ -4,7 +4,9 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import * as forms from "../src/lib/forms.ts";
 import { take } from "../src/lib/respond.ts";
-import { cleanRoutes, contactEvent, eventLimits, readRoutes, requestEvent, type ContactEvent, type RequestEvent } from "../src/lib/routes.ts";
+import { cleanRoutes, contactData, contactEvent, eventLimits, readRoutes, requestData, requestEvent, type ContactEvent, type RequestEvent } from "../src/lib/routes.ts";
+import { allQuestions } from "../src/shared/model.ts";
+import { emits } from "./support/emits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -13,7 +15,8 @@ import { camille, everyone, hugo, ines, tom } from "./support/members.ts";
 // An answer that also makes a contact in Clients or opens a ticket in
 // Support: the form's author maps the questions (Settings), Forms publishes
 // forms.contact / forms.request (the contract in lib/routes.ts and the
-// README's "With the other tools"); the receivers come later.
+// README's "With the other tools"), flat as chest.json declares them (the
+// fake Chest refuses data of another shape, as the Chest does).
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -22,8 +25,7 @@ before(async () => {
   chest = await fakeChest({
     members: everyone,
     capabilities: ["members", "files", "notifications"],
-    emits: ["forms.answered", "forms.contact", "forms.request"],
-    receivers: 1,
+    emits,
     chest: { organization: "Atelier Martin" },
     network: {},
   });
@@ -75,13 +77,18 @@ test("forms.contact (v1): who to reach, the message, where it comes from; nothin
     message: "Un devis pour six chaises.",
     member: null,
   });
+  // As the Chest carries it (chest.json "emits"): flat.
+  assert.deepEqual(contactData(event), {
+    v: 1, form: "7", formTitle: "Contact us", answer: "abcdefghijklmnop", answeredAt: "2026-09-29T10:00:00.000Z", language: "fr", path: "/chest/forms/7/answers/abcdefghijklmnop",
+    contactName: "Nina Roux", contactEmail: "nina@example.com", contactPhone: null, contactCompany: "Roux SARL", message: "Un devis pour six chaises.", member: null,
+  });
   // No way to reach them: no contact.
   assert.equal(contactEvent(f, contactForm, { ...answer, data: { [name.id]: "Nina" } }, route), null);
   // A phone alone is enough.
   assert.equal(contactEvent(f, contactForm, { ...answer, data: { [phone.id]: "+33 6 12 34 56 78" } }, route)?.contact.phone, "+33 6 12 34 56 78");
   // Never over the Chest's 16 KiB: the message gives way.
   const long = contactEvent(f, contactForm, { ...answer, data: { ...answer.data, [message.id]: "é".repeat(20000) } }, route)!;
-  assert.ok(Buffer.byteLength(JSON.stringify(long)) <= eventLimits.bytes);
+  assert.ok(Buffer.byteLength(JSON.stringify(contactData(long))) <= eventLimits.bytes);
   assert.ok(long.message === null || [...long.message].length <= eventLimits.message);
   assert.equal(contactEvent({ ...f, anonymous: true }, contactForm, answer, route), null);
 });
@@ -95,6 +102,18 @@ test("forms.request (v1): a subject (the answer, or the form's title), details, 
   assert.deepEqual(event.requester, { name: null, email: "nina@example.com", member: null });
   // Everything else that was answered, yes/no in the respondent's language.
   assert.deepEqual(event.fields.map(x => [x.label, x.value]), [["Your company", "Roux SARL"], ["Lunch?", "Non"]]);
+  // As the Chest carries it: the other answers as JSON text (Support reads label and value).
+  const data = requestData(event);
+  assert.deepEqual([data["requester"], data["requesterEmail"], data["subject"]], [null, "nina@example.com", "An order"]);
+  assert.deepEqual((JSON.parse(data["fields"] as string) as { label: string; value: string }[]).map(x => [x.label, x.value]), [["Your company", "Roux SARL"], ["Lunch?", "Non"]]);
+  // Never over 16 KiB as it travels: the last answers give way first.
+  const many = form(Array.from({ length: 40 }, (_, i) => q("long", `Question ${i}`)), "Long");
+  const filled = { ...answer, data: Object.fromEntries(allQuestions(many).map(x => [x.id, "é".repeat(900)])) };
+  const big = requestEvent(f, many, filled, { subject: null, details: null, email: null, name: null });
+  assert.equal(big, null, "nobody to answer");
+  const bigTeam = requestEvent(f, many, { ...filled, respondent: hugo.id }, { subject: null, details: null, email: null, name: null })!;
+  assert.ok(Buffer.byteLength(JSON.stringify(requestData(bigTeam))) <= eventLimits.bytes);
+  assert.ok(bigTeam.fields.length > 0 && bigTeam.fields.length < 40);
   // No subject question: the form's title.
   assert.equal(requestEvent(f, contactForm, answer, { subject: null, details: message.id, email: mail.id, name: null })?.subject, "Contact us");
   // Nobody to answer: no ticket.
@@ -118,25 +137,29 @@ test("an answer makes a contact and opens a ticket when the form says so, once e
   const routes = { contact: { name: name.id, email: mail.id, message: message.id }, request: { subject: topic.id, details: message.id, email: mail.id, name: name.id } };
   const { form: f } = await publishedForm(def, { routes });
   assert.deepEqual(f.routes.contact, { name: name.id, email: mail.id, phone: null, company: null, message: message.id });
-  const before = chest.published.length;
+  const before = chest.emitted.length;
   const answered = await take(sql, f, { version: f.version, answers: { [name.id]: "Nina Roux", [mail.id]: "nina@example.com", [topic.id]: { ids: [topic.options![0]!.id] }, [message.id]: "Six chaises en chêne." } }, null, "fr");
   assert.deepEqual(answered, { copy: false });
-  const sent = chest.published.slice(before);
+  const sent = chest.emitted.slice(before);
   assert.deepEqual(sent.map(e => e.type).sort(), ["forms.contact", "forms.request"]);
-  const contact = sent.find(e => e.type === "forms.contact")!.data as ContactEvent;
-  assert.deepEqual(contact.contact, { name: "Nina Roux", email: "nina@example.com", phone: null, company: null });
-  const request = sent.find(e => e.type === "forms.request")!.data as RequestEvent;
-  assert.equal(request.subject, "A quote");
-  assert.equal(request.form.title, "Contact us");
+  const contact = sent.find(e => e.type === "forms.contact")!.data;
+  assert.deepEqual([contact["contactName"], contact["contactEmail"], contact["contactPhone"], contact["contactCompany"]], ["Nina Roux", "nina@example.com", null, null]);
+  assert.equal(contact["message"], "Six chaises en chêne.");
+  const request = sent.find(e => e.type === "forms.request")!.data;
+  assert.equal(request["subject"], "A quote");
+  assert.equal(request["formTitle"], "Contact us");
+  assert.equal(request["requesterEmail"], "nina@example.com");
+  assert.deepEqual(JSON.parse(request["fields"] as string), [], "every answer mapped: no other field");
+  assert.match(String(request["path"]), new RegExp(`^/chest/forms/${f.id}/answers/[a-z0-9]{16}$`, "u"));
   // An answer without an address: no contact, no ticket — the answer is kept.
   const quiet = await take(sql, f, { version: f.version, answers: { [name.id]: "Anonymous visitor", [topic.id]: { ids: [topic.options![1]!.id] }, [message.id]: "Hello" } }, null, "en");
   assert.deepEqual(quiet, { copy: false });
-  assert.equal(chest.published.length, before + 2);
+  assert.equal(chest.emitted.length, before + 2);
   // Off by default.
   const plain = await publishedForm(def, {});
   assert.deepEqual(plain.form.routes, { contact: null, request: null });
   await take(sql, plain.form, { version: plain.form.version, answers: { [mail.id]: "x@example.com" } }, null, "en");
-  assert.equal(chest.published.length, before + 2);
+  assert.equal(chest.emitted.length, before + 2);
 });
 
 test("a team form opens tickets for the member who answers; an anonymous form never routes; a wrong mapping is refused", async () => {
@@ -145,12 +168,13 @@ test("a team form opens tickets for the member who answers; an anonymous form ne
   const details = q("long", "Details");
   const def = form([need, details], "IT request");
   const { form: f } = await publishedForm(def, { audience: "team", once: false, routes: { request: { subject: need.id, details: details.id } } }, camille);
-  const before = chest.published.length;
+  const before = chest.emitted.length;
   await take(sql, f, { version: f.version, answers: { [need.id]: "A charger", [details.id]: "Mine broke this morning." } }, asMember(tom), "en");
-  const sent = chest.published.slice(before);
+  const sent = chest.emitted.slice(before);
   assert.deepEqual(sent.map(e => e.type), ["forms.request"]);
-  assert.deepEqual((sent[0]!.data as RequestEvent).requester, { name: null, email: null, member: tom.id });
-  assert.equal((sent[0]!.data as RequestEvent).subject, "A charger");
+  const ticket = sent[0]!.data;
+  assert.deepEqual([ticket["requesterName"], ticket["requesterEmail"], ticket["requester"]], [null, null, tom.id]);
+  assert.equal(ticket["subject"], "A charger");
   // Anonymous: the routes are dropped with the choice.
   const mood = q("rating", "Mood", { required: true });
   const anon = await publishedForm(form([mood, details], "Pulse"), { audience: "team", anonymous: true, routes: { request: { details: details.id } } }, camille);

@@ -48,8 +48,8 @@ type Props = {
   own: boolean;
   routeChoices: RouteChoices;
   // The first guess of each piece when a link is turned on (lib/routes.ts
-  // guessRoutes), and whether each receiving tool is installed and linked
-  // to Forms by an admin (lib/linked.ts, events.receivers).
+  // guessRoutes), and whether each receiving tool is installed and took the
+  // last event of its kind (lib/linked.ts).
   routeGuess: Routes;
   links: { contact: "linked" | "not_linked" | "not_installed"; request: "linked" | "not_linked" | "not_installed" };
   // The form's web addresses (src/components/hooks-box.tsx), placed after the links.
@@ -312,17 +312,19 @@ export function Settings(p: Props) {
           <>
             {/* A contact in Clients: the form's author says which question
                 gives what (lib/routes.ts, README "With the other tools"). */}
-            {/* Greyed while Clients is not installed (chest.toolUrl) or not
-                linked to Forms by an admin (events.receivers), unless
-                already on: it can always be turned off. */}
-            <Switch label={s.contactSwitch} hint={p.links.contact === "linked" ? s.contactHint : p.links.contact === "not_linked" ? s.contactNotLinked : s.contactMissing} checked={v.routes.contact !== null} disabled={ro || (p.links.contact !== "linked" && v.routes.contact === null)}
+            {/* Greyed while Clients is not installed (chest.tools), unless
+                already on: it can always be turned off. When the last
+                contact reached no tool (the owner has not approved the
+                link), the hint says so, and the switch stays usable: the
+                next answer tells whether the link is on now. */}
+            <Switch label={s.contactSwitch} hint={p.links.contact === "linked" ? s.contactHint : p.links.contact === "not_linked" ? s.contactNotLinked : s.contactMissing} checked={v.routes.contact !== null} disabled={ro || (p.links.contact === "not_installed" && v.routes.contact === null)}
               onChange={on => set("routes", { ...v.routes, contact: on ? { ...emptyContact, ...p.routeGuess.contact } : null })} />
             {v.routes.contact && (
               <RouteFields slots={["name", "email", "phone", "company", "message"] as const} route={v.routes.contact} choices={p.routeChoices.contact} s={s}
                 onChange={contact => set("routes", { ...v.routes, contact })} />
             )}
             {v.routes.contact && p.routeChoices.contact.email.length + p.routeChoices.contact.phone.length === 0 && <p className="notice">{s.noQuestions}</p>}
-            <Switch label={s.requestSwitch} hint={p.links.request === "linked" ? s.requestHint : p.links.request === "not_linked" ? s.requestNotLinked : s.requestMissing} checked={v.routes.request !== null} disabled={ro || (p.links.request !== "linked" && v.routes.request === null)}
+            <Switch label={s.requestSwitch} hint={p.links.request === "linked" ? s.requestHint : p.links.request === "not_linked" ? s.requestNotLinked : s.requestMissing} checked={v.routes.request !== null} disabled={ro || (p.links.request === "not_installed" && v.routes.request === null)}
               onChange={on => set("routes", { ...v.routes, request: on ? { ...emptyRequest, ...p.routeGuess.request } : null })} />
             {v.routes.request && (
               <RouteFields slots={v.audience === "team" ? (["subject", "details"] as const) : (["subject", "details", "email", "name"] as const)} route={v.routes.request} choices={p.routeChoices.request} s={s}

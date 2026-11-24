@@ -32,9 +32,9 @@ test("losing access takes a member off shared forms and the bell; their own form
   const f = await forms.create(sql, asMember(ines), { definition: form([q("short", "Name")], "Mine") });
   await forms.share(sql, asMember(ines), f.id, hugo.id, "editor");
   await forms.saveSettings(sql, asMember(ines), f.id, { audience: "public", layout: "steps", accent: "berry", watchers: [ines.id, hugo.id] }, null);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
   assert.deepEqual(await forms.team(sql, f.id), { owner: ines.id, shared: [], watchers: [ines.id] });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, POST), 204);
   assert.equal((await forms.open(sql, asMember(camille), f.id)).form.owner, ines.id, "a manager still opens it");
 });
 
@@ -53,8 +53,8 @@ test("an erasure deletes the person's team answers, keeps anonymous counts unnam
   }
   await sql`update forms set owner = ${hugo.id} where id = ${owned.id}`;
   const event = erasure(hugo.id, "h");
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204, "a second delivery is harmless");
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204, "a second delivery is harmless");
   const left = await sql<{ respondent: string | null }[]>`select respondent from answers where form_id = ${n.id}`;
   assert.deepEqual(left.map(r => r.respondent), [lea.id]);
   assert.equal((await sql`select 1 from answers where form_id = ${a.id}`).length, 2, "anonymous answers name no one: they stay");

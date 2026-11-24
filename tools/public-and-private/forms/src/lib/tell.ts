@@ -68,8 +68,8 @@ export async function refreshBadges(sql: Sql, members?: string[]): Promise<void>
 }
 
 // opened: a team form was published; everyone who has the tool may be
-// told once, each in their language (Proposal (studio), announced for
-// 0.5: notifications.broadcast, no "to": everyone with the tool), except
+// told once, each in their language (SDK 0.7.0 notifications.broadcast
+// with translations, no "to": everyone with the tool), except
 // its author. Without it, the form's page link is shared by hand —
 // nothing breaks.
 export async function opened(formId: string, slug: string, title: string, except: string): Promise<boolean> {

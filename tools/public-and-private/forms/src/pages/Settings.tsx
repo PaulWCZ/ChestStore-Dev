@@ -27,7 +27,7 @@ export async function settingsPage({ sql, member, t, lang, zone, param }: Ctx) {
   const [who, addresses, linked, mail, cover, published, look] = await Promise.all([
     people(ids),
     hooksOf(sql, member, form.id),
-    links(),
+    links(sql),
     mailState(sql),
     imageUrl(form.cover, "team"),
     form.version > 0 ? versionOf(sql, form.id, form.version) : null,

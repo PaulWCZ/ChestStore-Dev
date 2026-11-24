@@ -17,7 +17,7 @@ import type { Answers } from "../shared/logic.ts";
 //   deleted (with files), their mark in anonymous forms' participants
 //   becomes "erased" (still counted, never named), and forms they owned
 //   are owned by "erased" (managers keep them). Then acknowledged.
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
   const leave = async (id: string) => {
     await sql`delete from access where member = ${id}`;
     await sql`delete from watchers where member = ${id}`;

@@ -1,12 +1,17 @@
 // Forms, as a creator builds one and people answer it, in a real browser:
-//   node lab/chest-dev/dev.mjs tools/public-and-private/forms --port 6800 --prod --reset --tools crm,helpdesk --linked
+//   node lab/chest-dev/dev.mjs tools/public-and-private/forms --port 6800 --prod --reset --tools crm,helpdesk
 //   node lab/chest-dev/flows/forms.mjs [port]
-// (--reset: the sample forms are there; --tools crm,helpdesk --linked:
-// Clients and Support installed and linked, the routes' steps need them.)
+// (--reset: the sample forms are there; --tools crm,helpdesk: Clients and
+// Support installed, the routes' steps need them. SDK 0.7.0: the owner
+// approves the links and events.emit answers how many tools an event
+// reached — the harness's fake Chest always answers none, as a Chest whose
+// owner approved no link.)
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 6800);
-const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(zzzzzzzz|chest\/forms\/2)$/u });
+// /_chest/realtime: a page's live channel (SDK 0.7.0 realtime); this
+// harness does not serve the Chest's realtime (lab/chest-dev/README.md).
+const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(zzzzzzzz|chest\/forms\/2|_chest\/realtime)$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
@@ -219,9 +224,10 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.waitForSelector(".runner-thanks", { timeout: 15000 });
   expect((await visitor.locator(".runner-thanks").innerText()).includes("Thanks, see you Friday"), "own thank-you title");
   expect((await dev()).includes("Your answers — Team lunch on Friday"), "copy in the outbox, in the form's language");
-  // The owner is told in the bell once (English, and French in the same
-  // notice), never by an email of the tool.
-  const told = (await dev()).split("fr: 1 nouvelle réponse à Team lunch on Friday").length - 1;
+  // The owner is told in the bell once, never by an email of the tool:
+  // Inès reads French, so the Chest keeps the notice's French words for
+  // her (SDK 0.7.0: each item in its member's language).
+  const told = (await dev()).split("· 1 nouvelle réponse à Team lunch on Friday").length - 1;
   expect(told === 1, "one bell item: " + told);
   expect(!(await dev()).includes("<b>1 nouvelle réponse"), "no email to the owner");
   // The visitor's copy: replies reach the company's address.
@@ -485,12 +491,12 @@ await step("an answered date retyped as a date that cannot be read is refused: t
   expect(text.includes("Refused Then Right") && /15 Mar(ch)? 2031|2031-03-15|15\/03\/2031/u.test(text), "the corrected day is the one answered: " + text.slice(0, 400));
 });
 
-await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and the visitor's copy are offered with no warning", async () => {
+await step("Settings says the truth about where answers can go: Clients and Support are installed and nothing was sent yet, so both switches work, with no “not installed” or “did not receive” sentence; this Chest sends to web addresses and email, so their forms and the visitor's copy are offered with no warning", async () => {
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/forms/5/settings");
   const text = await page.locator("main").innerText();
-  expect(!text.includes("not installed in your Chest") && !text.includes("not linked to Forms yet"), "no false sentence about the links");
+  expect(!text.includes("not installed in your Chest") && !text.includes("did not receive the last"), "no false sentence about the links");
   expect(text.includes("becomes a contact in Clients") && text.includes("opens a ticket in Support"), "both links say what they do");
   expect(!(await page.getByRole("switch", { name: "Also create a contact in Clients" }).isDisabled()) && !(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isDisabled()), "both switches usable");
   const hooks = await page.locator("fieldset.hooks").innerText();
@@ -499,7 +505,7 @@ await step("Settings says the truth about where answers can go (SDK studio.16): 
   expect(!/cannot send emails|not connected email|paused email|all of today/u.test(text), "no warning about email");
 });
 
-await step("a contact form also makes a contact in Clients and opens a ticket in Support: the author maps the questions, each answer is published typed", async () => {
+await step("a contact form also makes a contact in Clients and opens a ticket in Support: the author maps the questions, each answer is emitted flat, as chest.json declares it", async () => {
   await as(context, origin, "ines");
   await english();
   await page.setViewportSize({ width: 1280, height: 860 });
@@ -547,14 +553,13 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   await v.waitForSelector(".runner-thanks", { timeout: 15000 });
   await v.close();
   const board = await dev();
-  expect(board.includes("<code>forms.contact</code>") && board.includes("nina.roux@example.com"), "a contact for Clients");
+  expect(board.includes("<code>forms.contact</code>") && board.includes("&quot;contactEmail&quot;:&quot;nina.roux@example.com&quot;"), "a contact for Clients");
   expect(board.includes("<code>forms.request</code>") && board.includes("A quote"), "a ticket for Support, its subject the answer");
 });
 
-await step("one message, one email: with a copy on, an answer Support took gets no copy from Forms (Support confirms it); the answer says where it went, and Support follows it up", async () => {
+await step("one message, one email: when no tool received the ticket (this Chest's owner approved no link), the visitor's copy goes; the answer says where it went, never a ticket; Settings says why", async () => {
   await page.goto(origin + "/chest/forms/5/settings");
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
-  expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "Settings says why no copy goes");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
   const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(origin + "/c2n6yd8u");
@@ -562,32 +567,37 @@ await step("one message, one email: with a copy on, an answer Support took gets 
   await v.getByLabel("Your email address").fill("marc.petit@example.com");
   await v.locator("label", { hasText: "A question" }).first().click();
   await v.getByLabel("Your message").fill("Do you deliver to Lyon?");
+  const copy = v.getByLabel(/Email me a copy/u);
+  if (await copy.count()) await copy.check();
   await v.waitForTimeout(2200);
   await v.getByRole("button", { name: "Send" }).click();
   await v.waitForSelector(".runner-thanks", { timeout: 15000 });
   await v.close();
   const board = await dev();
-  const mail = board.slice(board.indexOf("Mail (proposal)"));
-  expect(!mail.includes("→ marc.petit@example.com"), "no copy to the visitor: Support confirms");
   expect(board.includes("<code>forms.request</code>") && board.includes("marc.petit@example.com"), "the ticket event left");
   await page.goto(origin + "/chest/forms/5/answers");
   await page.locator("a", { hasText: "marc.petit@example.com" }).first().click();
   await page.waitForURL(/\/answers\/[a-z0-9]{16}/u);
-  const sent = await page.locator(".answer-sent").innerText();
-  expect(sent.includes("Clients (a contact)") && sent.includes("Support (a ticket)") && !sent.includes("a copy"), "where it went: " + sent);
-  expect(await page.locator(".answer-sent a", { hasText: "Support (a ticket)" }).getAttribute("href") === "https://helpdesk-chest.chest.test/chest", "a link to Support");
-  expect((await page.locator("main").innerText()).includes("Support follows this request up"), "no second follow-up here");
+  const sent = await page.locator("main").innerText();
+  expect(!sent.includes("Support (a ticket)") && !sent.includes("Clients (a contact)"), "no tool claimed: " + sent.slice(0, 300));
+  expect(!sent.includes("Support follows this request up"), "Forms follows it up itself");
+  await page.goto(origin + "/chest/forms/5/settings");
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Support did not receive the last request") && text.includes("Clients did not receive the last contact"), "Settings says the links are not approved yet");
+  expect(!(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isDisabled()), "the switch stays usable: the next answer tells");
 });
 
-await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question", async () => {
+await step("a new form from the Contact template: Clients off while the last contact reached no tool (the author may turn it on: the mapping is made), subject and details mapped, a company question", async () => {
   await page.goto(origin + "/chest/new");
   await page.locator("button.template-card", { hasText: "Let customers write to you" }).click();
   await page.waitForURL(/\/chest\/forms\/\d+$/u);
   const id = page.url().match(/forms\/(\d+)/u)[1];
   expect((await page.locator("main").innerText()).includes("Your company (if any)"), "a company question");
   await page.goto(origin + `/chest/forms/${id}/settings`);
-  expect(await page.getByRole("switch", { name: "Also create a contact in Clients" }).isChecked(), "Clients on from the start");
+  expect(!(await page.getByRole("switch", { name: "Also create a contact in Clients" }).isChecked()), "Clients off: the last contact reached no tool");
+  await page.locator("label.ck-switch-label", { hasText: "Also create a contact in Clients" }).click();
   const contact = page.locator(".route-fields").first();
+  await contact.waitFor();
   expect((await contact.getByLabel("Their company").locator("option:checked").innerText()) === "Your company (if any)", "company mapped");
   expect(!(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isChecked()), "Support stays the author's choice");
   await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
@@ -595,7 +605,6 @@ await step("a new form from the Contact template is linked right by default: Cli
   await ticket.waitFor();
   expect((await ticket.getByLabel("Subject").locator("option:checked").innerText()) === "What is it about?", "subject: the topic question");
   expect((await ticket.getByLabel("Details").locator("option:checked").innerText()) === "Your message", "details: the message");
-  expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "the copy switch says Support confirms");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
 });
 
@@ -712,4 +721,7 @@ await step("pass 4: a manager lets everyone make forms: a member makes one, owns
 
 await phone.close();
 await browser.close();
-done(problems);
+// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
+// a page's live channel (SDK 0.7.0 realtime) cannot connect here, and the
+// page stays as read. Its refusals are the harness's, not Forms'.
+done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));

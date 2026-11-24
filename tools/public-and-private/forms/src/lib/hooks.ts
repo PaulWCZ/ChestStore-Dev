@@ -1,6 +1,6 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { log } from "@argentic/chest-app";
-import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, RateLimited } from "@argentic/chest-sdk/errors";
 import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
 import { AppError } from "./app-error.ts";
@@ -111,7 +111,8 @@ export async function addHook(sql: Sql, actor: Member | null, formId: unknown, i
   } catch (error) {
     if (error instanceof CapabilityNotGranted) throw new AppError("webhooks_unavailable");
     if (error instanceof ChestError && error.code === "suspended") throw new AppError("webhooks_suspended");
-    if (error instanceof QuotaExceeded) throw new AppError("at_most", { max: hookLimits.perForm });
+    // The Chest takes 60 new addresses an hour (each is called once to check it).
+    if (error instanceof RateLimited) throw new AppError("webhooks_later");
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("webhook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw wrong();
     throw error;

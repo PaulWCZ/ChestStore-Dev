@@ -26,9 +26,10 @@ before(async () => {
     network: {},
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail"],
-    storage: { publicUploads: true, publicFiles: true },
+    storage: { publicFiles: true },
     mail: { domain: "atelier.test" },
-    emits: ["forms.answered", "forms.contact", "forms.request"],
+    // What chest.json declares it tells (SDK 0.7.0: each type's schema).
+    emits: JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")).emits,
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" },
   });
   database = await testDatabase({ migrations: join(import.meta.dirname, "..", "migrations") });
@@ -217,15 +218,21 @@ test("a visitor's file: an upload path on the host they are on, for a file quest
   assert.equal(published.status, 200, await published.clone().text());
   const grant = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "application/pdf", size: 1000, chest_form: token("visitorUpload") });
   const { value } = await grant.json();
-  assert.match(value.url, /^\/_chest\/upload\//u, "a path: the visitor's own host");
+  assert.match(value.url, /^\/_chest\/files\/upload\//u, "a path: the visitor's own host");
   const refused = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "image/svg+xml", size: 10, chest_form: token("visitorUpload") });
   assert.equal((await refused.json()).error, "file_invalid");
+  // Plain text cannot be told by its bytes: the Chest (0.7.0) takes none from a visitor.
+  const text = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "text/plain", size: 10, chest_form: token("visitorUpload") });
+  assert.equal((await text.json()).error, "file_invalid");
 });
 
 test("the answers: the table's island, a filter in the address, an answer's page and its follow-up; downloads stream", async () => {
   const page = await (await get(ines, "/chest/forms/1/answers?status=new")).text();
   const table = islandProps(page, "AnswersTable");
   assert.ok(table.rows.length > 0 && table.rows.length <= 50);
+  // Left open, the page follows the Chest's realtime (feeds of answers and forms), never a timer.
+  assert.match(page, /data-island="LiveForms"/u);
+  assert.doesNotMatch(page, /AutoRefresh/u);
   assert.ok(islandProps(page, "AnswersFilters"));
   const one = await get(ines, `/chest/forms/1/answers/${table.rows[0].id}?status=new`);
   assert.equal(one.status, 200);
@@ -295,7 +302,7 @@ test("the Chest's schedules: the bell tells what waited, the night's cleanup run
 });
 
 test("a member erased: their answers to team forms go, then the Chest is told", async () => {
-  const status = await chest.emit({ type: "member.erased", data: { id: lea.id, erasure: "era_" + "l".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } }, request => app.fetch(request));
+  const status = await chest.deliver({ type: "member.erased", data: { id: lea.id, erasure: "era_" + "l".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } }, request => app.fetch(request));
   assert.equal(status, 204);
   assert.equal((await database.sql`select count(*)::int as n from answers where respondent = ${lea.id}`)[0].n, 0);
 });

@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "forms",
   "title": "Forms",
   "description": "Build a form in minutes, share one link, read the answers: surveys, sign-ups, requests, feedback.",
@@ -20,11 +20,85 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime"
   ],
   "receives": [
     "member.*"
   ],
+  "emits": {
+    "forms.answered": {
+      "description": "A form is answered: its answers, as text",
+      "data": {
+        "form": "id",
+        "title": "text",
+        "answer": "id",
+        "language": "text",
+        "fields": "text",
+        "email": "text?",
+        "member": "member?"
+      }
+    },
+    "forms.contact": {
+      "description": "An answer gives a contact: name, email, phone, company, message",
+      "data": {
+        "v": "number",
+        "form": "id",
+        "formTitle": "text",
+        "answer": "id",
+        "answeredAt": "time",
+        "language": "text",
+        "path": "text",
+        "contactName": "text?",
+        "contactEmail": "text?",
+        "contactPhone": "text?",
+        "contactCompany": "text?",
+        "message": "text?",
+        "member": "member?"
+      }
+    },
+    "forms.request": {
+      "description": "An answer asks for help: subject, details, who asks, the answers",
+      "data": {
+        "v": "number",
+        "form": "id",
+        "formTitle": "text",
+        "answer": "id",
+        "answeredAt": "time",
+        "language": "text",
+        "path": "text",
+        "subject": "text",
+        "details": "text?",
+        "requester": "member?",
+        "requesterName": "text?",
+        "requesterEmail": "text?",
+        "fields": "text"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "forms"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "answers",
+        "channel": "forms",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "forms",
+        "channel": "forms",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "bell",

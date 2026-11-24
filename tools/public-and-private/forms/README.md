@@ -97,11 +97,16 @@ built again from the studio's template to stand next to Tally and Typeform.
   frame waits for the Chest (below); the button works today.
 - **Files**: a file question takes images, documents or both, 10 MB each.
   On a public form the file goes from the visitor's browser to the Chest
-  and is **claimed only by the answer that sent it** (Proposal *public
-  uploads*, `files.claim`); on a team form the tool signs the file's name.
-  Its type and first bytes are checked before it is kept.
+  (SDK 0.7.0's visitors' uploads, into `uploads/public/`): the Chest names
+  it (20 random characters: nobody guesses another visitor's), checks its
+  type by its bytes and paces each visitor; the answer hands the name back
+  and the tool checks it before keeping it (`stat`, type, size). A visitor
+  may send images, PDF, Office and OpenDocument files — **never plain text
+  or CSV** (the Chest cannot tell them by their bytes; a member still may
+  on a team form). On a team form the tool signs the file's name. What no
+  answer records is deleted after a day (schedule `cleanup`).
 - **Spam**: no captcha — the form's signed "shown at" time and counters
-  per visitor and for everyone (Proposal *visitors*).
+  per visitor and for everyone (the package's `bound`).
 - **Answers** (one tab, *Answers* and *Summary*): a table on a wide
   screen; **on a phone, one card per answer** — who, when, the first three
   answers (each named by its question), where it stands; the whole row
@@ -141,18 +146,21 @@ built again from the studio's template to stand next to Tally and Typeform.
   short text the company) — and *The other tools of your Chest* for every
   answer as it is. A switch is **greyed, with a sentence** while nothing
   would receive it: "Clients is not installed in your Chest…"
-  (`chest.toolUrl`, SDK studio.14), or "Clients is installed but not
-  linked to Forms yet: ask an admin…" (`events.receivers`, studio.16 —
-  installed alone, every contact would publish into nothing); it can
-  always be turned off. **The Contact template starts linked to Clients**
-  when Clients is linked to Forms, its mapping made; it has a *Your company* question. Each
+  (`chest.tools.get`, a studio proposal); it says "Clients did not receive
+  the last contact: ask the owner of your Chest to approve its link…" when
+  the last `forms.contact` reached no tool (`events.emit` answers how many
+  tools it was written for; 0.7.0 names none) — still usable then: the
+  next answer says whether the link is on now. It can always be turned
+  off. **The Contact template starts linked to Clients** when
+  Clients is installed and nothing says the link is off, its mapping
+  made; it has a *Your company* question. Each
   answer's page says **where it went** ("Also sent to: Clients (a
   contact) · Support (a ticket) · your web addresses · a copy to the
   person", Clients and Support as links); an answer Support took shows
   no *New / In progress / Done* of its own — Support's ticket follows it
-  up — and only when Support is linked to receive it: installed but not
-  linked, the copy goes. An answer lists a tool only when one received it
-  (`publish`'s `receivers`). See **With the other tools** below. Never for
+  up — and only when the request reached a tool and Support is installed:
+  otherwise the copy goes. An answer lists a tool only when one received it
+  (`emit`'s `receivers`). See **With the other tools** below. Never for
   an anonymous form.
 - **Each answer to a web address** (Settings → *Send each answer to a web
   address*, Proposal *webhooks*): a Slack or Microsoft Teams channel is
@@ -184,19 +192,25 @@ built again from the studio's template to stand next to Tally and Typeform.
 
 ## With the other tools
 
-Forms tells the other tools of the Chest about answers through **events
-between tools** (Proposal (studio), `sdk/README.md`; `chest.proposals.json`
-`"emits"`). Forms publishes; a receiving tool declares the event in its
-`"receives"`, and **an administrator links the two in the Chest** (a tool
-never picks its publishers). Delivery is the Chest's: signed, at least
-once, to the receiver's `POST /chest-events`. Each event is published once
-per answer (its `key`), within the Chest's 16 KiB (the longest text gives
-way first), **never for an anonymous form**, and never blocks the answer: if
-the Chest cannot take it, the answer is kept all the same. People are
-member ids (`mbr_…`), never names from the Chest; texts are what the
-respondent wrote, trimmed and bounded; yes/no and *Other* in the language
-the respondent read. `path` is the answer's page on the Chest's team
-address (`chest.teamUrl` + `path`), for a link back.
+Forms tells the other tools of the Chest about answers through SDK 0.7.0's
+**events between tools** (`chest.json` `"emits"`, each type with the schema
+of its data). Forms emits; a receiving tool declares the type in its
+`"receives"`, and **the owner approves the link in the Chest** ("Forms →
+Support: An answer asks for help") — a tool never picks its publishers.
+Delivery is the Chest's: signed, at least once, in order per answer (the
+`subject`, `answer:<id>`), to the receiver's `POST /chest-events`. Each
+event is emitted once per answer (its `key`, `forms:<answer>:contact`…),
+within the Chest's 16 KiB as it travels (the longest text gives way
+first), **never for an anonymous form**, and never blocks the answer: if
+the Chest cannot take it, the answer is kept all the same. The data is
+**flat**, of the Chest's kinds (`id`, `text`, `time`, `member`…): a list
+of answers travels as JSON text. People are member ids (`mbr_…`), never
+names from the Chest; texts are what the respondent wrote, trimmed and
+bounded; yes/no and *Other* in the language the respondent read. `path`
+is the answer's page in Forms (`/chest/forms/5/answers/…`), a path, never
+an origin. **No audience**: the form's author chose to send its answers to
+the other tools (the form's Settings), so every member of a receiving tool
+may see them there.
 
 **Clients receives `forms.contact`** (its README, "What Clients receives":
 the contact found by email — or by phone only when the name is the same
@@ -205,44 +219,45 @@ too, otherwise a new contact marked "maybe the same person" —; one line
 gave; a lead in its *My day*; never twice for one event or one answer).
 **Support receives `forms.request`** (its README, "With the other
 tools": a ticket, once per event and per answer, and its "we received
-your request" email to the requester). Both link back to the answer here
-(`chest.toolLink("forms", path)`). This is the contract receivers build
-to. Version 1 (`v: 1`); a later version adds fields, never changes one.
+your request" email to the requester). Version 1 (`v: 1`); a type's data
+only grows — a new shape would be a new type.
 
 **One message, one email.** When a form's *Also open a ticket in Support*
-is on, Support is installed and the ticket event left for an answer,
-**Forms sends no copy of that answer** even with *Send them a copy* on:
-Support confirms the request by email itself, and a visitor must not get
-two emails from two senders for one message. Settings says so under the
-copy switch ("Support confirms each request by email…"). Without Support
-installed, or for an answer that opens no ticket (no email given), the
-copy goes as usual. Support's side needs nothing new (it already
-confirms every `forms.request`); should Support ever stop confirming, it
-must say so in its README and Forms must drop this rule
-(`src/lib/respond.ts`, `supportConfirms`).
+is on, Support is installed and the ticket event reached a tool for an
+answer, **Forms sends no copy of that answer** even with *Send them a
+copy* on: Support confirms the request by email itself, and a visitor
+must not get two emails from two senders for one message. Settings says
+so under the copy switch ("Support confirms each request by email…").
+Without Support installed, or for an answer that opens no ticket (no
+email given, or no tool received it), the copy goes as usual. Support's
+side needs nothing new (it already confirms every `forms.request`);
+should Support ever stop confirming, it must say so in its README and
+Forms must drop this rule (`src/lib/respond.ts`, `supportConfirms`).
 
 ### `forms.contact` — make or update a contact (Clients)
 
 Sent when the form maps a contact (Settings) **and** the answer gives an
-email or a phone. The receiver matches an existing contact by `email`
-(lower case); by `phone` only when `name` agrees too (a phone is often
-shared: a switchboard, a shop); else creates one. It keeps `message` and
-the given `name`, `email`, `phone`, `company` in the contact's history,
-with `answer.path` for a link back.
+email or a phone. The receiver matches an existing contact by
+`contactEmail` (lower case); by `contactPhone` only when `contactName`
+agrees too (a phone is often shared: a switchboard, a shop); else creates
+one. It keeps `message` and the given name, email, phone and company in
+the contact's history, with `path` for a link back.
 
 ```jsonc
 {
-  "v": 1,
-  "form": { "id": "5", "title": "Contact us" },                 // the title as answered
-  "answer": { "id": "k3…16 letters", "at": "2026-09-29T10:00:00.000Z", "language": "fr", "path": "/chest/forms/5/answers/k3…" },
-  "contact": {
-    "name": "Nina Roux",            // ≤ 120, or null
-    "email": "nina@example.com",    // lower case, ≤ 254, or null
-    "phone": "+33 6 12 34 56 78",   // as typed, ≤ 40, or null — email or phone is always there
-    "company": "Roux SARL"          // ≤ 120, or null
-  },
-  "message": "Six oak chairs…",     // ≤ 4,000, or null
-  "member": null                    // the member who answered a named team form
+  "v": 1,                                   // number
+  "form": "5",                              // id
+  "formTitle": "Contact us",                // text: the title as answered
+  "answer": "k3…16 letters",                // id
+  "answeredAt": "2026-09-29T10:00:00.000Z", // time
+  "language": "fr",                         // text
+  "path": "/chest/forms/5/answers/k3…",     // text
+  "contactName": "Nina Roux",               // text?, ≤ 120
+  "contactEmail": "nina@example.com",       // text?, lower case, ≤ 254
+  "contactPhone": "+33 6 12 34 56 78",      // text?, as typed, ≤ 40 — email or phone is always there
+  "contactCompany": "Roux SARL",            // text?, ≤ 120
+  "message": "Six oak chairs…",             // text?, ≤ 4,000
+  "member": null                            // member?: who answered a named team form
 }
 ```
 
@@ -254,26 +269,28 @@ member who answered (team forms).
 
 ```jsonc
 {
-  "v": 1,
-  "form": { "id": "5", "title": "Contact us" },
-  "answer": { "id": "…", "at": "…", "language": "fr", "path": "/chest/forms/5/answers/…" },
-  "subject": "A quote",              // the mapped answer, else the form's title; ≤ 150
-  "details": "Six oak chairs…",      // ≤ 8,000, or null
-  "requester": { "name": "Nina Roux", "email": "nina@example.com", "member": null },
-  "fields": [                        // every other answer, in the form's order (dropped from the end past 16 KiB)
-    { "question": "q1d…", "label": "Your phone number", "value": "+33 6 12 34 56 78" }
-  ]
+  "v": 1, "form": "5", "formTitle": "Contact us", "answer": "…", "answeredAt": "…",
+  "language": "fr", "path": "/chest/forms/5/answers/…",
+  "subject": "A quote",              // text: the mapped answer, else the form's title; ≤ 150
+  "details": "Six oak chairs…",      // text?, ≤ 8,000
+  "requester": null,                 // member?: the member of a team form
+  "requesterName": "Nina Roux",      // text?
+  "requesterEmail": "nina@example.com", // text?
+  "fields": "[{\"question\":\"q1d…\",\"label\":\"Your phone number\",\"value\":\"+33 6 12 34 56 78\"}]"
+                                     // text: JSON, every other answer in the form's order (dropped from the end past 16 KiB)
 }
 ```
 
 ### `forms.answered` — every answer, as it is
 
 With *The other tools of your Chest* on: `{ form, title, answer, language,
-fields: [{ question, key, label, kind, value }], email, member }` — values
-as text (choices by their labels, files by their names, never a file),
-numbers as numbers, yes/no as `true`/`false`; `key` is the question's
-name in links (`?nps=9`). For a receiver that wants everything (Tasks, a
-future sheet).
+fields, email, member }` (`id`, `text`, `id`, `text`, `text`, `text?`,
+`member?`) — `fields` is JSON text of `[{ question, key, label, kind,
+value }]`, values as text (choices by their labels, files by their names,
+never a file), numbers as numbers, yes/no as `true`/`false`; `key` is the
+question's name in links (`?nps=9`). For a receiver that wants everything
+(Tasks, a future sheet). The form's web addresses get the same answer
+unflattened (below).
 
 What the mapping holds (`forms.routes`, `src/lib/routes.ts`): question ids per
 piece, checked against the form's questions when Settings save (a piece
@@ -282,7 +299,7 @@ email or a phone question, a public ticket without an email question, is
 refused with a sentence). At answer time the answered version is read: a
 question removed since gives `null`. Duplicating a form does not copy the
 mapping (its questions get new ids). Tests: `test/routes.test.ts`
-(`chest.published`).
+(`chest.emitted`, checked against `chest.json` by the fake Chest).
 
 ## Looks
 
@@ -426,8 +443,8 @@ an error.
 
 Hono and React rendered on the server, with islands for what runs in the
 browser, built by Vite — through the studio's package
-`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.7 and the
-UI kit 0.2.6-studio.1. Contract 0.4: the Chest's strict CSP (no inline
+`@argentic/chest-app` (0.1.0-studio.12, `vendor/`), on SDK 0.7.0-studio.2 and the
+UI kit 0.2.6-studio.1. Contract 0.7: the Chest's strict CSP (no inline
 script or style: bars are SVG, widths are classes). `npm start` runs
 `dist/server/main.js`; the browser's files are `/assets/` (`build.static`).
 Measured on the studio's bench (`lab/measure`, 2026-10-06, against the
@@ -437,14 +454,19 @@ Chest's 512 MiB (310 MiB peak).
 
 ## On a Chest
 
-Capabilities: `database`, `files`, `members`, `notifications`; receives
-`member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
-them): `mail.send`, `files.publicUploads`, `files.publicFiles` (covers and
-pictures), `emits: ["forms.answered"]`, webhooks, and the tile's French
-words; `schedules` (`bell`, `cleanup`) are in `chest.json` (contract 0.4).
+Contract 0.7 (`chest check` says OK). Capabilities: `database`, `files`
+(visitors' uploads included), `members`, `notifications`, `realtime` (a
+page left open — the forms, a form's answers and summary — follows the
+channel `forms`: the feeds of `answers` and `forms` carry a row's id
+only, and the page's read, versioned, decides what its reader sees; no
+timer); receives `member.*`; emits `forms.answered`, `forms.contact`,
+`forms.request` with their schemas; `schedules` (`bell`, `cleanup`).
+Proposals (in `chest.proposals.json`): `mail.send`, `files.publicFiles`
+(covers and pictures), `"webhooks": true`, and the tile's French words.
 The tool also calls `chest` (company, time zone, `tool.publicUrl` and
-`tool.teamUrl` for its addresses, `tools.get` for the others', `theme()`
-for the look and the logo) and `notifications.broadcast`.
+`tool.teamUrl` for its addresses, `tools.get` for the others' — a
+proposal —, `theme()` for the look and the logo) and
+`notifications.broadcast`.
 The public part never asks the Chest at each visitor's request, and never
 lists members. **What anyone on the Internet can make a form do**, a day
 (`src/lib/flood.ts`, said in Settings): 2,000 answers a form (100 a
@@ -459,7 +481,8 @@ the form then needs JavaScript) and three seconds, and a robot that fills the hi
 four fifths and fully spent (counts and the form's id only). Answers to
 questions a form does not ask, and link values it does not name, are
 dropped, never kept. The Chest checks the first bytes of images and PDFs
-itself; the tool reads the others' (Office, text), two at a time. When a member loses access or leaves, they are taken off the forms shared
+itself (and of every file a visitor sends); the tool reads the others'
+(a member's Office and text files), two at a time. When a member loses access or leaves, they are taken off the forms shared
 with them and the bell; forms they own stay (managers open them). On
 erasure, their answers to team forms are deleted with their files, their
 mark in anonymous forms becomes "erased" (counted, never named), forms they
@@ -498,75 +521,68 @@ column mailed_at`) once no instance runs the previous one.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.7 and the studio's package `@argentic/chest-app`
-(studio.6). All exist as proposals in the studio's working copy; the tool
-calls them as if shipped and keeps working without them:
+Built on SDK **0.7.0** + the studio's proposals (`0.7.0-studio.2`) and
+the studio's package `@argentic/chest-app` (0.1.0-studio.12). From 0.7.0
+itself: members, notifications with `translations` and `broadcast`,
+events between tools with schemas, visitors' uploads into a folder,
+realtime, schedules, `chest.organization.name`, `chest.timeZone` (the
+company's day: a closing date, the answers' filter, the database's
+`current_date`), `chest.language`, `chest.tool.publicUrl` and
+`teamUrl`. The package bounds the public actions (`bound`: a form token,
+a time floor, the honeypot, budgets per visitor, per form and per day
+kept in `chest_bounds`, charged only once an answer is valid).
 
-- **Public uploads with claim** (`files.publicUploadUrl(prefix, {types, maxSize, expiresUnclaimedAfter})`,
-  `files.claim`): without them, a public file question says files cannot be
-  sent yet.
-- **Visitors**: the package's `bound` public actions (a form token, a
-  time floor, the honeypot, budgets per visitor, per form and per day kept
-  in `chest_bounds`) — charged only once an answer is valid.
-- **Mail** (`mail.send`, to an address — a visitor's copy only; see
-  *Mail to people outside the company*): without it, or its connector
-  not connected, no copy is sent and the thank-you page does not mention
-  one.
-- **Schedules** (`bell`, `cleanup`): without them the bell still tells at
-  once when the form was quiet for 10 minutes, but a batch waits for the
-  next answer; retention does not run by itself (see below).
-- **Broadcast** (`notifications.broadcast`): without it, a team form's
-  opening is not announced; its link is shared by hand.
-- **Chest settings** (`chest.tool.publicUrl`, `chest.tool.teamUrl`, `chest.theme()`:
-  the look the company chose, and its logo; official in 0.3.0:
-  `chest.organization.name`, `chest.timeZone` — the day of a closing date
-  and of the answers' filter, and of the database's `current_date` —,
-  `chest.language`).
-- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.6-studio.1; public
-  forms wear the company's brand or Forms' own look, never a catalogue
-  theme chosen for the team — `surface: "public"`):
-  Forms' identity is its 20th theme, `forms` ("Invitation"), with the
-  fonts `dm-sans` and `dm-serif-display` in its registry: `src/lib/theme.ts`
-  is `identityOf("forms")`, so any other tool may wear it and a company
-  that picks it gets exactly Forms' own look.
-- **Public files** (`files.publicPath`): covers and picture choices; without
-  them, the pictures do not show on the public page.
-- **Events between tools** (`events.publish("forms.answered" |
-  "forms.contact" | "forms.request")`): without them, the switches are
-  harmless — nothing leaves, the answer is kept.
-- **The other tools' addresses** (`chest.tools.get`, `chest.tools.link`):
-  whether Clients (`crm`) and Support (`helpdesk`) are installed, and the
-  links from an answer to them; **who listens** (`events.receivers`,
-  studio.16): whether an admin linked them to Forms' `forms.contact` and
-  `forms.request` — the switches are greyed otherwise, each with its
-  reason. Asked once per Settings page, never cached. In the harness,
-  `node lab/chest-dev/dev.mjs … --tools crm,helpdesk --linked` installs
-  and links them.
-- **Whether mail goes out** (`mail.available`): Settings says why a
-  public form's copy does not go (no mail, not connected, paused, the
-  day's emails used) before anyone relies on it. When the Chest does not
-  answer, what the last copy taught
-  (`mail_works`). Each copy's key carries its recipient, and each web
-  address delivery's key its addresses (studio.16).
-- **Webhooks** (`webhooks.add`, `send`, `list`, `enable`, `remove`,
-  `handle` on `POST /chest-webhooks`; `chest.proposals.json`
-  `"webhooks": {"max": 200}`, studio.13+): each answer to Slack, Teams or
-  a signed JSON receiver. Settings asks the Chest first
-  (`webhooks.available`, studio.16): without webhooks, when the owner
-  paused Forms' sending (the addresses are kept), or when the Chest did
-  not answer, it says which and hides the form to add one; answers are
-  kept. In the harness, `/_dev` lists the addresses and the
-  deliveries (bodies and signatures) and can make one fail.
+**What Forms cannot do on a 0.7.0 Chest, and why** (the studio's
+proposals still run in its tests and harness; on a real 0.7 Chest those
+calls are refused and the tool falls back as said):
 
-Not in the working copy yet (see the SDK report):
-
+- **Email a visitor their copy** — `mail` is a **proposal** (`mail.send`
+  to an address, the visitor's copy only; see *Mail to people outside the
+  company*): 0.7.0 sends no mail to people outside. Without it, no copy is
+  sent and the thank-you page does not promise one; Settings says why
+  (`mail.available`).
+- **Covers and pictures on a public form** — public files are a
+  **proposal** (`files.publicPath`, `"files": {"publicFiles": true}`):
+  0.7.0's files are private, its links live 15 minutes on the team host.
+  Without it the pictures do not show on the public page.
+- **Each answer to Slack, Teams or a web address** — `webhooks` is a
+  **proposal** (`webhooks.add`, `send`, `list`, `enable`, `remove`,
+  `handle` on `POST /chest-webhooks`; `"webhooks": true`): 0.7.0 has none.
+  Settings asks the Chest first (`webhooks.available`): without webhooks,
+  when the owner paused Forms' sending, or when the Chest did not answer,
+  it says which and hides the form to add one; answers are kept. Adding
+  many addresses in an hour is paced (`RateLimited`: "Try again in an
+  hour").
+- **Whether Clients or Support is installed** — `chest.tools` is a
+  **proposal** (`CHEST_TOOL_URLS`): 0.7.0 names no other tool, and
+  `events.emit` answers how many tools an event reached, never which.
+  On a Chest that gives no list of tools, Forms never says "not
+  installed"; it says "did not receive the last one" when an event of
+  that kind reached no tool, and lists on an answer only the tools that
+  received it. The links from an answer to Clients or Support need the
+  proposal too.
+- **A visitor's plain text or CSV file** — 0.7.0 takes from a visitor
+  only what it recognises by its bytes; a public form's file question
+  offers images, PDF, Office and OpenDocument files.
+- **Per-visitor limits** — the visitor's key is a **proposal**
+  (`visitors.visitor()`): 0.7.0's front names no visitor, so a robot that
+  drops its cookie can spend a form's day for everyone (*What it does
+  not do yet*).
+- **The store's words in French** — `translations` is a **proposal**:
+  the tile and the role names read in English for a French member.
+- **Live public forms** — realtime is for members: a visitor's page is
+  as it was read (a form closed meanwhile refuses the answer and says
+  so).
 - **Being framed by the company's website**: the Chest's front adds
-  `frame-ancestors 'none'` to every public response (floor policy), and
-  the stricter policy wins, so the frame code cannot work on a Chest
-  today. Needed: a manifest permission such as `"embeddable": true` that
-  lets the front drop its own `frame-ancestors` for the public host and
-  keep the tool's (which lists the sites a manager allowed).
+  `frame-ancestors 'none'` to every public response unless the owner
+  allows the company's sites (0.7.0: the tool's Public tab; not checked
+  against a running Chest). The button code works.
 
+The UI kit's catalogue (`@argentic/chest-ui`, 0.2.6-studio.1): public
+forms wear the company's brand or Forms' own look, never a catalogue
+theme chosen for the team (`surface: "public"`); Forms' identity is its
+20th theme, `forms` ("Invitation"), with the fonts `dm-sans` and
+`dm-serif-display`: `src/lib/theme.ts` is `identityOf("forms")`.
 
 ## Develop
 
@@ -575,7 +591,7 @@ npm ci
 npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL (and the scale test)
 npm run build
 npm run dev                                # Vite and the server, reloaded on change
-node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800 --tools crm,helpdesk --linked   # from the studio: harness with seed data, Clients and Support installed and linked
+node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800 --tools crm,helpdesk   # from the studio: harness with seed data, Clients and Support installed
 node ../../../lab/chest-dev/flows/forms.mjs 6800
 ```
 
@@ -611,8 +627,8 @@ seeded (files are the Chest's): the flow uploads one.
   there is **no two-way spreadsheet sync** and no Google Sheets
   connector of its own (a Zapier or Make scenario, or a sheet's Apps
   Script receiving the JSON, does it). Clients receives `forms.contact`
-  and Support `forms.request` (above) once the Chest has events between
-  tools and an admin linked them; **no store tool receives
+  and Support `forms.request` (above) once the owner approved each link;
+  **no store tool receives
   `forms.answered` yet**. A contact is made from one answer's fields only
   (no merging rules chosen by the author). The first guess of a mapping
   reads the kinds and order of the questions, never their words: an
@@ -634,8 +650,8 @@ seeded (files are the Chest's): the flow uploads one.
   week — the store still has to decide who owns pulse surveys.
 - No email verification of respondents; no respondent editing an answer
   after sending (they see it and its follow-up in *What you sent*).
-- Files over 10 MB are not taken (the public upload proposal caps at 10
-  MiB). Pictures of a team form are published files too (random names,
+- Files over 10 MB are not taken (the tool's own bound). A visitor
+  cannot send a plain text or CSV file (above). Pictures of a team form are published files too (random names,
   never listed).
 - **10,000 answers a form at most** (taken in the same statement as the
   form's own limit; Settings says it): the summary counts them in the

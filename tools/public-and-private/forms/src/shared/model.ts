@@ -823,6 +823,14 @@ export function typesFor(accept: Accept): string[] {
   return Object.entries(fileTypes).filter(([, t]) => accept === "any" || (accept === "images" ? t.family === "image" : t.family === "document")).map(([type]) => type);
 }
 
+// What a visitor may send on a public form: the Chest (SDK 0.7.0) takes a
+// visitor's file only of a type it recognises by its bytes — images, PDF,
+// Office and OpenDocument —, never plain text nor CSV.
+export const visitorTypes: ReadonlySet<string> = new Set(Object.keys(fileTypes).filter(type => !type.startsWith("text/")));
+export function visitorTypesFor(accept: Accept): string[] {
+  return typesFor(accept).filter(type => visitorTypes.has(type));
+}
+
 // What a file's first bytes say it is; the type the browser declared must
 // agree. Office files are ZIP (new) or OLE (old) containers; text has no
 // NUL byte.

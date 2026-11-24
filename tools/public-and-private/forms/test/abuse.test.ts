@@ -19,7 +19,7 @@ import { everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], storage: { publicUploads: true }, mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin" } });
   database = await testDatabase();
 });
 after(async () => {

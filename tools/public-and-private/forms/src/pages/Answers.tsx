@@ -60,7 +60,7 @@ export async function answersPage({ sql, member, t, lang, zone, param, query }: 
     }
     return frame(
       <div className="answers-page">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="LiveForms" props={{}} />
         <div className="answers-bar">{head}<span className="spacer" />{exports}</div>
         <p className="answers-count" role="status">{plural(t.answers.count, data.total, lang)}</p>
         <p className="notice">{t.answers.anonymousRows}</p>
@@ -128,7 +128,7 @@ export async function answersPage({ sql, member, t, lang, zone, param, query }: 
   }));
   return frame(
     <div className="answers-page">
-      <Island name="AutoRefresh" props={{ seconds: 30 }} />
+      <Island name="LiveForms" props={{}} />
       <div className="answers-bar">{head}<span className="spacer" />{listed.total > 0 && exports}</div>
       {listed.total > 0 && (
         <div className="answers-filters">

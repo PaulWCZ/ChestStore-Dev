@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
-import { fakeChest, shownTo } from "@argentic/chest-sdk/testing";
+import { fakeChest } from "@argentic/chest-sdk/testing";
+import { noticeIn } from "./support/notices.ts";
 import { copyNotice, sendCopy } from "../src/lib/mailer.ts";
 import { form, q } from "./support/fixtures.ts";
 import { everyone, hugo } from "./support/members.ts";
@@ -33,14 +34,15 @@ test("a visitor's copy: to their address, replies to the company's address, the 
 test("a member's copy of a team form: one notification opening what they sent, in English and French", async () => {
   const chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"] });
   try {
-    assert.equal(await copyNotice(hugo.id, l => (l === "fr" ? "Retour de la semaine" : "Weekly feedback"), "00000000000000a1"), true);
+    const send = () => copyNotice(hugo.id, l => (l === "fr" ? "Retour de la semaine" : "Weekly feedback"), "00000000000000a1");
+    assert.equal(await send(), true);
     assert.equal(chest.outbox.length, 0, "no mail to a member");
     const n = chest.notifications.at(-1)!;
     assert.equal(n.member, hugo.id);
     assert.equal(n.path, "/chest/sent/00000000000000a1");
     assert.equal(n.key, "copy:00000000000000a1");
-    assert.equal(shownTo(n, "en").title, "Your answers to Weekly feedback were sent");
-    assert.equal(shownTo(n, "fr").title, "Vos réponses à Retour de la semaine sont envoyées");
+    assert.equal(n.title, "Your answers to Weekly feedback were sent");
+    assert.equal((await noticeIn(chest, hugo.id, "fr", send)).title, "Vos réponses à Retour de la semaine sont envoyées");
   } finally {
     await chest.close();
   }

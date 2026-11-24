@@ -3,17 +3,9 @@
     "send": true
   },
   "files": {
-    "publicUploads": true,
     "publicFiles": true
   },
-  "emits": [
-    "forms.answered",
-    "forms.contact",
-    "forms.request"
-  ],
-  "webhooks": {
-    "max": 200
-  },
+  "webhooks": true,
   "translations": {
     "fr": {
       "title": "Formulaires",

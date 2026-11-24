@@ -298,15 +298,16 @@ export const actions = {
     // visitor asked for one (and the form offers it).
     return take(sql, form, input, null, languageFor(definition, localeOf(locale)), { copyAsked: input.copy === true });
   }, { maxBody: 256 * 1024, bound: { formSeconds: publicLimits.formSeconds, work: true, budgets: { answer: publicLimits.answers, reaching: publicLimits.reaching } } }),
-  // One file for a public form's file question: an upload address on the
-  // host the visitor is on (Proposal (studio): files.publicUploadUrl), which
-  // answers the visitor's browser a claim only it holds.
+  // One file for a public form's file question: an upload address (a path:
+  // the host the visitor is on, the company's domain or a framed page; SDK
+  // 0.7.0 files.uploadUrl into a folder, public: true); the Chest names the
+  // file and answers the visitor's browser its name.
   visitorUpload: publicAction({ slug, question: questionId, type: fileType, size: fileSize }, async ({ slug: s, question, type, size }, { charge }) => {
     const found = await forms.bySlug(db(), s);
     if (!found || found.form.audience !== "public") fail("not_found");
     if (!forms.openState(found!.form).open) fail("closed");
     const q = uploads.fileQuestion(found!.definition, question);
-    uploads.checkUpload(q, type, size);
+    uploads.checkUpload(q, type, size, "public");
     await charge("file", { subject: found!.form.id });
     return uploads.grant("public", q, type, size);
   }, { bound: { budgets: { file: publicLimits.files } } }),

@@ -6,7 +6,7 @@ import { Arrow, Back, Check, Down, StarIcon, Up } from "../components/icons.tsx"
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../shared/format.ts";
 import { asked, has, isGrid, isPick, isRanking, read, recall, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../shared/logic.ts";
-import { limits, manyPicks, typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../shared/model.ts";
+import { limits, manyPicks, typesFor, visitorTypesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../shared/model.ts";
 import { uploadFile } from "../shared/upload-client.ts";
 
 // The respondent's form: the same component on the public page, on a team
@@ -402,6 +402,9 @@ export function Runner(props: RunnerProps) {
     (target?.matches("input, textarea, select, [tabindex]") ? target : target?.querySelector<HTMLElement>("input:not([type=hidden])"))?.focus({ preventScroll: false });
   }, [clampIndex, stage, mode]);
 
+  // The kinds of file a question takes here: from a visitor, only those the
+  // Chest recognises by their bytes (no plain text, no CSV: SDK 0.7.0).
+  const accepted = (q: Question) => (mode === "public" ? visitorTypesFor : typesFor)(q.accept ?? "any");
   // A file sent straight to the Chest (lib/upload-client.ts), with its
   // progress; the answer is what the Chest or the tool gave back for it.
   const upload = useCallback((q: Question) => async (file: File, options: { onProgress: (fraction: number) => void; signal: AbortSignal }) => {
@@ -415,7 +418,7 @@ export function Runner(props: RunnerProps) {
       const first = await ask(type);
       return !first.ok && first.error === "expired" ? ask(type) : first;
     };
-    const result = await uploadFile(file, grant, typesFor(q.accept ?? "any"), options);
+    const result = await uploadFile(file, grant, accepted(q), options);
     return result.ok ? { ok: true as const, ref: result.ref } : { ok: false as const, error: format(props.errors[result.error] ?? props.errors.unknown, { max: 0 }) };
   }, [props.slug, props.errors, mode]);
   // What is ready becomes the question's answer: its one file, or its files.
@@ -440,6 +443,7 @@ export function Runner(props: RunnerProps) {
       files={picked[q.id] ?? []}
       onFiles={update => setPicked(all => ({ ...all, [q.id]: update(all[q.id] ?? []) }))}
       upload={upload(q)}
+      accept={accepted(q)}
       onChange={v => set(q.id, v)}
       {...(q.kind === "date" ? { onProblem: refusedProblem(q.id), refused: refused.current[q.id] === true } : {})}
       onPicked={props.layout === "steps" ? () => setTimeout(() => setIndex(i => (i === clampIndex && clampIndex < sequence.length - 1 ? i + 1 : i)), 380) : undefined}
@@ -645,6 +649,8 @@ export function Runner(props: RunnerProps) {
 
 type FieldProps = {
   q: Question;
+  // The file types this question takes here (a visitor's or a member's).
+  accept: string[];
   number: number | null;
   value: unknown;
   error: AnswerError | null;
@@ -986,7 +992,7 @@ function QuestionField(p: FieldProps) {
         <p className="q-help">{w.file.off}</p>
       ) : (
         <>
-          <FilePicker label={q.title} files={p.files} onChange={p.onFiles} upload={p.upload} accept={typesFor(q.accept ?? "any")} maxSize={limits.fileSize} maxFiles={max} disabled={p.preview} labels={w.files} />
+          <FilePicker label={q.title} files={p.files} onChange={p.onFiles} upload={p.upload} accept={p.accept} maxSize={limits.fileSize} maxFiles={max} disabled={p.preview} labels={w.files} />
           {/* The kit's picker says the limits and the kinds accepted:
               said once (store critique, round 2). */}
           {p.preview && <p className="q-help">{w.file.notInPreview}</p>}

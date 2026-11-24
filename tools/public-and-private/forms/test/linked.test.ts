@@ -9,12 +9,13 @@ import * as answers from "../src/lib/answers.ts";
 import * as forms from "../src/lib/forms.ts";
 import * as hooks from "../src/lib/hooks.ts";
 import { catalogue } from "../src/i18n/index.ts";
-import { installed, links, mailState, startOf } from "../src/lib/linked.ts";
+import { installed, links, mailState, reached, startOf } from "../src/lib/linked.ts";
 import { take } from "../src/lib/respond.ts";
 import { guessRoutes } from "../src/lib/routes.ts";
 import { putSetting } from "../src/lib/settings.ts";
 import { template } from "../src/lib/templates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { emits } from "./support/emits.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -34,10 +35,9 @@ before(async () => {
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail"],
     mail: { domain: "atelier.test" },
-    emits: ["forms.answered", "forms.contact", "forms.request"],
-    receivers: 1,
+    emits,
     chest: { organization: "Atelier Martin", language: "en" },
-    webhooks: { max: 200, to: webhookEvents },
+    webhooks: { to: webhookEvents },
     network: {},
   });
   database = await testDatabase();
@@ -46,10 +46,10 @@ after(async () => {
   await chest.close();
   await database.close();
 });
-beforeEach(() => {
+beforeEach(async () => {
+  await database.sql`delete from settings where key like 'reach_%'`;
   chest.removeTool("crm");
   chest.removeTool("helpdesk");
-  for (const type of Object.keys(chest.linked)) delete chest.linked[type];
 });
 
 const refused = (code: string) => (e: unknown) => e instanceof AppError && e.code === code;
@@ -75,24 +75,28 @@ test("the first guess reads the kinds of the questions, never their words: the C
   assert.deepEqual(guessRoutes(form([only])).request, { subject: null, details: null, email: only.id, name: null });
 });
 
-test("a new Contact form starts linked to Clients when an admin linked Clients to Forms", async () => {
+test("a new Contact form starts linked to Clients once Clients is installed, until a contact reaches no tool", async () => {
   const { sql } = database;
   const made = template("contact", catalogue("en"));
   assert.deepEqual(installed(), { contact: false, request: false });
-  assert.deepEqual(await links(), { contact: "not_installed", request: "not_installed" });
+  assert.deepEqual(await links(sql), { contact: "not_installed", request: "not_installed" });
   const alone = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.equal(alone.routes.contact, null, "nothing would receive it");
   chest.installTool("crm");
   assert.deepEqual(installed(), { contact: true, request: false });
-  // Installed is not enough (studio.16, events.receivers): until an admin
-  // links the two tools, every contact would publish into nothing.
-  assert.deepEqual(await links(), { contact: "not_linked", request: "not_installed" });
-  assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).routes.contact, null, "installed, not linked: off");
-  chest.linked["forms.contact"] = ["crm"];
-  assert.deepEqual(await links(), { contact: "linked", request: "not_installed" });
+  // Installed, nothing sent yet: taken as linked (0.7.0 names no receiver;
+  // the owner approves the link).
+  assert.deepEqual(await links(sql), { contact: "linked", request: "not_installed" });
   const linked = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.deepEqual(linked.routes.contact, guessRoutes(made.definition).contact);
   assert.equal(linked.routes.request, null, "Support stays the author's choice");
+  // A contact that reached no tool (events.emit answered 0 receivers: the
+  // owner has not approved the link): Settings says so, a new form starts off.
+  await reached(sql, "forms.contact", false);
+  assert.deepEqual(await links(sql), { contact: "not_linked", request: "not_installed" });
+  assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).routes.contact, null, "installed, not reached: off");
+  await reached(sql, "forms.contact", true);
+  assert.deepEqual(await links(sql), { contact: "linked", request: "not_installed" });
   // The Chest says whether it sends email (mail.available): Settings
   // warns that a public form's copy waits.
   chest.delivery.mail = "not_connected";
@@ -127,39 +131,37 @@ const reply = (email = "nina@example.com") => ({ [name.id]: "Nina Roux", [mail.i
 const routes = { contact: { name: name.id, email: mail.id, message: message.id }, request: { subject: topic.id, details: message.id, email: mail.id, name: name.id } };
 const lastAnswer = async (formId: string) => (await database.sql<{ id: string; sent: string[] }[]>`select id, sent from answers where form_id = ${formId} order by created_at desc limit 1`)[0]!;
 
-test("one message, one email: when Support opens a ticket of it (and confirms), Forms sends no copy; without Support, the copy goes; the answer says where it went", async () => {
+test("one message, one email: the answer tells Clients and Support, says where it went, and a copy goes when no tool confirmed", async () => {
   const { sql } = database;
   chest.installTool("crm");
   chest.installTool("helpdesk");
-  chest.linked["forms.contact"] = ["crm"];
-  chest.linked["forms.request"] = ["helpdesk"];
   const f = await published(def, { sendCopy: true, routes });
-  const before = chest.outbox.length;
+  const before = chest.outbox.length, told = chest.emitted.length;
   const r = await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
-  assert.deepEqual(r, { copy: false });
-  assert.equal(chest.outbox.slice(before).filter(m => JSON.stringify(m.to).includes("nina@example.com")).length, 0, "Support confirms: no copy from Forms");
+  // Both told, flat as chest.json declares them (the fake Chest checks).
+  const sent = chest.emitted.slice(told);
+  assert.deepEqual(sent.map(e => e.type).sort(), ["forms.contact", "forms.request"]);
+  const contact = sent.find(e => e.type === "forms.contact")!;
+  assert.equal(contact.data["contactEmail"], "nina@example.com");
+  assert.equal(contact.subject, `answer:${(await lastAnswer(f.id)).id}`);
+  assert.equal(contact.audience, undefined, "the author chose to send it: every member of the receiving tool may see it");
+  // The fake Chest, like a Chest whose owner approved no link, answers that
+  // no tool received them: nobody confirms, so the copy goes, and the answer
+  // does not claim a ticket (on a Chest where Support received it — emit's
+  // receivers above 0 — Support confirms and Forms sends no copy; the fake
+  // cannot say a receiver: not covered here).
+  assert.deepEqual(r, { copy: true });
+  assert.equal(chest.outbox.slice(before).filter(m => JSON.stringify(m.to).includes("nina@example.com")).length, 1);
   const a = await lastAnswer(f.id);
-  assert.deepEqual(a.sent, ["forms.contact", "forms.request"]);
-  assert.deepEqual((await answers.oneAnswer(sql, asMember(ines), f.id, a.id)).answer.sent, ["forms.contact", "forms.request"]);
-  // Support installed but not linked (studio.16): no ticket, nobody
-  // confirms, so the copy goes; the answer does not claim a ticket.
-  chest.linked["forms.request"] = [];
-  const unlinked = await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
-  assert.deepEqual(unlinked, { copy: true });
-  const unlinkedAnswer = await lastAnswer(f.id);
-  assert.deepEqual(unlinkedAnswer.sent, ["forms.contact", "copy"]);
-  // The recipient in the copy's key (studio.16).
-  assert.equal(chest.outbox.at(-1)!.key, idempotencyKey(`copy:${unlinkedAnswer.id}:nina@example.com`));
-  chest.linked["forms.request"] = ["helpdesk"];
-  // Support not installed: nobody confirms, so the copy goes.
-  chest.removeTool("helpdesk");
-  // (Another address: one copy an address a day for a form.)
-  const again = await take(sql, f, { version: f.version, answers: reply("nina.roux@example.com") }, null, "en", { copyAsked: true });
-  assert.deepEqual(again, { copy: true });
-  assert.ok((await lastAnswer(f.id)).sent.includes("copy"));
+  assert.deepEqual(a.sent, ["copy"]);
+  assert.deepEqual((await answers.oneAnswer(sql, asMember(ines), f.id, a.id)).answer.sent, ["copy"]);
+  // The recipient in the copy's key.
+  assert.equal(chest.outbox.at(-1)!.key, idempotencyKey(`copy:${a.id}:nina@example.com`));
+  // Settings now says neither reached a tool: ask the owner to approve the links.
+  assert.deepEqual(await links(sql), { contact: "not_linked", request: "not_linked" });
   // No route, a copy: only the copy.
   const plain = await published(def, { sendCopy: true });
-  await take(sql, plain, { version: plain.version, answers: reply() }, null, "en", { copyAsked: true });
+  await take(sql, plain, { version: plain.version, answers: reply("nina.roux@example.com") }, null, "en", { copyAsked: true });
   assert.deepEqual((await lastAnswer(plain.id)).sent, ["copy"]);
 });
 

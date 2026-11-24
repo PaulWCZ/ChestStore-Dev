@@ -181,7 +181,7 @@ export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
   const summaries = summarise(new Map([...data.versions].map(([v, d]) => [v, readIn(d, lang)])), data.stats, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
   return frame(
     <div className="summary-page">
-      <Island name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island name="LiveForms" props={{}} />
       {head}
       <p className="answers-count">{plural(t.answers.count, data.stats.total, lang)}</p>
       {data.versions.size > 1 && <p className="hint">{s.versions}</p>}

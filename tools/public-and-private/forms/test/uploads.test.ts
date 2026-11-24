@@ -16,7 +16,7 @@ import { everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], storage: { publicUploads: true }, mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin" } });
   database = await testDatabase();
 });
 after(async () => {
@@ -28,38 +28,53 @@ const pdf = new TextEncoder().encode("%PDF-1.4\n%%EOF\n");
 const refused = async (promise: Promise<unknown>, code: string) => {
   await assert.rejects(promise, (error: unknown) => error instanceof AppError && error.code === code, code);
 };
+// A visitor's upload (SDK 0.7.0): into the folder uploads/public/, the
+// Chest names the file and answers the browser {name, type, size}.
 async function visitorSends(question: ReturnType<typeof q>, data: Uint8Array, type = "application/pdf"): Promise<string> {
   const { url } = await uploads.grant("public", question, type, data.byteLength);
+  assert.match(url, /^\/_chest\/files\/upload\//u, "a path: the page's own host");
   const answer = await chest.upload(url, data, type);
   assert.equal(answer.status, 201);
-  const body = (await answer.json()) as { claim?: string; name?: string };
-  assert.ok(body.claim && !body.name, "the visitor gets a claim, never the object's name");
-  return body.claim;
+  const body = (await answer.json()) as { name?: string };
+  assert.match(body.name ?? "", /^uploads\/public\/[0-9a-f]{20}\.[a-z]+$/u, "the Chest names the file: nobody guesses another's");
+  return body.name!;
 }
 
-test("a visitor's file is claimed only once, by the answer that sent it, and checked", async () => {
+test("a visitor's file is taken once, by the answer that sent it, and checked", async () => {
   const cv = q("file", "CV", { accept: "documents" });
-  const claim = await visitorSends(cv, pdf);
-  const kept = await uploads.accept("public", "7", cv, { ref: claim, name: "Nina CV.pdf" });
+  const sent = await visitorSends(cv, pdf);
+  const kept = await uploads.accept("public", "7", cv, { ref: sent, name: "Nina CV.pdf" });
   assert.match(kept.file, /^answers\/7\/[0-9a-f]{20}\.pdf$/u);
   assert.equal(kept.name, "Nina CV.pdf");
   assert.ok(chest.files.has(kept.file));
-  await refused(uploads.accept("public", "7", cv, { ref: claim, name: "again" }), "file_missing");
-  await refused(uploads.accept("public", "7", cv, { ref: "made-up-claim-value.claim", name: "x" }), "file_missing");
-  // A file that says PDF but is not one: the Chest's front refuses it.
+  assert.ok(!chest.files.has(sent), "moved under the form");
+  await refused(uploads.accept("public", "7", cv, { ref: sent, name: "again" }), "file_missing");
+  await refused(uploads.accept("public", "7", cv, { ref: "uploads/public/0123456789abcdef0123.pdf", name: "x" }), "file_missing");
+  // Never a name outside the visitors' folder (a team upload, an answer's file).
+  await refused(uploads.accept("public", "7", cv, { ref: kept.file, name: "x" }), "file_missing");
+  await refused(uploads.accept("public", "7", cv, { ref: "uploads/team/0123456789abcdef0123.pdf", name: "x" }), "file_missing");
+  // A file that says PDF but is not one: the Chest refuses it by its bytes
+  // (415: the browser's form says "This file's type is not accepted here").
   const { url } = await uploads.grant("public", cv, "application/pdf", 25);
-  assert.equal((await chest.upload(url, new TextEncoder().encode("<script>alert(1)</script>"), "application/pdf")).status, 400);
-  // One whose kind the Chest does not read (a Word file that is not one):
-  // the tool reads its first bytes, refuses it and deletes it.
-  const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  const fake = await visitorSends(cv, new TextEncoder().encode("<script>alert(1)</script>"), docx);
-  const before = chest.files.size;
-  await refused(uploads.accept("public", "7", cv, { ref: fake, name: "cv.docx" }), "file_invalid");
-  assert.equal(chest.files.size, before - 1);
+  assert.equal((await chest.upload(url, new TextEncoder().encode("<script>alert(1)</script>"), "application/pdf")).status, 415);
+  // A visitor sends no plain text nor CSV: the Chest cannot tell them by their bytes.
+  await refused(uploads.grant("public", cv, "text/plain", 10), "file_invalid");
+  await refused(uploads.grant("public", cv, "text/csv", 10), "file_invalid");
+  assert.ok(uploads.acceptedTypes(cv, "team").includes("text/csv"), "a member still may");
   // A type the question does not take is refused before any upload.
   await refused(uploads.grant("public", cv, "image/png", 10), "file_invalid");
   await refused(uploads.grant("public", cv, "application/pdf", 20 << 20), "file_too_large");
   await refused(uploads.grant("public", q("file", "Photo", { accept: "images" }), "image/svg+xml", 10), "file_invalid");
+});
+
+test("a visitor's file no answer recorded is deleted after a day (0.7.0 keeps it otherwise)", async () => {
+  const cv = q("file", "CV", { accept: "documents" });
+  const left = await visitorSends(cv, pdf);
+  const kept = await uploads.accept("public", "8", cv, { ref: await visitorSends(cv, pdf), name: "cv.pdf" });
+  assert.equal(await uploads.sweep(new Date()), 0, "not before a day");
+  assert.ok(await uploads.sweep(new Date(Date.now() + 2 * 86400000)) >= 1);
+  assert.ok(!chest.files.has(left), "the unrecorded upload is gone");
+  assert.ok(chest.files.has(kept.file), "an answer's file stays");
 });
 
 test("a member's file on a team form: the tool's signed ticket, never a forged one", async () => {
@@ -83,8 +98,8 @@ test("an answer with a file, end to end: kept under the form, copy emailed in th
   await forms.saveSettings(sql, asMember(ines), f0.id, { audience: "public", layout: "classic", accent: "forest", sendCopy: true, watchers: [ines.id] }, null);
   await forms.publish(sql, asMember(ines), f0.id);
   const f = (await forms.bySlug(sql, f0.slug))!.form;
-  const claim = await visitorSends(cv, pdf);
-  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "fr", { copyAsked: true });
+  const sent = await visitorSends(cv, pdf);
+  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: sent, name: "cv.pdf" } } }, null, "fr", { copyAsked: true });
   assert.deepEqual(taken, { copy: true });
   const [a] = (await everyAnswer(sql, f.id)).answers;
   assert.match((a!.data[cv.id] as { file: string }).file, new RegExp(`^answers/${f.id}/`, "u"));
@@ -96,8 +111,8 @@ test("an answer with a file, end to end: kept under the form, copy emailed in th
   assert.ok(mail.text.includes("Atelier Martin") && mail.text.includes("Apply"));
   assert.ok(!mail.text.includes("cv.pdf") && !mail.text.includes("nina@example.com"), mail.text);
   assert.ok(mail.text.includes("2 réponses écrites ne sont pas reprises"), mail.text);
-  // The same claim cannot be used by a second answer.
-  await refused(take(sql, f, { version: 1, answers: { [email.id]: "bob@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "en"), "file_missing");
+  // The same file cannot be used by a second answer.
+  await refused(take(sql, f, { version: 1, answers: { [email.id]: "bob@example.com", [cv.id]: { ref: sent, name: "cv.pdf" } } }, null, "en"), "file_missing");
   // Answers with errors come back per question.
   await assert.rejects(take(sql, f, { version: 1, answers: { [email.id]: "nope" } }, null, "en"), (e: unknown) => e instanceof AppError && e.code === "answers" && e.values[email.id] === "email" && e.values[cv.id] === "required");
 });
@@ -118,8 +133,10 @@ test("a team form's copy is a notification to the member, opening what they sent
   assert.ok(!chest.outbox.some(m => m.subject.includes("Team note")), "no mail to a member");
 });
 
-test("without public uploads on the Chest, the grant says so", async () => {
-  const other = await fakeChest({ members: everyone, capabilities: ["files"] });
+test("without files on the Chest, the grant says so", async () => {
+  // A visitor's upload is SDK 0.7.0's own (files.uploadUrl, public: true):
+  // what a Chest refuses is the capability files.
+  const other = await fakeChest({ members: everyone, capabilities: ["members"] });
   try {
     await assert.rejects(uploads.grant("public", q("file", "CV"), "application/pdf", 10), (e: unknown) => e instanceof CapabilityNotGranted);
   } finally {

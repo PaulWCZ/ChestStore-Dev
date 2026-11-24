@@ -7,7 +7,7 @@ import { answered, routed } from "./answered.ts";
 import { copyAllowed, copyNotice, sendCopy } from "./mailer.ts";
 import { isLanguage, localize } from "../shared/model.ts";
 import { sendHooks } from "./hooks.ts";
-import { linkOf } from "./linked.ts";
+import { installed } from "./linked.ts";
 import { putSetting } from "./settings.ts";
 import { afterAnswer } from "./tell.ts";
 import * as uploads from "./uploads.ts";
@@ -30,18 +30,18 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
     files: (ref, question) => uploads.accept(kind, form.id, question, ref),
     drop: objects => uploads.remove(objects),
   });
-  // Other tools of the Chest (Proposal (studio): events between tools).
+  // Other tools of the Chest (SDK 0.7.0 events between tools).
   await answered(form, definition, answer);
   // A contact in Clients, a ticket in Support, when the form says so;
   // the form's web addresses (src/lib/hooks.ts).
-  const routedTo = await routed(form, definition, answer);
+  const routedTo = await routed(sql, form, definition, answer);
   const hooked = (await sendHooks(sql, form, definition, answer)) > 0;
   // The copy by email (Proposal (studio): mail). Not when Support opened
   // a ticket of it: Support confirms the request itself (its "we received
   // your request" email), and one message must not bring two emails
-  // (README, "With the other tools"). Support confirms only when it is
-  // linked to receive the request (events.receivers): installed alone,
-  // nobody would.
+  // (README, "With the other tools"). Support confirms only when the
+  // request reached a tool (events.emit's receivers) and Support is
+  // installed: installed alone, unlinked, nobody would.
   // - a team form: a notification to the member (never a mail), opening
   //   what they sent;
   // - a public form: to the address typed, only when the visitor ticked
@@ -49,7 +49,7 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
   //   typed: an address anyone can type must not carry anyone's text in
   //   the company's name), at most copyLimits a form an hour and one an
   //   address a day (copyAllowed).
-  const supportConfirms = routedTo.includes("forms.request") && (await linkOf("request")) === "linked";
+  const supportConfirms = routedTo.includes("forms.request") && installed().request;
   let copy = false;
   if (form.sendCopy && !form.anonymous && !supportConfirms) {
     const visitor = form.audience === "public";

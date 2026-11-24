@@ -26,7 +26,7 @@ export function notice(message: (t: Catalogue, locale: Locale) => { title: strin
     const b = body ? cutLines(body, 280) : "";
     return { title: cut(title, 80), ...(b ? { body: b } : {}) };
   };
-  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as notifications.Translations;
+  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as Record<string, notifications.Words>;
   return { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
 }
 

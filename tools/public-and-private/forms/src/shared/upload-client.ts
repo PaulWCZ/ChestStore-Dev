@@ -1,8 +1,9 @@
 // Safe in the browser: no SDK here.
 // The browser's side of a file answer: ask the tool for a one-time address
 // (an action: grant), send the file there — to the Chest, never through the tool —
-// and keep what proves it was this browser that sent it: the Chest's claim
-// (public form) or the tool's ticket (team form).
+// and keep what names the file: the name the Chest gave it (public form:
+// 20 random hex characters, which nobody else can guess) or the tool's
+// ticket (team form).
 import { putWithProgress, type Progress } from "@argentic/chest-ui/components/logic";
 import type { ErrorCode } from "@argentic/chest-app/client";
 import { fileTypes, limits } from "./model.ts";
@@ -38,8 +39,8 @@ export async function uploadFile(file: File, grant: (type: string) => Grant, acc
     if (put.status === 429) return { ok: false, error: "limit" };
     if (put.status < 200 || put.status >= 300) return { ok: false, error: "unavailable" };
     if (given.value.ticket) return { ok: true, ref: given.value.ticket };
-    const sent = (() => { try { return JSON.parse(put.text) as { claim?: string }; } catch { return {}; } })();
-    return sent.claim ? { ok: true, ref: sent.claim } : { ok: false, error: "unavailable" };
+    const sent = (() => { try { return JSON.parse(put.text) as { name?: unknown }; } catch { return {}; } })();
+    return typeof sent.name === "string" ? { ok: true, ref: sent.name } : { ok: false, error: "unavailable" };
   } catch (error) {
     // Taken off while it was sent: the picker forgets it, nothing to say.
     if ((error as { name?: string })?.name === "AbortError") throw error;

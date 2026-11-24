@@ -55,7 +55,7 @@ export async function homePage({ sql, member, t, lang, zone, query }: Ctx) {
     title: t.home.title,
     body: (
       <div>
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="LiveForms" props={{}} />
         {deleted !== undefined && /^[1-9][0-9]{0,17}$/u.test(deleted) && <Island id={`deleted-${deleted}`} name="DeletedToast" props={{ formId: deleted, text: t.builder.deletedForm }} />}
         <div className="home-head">
           <h1>{t.home.title}</h1>

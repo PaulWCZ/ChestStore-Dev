@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { emits } from "./support/emits.ts";
 import * as files from "@argentic/chest-sdk/files";
 import { answeredData } from "../src/lib/answered.ts";
 import * as answers from "../src/lib/answers.ts";
@@ -23,9 +24,8 @@ before(async () => {
   chest = await fakeChest({
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail"],
-    emits: ["forms.answered"],
-    receivers: 1,
-    storage: { publicUploads: true, publicFiles: true },
+    emits,
+    storage: { publicFiles: true },
     mail: { domain: "atelier.test" },
     chest: { organization: "Atelier Martin" },
     network: {},
@@ -123,16 +123,16 @@ test("new answers in the bell of the people told, batched, in English and French
   await take(sql, f, { version: f.version, answers: { [name.id]: "Nina", [email.id]: "nina@example.com" } }, null, "en");
   const told = () => chest.notifications.filter(n => n.member === ines.id && n.key === key);
   assert.equal(told().length, 1);
-  assert.equal(shownTo(told()[0]!, "en").title, "1 new answer to Contact");
-  assert.match(shownTo(told()[0]!, "fr").title, /^1 nouvelle réponse/u);
+  // Inès reads French: the Chest keeps the notice's French translation for her.
+  assert.equal(told()[0]!.title, "1 nouvelle réponse à Contact");
   assert.equal(told()[0]!.path, `/chest/forms/${f.id}/answers`);
   // A second answer within ten minutes waits for the batch; the batch
   // replaces the item (its key).
   await take(sql, f, { version: f.version, answers: { [name.id]: "Tom" } }, null, "en");
-  assert.equal(shownTo(told()[0]!, "en").title, "1 new answer to Contact");
+  assert.equal(told()[0]!.title, "1 nouvelle réponse à Contact");
   await tell.pending(sql);
   assert.equal(told().length, 1);
-  assert.equal(shownTo(told()[0]!, "en").title, "2 new answers to Contact");
+  assert.equal(told()[0]!.title, "2 nouvelles réponses à Contact");
   assert.equal(chest.outbox.length, mails, "no email to a member");
 });
 
@@ -142,16 +142,19 @@ test("forms.answered: each answer to the other tools when the form says so — n
   const cv = q("file", "CV");
   const topic = q("choice", "Topic", { options: opts("Quote", "Order") });
   const { form: f, definition: def } = await published(form([name, cv, topic], "Leads"), { shareEvents: true }, ines);
-  const before = chest.published.length;
+  const before = chest.emitted.length;
   const { answer } = await answers.submit(sql, { form: f, version: f.version, answers: { [name.id]: "Nina", [topic.id]: { ids: [topic.options![0]!.id] } }, respondent: null, language: "fr", ...noFiles });
   const data = answeredData(f, def, { ...answer, data: { ...answer.data, [cv.id]: { file: "answers/1/x.pdf", name: "cv.pdf", type: "application/pdf", size: 3 } } });
   assert.deepEqual(data.fields.map(x => [x.key, x.label, x.value]), [["name", "Your name", "Nina"], [null, "CV", "cv.pdf"], [null, "Topic", "Quote"]]);
   assert.equal(data.member, null);
   await take(sql, f, { version: f.version, answers: { [name.id]: "Tom" } }, null, "en");
-  const sent = chest.published.slice(before);
+  const sent = chest.emitted.slice(before);
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.type, "forms.answered");
   assert.equal((sent[0]!.data as { title: string }).title, "Leads");
+  // Flat as chest.json declares it: the answers as JSON text.
+  assert.deepEqual((JSON.parse(sent[0]!.data["fields"] as string) as { label: string; value: string }[]).map(x => [x.label, x.value]), [["Your name", "Tom"]]);
+  assert.equal(sent[0]!.key, `forms:${sent[0]!.data["answer"]}:answered`);
   // Off by default, and never for an anonymous form (the setting cannot be on).
   const quiet = await published(form([name], "Quiet"), {}, ines);
   await take(sql, quiet.form, { version: quiet.form.version, answers: { [name.id]: "x" } }, null, "en");
@@ -159,7 +162,7 @@ test("forms.answered: each answer to the other tools when the form says so — n
   const anon = await published(form([mood], "Pulse"), { audience: "team", anonymous: true, shareEvents: true }, camille);
   assert.equal(anon.form.shareEvents, false);
   await take(sql, anon.form, { version: anon.form.version, answers: { [mood.id]: 4 } }, asMember(tom), "en");
-  assert.equal(chest.published.length, before + 1);
+  assert.equal(chest.emitted.length, before + 1);
 });
 
 test("websites allowed to show the public forms: https addresses, managers only; the team's pages never framed", async () => {
