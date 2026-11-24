@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest, type FakeEmits } from "@argentic/chest-sdk/testing";
 import { toApp as hooksRoute } from "./support/app.ts";
 import { AppError } from "../src/lib/app-error.ts";
 import { addComponent, allComponents, inLocale, updateComponent } from "../src/lib/components.ts";
 import * as hooks from "../src/lib/hooks.ts";
 import * as incidents from "../src/lib/incidents.ts";
 import { statusView } from "../src/lib/status-view.ts";
-import { tellTools } from "../src/lib/tell-tools.ts";
+import { occurredAtOf, tellTools } from "../src/lib/tell-tools.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, nora, tom } from "./support/members.ts";
@@ -15,19 +17,21 @@ import { camille, everyone, nora, tom } from "./support/members.ts";
 // Round 3 of the critique: services in two languages; no history before a
 // service existed; updates delivered to Slack, Teams or a web address
 // (Proposal (studio): webhooks); incidents told to the other tools
-// (Proposal (studio): events between tools, "status.incident").
+// (SDK 0.7.0's events between tools, "status.incident").
 let database: TestDatabase;
 let chest: FakeChest;
 const editor = asMember(camille);
 const zone = "Europe/Paris";
 const slack = "https://hooks.slack.com/services/T0001/B0001/abcdefghijklmnopqrstuvwx";
 let payments = "", website = "", office = "";
+let emits: Record<string, FakeEmits> = {};
 
 before(async () => {
-  // Events are named after the tool that publishes them.
   process.env["CHEST_TOOL"] = "status";
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { max: 200, to: hooksRoute }, emits: ["status.incident"], receivers: 1 });
+  // The types chest.json declares, with their fields (contract 0.7).
+  emits = (JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { emits: Record<string, FakeEmits> }).emits;
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { to: hooksRoute }, emits });
 });
 after(async () => {
   await chest.close();
@@ -36,7 +40,7 @@ after(async () => {
 beforeEach(async () => {
   const { sql } = database;
   await sql`truncate incidents, components, subscribers, mail_queue, hook_subscribers, hook_queue, form_counts, settings restart identity cascade`;
-  chest.published.length = 0;
+  chest.emitted.length = 0;
   // Camille writes French; Tom English.
   payments = (await addComponent(sql, editor, { name: "Paiement", description: "Carte et PayPal", second: { name: "Payments", description: "Card and PayPal" } })).id;
   website = (await addComponent(sql, asMember(tom), { name: "Website" })).id;
@@ -152,10 +156,10 @@ test("a channel the Chest stops is marked on its page; Try again; stop forgets i
 test("studio.16: whether the Chest delivers is asked of it — paused by its owner, nothing is added or lost; ready again, it says how many", async () => {
   const { sql } = database;
   const h = await hooks.subscribeHook(sql, { kind: "slack", url: slack, language: "en", components: "all" });
-  assert.deepEqual(await hooks.hooksDelivery(sql), { state: "ok", targets: chest.webhooks.targets.length, max: 200 });
+  assert.deepEqual(await hooks.hooksDelivery(sql), { state: "ok" });
   chest.delivery.webhooks = "suspended";
   try {
-    assert.deepEqual(await hooks.hooksDelivery(sql), { state: "paused", targets: null, max: null });
+    assert.deepEqual(await hooks.hooksDelivery(sql), { state: "paused" });
     await refuses("hooks_paused", () => hooks.subscribeHook(sql, { kind: "slack", url: slack.replace("B0001", "B0003"), language: "en", components: "all" }));
     await open({ [payments]: "major" });
     const before = chest.webhooks.deliveries.length;
@@ -198,35 +202,63 @@ test("status.incident tells the other tools: opened, updated, resolved, removed 
   const { sql } = database;
   const { incidentId } = await open({ [payments]: "major" });
   await tellTools(sql, incidentId, "opened");
-  const opened = chest.published.at(-1)!;
+  const opened = chest.emitted.at(-1)!;
   assert.equal(opened.type, "status.incident");
-  const d = opened.data as { v: number; action: string; incident: { id: string; title: string; language: string; titles: Record<string, string>; status: string; impact: string; url: string; services: { names: Record<string, string>; state: string }[] }; update: { at: string } };
-  assert.deepEqual([d.v, d.action, d.incident.id, d.incident.title, d.incident.language, d.incident.status, d.incident.impact], [1, "opened", incidentId, "Paiements en échec", "fr", "investigating", "major"]);
-  assert.deepEqual(d.incident.titles, { fr: "Paiements en échec", en: "Payments failing" });
-  assert.equal(d.incident.url, `https://status.atelier-martin.test/incidents/${incidentId}`);
-  assert.deepEqual(d.incident.services, [{ id: payments, names: { fr: "Paiement", en: "Payments" }, state: "major" }]);
+  // Flat fields of declared kinds (contract 0.7), about the incident, for everyone.
+  assert.equal(opened.subject, incidentId);
+  assert.equal(opened.audience, undefined);
+  const d = opened.data as Record<string, string | null>;
+  assert.deepEqual([d["action"], d["incident"], d["title"], d["language"], d["status"], d["impact"]], ["opened", incidentId, "Paiements en échec", "fr", "investigating", "major"]);
+  assert.deepEqual(JSON.parse(d["titles"]!), { fr: "Paiements en échec", en: "Payments failing" });
+  assert.equal(d["url"], `https://status.atelier-martin.test/incidents/${incidentId}`);
+  assert.deepEqual(JSON.parse(d["services"]!), [{ id: payments, names: { fr: "Paiement", en: "Payments" }, state: "major" }]);
+  assert.ok(Object.values(d).every(v => v === null || typeof v === "string"), "no object, no list");
+  assert.deepEqual(Object.keys(d).sort(), Object.keys(emits["status.incident"]!.data).sort(), "every field declared in chest.json, and only those");
+  assert.equal(opened.occurredAt, d["updatedAt"], "when its update was posted");
   assert.ok(!JSON.stringify(d).includes("mbr_"), "no member");
   assert.ok(!JSON.stringify(d).includes("Nous regardons"), "no update text");
   // The same news again is one event.
   await tellTools(sql, incidentId, "opened");
-  assert.equal(chest.published.filter(p => p.type === "status.incident").length, 1);
+  assert.equal(chest.emitted.filter(p => p.type === "status.incident").length, 1);
   await incidents.addUpdate(sql, editor, incidentId, { status: "identified", body: "Trouvé." });
   await tellTools(sql, incidentId);
-  assert.equal((chest.published.at(-1)!.data as { action: string }).action, "updated");
+  assert.equal(chest.emitted.at(-1)!.data["action"], "updated");
   await incidents.addUpdate(sql, editor, incidentId, { status: "resolved", body: "Réglé." });
   await tellTools(sql, incidentId);
-  const resolved = chest.published.at(-1)!.data as { action: string; incident: { impact: string; resolved_at: string | null } };
-  assert.equal(resolved.action, "resolved");
-  assert.equal(resolved.incident.impact, "operational");
-  assert.ok(resolved.incident.resolved_at);
+  const resolved = chest.emitted.at(-1)!.data;
+  assert.equal(resolved["action"], "resolved");
+  assert.equal(resolved["impact"], "operational");
+  assert.ok(resolved["resolvedAt"]);
   await incidents.removeIncident(sql, editor, incidentId);
   await tellTools(sql, incidentId);
-  assert.equal((chest.published.at(-1)!.data as { action: string }).action, "removed");
+  assert.equal(chest.emitted.at(-1)!.data["action"], "removed");
   // Never about the team's own services, never a backfill.
-  const before = chest.published.length;
+  const before = chest.emitted.length;
   const inside = await open({ [office]: "major" }, "Wifi");
   await tellTools(sql, inside.incidentId, "opened");
   const past = await incidents.backfill(sql, editor, { title: "Hier", body: "Panne.", resolution: "Réparé.", states: { [payments]: "major" }, startedAt: new Date(Date.now() - 86400000), resolvedAt: new Date(Date.now() - 80000000) });
   await tellTools(sql, past.incidentId);
-  assert.equal(chest.published.length, before);
+  assert.equal(chest.emitted.length, before);
+});
+
+test("an incident's time is told within the Chest's 72 hours, else the Chest's own", () => {
+  const now = Date.parse("2026-11-24T12:00:00Z");
+  assert.ok(occurredAtOf(new Date(now - 71 * 3_600_000), now));
+  assert.equal(occurredAtOf(new Date(now - 72 * 3_600_000), now), undefined);
+  assert.equal(occurredAtOf(new Date(now + 60_000), now), undefined, "never in the future");
+});
+
+test("the team's pages are live (realtime): one channel for everyone who has Status, fed with ids only", () => {
+  const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { capabilities: string[]; realtime: { channels: { name: string; join?: unknown }[]; feeds: { table: string; channel: string; columns: string[] }[] } };
+  assert.ok(manifest.capabilities.includes("realtime"));
+  assert.deepEqual(manifest.realtime.channels, [{ name: "team" }]);
+  for (const feed of manifest.realtime.feeds) {
+    assert.equal(feed.channel, "team");
+    assert.deepEqual(feed.columns, [feed.table === "check_states" || feed.table === "heartbeats" ? "component_id" : "id"], `${feed.table}: its key only`);
+  }
+  // The public page cannot follow it (a visitor has no session): it keeps
+  // its idle-stopping refresh, and only it.
+  const islands = readFileSync(join(import.meta.dirname, "..", "src", "pages", "StatusPage.tsx"), "utf8");
+  assert.match(islands, /name="AutoRefresh"/u);
+  for (const page of ["Overview.tsx", "TeamIncident.tsx", "TeamStatus.tsx"]) assert.doesNotMatch(readFileSync(join(import.meta.dirname, "..", "src", "pages", page), "utf8"), /AutoRefresh/u, page);
 });

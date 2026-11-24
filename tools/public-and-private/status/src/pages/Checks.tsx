@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, type MemberContext, type View } from "@argentic/chest-app";
 import { PageHeader } from "@argentic/chest-ui/components";
 import type { CheckRow } from "../islands/ChecksForm.tsx";
@@ -9,13 +8,14 @@ import { allComponents } from "../lib/components.ts";
 import { db } from "../lib/db.ts";
 import { heartbeatEvery, listHeartbeats } from "../lib/heartbeats.ts";
 import { checksState } from "../lib/settings.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // Automatic checks: for each service, an address the Chest opens from the
 // outside, how often, what answer is expected — and how each one stands.
 export async function checksPage({ locale: language, t }: MemberContext): Promise<View> {
   const locale = localeOf(language);
   const sql = db();
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const now = new Date();
   const [components, watches, states, state, beats] = await Promise.all([allComponents(sql, { locale }), listWatches(sql), statuses(sql), checksState(sql), listHeartbeats(sql)]);
   const everyLabel = (m: number) => (t.heartbeats as Record<string, string>)[`e${m}`] ?? String(m);

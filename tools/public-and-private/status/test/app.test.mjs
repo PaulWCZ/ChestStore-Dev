@@ -22,7 +22,7 @@ atLeast(18);
 const domain = "https://status.atelier-martin.fr";
 let chest, database, app;
 before(async () => {
-  chest = await fakeChest({ network: {}, tool: "status", members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, webhooks: { max: 200 }, checks: { max: 10 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: domain } });
+  chest = await fakeChest({ network: {}, tool: "status", members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, webhooks: {}, checks: true, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: domain } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -309,7 +309,7 @@ test("the Chest's deliveries, signed: the 'updates' schedule, events, check resu
   for (const path of ["/chest-schedules", "/chest-events", "/chest-checks", "/chest-webhooks"]) {
     assert.equal((await app.fetch(new Request(teamHost + path, { method: "POST", body: "{}", headers: { "content-type": "application/json" } }))).status, 401, path);
   }
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, to), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: lea.id } }, to), 204);
 });
 
 test("the language switch keeps the visitor's choice and never sends them elsewhere", async () => {

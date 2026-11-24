@@ -1,5 +1,6 @@
 import { ToastHost } from "@argentic/chest-app/client";
 import { AutoRefresh } from "./AutoRefresh.tsx";
+import { LiveTeam } from "./LiveTeam.tsx";
 import { ChecksForm } from "./ChecksForm.tsx";
 import { ComponentsView } from "./ComponentsView.tsx";
 import { HeartbeatsView } from "./HeartbeatsView.tsx";
@@ -17,4 +18,4 @@ import { HookList, SubscriberList } from "./SubscriberList.tsx";
 // else is HTML from the server, with no script — the public pages carry
 // only LocalTimes (times in the visitor's zone) and the toasts. Islands do
 // not nest.
-export const islands = { ToastHost, AutoRefresh, LocalTimes, SetupEmpty, ComponentsView, ChecksForm, HeartbeatsView, IncidentForm, IncidentView, MaintenanceView, MaintenanceForm, SubscriberList, HookList, SettingsView };
+export const islands = { ToastHost, AutoRefresh, LiveTeam, LocalTimes, SetupEmpty, ComponentsView, ChecksForm, HeartbeatsView, IncidentForm, IncidentView, MaintenanceView, MaintenanceForm, SubscriberList, HookList, SettingsView };

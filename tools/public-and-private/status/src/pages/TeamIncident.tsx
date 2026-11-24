@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, notFound, type MemberContext, type View } from "@argentic/chest-app";
 import { format, localeOf, stamp, zoneName } from "../i18n/index.ts";
 import { AppError } from "../lib/app-error.ts";
@@ -13,6 +12,7 @@ import { publicOrigin } from "../lib/public-origin.ts";
 import { maintenancePhase } from "../lib/timeline.ts";
 import { wall } from "../lib/zone.ts";
 import type { UpdateView } from "../components/timeline-view.tsx";
+import { pageZone } from "../lib/page-settings.ts";
 
 // One incident or maintenance, for editors: its timeline with who posted
 // what (and what was corrected or removed), and the next thing to post.
@@ -26,7 +26,7 @@ export async function teamIncident({ member, locale: language, t, request }: Mem
     if (error instanceof AppError && error.code === "not_found") return notFound();
     throw error;
   }
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const now = new Date();
   const when = (d: Date) => stamp(d, zone, locale, now);
   const ids = [incident.createdBy, incident.removedBy ?? "", ...incident.updates.flatMap(u => [u.author, u.removedBy ?? "", ...u.log.map(l => l.actor)])];
@@ -65,7 +65,7 @@ export async function teamIncident({ member, locale: language, t, request }: Mem
       <Island name="MaintenanceView" props={{
         incident: { id: incident.id, title: incident.title, titleSecond: incident.titleSecond, phase, window: format(t.time.range, { from: when(incident.startedAt), to: incident.endsAt ? when(incident.endsAt) : "" }), affected, autoPosts: incident.autoPosts, removed, hasSecond: incident.secondLanguage !== null },
         languages,
-        form: { start: { day: start.date, minutes: start.minutes }, end: { day: end.date, minutes: end.minutes }, components: incident.components, groups, zoneNote: format(t.maintenance.zone, { zone: zoneName(zone) }), today: chest.today() },
+        form: { start: { day: start.date, minutes: start.minutes }, end: { day: end.date, minutes: end.minutes }, components: incident.components, groups, zoneNote: format(t.maintenance.zone, { zone: zoneName(zone) }), today: wall(new Date(), zone).date },
         updates,
         publicLink,
         t: words,

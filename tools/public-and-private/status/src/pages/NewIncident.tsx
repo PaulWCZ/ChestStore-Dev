@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, type MemberContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { format, localeOf, locales, zoneName } from "../i18n/index.ts";
@@ -7,11 +6,12 @@ import { db } from "../lib/db.ts";
 import { pickerGroups } from "../lib/picker.ts";
 import { listTemplates } from "../lib/templates.ts";
 import { wall } from "../lib/zone.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // Post an incident, in one screen.
 export async function newIncident({ member, locale: language, t }: MemberContext, wanted: string | undefined): Promise<View> {
   const locale = localeOf(language);
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const all = await allComponents(db(), { locale });
   const groups = pickerGroups(all);
   // From an automatic check that failed: the service, a major outage and

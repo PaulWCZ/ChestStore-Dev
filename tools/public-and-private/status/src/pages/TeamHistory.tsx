@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import type { MemberContext, View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { localeOf, stamp } from "../i18n/index.ts";
@@ -7,13 +6,14 @@ import { allFor } from "../lib/incidents.ts";
 import { impactOf } from "../lib/status-view.ts";
 import { phaseOf, stepOf, titleIn } from "./parts/incident-card.tsx";
 import { incidentTone, stepClass } from "../components/classes.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // Every incident and maintenance, removed ones included, newest first —
 // fifty a page.
 export async function teamHistory({ member, locale: language, t }: MemberContext, before: string | undefined): Promise<View> {
   const locale = localeOf(language);
   const list = await allFor(db(), member, { limit: 50, before: before && /^\d{1,18}$/u.test(before) ? before : null });
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const now = new Date();
   return { title: t.historyPrivate.title, body: (
     <div className="narrow stack-l">

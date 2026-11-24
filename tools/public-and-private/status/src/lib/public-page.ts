@@ -37,5 +37,5 @@ export async function publicContext(language: string): Promise<PublicContext> {
   const sql = db();
   const now = new Date();
   const [{ offerMail, offerChat }, settings, look] = await Promise.all([offers(now), pageSettings(sql), lookOf("public")]);
-  return { t: catalogue(locale), locale, sql, now, zone: chest.timeZone, company: chest.organization.name, offerMail, offerChat, offerUpdates: offerMail || offerChat, settings, look };
+  return { t: catalogue(locale), locale, sql, now, zone: settings.timeZone ?? chest.timeZone, company: chest.organization.name, offerMail, offerChat, offerUpdates: offerMail || offerChat, settings, look };
 }

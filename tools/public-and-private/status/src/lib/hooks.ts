@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { chest } from "@argentic/chest-sdk/chest";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
+import { log } from "@argentic/chest-app";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { allComponents, inLocale } from "./components.ts";
@@ -13,6 +14,7 @@ import type { Step } from "./model.ts";
 import { company, publicOrigin } from "./settings.ts";
 import { choice } from "./subscribers.ts";
 import { pick } from "./texts.ts";
+import { pageZone } from "./page-settings.ts";
 
 // Updates in a chat or at a web address (Proposal (studio): webhooks,
 // sdk/README.md): on "Get updates", a visitor — a B2B customer's team —
@@ -59,21 +61,20 @@ async function setHooksState(sql: Query, state: "ok" | "none", now = new Date())
 }
 
 // Whether the Chest would deliver to a chat now (webhooks.available(),
-// studio.16), asked before a page offers it: "ok" (with the addresses
-// used, "3 of 200"); "paused" — the Chest's owner paused this tool's
+// studio.16), asked before a page offers it: "ok"; "paused" — the Chest's owner paused this tool's
 // notices (nothing goes, the channels are kept); "none" — no webhooks on
 // this Chest; "unknown" when the Chest does not answer and nothing was
 // learnt. A snapshot: a delivery can still fail, and its page says so.
-export type HooksDelivery = { state: HooksState | "paused"; targets: number | null; max: number | null };
+export type HooksDelivery = { state: HooksState | "paused" };
 
 export async function hooksDelivery(sql: Query, now = new Date()): Promise<HooksDelivery> {
   try {
     const answer = await webhooks.available();
-    if (answer.ok) return { state: "ok", targets: answer.targets, max: answer.max };
-    return { state: answer.reason === "suspended" ? "paused" : "none", targets: null, max: null };
+    if (answer.ok) return { state: "ok" };
+    return { state: answer.reason === "suspended" ? "paused" : "none" };
   } catch (error) {
     if (!(error instanceof Unavailable)) throw error;
-    return { state: await hooksState(sql, now), targets: null, max: null };
+    return { state: await hooksState(sql, now) };
   }
 }
 
@@ -83,8 +84,9 @@ export async function hooksDelivery(sql: Query, now = new Date()): Promise<Hooks
 // subscription. Says it, and whether a generic receiver's secret waits to
 // be shown once on its page.
 // The chat form's budget a day (@argentic/chest-app's bound,
-// src/actions.ts): a new subscription the Chest is asked to check. The
-// Chest bounds the addresses it keeps too (webhooks.max).
+// src/actions.ts): a new subscription the Chest is asked to check. Status
+// keeps 200 chat subscriptions at most (hookLimits); the Chest paces new
+// addresses (60 an hour for a tool: RateLimited).
 export const chatBudgets = { new: { perVisitor: 5, perDay: 200 } } as const;
 
 export async function subscribeHook(sql: Sql, input: { kind: unknown; url: unknown; language: string; components: unknown }): Promise<HookSubscriber> {
@@ -106,7 +108,7 @@ export async function subscribeHook(sql: Sql, input: { kind: unknown; url: unkno
       await setHooksState(sql, "none");
       throw new AppError("no_hooks");
     }
-    if (error instanceof QuotaExceeded) throw new AppError("too_many", { max: hookLimits.subscribers });
+    if (error instanceof RateLimited) throw new AppError("hooks_busy");
     if (error instanceof ChestError && error.code === "suspended") throw new AppError("hooks_paused");
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("hook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw new AppError(kind === "slack" ? "hook_slack" : kind === "teams" ? "hook_teams" : "hook_address");
@@ -289,7 +291,7 @@ export async function flushHooks(sql: Sql, options: { limit?: number; now?: Date
     order by q.id limit ${Math.min(Math.max(options.limit ?? 50, 1), 500)}`;
   if (batch.length === 0) return { sent: 0, stopped: null };
   const origin = await publicOrigin(sql);
-  const zone = chest.timeZone;
+  const zone = await pageZone(sql);
   const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
   const incidentIds = [...new Set(batch.map(b => String(b.incident_id)))];
   const touched = await sql<{ incident_id: string; update_id: string | null; component_id: string; state: string }[]>`
@@ -327,13 +329,13 @@ export async function flushHooks(sql: Sql, options: { limit?: number; now?: Date
       }
       // Paused by the Chest's owner (studio.16): kept, like a busy Chest —
       // the queue waits a day at most.
-      if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable || (error instanceof ChestError && error.code === "suspended")) {
+      if (error instanceof RateLimited || error instanceof Unavailable || (error instanceof ChestError && error.code === "suspended")) {
         await sql`update hook_queue set attempts = attempts + 1 where id = ${q.id}`;
         return { sent, stopped: "later" };
       }
       if (!(error instanceof ChestError)) throw error;
       // A message the Chest refuses (never expected): dropped, the next tried.
-      console.warn(`hook delivery refused: ${error.code}`);
+      log.warn("hook delivery refused", { code: error.code });
     }
     await sql`delete from hook_queue where id = ${q.id}`;
     sent++;
