@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { csvLine } from "../src/csv.ts";
-import { formatter, publicLocale } from "../src/i18n.ts";
+import { follow, liveQuiet, readWith } from "../src/live.ts";
+import { currencyDecimals, formatter, publicLocale } from "../src/i18n.ts";
 import { islandRegistry } from "../src/registry.ts";
 import { checkPage, checkSources, checkWords } from "../src/testing.ts";
 import { AppError, cutText, field, readEmail, readMoney, toolPath } from "../src/tool.ts";
@@ -58,6 +59,12 @@ test("fields read forms and JSON alike, and refuse with a code", () => {
   assert.equal(dinar.read("1.234,567"), 1234567);
   assert.equal(dinar.read("0,5"), 500);
   assert.equal(dinar.read(1.25), 1250);
+  // The currency an amount is in: an ISO 4217 code the tool keeps beside it.
+  assert.equal(field.currency().read(" gbp "), "GBP");
+  assert.equal(field.currency().read("JPY"), "JPY");
+  refused(() => field.currency().read(""), "empty");
+  for (const odd of ["EURO", "€", "XQZ", "E1R", 978]) refused(() => field.currency().read(odd), "invalid");
+  assert.equal(field.money({ max: 1e12, decimals: currencyDecimals("JPY") as 0 }).read("1 250"), 1250);
   refused(() => dinar.read("1.2345"), "invalid");
   assert.equal(readMoney("1 250", 0), 1250);
   for (const [typed, minor] of [["€12 500", 1250000], ["12 500 €", 1250000], ["12500 EUR", 1250000], ["EUR 12,50", 1250], ["-$5", -500], ["12\u202f500,25\u00a0€", 1250025]] as const) assert.equal(field.money({ min: -1e9, max: 1e12 }).read(typed), minor, typed);
@@ -89,7 +96,7 @@ test("a redirect stays in the tool", () => {
 });
 
 test("dates, days, numbers, amounts and plurals in the reader's language and zone", () => {
-  const fr = formatter("fr", "Europe/Paris", "EUR"), en = formatter("en", "America/New_York", "EUR");
+  const fr = formatter("fr", "Europe/Paris"), en = formatter("en", "America/New_York");
   const at = new Date("2026-10-05T22:30:00Z");
   assert.equal(fr.date(at), "6 oct. 2026");
   assert.equal(en.date(at), "5 Oct 2026");
@@ -101,8 +108,15 @@ test("dates, days, numbers, amounts and plurals in the reader's language and zon
   assert.equal(paris.time(new Date("2026-10-25T05:30:00Z")), "06:30");
   assert.equal(en.today(new Date("2026-10-06T02:00:00Z")), "2026-10-05"); // still the 5th in New York
   assert.equal(fr.today(new Date("2026-10-05T22:30:00Z")), "2026-10-06");
-  assert.equal(fr.money(1234.5), "1 234,50 €");
-  assert.equal(fr.money(123450, { cents: true }), "1 234,50 €");
+  // An amount in its own currency: the Chest has none (SDK 0.7.0).
+  assert.equal(fr.money(1234.5, "EUR"), "1 234,50 €");
+  assert.equal(fr.money(123450, "EUR", { cents: true }), "1 234,50 €");
+  assert.equal(en.money(123450, "gbp", { cents: true }), "£1,234.50");
+  assert.equal(en.money(1250, "JPY", { cents: true }), "JP¥1,250", "yen: no minor unit");
+  assert.equal(en.money(1234567, "KWD", { cents: true }), "KWD\u00a01,234.567", "dinars: three decimals");
+  for (const wrong of ["", "EURO", "€", "E1R"]) assert.throws(() => fr.money(1, wrong), RangeError, wrong);
+  assert.deepEqual(["EUR", "usd", "JPY", "KWD"].map(currencyDecimals), [2, 2, 0, 3]);
+  assert.throws(() => currencyDecimals("euro"), RangeError);
   for (const wrong of ["2026-02-31", "", "31/12/2026"]) assert.throws(() => fr.day(wrong), (e: unknown) => e instanceof AppError && e.code === "invalid", wrong);
   assert.equal(fr.plural({ one: "{count} note", other: "{count} notes" }, 0), "0 note");
   assert.equal(en.plural({ one: "{count} note", other: "{count} notes" }, 0), "0 notes");
@@ -150,6 +164,16 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   fails("src/islands/X.tsx", "export const X = () => <b style={{ width: 3 }} />;", /style=\{\}/u);
   fails("src/islands/X.tsx", "const s = { style: { width: 3 } };\nexport const X = () => <b {...{ style: s }} />;", /style=\{\}/u);
   fails("src/islands/X.tsx", 'import { member } from "@argentic/chest-sdk/member";', /server only/u);
+  // But the SDK's browser module, realtime's client.
+  write("src/islands/X.tsx", 'import { connect } from "@argentic/chest-sdk/realtime/client";\nexport const X = () => null;');
+  fails("chest.json", JSON.stringify({ capabilities: ["database"] }), /uses "realtime"/u);
+  fails("chest.json", JSON.stringify({ capabilities: ["database", "realtime"] }), /without its "realtime" key/u);
+  write("chest.json", JSON.stringify({ capabilities: ["database", "realtime"], realtime: { channels: [{ name: "notes" }] } }));
+  write("src/islands/X.tsx", 'import { useLive } from "@argentic/chest-app/client";\nexport const X = () => { useLive("notes", ["notes"]); return null; };');
+  checkSources({ root: dir });
+  write("chest.json", JSON.stringify({ capabilities: ["database"] }));
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nimport * as sealed from "@argentic/chest-sdk/sealed";', /uses "sealed"/u);
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note" />;');
   fails("src/islands/X.tsx", 'import { db } from "@argentic/chest-app/db";', /server code/u);
   write("src/islands/X.tsx", "export const X = () => null;");
   fails("src/styles.css", ".note { color: #fff; }", /colour/u);
@@ -332,4 +356,51 @@ test("checkSources: a public action asking a proof of work needs errors.needs_ja
     console.warn = warn;
   }
   assert.match(warned.join("\n"), /EXAMPLE \(Notes\)/u);
+});
+
+test("useLive's rule (live.ts): a burst of events is one read, a replayed join none, a resync one; a channel left with its last follower", async () => {
+  type Listener = (payload: unknown) => void;
+  const heard = new Map<string, Set<Listener>>();
+  const joined = new Set<(j: { replayed: boolean }) => void>();
+  const resync = new Set<() => void>();
+  const left: string[] = [];
+  const focus: (string | null)[] = [];
+  const add = <T>(set: Set<T>, f: T) => (set.add(f), () => void set.delete(f));
+  const connection = {
+    channel: (name: string) => ({
+      on: (event: string, f: Listener) => add(heard.get(event) ?? heard.set(event, new Set()).get(event)!, f),
+      onJoined: (f: (j: { replayed: boolean }) => void) => add(joined, f),
+      onResync: (f: () => void) => add(resync, f),
+      onKicked: () => () => {},
+      leave: () => void left.push(name),
+    }),
+    focus: (name: string | null) => void focus.push(name),
+  } as unknown as Parameters<typeof follow>[0];
+  let reads = 0;
+  readWith(async () => { reads += 1; });
+  const settle = () => new Promise(r => setTimeout(r, liveQuiet * 3));
+  const stop = follow(connection, "notes", ["notes", "notes.pinned"], { focus: true });
+  assert.deepEqual([...heard.keys()].sort(), ["notes.delete", "notes.insert", "notes.pinned", "notes.update"]);
+  assert.deepEqual(focus, ["notes"]);
+  for (const f of joined) f({ replayed: true });
+  await settle();
+  assert.equal(reads, 0, "a replayed join: what was missed came again");
+  for (const f of joined) f({ replayed: false });
+  await settle();
+  assert.equal(reads, 1, "a join that replayed nothing (the first one too): read once");
+  for (let i = 0; i < 5; i++) for (const f of heard.get("notes.insert")!) f({ id: i });
+  for (const f of heard.get("notes.pinned")!) f({});
+  await settle();
+  assert.equal(reads, 2, "a burst: one read");
+  for (const f of resync) f();
+  await settle();
+  assert.equal(reads, 3);
+  // A second island on the same channel: leaving the first keeps it.
+  const second = follow(connection, "notes", ["notes"], { focus: false });
+  stop();
+  assert.deepEqual(left, []);
+  assert.equal(heard.get("notes.pinned")!.size, 0, "the first island's listeners gone");
+  second();
+  assert.deepEqual(left, ["notes"]);
+  assert.deepEqual(focus, ["notes", null]);
 });

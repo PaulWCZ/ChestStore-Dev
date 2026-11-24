@@ -501,10 +501,13 @@ async function answered<T>(outcome: Outcome<T> & { redirect?: string }, options:
   return outcome;
 }
 
-// ---- useAutoRefresh(seconds): a page that others change (a board, a
-// queue, a timesheet) read again while someone looks at it — never all day
-// long: the Chest puts an idle tool to sleep, and a tab left open must let
-// it. Read again:
+// ---- useAutoRefresh(seconds): a page read again on a timer while someone
+// looks at it. Not for a page others change: that one follows the Chest's
+// realtime with useLive (live.ts) — the official way since SDK 0.5, the
+// tool asleep while the page stays open. A timer is left for what no write
+// tells (a page whose content follows the clock, a tool on a Chest
+// without realtime) — never all day long: the Chest puts an idle tool to
+// sleep, and a tab left open must let it. Read again:
 // - when the tab comes back into view, or the window gets the focus;
 // - every `seconds` while the tab is visible and the person did something
 //   (a key, a click, a scroll) in the last `idleMinutes` (10) — then it

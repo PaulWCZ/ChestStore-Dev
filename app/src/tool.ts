@@ -119,6 +119,8 @@ export type Field<T, W = T> = { read(value: unknown, all?: Record<string, unknow
 type Omissible<T, W = T> = Field<T, W> & { readonly omissible: true };
 const text = (value: unknown) => (typeof value === "string" ? value : typeof value === "number" && Number.isFinite(value) ? String(value) : fail("invalid"));
 const spaces = /[\s\u00a0\u202f]/gu;
+let currencies: Set<string> | null = null;
+const knownCurrencies = (): Set<string> => (currencies ??= new Set(Intl.supportedValuesOf("currency")));
 
 // An amount as people write it, to cents: "1234.5", "12,50", "1 234,50"
 // (spaces only between groups of three), "1,234.50", "1.234,50",
@@ -264,13 +266,27 @@ export const field = {
     },
   }),
   // An amount, read in its currency's minor units (cents with decimals 2,
-  // the default; above): store it as bigint, write it with f.money(n, {
-  // cents: true }) for 2 decimals. min and max are in the same units.
+  // the default; above): the number only — the Chest has no currency
+  // (SDK 0.7.0), so the tool keeps the amount's ISO 4217 code beside it
+  // (a column of the same row, field.currency() in the same form, or the
+  // tool's own default setting), with currencyDecimals(code) as decimals.
+  // Store it as bigint, write it with f.money(n, code, { cents: true }).
+  // min and max are in the same units.
   money: ({ min = 0, max, decimals = 2 }: { min?: number; max: number; decimals?: 0 | 1 | 2 | 3 | 4 }): Field<number, number | string> => ({
     read(value) {
       if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) fail("empty");
       const n = cents(value, decimals);
       return n !== null && n >= min && n <= max ? n : fail("invalid");
+    },
+  }),
+  // An ISO 4217 currency code ("EUR", "gbp " → "GBP"): three letters this
+  // runtime knows as a currency (Intl.supportedValuesOf), else "invalid".
+  // What a tool stores beside every amount, and its own default setting.
+  currency: (): Field<string> => ({
+    read(value) {
+      const s = text(value).trim().toUpperCase();
+      if (s === "") fail("empty");
+      return /^[A-Z]{3}$/u.test(s) && knownCurrencies().has(s) ? s : fail("invalid");
     },
   }),
   // A row's id (a bigint column), kept as text.

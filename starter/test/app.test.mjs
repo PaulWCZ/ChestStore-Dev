@@ -163,8 +163,8 @@ test("errors: the reader's page, the right status", async () => {
 test("the Chest's events and schedules, each delivered at least once", async () => {
   const to = request => app.fetch(request);
   const erased = { type: "member.erased", id: "evt_" + "c".repeat(26), data: { id: sam.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(erased, to), 204);
-  assert.equal(await chest.emit(erased, to), 204); // again: seen, nothing done twice
+  assert.equal(await chest.deliver(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204); // again: seen, nothing done twice
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
   const [{ authors }] = await database.sql`select count(*)::int as authors from notes where author = ${sam.id}`;
   assert.equal(authors, 0);

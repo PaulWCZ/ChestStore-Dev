@@ -18,7 +18,20 @@ rules — is `node_modules/@argentic/chest-app/AGENTS.md`: read it first.
 
 ## Decisions
 
+- SDK 0.7.0, tool contract 0.7 (`"chest": "0.7"`); the SDK and the
+  package are vendored in `vendor/` (never edit them).
 - Look: the Chest's own theme (`src/theme.ts`), light only.
+- A page others change follows the Chest's realtime, never a timer: the
+  notes page's `LiveNotes` island (`useLive("notes", ["notes"])`), the
+  `"realtime"` key of `chest.json` (the `notes` channel, the `notes`
+  feed), so the tool sleeps while the page stays open.
+- Time zones and money (the owner's rule, SDK 0.7.0): what concerns one
+  member is in their zone (`member.timeZone`, what `f` writes in; their
+  day is `f.today()`), what concerns the company in its zone
+  (`chest.timeZone`, `chest.today()`); the Chest has no currency — an
+  amount keeps its ISO 4217 code beside it, and a default currency is a
+  setting of the tool's own (the package's AGENTS.md, "Time zones",
+  "Money").
 - No public part (a permission: add one only when the tool needs it —
   the package's AGENTS.md, "The public part").
 - Mail (the owner's rule): the tool never mails a member — it tells them
@@ -26,20 +39,21 @@ rules — is `node_modules/@argentic/chest-app/AGENTS.md`: read it first.
   members their notifications as each one chose, so no digest, reminder
   or "email me" setting in the tool. The Chest receives no mail. Mail to
   a visitor (a receipt, a recap) only through the SDK's `mail`, which SDK
-  0.4.1 does not have yet: never SMTP or a mail service of the tool's own.
+  0.7.0 does not have yet: never SMTP or a mail service of the tool's own.
 
 ## Replacing the example
 
 Everything marked `EXAMPLE (Notes)` is the example: `src/pages/`,
-`src/islands/DeleteNote.tsx`, `src/islands/AutoRefresh.tsx` (and their
+`src/islands/DeleteNote.tsx`, `src/islands/LiveNotes.tsx` (and their
 lines in `src/islands/index.ts`), `src/lib/notes.ts`, the example's entries of
 `src/actions.ts` and `src/app.tsx`, `migrations/0002_notes.sql` (an
 unpublished draft may rewrite its migrations), its words in `src/i18n/`,
 its tests (`checkSources` warns while a marker is left in a tool renamed
 from `my-tool`). Then make `chest.json` ask exactly what the tool uses
 (`npm test` fails on a capability declared and unused, or used and not
-declared): the example asks `database`, `members` (authors' names) and
-`receives` (to forget an erased member).
+declared): the example asks `database`, `members` (authors' names),
+`realtime` (its `"realtime"` key: the `notes` channel and feed — name
+your own tables there) and `receives` (to forget an erased member).
 
 ## Commands
 

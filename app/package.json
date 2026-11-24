@@ -1,6 +1,6 @@
 {
   "name": "@argentic/chest-app",
-  "version": "0.1.0-studio.10",
+  "version": "0.1.0-studio.11",
   "description": "The server and browser machinery of a Chest tool on Hono and React: pages rendered on the server, islands, typed actions callable from an island or a plain form, a refresh that keeps the page's state, the member's words and formats, the strict policy, logs, the database, tests.",
   "license": "MIT",
   "author": "Argentic",
@@ -54,7 +54,7 @@
     "prepack": "npm run build"
   },
   "peerDependencies": {
-    "@argentic/chest-sdk": ">=0.4.1-0",
+    "@argentic/chest-sdk": ">=0.7.0-0",
     "@argentic/chest-ui": ">=0.2.6-studio.1",
     "@hono/node-server": ">=2.1",
     "hono": ">=4.13",
@@ -68,7 +68,7 @@
     }
   },
   "devDependencies": {
-    "@argentic/chest-sdk": "file:../starter/vendor/chest-sdk-0.4.1.tgz",
+    "@argentic/chest-sdk": "file:../starter/vendor/chest-sdk-0.7.0.tgz",
     "@argentic/chest-ui": "file:../starter/vendor/chest-ui-0.2.6-studio.1.tgz",
     "@electric-sql/pglite": "0.5.8",
     "@electric-sql/pglite-socket": "0.2.11",

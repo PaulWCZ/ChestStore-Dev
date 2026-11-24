@@ -169,7 +169,8 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
     if (/\bstyle\s*=\s*\{|\{\s*\.\.\.\s*\{[^}]*\bstyle\b/u.test(text)) problems.push(`${file}: style={} — the policy blocks style attributes: use a class, an SVG attribute, <progress> or <meter>`);
     // Islands, and the components they share with pages (src/components/).
     if (file.includes(join("src", "islands")) || file.includes(join("src", "components")) || /src[/\\](entry|client)\.tsx?$/u.test(file)) {
-      if (/^import (?!type)[^;]*from "@argentic\/chest-sdk/mu.test(text)) problems.push(`${file}: the SDK is for the server only`);
+      // The SDK is the server's, but for its browser module (realtime/client).
+      if (/^import (?!type)[^;]*from "@argentic\/chest-sdk(?!\/realtime\/client")/mu.test(text)) problems.push(`${file}: the SDK is for the server only (but "@argentic/chest-sdk/realtime/client")`);
       if (/^import (?!type)[^;]*from "@argentic\/chest-app(\/(db|members|testing|vite))?"/mu.test(text)) problems.push(`${file}: server code in the browser — import from "@argentic/chest-app/client"`);
       if (/^import (?!type)[^;]*from "\.\.?\/(lib|actions|app)\b/mu.test(text)) problems.push(`${file}: server code in the browser`);
     }
@@ -199,12 +200,18 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
     files: /from "@argentic\/chest-sdk\/files"/u,
     notifications: /from "@argentic\/chest-sdk\/notifications"/u,
     ai: /from "@argentic\/chest-sdk\/ai"/u,
+    sealed: /from "@argentic\/chest-sdk\/sealed"/u,
+    folders: /from "@argentic\/chest-sdk\/folders"/u,
+    // A page that follows a channel (useLive, or the SDK's browser module),
+    // or the server publishing to one.
+    realtime: /from "@argentic\/chest-sdk\/realtime(\/client)?"|\buseLive\(/u,
   };
   const declared = new Set(manifest.capabilities ?? []);
   for (const [capability, use] of Object.entries(uses)) {
     if (declared.has(capability) && !use.test(all)) problems.push(`chest.json asks "${capability}" and src/ never uses it: remove it (the owner approves each one)`);
     if (!declared.has(capability) && use.test(all)) problems.push(`src/ uses "${capability}": declare it in chest.json "capabilities"`);
   }
+  if (declared.has("realtime") && !(manifest as { realtime?: unknown }).realtime) problems.push(`chest.json asks "realtime" without its "realtime" key: declare the channels the pages join (and the feeds)`);
   const manifestPublic = (manifest as { public?: boolean }).public === true;
   const code_ = all.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
   // A public action without the public part is dead (the Chest never

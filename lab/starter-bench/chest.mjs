@@ -42,7 +42,10 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   const testing = await import(pathToFileURL(join(dir, "node_modules/@argentic/chest-sdk/dist/src/testing.js")).href);
   const manifest = JSON.parse(readFileSync(join(dir, "chest.json"), "utf8"));
   process.env.CHEST_TOOL = manifest.name;
-  const chest = await testing.fakeChest({ members: [member], capabilities: ["members", "files", "notifications", "ai"] });
+  // realtime: the tool's channels and feeds, as the Chest reads chest.json
+  // (a test commits a feed's row with tool.chest.realtime.commit).
+  const live = (manifest.capabilities ?? []).includes("realtime");
+  const chest = await testing.fakeChest({ members: [member], capabilities: ["members", "files", "notifications", "ai", ...(live ? ["realtime"] : [])], ...(live ? { realtime: manifest.realtime ?? {} } : {}) });
   const env = { ...process.env, NODE_ENV: "production" };
   if (existsSync(join(dir, "migrations"))) env.DATABASE_URL = database(dir, manifest.name);
   const port = await free();
@@ -65,6 +68,16 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
       res.writeHead(status, { "content-type": type });
       return res.end(type.startsWith("text/html") ? `<!doctype html><title>${status}</title><body><h1>The Chest's page ${status}</h1></body>` : `${status}`);
     }
+    // The page's realtime probe goes to the Chest (the fake), as the member.
+    if (live && req.url.split("?")[0] === "/_chest/realtime") {
+      const target = new URL(chest.realtime.url(member.id).replace(/^ws/u, "http"));
+      const out = httpRequest({ host: target.hostname, port: target.port, method: req.method, path: target.pathname + target.search }, answer => {
+        res.writeHead(answer.statusCode, answer.headers);
+        answer.pipe(res);
+      });
+      out.on("error", () => { res.writeHead(502); res.end(); });
+      return void req.pipe(out);
+    }
     const headers = Object.fromEntries(Object.entries(req.headers).filter(([k]) => !k.startsWith("chest-")));
     if (req.url.split("/")[1]?.split("?")[0].toLowerCase() === "chest") headers["chest-member"] = assertion();
     headers["x-forwarded-proto"] = "https";
@@ -82,6 +95,25 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
     out.on("error", () => { res.writeHead(502); res.end(); });
     req.pipe(out);
   });
+  // The page's realtime socket: relayed to the Chest (the fake) as the
+  // member — the Chest's team host holds it, never the tool.
+  proxy.on("upgrade", (req, socket, head) => {
+    if (!live || req.url.split("?")[0] !== "/_chest/realtime") return void socket.end("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+    seen.push(`UPGRADE ${req.url}`);
+    const target = new URL(chest.realtime.url(member.id).replace(/^ws/u, "http"));
+    const out = httpRequest({ host: target.hostname, port: target.port, method: "GET", path: target.pathname + target.search, headers: req.headers });
+    out.on("upgrade", (answer, upstream, upstreamHead) => {
+      socket.write(`HTTP/1.1 ${answer.statusCode} ${answer.statusMessage}\r\n${Object.entries(answer.headers).map(([k, v]) => `${k}: ${v}`).join("\r\n")}\r\n\r\n`);
+      if (upstreamHead.length > 0) socket.write(upstreamHead);
+      if (head.length > 0) upstream.write(head);
+      upstream.pipe(socket).pipe(upstream);
+      upstream.on("error", () => socket.destroy());
+      socket.on("error", () => upstream.destroy());
+    });
+    out.on("response", answer => { socket.end(`HTTP/1.1 ${answer.statusCode} ${answer.statusMessage}\r\nContent-Length: 0\r\n\r\n`); });
+    out.on("error", () => socket.destroy());
+    out.end();
+  });
   await new Promise(resolve => proxy.listen(front, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${proxy.address().port}`;
   // Ready: the first 200 on /chest as the member.
@@ -98,8 +130,11 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   return {
     // sql(text): a statement on the tool's database, as another person's
     // write would land (tests of a page left open).
-    sql: text => execFileSync("psql", ["-h", "127.0.0.1", "-U", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-d", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-v", "ON_ERROR_STOP=1", "-q", "-c", text], { env: { ...process.env, PGPASSWORD: "bench" } }).toString(),
+    sql: text => execFileSync("psql", ["-h", "127.0.0.1", "-U", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-d", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-v", "ON_ERROR_STOP=1", "-q", "-tA", "-c", text], { env: { ...process.env, PGPASSWORD: "bench" } }).toString(),
     seen,
+    // The fake Chest: chest.realtime.commit("notes", "insert", { id }) tells
+    // the open pages a row was written (the database is the bench's own).
+    chest,
     origin,
     port,
     pid: child.pid,

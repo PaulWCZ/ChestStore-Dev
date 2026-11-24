@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
-import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, QuotaExceeded, RateLimited, SealedLocked, StorageFull, Unavailable } from "@argentic/chest-sdk/errors";
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -97,7 +97,7 @@ function cookiesOf(c: Context): Cookies {
 function visitor(c: Context): VisitorContext {
   const options = optionsOf(c);
   const locale = publicLocale(options.locales, getCookie(c, "lang"), c.req.header("accept-language"), chest.language);
-  return { member: null, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) };
+  return { member: null, locale, t: options.words(locale), f: formatter(locale, chest.timeZone), request: c.req.raw, cookies: cookiesOf(c) };
 }
 const viewerOf = (c: Context<Env>): Viewer => (isMembers(c.req.path) && c.get("viewer")) || visitor(c);
 
@@ -308,7 +308,10 @@ async function versionOf<V extends Viewer>(c: Context, p: PageContext<V>, option
   // their time zone (the hours a page shows), the address — and the build
   // (the entry's hashed name): after a deploy a refresh is never a 304 of
   // a page whose script is gone.
-  const who = p.member ? `${p.member.id}|${p.member.role}|${p.member.isAdmin}|${[...(p.member.groups ?? [])].sort().join(",")}|${p.member.timeZone ?? ""}` : "-";
+  // Groups are null past what an assertion carries (SDK 0.7.0: a member
+  // in about 150 groups or more) — told apart from none.
+  const groups = p.member ? (p.member.groups === null ? "?" : [...p.member.groups].sort().join(",")) : "";
+  const who = p.member ? `${p.member.id}|${p.member.role}|${p.member.isAdmin}|${groups}|${p.member.timeZone ?? ""}` : "-";
   return createHash("sha256").update(`${browserFiles().script}|${who}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
 }
 export const page = (render: (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response, options: PageOptions<MemberContext> = {}) => async (c: Context<Env>) => {
@@ -330,7 +333,7 @@ export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<V
 function speaking(c: Context, viewer: VisitorContext, locale: string | undefined): VisitorContext {
   const options = optionsOf(c);
   if (!locale || locale === viewer.locale || !options.locales.includes(locale)) return viewer;
-  return { ...viewer, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency) };
+  return { ...viewer, locale, t: options.words(locale), f: formatter(locale, chest.timeZone) };
 }
 
 // A mutation is sent by the page itself: the browser says so
@@ -364,7 +367,9 @@ function back(c: Context, members: boolean, error?: ErrorCode, values?: Record<s
   return to + (to.includes("?") ? "&" : "?") + query.toString();
 }
 
-const chestDown = (e: unknown) => e instanceof Unavailable || e instanceof RateLimited || e instanceof QuotaExceeded || e instanceof CapabilityNotGranted;
+// What the Chest refuses for a while (down, paced, full, its keys locked):
+// "unavailable" to the reader, never a 500.
+const chestDown = (e: unknown) => e instanceof Unavailable || e instanceof RateLimited || e instanceof QuotaExceeded || e instanceof CapabilityNotGranted || e instanceof StorageFull || e instanceof SealedLocked;
 
 // POST /chest/actions/<name> (members) and /actions/<name> (visitors).
 // Fetched (call(), an enhanced form: x-tool-action: 1): JSON. A plain
@@ -825,7 +830,7 @@ export function createApp(options: AppOptions) {
     // complete() is skipped where nothing reads more than the assertion.
     const who = options.complete && c.req.path !== "/chest/look.css" ? await options.complete(asserted) : asserted;
     const locale = localeIn(options.locales, who.language);
-    c.set("viewer", { member: who, locale, t: options.words(locale), f: formatter(locale, who.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) });
+    c.set("viewer", { member: who, locale, t: options.words(locale), f: formatter(locale, who.timeZone), request: c.req.raw, cookies: cookiesOf(c) });
     return next();
   });
 
