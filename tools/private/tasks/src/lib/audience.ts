@@ -1,7 +1,7 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as members from "@argentic/chest-sdk/members";
 import { boardAccess } from "./access.ts";
-import { sharingGroups } from "./groups.ts";
+import { sharingGroups, withGroups } from "./groups.ts";
 import type { Board } from "./boards.ts";
 import { format, listFormat, type Catalogue, type Locale } from "../i18n/index.ts";
 
@@ -20,7 +20,7 @@ export async function boardAudience(b: Pick<Board, "visibility" | "people" | "gr
     const seen = new Set<string>();
     for (;;) {
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
-      for (const m of answer.members) if (boardAccess(m, b) !== "none") found.push({ id: m.id, name: m.name, photo: m.photo });
+      for (const m of answer.members) if (boardAccess(b.groups.length > 0 ? await withGroups(m) : m, b) !== "none") found.push({ id: m.id, name: m.name, photo: m.photo });
       // A cursor seen twice would loop for ever: what was read is kept.
       if (!answer.next || seen.has(answer.next)) break;
       seen.add(answer.next);

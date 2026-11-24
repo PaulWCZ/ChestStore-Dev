@@ -193,8 +193,8 @@ export const actions = {
     const plan = await recordImport.previewRecords(db(), member, text, readChoices(choices));
     return { ...plan, days: daysOf(plan.rows.flatMap(r => Object.values(r.changes)), locale) };
   }, file),
-  applyRecords: act({ text: sheet(), choices: field.optional(field.json()) }, ({ text, choices }, { member }): Promise<{ created: number; updated: number; skipped: number }> =>
-    recordImport.applyRecords(db(), member, text, readChoices(choices)), file),
+  applyRecords: act({ text: sheet(), choices: field.optional(field.json()) }, ({ text, choices }, { member, request }): Promise<{ created: number; updated: number; skipped: number }> =>
+    recordImport.applyRecords(db(), member, text, readChoices(choices), request), file),
 
   // ---- Arrivals written by HR by hand.
   addArrival: act({ input: field.json() }, async ({ input }, { member }): Promise<{ id: string }> => ({ id: (await arrivals.addArrival(db(), member, input as arrivals.ArrivalInput)).id })),
@@ -221,7 +221,7 @@ export const actions = {
   // ---- HR records.
   createRecord: act({ memberId: field.optional(person()), legalName: field.optional(named(limits.name)) }, (input, { member }): Promise<{ id: string }> => records.createRecord(db(), member, input)),
   createAllRecords: act({}, (_input, { member }): Promise<number> => records.createForEveryone(db(), member)),
-  saveRecord: act({ id: ref(), input: field.json() }, ({ id, input }, { member }): Promise<{ changed: string[] }> => records.updateRecord(db(), member, id, input)),
+  saveRecord: act({ id: ref(), input: field.json() }, ({ id, input }, { member, request }): Promise<{ changed: string[] }> => records.updateRecord(db(), member, id, input, request)),
   deleteRecord: act({ id: ref() }, async ({ id }, { member }): Promise<null> => { await records.deleteRecord(db(), member, id, today()); return null; }),
   linkRecord: act({ id: ref(), memberId: someone() }, async ({ id, memberId }, { member }): Promise<null> => { await records.linkRecord(db(), member, id, memberId ?? null); return null; }),
   // Someone without the Chest in the directory and the org chart.
@@ -235,9 +235,9 @@ export const actions = {
 
   // A change the person asks for their record (address, emergency
   // contact), and HR's answer.
-  askChange: act({ id: ref(), input: field.json() }, async ({ id, input }, { member }): Promise<null> => { await changes.askChange(db(), member, id, input); return null; }),
+  askChange: act({ id: ref(), input: field.json() }, async ({ id, input }, { member, request }): Promise<null> => { await changes.askChange(db(), member, id, input, request); return null; }),
   withdrawChange: act({ id: ref() }, async ({ id }, { member }): Promise<null> => { await changes.withdrawChange(db(), member, id); return null; }),
-  decideChange: act({ id: ref(), accept: field.bool(), answer: field.optional(words(300)) }, async ({ id, accept, answer }, { member }): Promise<null> => { await changes.decideChange(db(), member, id, accept, answer ?? ""); return null; }),
+  decideChange: act({ id: ref(), accept: field.bool(), answer: field.optional(words(300)) }, async ({ id, accept, answer }, { member, request }): Promise<null> => { await changes.decideChange(db(), member, id, accept, answer ?? "", request); return null; }),
 
   // ---- Letters from templates (HR).
   addLetterExamples: act({}, (_input, { member, t }): Promise<string[]> => letters.addExamples(db(), member, t)),

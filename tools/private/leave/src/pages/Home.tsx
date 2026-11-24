@@ -77,7 +77,7 @@ export async function homePage({ member, locale, t, query }: PageContext<MemberC
     title: t.shell.home,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{}} />
         {done === "sent" && <p className="notice ok" role="status">{t.home.sent}</p>}
         {done === "declared" && <p className="notice ok" role="status">{t.home.declared}</p>}
         <div className="hero">

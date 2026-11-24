@@ -1,15 +1,5 @@
 {
   "calendar": true,
-  "emits": [
-    "tasks.card.done",
-    "tasks.card.reopened"
-  ],
-  "capabilities": [
-    "members.groups"
-  ],
-  "receives": [
-    "group.*"
-  ],
   "translations": {
     "fr": {
       "title": "Tâches",

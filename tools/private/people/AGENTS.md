@@ -7,8 +7,9 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives: ["member.*"]`; the `morning` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposal keys (`mail` — the welcome email to an arrival not in the Chest yet only, `emits`, `receives` of other tools' events, `translations`) — kept apart, a Chest refuses unknown keys |
+| `chest.json` | Manifest (contract 0.7): roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`, `realtime`, `sealed`; `receives` (`member.*`, Hiring's, Leave's, Equipment's types); `emits` (`people.leaving`, `people.leaving-cancelled`, `people.record`, each with its fields); `realtime` (channels `people` and `hr`, ids only); the `morning` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposal keys (`mail` — the welcome email to an arrival not in the Chest yet only, `translations`) — kept apart, a Chest refuses unknown keys |
+| `src/lib/sealing.ts` | The sealed part of a record (address, emergency contact) and of a change asked: HR's copy for the role `hr`, the person's; opened on the reader's request; the morning seals what was in clear |
 | `src/app.tsx` | **Every route**: `createApp({…})`, the pages (`people()`: a role, and the "My to-dos" number for the layout), downloads, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name (`call("tickItem", …)` from an island): thin; the services check rights and input; the bell after the answer (`after()`) |
 | `src/pages/` | Pages rendered on the server: read, resolve names, write every word and date, hand plain data to islands (`parts.tsx`: back link, meter, the directory's foot) |
@@ -59,6 +60,22 @@ How a page, an island, an action, a word or a test is written:
 `node_modules/@argentic/chest-app/AGENTS.md` — read it first.
 
 ## Rules
+
+- **Sealed fields** (`src/lib/sealing.ts`): the address and the emergency
+  contact are never written in clear — `writeRecord` seals them (both
+  copies) and every reader opens them with the member's `request`
+  (`record()`, `writeRecord()`, the change requests, the letters). Never
+  log, mail, notify or send to an AI what was opened. A new sensitive
+  field joins `sealedFields`; a field lists, filters or the register need
+  stays in clear.
+- **Events between tools**: `events.emit` with the subject (the person),
+  the key and the audience of who sees it in People (`share.ts`); text
+  fields without format characters (`eventText`); fields flat (`workDays`
+  as text). A received type is read only from the tool its first word
+  names (`event.source`), and an item with an audience is shown to those
+  members only (`away.audience`, `arrivals.audience`).
+- **Live pages**: `<Island name="Live" props={{ follow: […] }} />` on the
+  channels `people` / `hr`; never a timer.
 
 - **Identity only from `member`** (the page's or the action's context); store `mbr_…` ids,
   never names or emails. The directory is `members.list`: never keep a copy

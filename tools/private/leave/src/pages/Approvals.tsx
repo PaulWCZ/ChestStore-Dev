@@ -65,7 +65,7 @@ export async function approvalsPage({ member, locale, t }: PageContext<MemberCon
     title: t.approvals.title,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{}} />
         <h1>{t.approvals.title}</h1>
         <Island name="Approvals" props={{ cards, hr, t: { approvals: t.approvals, home: t.home } }} />
       </div>

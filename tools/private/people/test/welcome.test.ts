@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as arrivals from "../src/lib/arrivals.ts";
 import * as j from "../src/lib/journeys.ts";
 import { addDays } from "../src/shared/model.ts";
@@ -28,7 +28,7 @@ const address = (key: string) => `${key}@atelier.test`;
 const withAddresses = everyone.map(p => ({ ...p, email: address(p.firstName.toLowerCase()) }));
 // connected: the owner connected the company's mail provider to the Chest.
 const chestWith = (connected: boolean) => fakeChest({ network: {},
-  tool: "people", members: withAddresses, capabilities: ["members", "members.email", "notifications", "mail"],
+  tool: "people", members: withAddresses, capabilities: ["members", "members.email", "notifications", "mail", "sealed"],
   mail: { domain: "atelier.test", connected }, chest: { organization: "Atelier Martin", language: "en" },
 });
 before(async () => {
@@ -57,7 +57,7 @@ async function templates() {
   return { welcomeList, leaving };
 }
 
-test("a member's welcome checklist: a notification, never an email — English with its French, signed by HR, opening their first steps; once", async () => {
+test("a member's welcome checklist: a notification, never an email — in the person's language, signed by HR, opening their first steps; once", async () => {
   const { sql } = database;
   const { welcomeList } = await templates();
   const first = addDays(today(), 5);
@@ -66,10 +66,9 @@ test("a member's welcome checklist: a notification, never an email — English w
   assert.equal(chest.outbox.length, 0, "no email to a member");
   const told = chest.notifications.filter(n => n.key === `welcome:${started.id}`);
   assert.deepEqual(told.map(n => n.member), [nora.id]);
-  assert.equal(told[0]!.title, "Welcome to Atelier Martin, Nora");
+  // Sent in English with its French: the Chest shows Nora hers.
   assert.equal(told[0]!.path, "/chest/todo");
-  assert.match(told[0]!.body ?? "", /Your first steps are ready in People\. — Camille Martin$/u);
-  const fr = shownTo(told[0]!, "fr");
+  const fr = told[0]!;
   assert.equal(fr.title, "Bienvenue chez Atelier Martin, Nora");
   assert.match(fr.body ?? "", /^Bienvenue chez Atelier Martin.*Votre premier jour est le .*— Camille Martin$/u);
   // Sent again (a retry): the same key, one item.
@@ -143,8 +142,8 @@ test("an arrival whose work address is already a member's: the member is notifie
   assert.equal(chest.outbox.length, 0, "no email to a member");
   const told = chest.notifications.filter(n => n.key === `welcome:${started.id}`);
   assert.deepEqual(told.map(n => n.member), [nora.id]);
-  assert.equal(told[0]!.title, "Welcome to Atelier Martin, Nora");
-  assert.match(told[0]!.body ?? "", /Hugo Bernard will be your manager\./u);
+  assert.equal(told[0]!.title, "Bienvenue chez Atelier Martin, Nora");
+  assert.match(told[0]!.body ?? "", /Hugo Bernard sera votre responsable\./u);
   // Written in another case by HR: still hers (the Chest matches any case).
   await sql`update arrivals set work_email = ${"Nora@Atelier.test"} where id = ${coming.id}`;
   chest.notifications.length = 0;
@@ -158,7 +157,7 @@ test("the Chest cannot say whether the work address is a member's: nothing leave
   const coming = await arrivals.addArrival(sql, hr, { name: "Lucie Garnier", startDate: addDays(today(), 10), workEmail: "lucie.garnier@atelier.test" });
   const started = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 10) });
   await chest.close();
-  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["notifications", "mail"], mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin", language: "en" } });
+  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["notifications", "mail", "sealed"], mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin", language: "en" } });
   try {
     assert.deepEqual(await welcome(sql, hr, started.id), { by: "unchecked" });
     assert.equal(chest.outbox.length, 0);

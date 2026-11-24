@@ -11,6 +11,7 @@ import { chestToday } from "../lib/clock.ts";
 import { db, type Sql } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { grid, monthOf, shift, timelineDays, timelineStart, timelineStep, type CalendarMonth, type TimelineWindow } from "../shared/calendar.ts";
+import { followBoards } from "../shared/live.ts";
 import { addDays, nextDue, type Repeat } from "../shared/repeat.ts";
 
 // One board: its columns of cards (or a list, a calendar, a timeline), and
@@ -89,7 +90,7 @@ export async function boardPage({ member, locale: language, t, param, query, url
     title: panel ? `${panel.title} · ${b.name}` : b.name,
     body: (
       <div className={`board-page c-${b.color}`}>
-        <Island name="AutoRefresh" props={{ seconds: 15 }} />
+        <Island name="Live" props={{ follow: followBoards([b.id]) }} />
         {cardGone && <p className="notice card-gone" role="status">{t.board.cardGone}</p>}
         {unreadable && <p className="notice" role="status">{t.peoplePicker.unreadable}</p>}
         <Island name="BoardView" props={{

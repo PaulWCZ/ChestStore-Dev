@@ -321,13 +321,17 @@ member (above). It declares no `mail`.
 
 ## On a Chest
 
-- `capabilities`: `database`; `members` (names, photos, roles and groups
-  for the calendar, the approvers and the import — no addresses);
-  proposals (`chest.proposals.json`): `calendar`, `capabilities:
-  ["members.groups"]`, `emits`
-  (`leave.approved`, `leave.cancelled`, `leave.busy`), `receives` (People),
-  `schedules` (`morning`);
-  `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
+- **Contract 0.7** (`"chest": "0.7"`). `capabilities`: `database`;
+  `members` (names, photos, roles for the calendar, the approvers and the
+  import — no addresses); `members.groups` (*Who's away* by any group of
+  the Chest); `notifications` (the bell and the tile's number); `realtime`
+  (the open pages follow the requests). `receives`: `member.*`,
+  `people.record`, `people.leaving`, `people.leaving-cancelled`; `emits`
+  (each with its fields): `leave.approved`, `leave.cancelled`,
+  `leave.busy`; `realtime`: the channel `leave`, feeds of `requests`,
+  `ledger` and `leave_types` (ids only); `schedules` (`morning`).
+  Proposals (studio) in `chest.proposals.json`: `calendar` (each person's
+  feed) and `translations` (the store's words in French).
 - **Someone leaves** (or loses access): their requests still waiting are
   cancelled (the history says why), the people they approved go back to HR,
   and **their last day is set** to that day (unless HR set one before):
@@ -356,7 +360,11 @@ member (above). It declares no `mail`.
   `src/actions.ts`), after the Chest's and People's events, and each
   weekday morning with the `morning` schedule of `chest.json` (the busy times' 90-day window
   moves on; a month-old leave leaves the feeds).
-- No WebSocket: the pages re-read themselves every 30–60 s while visible.
+- **Live without a timer**: *Home*, *Who's away* and *Approvals* join the
+  channel `leave` (realtime: the Chest holds the connection, Leave
+  sleeps); each request, balance line or kind written is an event carrying
+  its id only, and the page reads itself again (what is typed and the
+  scroll stay) — so it shows only what its reader may see.
 
 ## Looks
 
@@ -381,9 +389,8 @@ filters and badges, so Leave behaves like the other tools of the store.
 ## With the other tools
 
 Leave tells the other tools of the Chest when a leave is approved and when
-it no longer stands (**Proposal (studio)**: events between tools;
-`chest.proposals.json` `"emits": ["leave.approved", "leave.cancelled"]`),
-once an administrator linked them: **Rooms** then shows the person "Off"
+it no longer stands (events between tools, SDK 0.5+; `chest.json`
+`"emits"`, each type with its fields), once the owner approved the link: **Rooms** then shows the person "Off"
 those days and frees their desk; **People** shows "Away · back on …" on
 their card. What is told: the person (their member id), the first and last
 day and the halves — never the kind of leave nor the note (`src/lib/share.ts`).
@@ -391,24 +398,29 @@ Without events between tools, nothing changes here.
 
 | | |
 |---|---|
-| `leave.approved` | `{member, from, to, fromHalf, toHalf, request}` — an approved **absence** that is not over. A kind that is not an absence (remote work, training: *not away* in Settings) is never told: neither Rooms nor People reads a kind, and Rooms would mark a remote worker "Off" and free their desk (people say *Remote* in Rooms themselves) |
+| `leave.approved` | `{member: member, from: date, to: date, fromHalf: text, toHalf: text, request: id}`; subject `request:<id>`; audience: the roles that see *Who's away* (`hr`, `manager`, `employee`) and the person — a receiver shows it to them only — an approved **absence** that is not over. A kind that is not an absence (remote work, training: *not away* in Settings) is never told: neither Rooms nor People reads a kind, and Rooms would mark a remote worker "Off" and free their desk (people say *Remote* in Rooms themselves) |
 | `leave.cancelled` | The same data, as it was told — the leave no longer stands: cancelled, refused after all, its approval taken back, cancelled by a last day (HR's, People's or the Chest's when someone leaves), or its kind now *not away* |
 | A leave shortened | By a last day that cuts it: `leave.cancelled`, then `leave.approved` for the days that remain (same `request`). Rooms takes back all of a request's days on a cancellation and adds an approval's days; People keeps the latest word per request (by `occurredAt`) — so the pair shortens it for both within the contract they already read, without a new event type |
 | When | After every change, after the Chest's and People's events, and each weekday morning: `shared_leave` holds what was told, and each run tells what differs, whichever way the leave changed |
-| Reliable | Each event is written to an outbox (`leave_outbox`) in the same transaction as the record of what was told, then published oldest first; while the Chest cannot take them (not linked yet, its hourly quota), they wait and go at the next run. Key `leave:<request>:<approved\|cancelled>:<outbox id>:<member>` (whom it is about, so a restored backup's ids never name another person's word): the same event tried again is one event. Each carries the time of its change (`occurredAt`) while the Chest takes it (23 hours; older, the Chest's own time), and a shortened leave's approval is a millisecond after its cancellation, so receivers that keep the latest word order them as they happened. One waiting for days that are over is dropped |
+| Reliable | Each event is written to an outbox (`leave_outbox`) in the same transaction as the record of what was told, then published oldest first; while the Chest cannot take them (not approved yet, unreachable), they wait and go at the next run (a key reused or data refused is said in the log and not retried). Key `leave:<request>:<approved\|cancelled>:<outbox id>:<member>` (whom it is about, so a restored backup's ids never name another person's word): the same event tried again is one event. Each carries the time of its change (`occurredAt`) while the Chest takes it (71 hours; older, the Chest's own time), and a shortened leave's approval is a millisecond after its cancellation, so receivers that keep the latest word order them as they happened. One waiting for days that are over is dropped |
 | Erasure | What was told of the person and what waits is forgotten; the receivers forget them on their own `member.erased` |
 
 **Leave → Booking (and Hiring): `leave.busy`** — so a host who is off is
 not bookable, and an interviewer who is off is not offered to a
 candidate. Booking and Hiring already tell each other their busy times
 (`booking.busy`, `hiring.busy`); Leave speaks the same snapshot, version 1
-(`src/lib/busy-snapshot.ts`, the same file as theirs; `src/lib/busy.ts`):
+(`src/lib/busy-snapshot.ts`, the same file as theirs; `src/lib/busy.ts`).
+An event's fields are flat (SDK 0.5+: `v` number, `member` member, `at`,
+`from`, `to` time, `spans` text), so the spans are their JSON:
 
 ```json
 { "v": 1, "member": "mbr_…", "at": "2026-09-30T08:31:02.114Z",
-  "from": "2026-09-30T00:00Z", "to": "2026-12-29T00:00Z",
-  "spans": [["2026-10-11T22:00Z", "2026-10-16T22:00Z"], ["2026-11-03T11:00Z", "2026-11-03T23:00Z"]] }
+  "from": "2026-09-30T00:00:00Z", "to": "2026-12-29T00:00:00Z",
+  "spans": "[[\"2026-10-11T22:00:00Z\",\"2026-10-16T22:00:00Z\"],[\"2026-11-03T11:00:00Z\",\"2026-11-03T23:00:00Z\"]]" }
 ```
+
+Subject: the member; audience: the roles that see *Who's away* and the
+person (as `leave.approved`).
 
 | | |
 |---|---|
@@ -418,7 +430,7 @@ candidate. Booking and Hiring already tell each other their busy times
 | Spans | Each **approved** leave's whole days in the zone the member works in (`members.lookup`; the Chest's for someone it no longer answers for; a morning ends at their noon, an afternoon starts at it), as UTC minutes, merged. A waiting request is not busy, nor a kind that is not an absence (remote work, training: *not away* in Settings). Days the person does not work inside a leave are busy too (they are off) |
 | Never | The kind of leave, its note, who approved it — nor that it is leave: times only |
 | Replaces | Everything the receiver holds **from Leave** for that member between `from` and `to`; `at` orders snapshots (keep one only if newer) |
-| Key | `leave.busy:<member>:<ms>:<sha-256>` (whole; the SDK sends it as its digest): the same content told again the same day is one event; busy, free, busy again are three |
+| Key | `leave.busy:<member>:<ms>:<first 32 hex of the sha-256>` (an event key is 128 characters at most): the same content told again the same day is one event; busy, free, busy again are three |
 | Erasure | What Leave last told is forgotten here; the receiver forgets the member on its own `member.erased` |
 
 **Booking and Hiring hear it** (`"receives": ["hiring.busy", "leave.busy"]` in
@@ -426,14 +438,16 @@ Booking, `["booking.busy", "leave.busy"]` in Hiring): a host who is off has
 no slot those days, and the agenda shows them "Off"; an interviewer who is
 off is not offered to a candidate.
 
-**People → Leave** (**Proposal (studio)**: events between tools;
-`chest.proposals.json` `"receives"`), once an admin linked them — HR
+**People → Leave** (events between tools; `chest.json` `"receives"`),
+once the owner approved the link — HR
 types a person's employee number, first day, last day and working week
 once, in People's HR record:
 
 - `people.record` `{member, employeeNumber, startDate, lastDay, workDays,
-  weeklyHours}`: the number, first day and working week (ISO days → Leave's
-  week) follow the record; what People does not say (null) stays as HR set
+  weeklyHours}` (`workDays` ISO days as text, `"1,2,3,4,5"`: an event's
+  fields are flat; a list, as People told it before, is read too): the
+  number, first day and working week (ISO days → Leave's week) follow the
+  record; what People does not say (null) stays as HR set
   it here; a number already someone else's here is left. Its `lastDay`
   sets the last day (and settles the leave after it, HR told in the bell);
   cleared in People, it goes — but never a last day HR typed here or the
@@ -442,7 +456,7 @@ once, in People's HR record:
   days).
 - `people.leaving` `{member, lastDay}` (a leaving checklist in People) sets
   the last day unless HR typed one here, the record gave one or the person
-  already left the Chest; `people.leaving_cancelled` `{member}` takes back
+  already left the Chest; `people.leaving-cancelled` `{member}` takes back
   only the day it set. Leave cancelled by a last day stays cancelled when
   the day goes (HR records it again).
 - Every event is checked field by field (another shape changes nothing);
@@ -451,57 +465,65 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`,
-with a manifest of contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
-Official: `member(request)` with the member's `language` (the interface
-and the bell in each member's language) and `timeZone`; `chest.today()`,
-the company's day — the same as the database's `current_date`, since the
-Chest makes its zone the TimeZone of the tool's database sessions;
-`members.lookup` with each member's zone (the hours of their leave), and
+Leave runs on SDK 0.7.0 + studio proposals (`0.7.0-studio.2`), in
+`vendor/`, with `@argentic/chest-app` 0.1.0-studio.12, and a manifest of
+contract 0.7 (`"chest": "0.7"`; `chest check` says OK). Official:
+`member(request)` with the member's `language` (the interface and the
+bell in each member's language) and `timeZone` (where their browser is:
+times are shown on their clock); `chest.today()`, the company's day —
+"today", working days, a leave's days, the same for every member, and the
+database's `current_date`, since the Chest makes its zone the TimeZone of
+the tool's database sessions; `members.lookup` with each member's zone
+(the hours of their leave in their calendar and busy times), and
 `no_access` for someone still in the Chest who lost access to Leave
-("Léa Dubois (no access)");
-**schedules** (`chest.json`: `morning`, weekdays at 08:30 in the Chest's
-zone, posted to `POST /chest-schedules`): the reminder of requests waiting
-more than two days, every tile set right, the feeds and busy times kept in
-line, deliveries older than 30 days forgotten. Without a run, requests
-still reach approvers through the bell and the tile.
+("Léa Dubois (no access)"); `members.groups` (every group of the Chest,
+paged: *Who's away* by group, who is in it with `members.list({ group })`;
+when the Chest does not say who is in a group, the page says "Could not
+read who is in Sales right now" and lists no one under that chip, never
+everyone); `notifications` with `translations` (every item in English
+with its French; a key per request replaces or withdraws it; the Chest
+mails and pushes by each member's choice — Leave mails no one);
+`events.emit` (`leave.approved`, `leave.cancelled`, `leave.busy`) and
+`events.handle` (People's three types, in the same map as the members'
+lifecycle); `realtime` (the open pages); **schedules** (`chest.json`:
+`morning`, weekdays at 08:30 in the company's zone): the reminder of
+requests waiting more than two days, every tile set right, the feeds and
+busy times kept in line, deliveries older than 30 days forgotten. Leave
+has no time-zone setting: the company's day is `chest.timeZone`.
 
-- `chest.theme()` — **Proposal (studio)**: the look the company chose
-  (see "Looks"). Without it, Leave wears Seaside.
-- **The Chest's groups** — **Proposal (studio)**, announced for 0.5
-  (`chest.proposals.json` `"capabilities": ["members.groups"]`): *Who's
-  away* filtered by any group of the Chest (`members.groups.all()`, who is
-  in it with `members.list({ group })`). Without it, only the groups that
-  give Leave (none when it is open to everyone). When the Chest does not
-  say who is in a group, the page says "Could not read who is in Sales
-  right now" and lists no one under that chip (never everyone). The
-  official 0.4.1 parsers refuse a member in more than 16 groups (no
-  identity: 401 "Sign in…"; `members.*` `Unavailable`), which this
-  capability would hit; the vendored SDK 0.4.1-studio.7 lifts it — an
-  assertion is bounded by size instead (16 KiB, about 300 groups), so a
-  member in any number of groups uses Leave (0.5 announces no fixed cap).
-- **Events between tools** — **Proposal (studio)**: `leave.approved` /
-  `leave.cancelled` to Rooms and People (payload unchanged: member, from,
-  to, halves, request — never the kind, the note or the family event;
-  absences only, a cut told as cancelled then approved); `leave.busy` to
-  Booking and Hiring (see "With the other tools").
 - **Calendar** — **Proposal (studio)** (`chest.proposals.json` `"calendar":
   true`; `calendar.putMany` for a first sync, 100 events a call, answered
   per event: one the Chest refuses is never recorded as put and is tried
   again at the next run): approved leave in each person's feed (see "What
   it does"); a half day at the person's own hours, put again when their
   zone changes.
-- **Notifications** (0.4.1) with `translations` (Proposal (studio),
-  announced for 0.5): every item in English and French in one call; a key
-  per request replaces or withdraws it. No `mail`: Leave mails no one
-  (see "Mail to people outside the company").
-- **Events from People** — **Proposal (studio)**: receives
-  `people.record`, `people.leaving`, `people.leaving_cancelled`.
+- `chest.theme()` — **Proposal (studio)**: the look the company chose
+  (see "Looks"). Without it, Leave wears Seaside.
+
+### What SDK 0.7.0 cannot give Leave (and what it does instead)
+
+- **Approved leave in each person's calendar app**: no calendar feed in
+  0.7.0 (the `calendar` proposal): on a real Chest the feature is off.
+- **The store's words in French** (title, description, role names): one
+  language in 0.7.0; the French wait in `chest.proposals.json`.
+- **The company's look**: none in 0.7.0; Leave wears Seaside.
+- **To do items** (the contract's `todo` capability, "a request waits for
+  your answer"): no API in 0.7.0; the bell, the tile and the morning
+  reminder say it.
+- **A live channel per member**: 0.7.0's `chest check` refuses a feed on a
+  `{member}` channel, so every open page of Leave hears that some request
+  id changed (never what) and reads itself again; what it shows is still
+  decided by the reader's own access.
+- **A leave's hours follow the member's browser**: 0.7.0's
+  `member.timeZone` is where the browser last was (it follows them when
+  they travel), not where they work; the days stay the company's.
+- `migrations/0007_mail_is_the_chests.sql` drops a column without the
+  `-- chest: contract` line 0.7's `chest check` asks for (a warning): it
+  shipped before the rule and is never edited.
 - Wished, not built: a **shared feed** of a team's absences ("Away", never
-  the kind) for managers — the calendar proposal is personal feeds only; a
-  member's **manager** known by the Chest (HR sets approvers here
-  instead). The counting of days follows French rules whatever the
-  Chest's zone.
+  the kind) for managers; a member's **manager** known by the Chest (HR
+  sets approvers here instead). The counting of days follows French rules
+  whatever the company's zone.
 
 ## How it is made
 

@@ -154,14 +154,14 @@ test("someone who leaves: their last day is set, nothing is earned after it, no 
   await setStartDate(sql, asMember(camille), lea.id, addMonths(today(), -14));
   const before = await of(lea);
   assert.equal(before.months, 14);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: lea.id } }, POST), 204);
   assert.equal((await staffRow(sql, lea.id)).endDate, today());
   const now = await of(lea);
   assert.equal(now.until, today());
   assert.equal(now.left, before.left);
   // A last day HR set first is kept.
   await setEndDate(sql, asMember(camille), sofia.id, addDays(today(), 20));
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
   assert.equal((await staffRow(sql, sofia.id)).endDate, addDays(today(), 20));
   await assert.rejects(requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(quietMonday(40)) }), refused("left_company"));
   await setEndDate(sql, asMember(camille), sofia.id, null);
@@ -216,7 +216,7 @@ test("Lucca's approved leave: its absence export as it is; kinds by name or mapp
   const lines = mapped.rows.filter(r => r.problem === null).map(r => ({ line: r.line, memberId: r.memberId!, typeId: r.typeId!, start: r.start!, startHalf: r.startHalf, end: r.end!, endHalf: r.endHalf }));
   await assert.rejects(requests.importLeave(sql, asMember(ines), lines, true, "Lucca"), refused("forbidden"));
   const result = await requests.importLeave(sql, asMember(camille), lines, true, "Lucca");
-  assert.equal(result.done.length, 3);
+  assert.equal(result.done.length, 3, JSON.stringify(result.skipped));
   const christmas = result.done.find(r => r.memberId === ines.id)!;
   assert.equal(christmas.status, "approved");
   assert.equal((await of(ines)).left, before);

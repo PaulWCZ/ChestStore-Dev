@@ -185,8 +185,8 @@ test("the bell: the approver hears of a request in their language, the requester
   await tell.asked(sql, asMember(hugo), r);
   const toInes = seen(chest.notifications.find(n => n.member === ines.id)!);
   assert.equal(toInes.title, "Hugo Bernard demande un congé");
-  // One notice: English, with its French for the Chest to show her; no email from Leave.
-  assert.equal(chest.notifications.find(n => n.member === ines.id)!.title, "Hugo Bernard asks for time off");
+  // One notice, sent in English with its French: the Chest shows her the French; no email from Leave.
+  assert.equal(chest.notifications.filter(n => n.member === ines.id).length, 1);
   assert.match(toInes.body ?? "", /^Congés payés · .+ · 5 jours$/u);
   assert.equal(toInes.path, `/chest/requests/${r.id}`);
   assert.ok((chest.badges.get(ines.id) ?? 0) >= 1);

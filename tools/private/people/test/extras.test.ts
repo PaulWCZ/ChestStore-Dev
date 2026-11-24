@@ -23,7 +23,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone.map(m => ({ ...m, email: m.firstName.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "") + "@example.test" })), capabilities: ["members", "members.email", "notifications"] });
+  chest = await fakeChest({ network: {}, members: everyone.map(m => ({ ...m, email: m.firstName.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "") + "@example.test" })), capabilities: ["members", "members.email", "notifications", "sealed"] });
 });
 after(async () => {
   await chest.close();
