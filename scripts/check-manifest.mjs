@@ -15,6 +15,11 @@
 // - that chest.json holds none of the proposals, is written for the
 //   contract the studio builds on ("chest": "0.7"), and holds nothing the
 //   studio dropped ("version", "group.*", files.quota);
+// - that build.static leaves the proposals' delivery routes to the tool
+//   (/chest-webhooks, /chest-checks), as chest check does for 0.7.0's own
+//   (/chest/, /_chest/, /chest-events/, /chest-schedules/,
+//   /chest-actions/): a static prefix over one would serve a file where
+//   the Chest posts, and the deliveries would never reach the tool;
 // - the studio's rules beyond the contract: the package's scripts, no
 //   dependency outside the folder, the docs every tool carries, no import
 //   that leaves the folder.
@@ -48,6 +53,9 @@ const studioDist = join(root, "sdk", "dist", "studio");
 const load = async name => existsSync(join(studioDist, name)) ? import(pathToFileURL(join(studioDist, name)).href) : null;
 const checksApi = await load("checks-rules.js");
 const webhooksApi = await load("webhooks-rules.js");
+// The routes the proposals' deliveries are posted to (checks.handle,
+// webhooks.handle), which build.static must not cover.
+const proposalRoutes = ["/chest-webhooks/", "/chest-checks/"];
 const invisible = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/u;
 
 function walk(dir, visit, skip) {
@@ -94,6 +102,20 @@ export function checkTool(folder) {
     if ("publicFiles" in manifest.files) error('chest.json: files.publicFiles is a proposal — move it to chest.proposals.json ("files": {"publicFiles": true}); 0.7\'s "files" is {"maxObject"}');
     if ("publicUploads" in manifest.files) error('chest.json: files.publicUploads is gone — a visitor\'s upload is 0.7.0\'s files.uploadUrl("folder/", {public: true, types}) with "public": true, no key');
     if ("quota" in manifest.files) error('chest.json: files.quota is gone in contract 0.7 (no quota: the tools share the server\'s volume) — keep "maxObject" only');
+  }
+  // build.static: chest check refuses 0.7.0's own routes; the proposals'
+  // are the studio's to protect. A prefix covers a route when the route
+  // starts with it ("/", "/chest-") or it lies below the route
+  // ("/chest-checks/assets/").
+  const statics = manifest.build !== null && typeof manifest.build === "object" ? manifest.build.static : undefined;
+  if (Array.isArray(statics)) {
+    for (const prefix of statics) {
+      if (typeof prefix !== "string") continue;
+      const lower = prefix.toLowerCase();
+      for (const route of proposalRoutes) {
+        if (route.startsWith(lower) || lower.startsWith(route) || lower === route.slice(0, -1)) error(`chest.json: build.static "${prefix}" covers ${route.slice(0, -1)}, where the Chest posts a proposal's deliveries (${route === "/chest-webhooks/" ? "webhooks.handle" : "checks.handle"}) — serve built files under a prefix of their own (/_next/static/)`);
+      }
+    }
   }
   const roles = manifest.roles;
 
@@ -156,15 +178,20 @@ export function checkTool(folder) {
           if (Array.isArray(roles) && manifest.role_labels && (!labels || roles.some(r => manifest.role_labels[r] && !labels[r]))) warnings.push(`translations.${lang}: some roles have no label in this language`);
         }
       }
+      // Checks: "checks": true — “Asks the Chest to check web addresses of
+      // yours”. No number (0.7.0-studio.2): the Chest paces its probes.
       if (proposals.checks !== undefined) {
         if (!checksApi) warnings.push("checks not checked: build sdk/ first (npm run build)");
         else for (const problem of checksApi.checkManifest(proposals.checks)) error(`chest.proposals.json: ${problem}`);
+        if (proposals.checks !== null && typeof proposals.checks === "object" && "max" in proposals.checks) warnings.push('chest.proposals.json: checks {"max"} bounds nothing since 0.7.0-studio.2 (no number of checks: the Chest paces its probes) — write "checks": true');
       }
-      // Webhooks: "webhooks": {"max": N} — “Sends notices to web addresses
-      // your admins or subscribers give, signed by your Chest”.
+      // Webhooks: "webhooks": true — “Sends notices to web addresses your
+      // admins or subscribers give, signed by your Chest”. No number of
+      // addresses (0.7.0-studio.2): new ones and deliveries are paced.
       if (proposals.webhooks !== undefined) {
         if (!webhooksApi) warnings.push("webhooks not checked: build sdk/ first (npm run build)");
         else for (const problem of webhooksApi.checkManifest(proposals.webhooks)) error(`chest.proposals.json: ${problem}`);
+        if (proposals.webhooks !== null && typeof proposals.webhooks === "object" && "max" in proposals.webhooks) warnings.push('chest.proposals.json: webhooks {"max"} bounds nothing since 0.7.0-studio.2 (no number of addresses: the Chest paces) — write "webhooks": true');
       }
     }
   }

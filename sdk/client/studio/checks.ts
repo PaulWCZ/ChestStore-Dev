@@ -12,9 +12,9 @@ import { checkChecks, checkPattern } from "./checks-rules.js";
 // permission to reach anything. The Chest can: it probes the addresses the
 // tool configures, from outside the tool, and posts each result to it.
 //
-//   // chest.json — a permission the owner approves:
-//   // “Asks the Chest to check up to 10 web addresses of yours”
-//   "checks": { "max": 10 }
+//   // chest.proposals.json — a permission the owner approves:
+//   // “Asks the Chest to check web addresses of yours”
+//   "checks": true
 //
 //   // The addresses are the company's, so the tool's admin sets them, and
 //   // the tool hands them to the Chest (each one shown to the owner):
@@ -36,8 +36,9 @@ import { checkChecks, checkPattern } from "./checks-rules.js";
 // default). error, when not ok: "timeout", "dns", "tls", "refused",
 // "status" or "slow". At least once; a result may come twice (the same id).
 //
-// Bounds (the Chest's): 10 checks per tool, at most every minute, https
-// only (http on localhost for the harness), no private address.
+// Bounds (the Chest's): any number of checks, probed at most
+// limits.probesPerMinute (studio.2); every minute at most, https only
+// (http on localhost for the harness), no private address.
 
 export type CheckResult = {
   // "chk_…": the same on every delivery of this result.
@@ -60,8 +61,8 @@ const errors = ["timeout", "dns", "tls", "refused", "status", "slow"] as const;
 
 // configure hands the Chest the checks it runs for the tool, replacing the
 // earlier list (an empty list stops them all). Refused: ChestError
-// invalid_checks (the list), CapabilityNotGranted (not declared), and
-// QuotaExceeded beyond the manifest's max.
+// invalid_checks (the list), CapabilityNotGranted (not declared). Any
+// number of checks: beyond the Chest's pace each is probed less often.
 export async function configure(list: Check[]): Promise<Check[]> {
   const problems = checkChecks(list);
   if (problems.length > 0) throw new ChestError("invalid_checks", 400, problems.join("; "));

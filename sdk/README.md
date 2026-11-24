@@ -1507,7 +1507,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 
 Everything above is the README of `@argentic/chest-sdk` **0.7.0** as
 Chest-SDK PR #38 holds it at `1a825a6` (24 November 2026; not merged, not
-on npm), word for word. This package is **0.7.0-studio.1**: that release,
+on npm), word for word. This package is **0.7.0-studio.2**: that release,
 unchanged, plus the studio's proposals — what the store's tools need that
 0.7.0 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -1515,7 +1515,11 @@ real Chest these routes do not exist: a call throws `CapabilityNotGranted`
 or `Unavailable` (or, for `chest.theme()`, answers the tool's own look),
 and the tool stays useful without them. Nothing here is published.
 
-Studio versions: **0.7.0-studio.1** (24 November 2026) — the studio's
+Studio versions: **0.7.0-studio.2** (24 November 2026) — the review's
+findings: the visitor's key is the Chest's, a member's address is no
+recipient, **no fixed caps** (paces, each bound left says the abuse it
+stops), `build.static` kept off the proposals' routes ("What studio.2
+changed"). **0.7.0-studio.1** (24 November 2026) — the studio's
 working copy rebased from 0.4.1 onto 0.7.0. What 0.5, 0.6 and 0.7 gave, the
 studio dropped (below); the owner's decision that **neither currency nor
 time zone is the Chest's to set** is applied (`chest.currency` gone; the
@@ -1569,6 +1573,17 @@ see the history of this file.
   their own (`client/studio/signed.ts`) verified with 0.7.0's `delivery()`,
   and their `handle` takes a `seen` store as 0.7.0's events and schedules
   do (`memorySeen` by default).
+
+### What studio.2 changed (0.7.0-studio.1 → 0.7.0-studio.2)
+
+| Was (studio.1) | Is (studio.2) |
+|---|---|
+| `visitors.visitor()`: unsalted SHA-256 of `tool\|address` — every IPv4 hashes in seconds | The front's `Chest-Visitor`: an HMAC under a key only the Chest holds; `"unknown"` without it. `visitorHeader`, `visitorPattern`; tests: `chest.visitorHeaders(address)` |
+| `mail.send` mailed a member's own address | Refused, any case, `to` or `cc` (`invalid_recipient`); a former member's is outside |
+| Mail: 500 a day (`perDay`, `QuotaExceeded`, `"quota"`, `remainingToday`) | A pace (`limits.pace`): beyond, `"queued"`, never refused; `"quota"`/`remainingToday` kept in the type, never said; fake `mail: {pace}` (`perDay` throws) |
+| `matchEmails`: 5,000 new addresses a day (`QuotaExceeded`) | A pace: ten a member a day (1,000 at least), then a call a minute (`RateLimited`) |
+| `"webhooks"`/`"checks": {"max"}`, `QuotaExceeded` at max, at 1,000 deliveries or 60 adds an hour; 500 targets a send | `true` (`{max}` read, bounds nothing, `check-manifest` warns); adds paced (`RateLimited`), deliveries beyond the hour `"pending"`, probes spread (60 a minute); `send` takes any number; `available().max` null |
+| `build.static` unchecked by the studio | `check-manifest` refuses a prefix over `/chest-webhooks` or `/chest-checks` |
 
 ### What 0.7.0 now gives, the studio dropped (0.4.1-studio.7 → 0.7.0-studio.1)
 
@@ -1653,9 +1668,12 @@ for (const d of devices) d.member = ids[d.user] ?? null;
   member's sign-in address only (no alias). What is not an address is
   never sent.
 - Bounds (`matchLimits`): 200 addresses a call (the SDK sends any number,
-  200 at a time), in the 600 calls a minute of `members` (`RateLimited`),
-  and 5,000 distinct addresses a day per tool (`QuotaExceeded`; the same
-  address again that day is free) — a tool cannot walk a list of guesses.
+  200 at a time), in the 600 calls a minute of `members` (`RateLimited`).
+  **No daily number** (studio.2): new addresses at full speed up to ten
+  a member of the Chest a day (1,000 at least; an address again is
+  free), then one call with new ones a minute (`RateLimited`). Matching
+  is an oracle: a list of guesses must not reveal what `members.email`
+  guards; a real list (about one address a person) goes through.
 - No capability beyond `members`.
 
 ## `mail` — email to people outside the company (Proposal (studio))
@@ -1663,8 +1681,13 @@ for (const d of devices) d.member = ids[d.user] ?? null;
 The owner's decisions of 6 October 2026:
 
 - **Mail to members is never a tool's job**: they are told with
-  notifications (above). `send` refuses a member — `{member: "mbr_…"}` or
-  an `mbr_…` — with `ChestError` `invalid_recipient`.
+  notifications (above). `send` refuses a member — `{member: "mbr_…"}`,
+  an `mbr_…`, **or a member's own address** — with `ChestError`
+  `invalid_recipient`. The SDK refuses the first two; the Chest, which
+  knows every member's address, refuses the third, whatever its case, in
+  `to` or `cc`, and sends nothing (studio.2: a tool that holds a member's
+  address — an HR file, an imported contact — cannot mail them by it). A
+  former member is outside the company: their address is mailed.
 - **The Chest never receives mail**: no mailboxes, no inbound message, no
   reply thread, no `POST /chest-mail`. A tool that wants replies from the
   public lets them go to the company's own address (Reply-To): they land in
@@ -1688,7 +1711,7 @@ The owner's decisions of 6 October 2026:
 
 ```ts
 import * as mail from "@argentic/chest-sdk/mail";
-const can = await mail.available();     // {ok, reason, remainingToday, replyTo}
+const can = await mail.available();     // {ok, reason, replyTo} (remainingToday: null)
 await mail.send({
   to: "client@example.com", subject: "Your booking on 3 November", text,
   attachments: [{ name: "booking.ics", type: "text/calendar", content: ics }],
@@ -1700,11 +1723,20 @@ await mail.send({
 |---|---|
 | `send({to, cc?, subject, text, html?, fromName?, replyTo?, attachments?, key?})` | Queues one message to 1–50 outside addresses (`to`/`cc`: strings). `replyTo` overrides the company's reply address (a tool's own setting); left out, the Chest sets the reply address the owner gave with the connector (or none: replies go to the sending address). `attachments`: a file of the tool's (`{file, name?}`) or bytes (`{name, type, content}`: the `.ics`, the PDF). `key`: the same key within 24 h sends nothing again. Answers `{id: "msg_…", messageId, status: "queued"}` |
 | `status(id)` | `queued`, `sent`, `delivered`, `bounced`, `complained`, `failed` — how a tool learns of a bounce (nothing is posted to it); null for an id the Chest does not know |
-| `available()` | Whether the Chest would send now, asked without sending: `{ok, reason, remainingToday, replyTo}` — `reason` `"not_granted"` (not declared or approved, a Chest without mail, outside a Chest), `"not_connected"` (the owner has not connected the company's mail provider), `"suspended"` (the Chest stopped sending for now), `"quota"` (the day's messages are used), or null; `replyTo` the company's reply address, or null. Never throws for a missing capability; `Unavailable` when the Chest does not answer (say "unknown", not "off") |
+| `available()` | Whether the Chest would send now, asked without sending: `{ok, reason, remainingToday, replyTo}` — `reason` `"not_granted"` (not declared or approved, a Chest without mail, outside a Chest), `"not_connected"` (the owner has not connected the company's mail provider), `"suspended"` (the Chest stopped sending for now), or null (`"quota"` only from a studio.1 Chest that counted a day; `remainingToday` null: there is no daily number); `replyTo` the company's reply address, or null. Never throws for a missing capability; `Unavailable` when the Chest does not answer (say "unknown", not "off") |
 | `idempotencyKey(key)` | The key the Chest receives for a key the tool gives: as given when it is 1–64 of `A-Z a-z 0-9 . _ : -`, otherwise `sha256:` and its digest; null for what is not a key |
-| `isAddress(text)`, `limits`, `messageIdPattern` | A plain address the Chest would send to; `{recipients: 50, size: 10 MiB, subject: 998, perDay: 500}`; `msg_…` |
+| `isAddress(text)`, `limits`, `messageIdPattern` | A plain address the Chest would send to; `{recipients: 50, size: 10 MiB, subject: 998, pace: {burst: 100, perMinute: 10}}`; `msg_…` |
 
-Refusals: `ChestError` `invalid_recipient` (a member: notify them),
+**No daily number: a pace** (studio.2; no fixed caps). The Chest hands
+the provider 100 messages at once, then 10 a minute; beyond, a message
+waits `"queued"` in its turn — never refused: a busy day is slower, and a
+tool gone wrong cannot burn the company's sending reputation in a minute.
+One message's bounds are not counts: 50 recipients (more is a mailing,
+many paced messages; a long visible list of outside addresses is a leak),
+10 MiB (what providers accept), a 998-character subject (RFC 5322).
+
+Refusals: `ChestError` `invalid_recipient` (a member, by id or by their
+address: notify them),
 `invalid_address`, `invalid_message` (before anything is sent: recipients
 1–50; a subject, `fromName` and an attachment's name and type without a
 line break or a control character but the tab — no header injection; an
@@ -1712,8 +1744,7 @@ attachment `{file, name?}` of a file the tool has, or `{name, type,
 content}`; an unknown field — `mailbox`,
 `thread`, `inReplyTo`, `references`, `transactional` are gone), `suppressed`
 (every recipient bounced or complained before), `key_conflict` (409),
-`TooLarge` (10 MiB), `QuotaExceeded` (500 a day unless the owner raises
-it), `Unavailable` (the connector is not connected, sending is suspended,
+`TooLarge` (10 MiB), `Unavailable` (the connector is not connected, sending is suspended,
 or the Chest did not answer), `CapabilityNotGranted` (not declared, or a
 Chest without mail). **When `available()` is not ok, or `send` throws, the
 flow still works and says so** — no silent loss: "We could not email your
@@ -1751,7 +1782,11 @@ the manifest's `mail.mailboxes`; in tests `chest.receive`, `chest.held`,
 {permanent?, complained?, recipient?})`, which posts nothing).
 
 In tests: `fakeChest({ capabilities: [..., "mail"], mail: { connected?,
-replyTo?, domain?, perDay?, suppressed? } })` — `connected: false` is the
+replyTo?, domain?, pace?, suppressed? } })` — `pace: {burst, perMinute}`
+(100 and 10 by default): beyond it a message is kept `"queued"` with its
+`sendAt`, and `status` says `"sent"` once that time passed (`perDay` is
+gone: the fake throws); a member's `email` is refused as a recipient
+(`invalid_recipient`); `connected: false` is the
 connector absent (`available()` says `not_connected`, `send` throws
 `Unavailable`; `chest.delivery.mail = "ready"` connects it); `replyTo` the
 company's reply address (`contact@<domain>` by default, `null` for none);
@@ -2035,7 +2070,7 @@ const started = visitors.formToken();                       // put it in the for
 visitors.checkForm(data.get("started"));                    // "ok" | "too_fast" | "invalid"
 const { allowed, retryAfter } = await visitors.count(request, "apply", { perVisitor: 5, perHour: 100 });
 visitors.language(request);                                 // the switch's cookie "lang", Accept-Language, then the Chest's (chest.language), English outside a Chest
-visitors.visitor(request);                                  // an opaque key for the tool's own records (never the address)
+visitors.visitor(request);                                  // the Chest's key for this visitor of this tool (Chest-Visitor), or "unknown" — never the address
 ```
 
 No captcha without a third party: a form is refused when sent faster
@@ -2046,7 +2081,23 @@ address **across the tools of the Chest** (60 an hour), so a robot that
 tries every public tool meets one limit. For a tool with a public part;
 `count` asks the Chest (`POST /visitors/count`), the rest is local. In
 tests: `fakeChest({visitors: {perAddressHour}})`, and a request with the
-header `Chest-Visitor-Address` plays the front.
+header `Chest-Visitor-Address` plays the front for counting;
+`chest.visitorHeaders(address)` plays it whole (the address and the
+visitor's key).
+
+**The visitor's key is the Chest's** (studio.2). Studio.1's was SHA-256
+of the tool's name and the address, unsalted: 2³² IPv4 addresses hash in
+seconds, so it *was* the address. Now the front sets **`Chest-Visitor`**:
+HMAC-SHA256, under a key only the Chest holds, of the tool's name and the
+address (22 base64url characters); `visitor()` reads it and nothing else
+(`"unknown"` without it). Two tools get two keys. Trade-offs: when the
+Chest **rotates** its key, keys change (records before and after no
+longer match: a key names a visitor within a flow, not forever; the Chest
+keeps retired keys to confirm only). A **quote's acceptance proof** keeps
+the key beside the tool's own record (time, name typed, version shown,
+browser); in a dispute only the Chest can confirm that an address made a
+key — the tool cannot, by design. In the fake, the key is drawn at each
+run.
 
 **The visitor's address is the front's, never `X-Forwarded-For`.** The
 Chest's front adds no `X-Forwarded-For` toward a tool: it removes every
@@ -2058,7 +2109,8 @@ new visitor each time. The proposal: the front sets
 **`Chest-Visitor-Address`** — the address of the connection it accepted —
 on the public host's requests; as a `Chest-*` header, no client can send
 it. `visitors.address()` reads it and nothing else; without it (a Chest
-that does not set it yet) it is null, `visitor()` is `"unknown"`, and
+that does not set it yet) it is null, `visitor()` is `"unknown"` (such a
+front sets neither header), and
 `count()` applies to such a visitor only the ceiling per hour for
 everyone (`perHour`), never `perVisitor` nor the Chest's ceiling per
 address: counting every unknown visitor as one would let a few requests
@@ -2069,8 +2121,8 @@ gives addresses keeps its own (a token per form, a code by email).
 ## `checks` — web addresses the Chest checks for the tool (Proposal (studio))
 
 ```jsonc
-// chest.proposals.json — a permission the owner approves: “Asks the Chest to check up to 10 web addresses of yours”
-"checks": { "max": 10 }
+// chest.proposals.json — a permission the owner approves: “Asks the Chest to check web addresses of yours”
+"checks": true
 ```
 
 ```ts
@@ -2093,8 +2145,11 @@ one with a GET every `every` minutes (1 to 60) from outside, and posts
 (`Chest-Check`: 0.7.0's signed deliveries, as `Chest-Schedule`; `handle`
 drops a result already handled, `seen`); `error` is `timeout`, `dns`, `tls`,
 `refused`, `status` or `slow`. At least once (the same `id` may come
-twice). Bounds: `max` 1 to 10, https only (http on localhost for a
-harness), never a private address. In tests: `fakeChest({checks: {max}})`,
+twice). **No number of checks** (studio.2; `{"max"}` bounds nothing):
+the Chest probes at most `limits.probesPerMinute` (60) for a tool, each
+check less often when there are more — never refused (unpaced, the
+company's server would be a scanner). Https only (http on localhost for a harness), never a private
+address. In tests: `fakeChest({checks: true})`,
 `chest.checks` (the list configured), `chest.check(name, to, {ok, status,
 ms, error})`.
 
@@ -2102,8 +2157,8 @@ ms, error})`.
 
 ```jsonc
 // chest.proposals.json — a permission the owner approves:
-// “Sends notices to web addresses your admins or subscribers give, signed by your Chest (up to 200 addresses)”
-"webhooks": { "max": 200 }
+// “Sends notices to web addresses your admins or subscribers give, signed by your Chest”
+"webhooks": true
 ```
 
 ```ts
@@ -2135,7 +2190,7 @@ Chest checks, formats, signs, delivers, retries and journals.
 | `add({url, kind, label, owner?})` | A target: `{id: "whk_…", secret, target}`. `kind` `"generic"` (any https receiver: JSON, signed), `"slack"` (a Slack incoming webhook, `https://hooks.slack.com/services/…`) or `"teams"` (a Teams Workflows webhook, `https://….environment.api.powerplatform.com/powerautomate/automations/direct/workflows/…`). `owner`: the member who added it, or none (a subscriber of a public page). `secret` (`whsec_…`, generic only) is given once |
 | `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing. Any key of 1 to 512 characters, never cut: a longer one than 64 of `A-Z a-z 0-9 . _ : -` goes as its SHA-256 (the journal shows that); the same key for another event is refused (`key_conflict`, nothing sent) — 0.3.0-studio.15 |
 | `list()`, `remove(id)`, `enable(id)`, `rotateSecret(id)` | The targets with `state` (`active`, `disabled`), `status` of the last delivery (`delivered`, `failed`, `disabled`, null), `lastError`, `failures` in a row; the address shown without its query (generic) or its secret path (Slack, Teams). `enable` tries a disabled target again (a ping first); `rotateSecret` gives a new secret, the old one still signs for 24 hours |
-| `available()` | **Proposal (0.3.0-studio.16).** Whether the Chest would deliver now, asked without sending: `{ok, reason, targets, max}` — `reason` `"not_granted"` (not declared or approved, a Chest without webhooks, outside a Chest) or `"suspended"` (the owner paused the tool's notices: `add` and `send` answer `ChestError` `suspended`, targets are kept), or null; `targets` of `max` addresses ("3 of 200"; `add` is refused at `max` even when `ok`). Never throws for a missing capability. Support's Settings shows "Send new tickets to Slack" only when `ok`. In tests: `chest.delivery.webhooks = "ready" \| "suspended"` |
+| `available()` | **Proposal (0.3.0-studio.16).** Whether the Chest would deliver now, asked without sending: `{ok, reason, targets, max}` — `reason` `"not_granted"` (not declared or approved, a Chest without webhooks, outside a Chest) or `"suspended"` (the owner paused the tool's notices: `add` and `send` answer `ChestError` `suspended`, targets are kept), or null; `targets`: how many addresses the tool has; `max` null since studio.2 (no number; kept so studio.1 code compiles). Never throws for a missing capability. Support's Settings shows "Send new tickets to Slack" only when `ok`. In tests: `chest.delivery.webhooks = "ready" \| "suspended"` |
 | `journal({target?, after?, limit?})` | Deliveries: `status` (`pending`, `retrying`, `delivered`, `failed`), `attempts`, `responseStatus`, `lastError`, `nextAttemptAt` — never the text or data |
 | `handle(request, {disabled})`, `verify(request)` | `webhook.disabled` `{id: "whe_…", target, reason: "failures" \| "gone", lastError}` on `POST /chest-webhooks`, signed `Chest-Webhooks` (0.4.1's signed deliveries under the label "Chest-Webhooks v1"), at least once; `handle(request, handlers, {seen})` drops one already handled |
 | `checkUrl(url, kind)` | The address rules, for a form to explain a refusal before it happens. The rest of the Chest's rules — the bodies it posts, its signature, its address checks — are the Chest's, in `client/studio/webhooks-rules.ts` (not published: the fake Chest and `scripts/check-manifest.mjs` use it) |
@@ -2202,9 +2257,11 @@ is **disabled**: its pending deliveries fail, sends skip it, the owner's
 page shows it, and the tool receives `webhook.disabled` (tell its admin;
 `enable(id)` once fixed).
 
-**Quotas and journal.** `max` targets (1 to 1,000, the manifest's); 60 new
-targets an hour; 1,000 deliveries an hour per tool (a send to 50 targets is
-50; `QuotaExceeded`, nothing sent); 500 targets a send; `text` 1 to 4,000
+**Paces and journal.** No number of targets (studio.2; `{"max"}` bounds
+nothing). New addresses: 60 an hour, then `RateLimited` (each `add`
+resolves and calls a typed address — unpaced, a scanner). Deliveries:
+1,000 an hour at once, the rest `"pending"` in turn, never refused. `send`
+takes any number of targets (500 a call, `limits.perSend`). `text` 1 to 4,000
 characters, `data` 16 KiB, `label` 80. The Chest journals every delivery
 for 30 days (target, event, key, attempts, statuses, errors, times — never
 the text or data, dropped once delivered or failed) on the owner's page for
@@ -2215,11 +2272,13 @@ and never shown whole again, not even to the tool.
 Refusals: `ChestError` `invalid_target`, `invalid_message`, `invalid_id`,
 `invalid_query` (400, nothing sent), `address_refused`,
 `verification_failed` (422), `target_not_found` (404, `enable`),
-`QuotaExceeded`, `CapabilityNotGranted` (not declared, or a Chest without
+`RateLimited` (new addresses beyond the pace), `CapabilityNotGranted` (not declared, or a Chest without
 webhooks yet — the tool hides its "Add a webhook" form and says so),
 `Unavailable` (send again with the same key: harmless).
 
-In tests: `fakeChest({webhooks: {max, resolve?, deliver?, to?}})` —
+In tests: `fakeChest({webhooks: {resolve?, deliver?, to?}})` (a studio.1
+`max` is accepted and bounds nothing; deliveries beyond the hour's pace
+stay `"pending"` until `.retry()`) —
 `resolve` plays DNS (`{"rebind.example.com": "10.0.0.7", "gone.example.com":
 "nxdomain"}`; other names resolve to a public address), `deliver(url,
 {method, headers, body})` receives each POST a test wants to see (a
@@ -2289,16 +2348,17 @@ through (`chest.members`, `chest.notifications`, `chest.emitted`,
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool with `max-age=0`; the files its front serves under `/_chest/theme/` |
 | `fakeChest({network: {host: handler}})`, `chest.egress` | The hosts the tool declares (`chest.json` `network`: `"graph.microsoft.com"`, `"*.icloud.com"`, `"*"`) and a handler of Web Requests answering each. While the fake runs, the tool's **plain `fetch()`**, unchanged, goes as through the Chest's egress proxy: a declared host to its handler (redirects followed through declared hosts, `AbortSignal` honoured); an undeclared name, an IP literal or a port other than 80/443 refused as the proxy refuses — `fetch` rejects with a `TypeError` for `https:`, answers 403 `Chest-Egress: refused; reason=…` for `http:`; `localhost`, `127.0.0.1` and `::1` straight through. `chest.egress` lists each request `{method, url, status, refused?}`. It replaces `globalThis.fetch` (and gives it back on `close`): Node reads `NODE_USE_ENV_PROXY` only when it starts. `node:http(s).request` is not routed |
 | `fakeChest({delivery})`, `chest.delivery` | Whether the Chest delivers: `{mail: "ready" \| "not_connected" \| "suspended", webhooks: "ready" \| "suspended"}`, what `mail.available()` and `webhooks.available()` answer; `send` follows it |
-| `fakeChest({mail: {connected?, replyTo?, domain?, perDay?, suppressed?}})`, `chest.outbox`, `chest.bounce(messageId, {permanent?, complained?, recipient?})` | Mail to people outside (with `"mail"` in `capabilities`): `connected: false` is the connector absent (`not_connected`; `send` throws `Unavailable`); `replyTo` the company's reply address (`contact@<domain>` by default, `null` for none); what was sent, with the Reply-To it went with; a sent message bounced or complained of (its `status`; the address suppressed when permanent or a complaint) — nothing is posted to the tool |
+| `fakeChest({mail: {connected?, replyTo?, domain?, pace?, suppressed?}})`, `chest.outbox`, `chest.bounce(messageId, {permanent?, complained?, recipient?})` | Mail to people outside (with `"mail"` in `capabilities`): `connected: false` is the connector absent (`not_connected`; `send` throws `Unavailable`); `replyTo` the company's reply address (`contact@<domain>` by default, `null` for none); `pace` `{burst, perMinute}` (beyond it, `"queued"` with `sendAt`); a member's `email` refused (`invalid_recipient`); what was sent, with the Reply-To it went with; a sent message bounced or complained of (its `status`; the address suppressed when permanent or a complaint) — nothing is posted to the tool |
 | `fakeChest({calendar})`, `chest.calendar`, `chest.feed(member)`, `chest.feedUrl(member)`, `chest.newFeedUrl(member)` | The calendar bridge (with `"calendar"` in `capabilities`): the events put, a member's feed as the Chest writes it, its secret address |
-| `fakeChest({checks})`, `chest.checks`, `chest.check(name, to, result?)` | Checks: the list the tool configured, a result delivered to `POST <to>/chest-checks`, signed `Chest-Check` |
-| `fakeChest({webhooks})`, `chest.webhooks` | Webhooks: targets, deliveries, events, `respond()`, `retry()` |
-| `fakeChest({visitors})`, `fakeChest({storage: {publicFiles}})` | The Chest's ceiling per visitor address; public files on `/_chest/public/` |
+| `fakeChest({checks: true})`, `chest.checks`, `chest.check(name, to, result?)` | Checks: the list the tool configured (any number; a studio.1 `{max}` bounds nothing), a result delivered to `POST <to>/chest-checks`, signed `Chest-Check` |
+| `fakeChest({webhooks: {}})`, `chest.webhooks` | Webhooks: targets (any number; a studio.1 `max` bounds nothing), deliveries (beyond 1,000 an hour, `"pending"` until `retry()`), events, `respond()`, `retry()` |
+| `fakeChest({visitors})`, `chest.visitorHeaders(address, extra?)`, `fakeChest({storage: {publicFiles}})` | The Chest's ceiling per visitor address; the front's headers for a visitor — `Chest-Visitor-Address` and `Chest-Visitor`, the visitor's key under a secret drawn at each run; public files on `/_chest/public/` |
 | `chest.close()` | Stops both servers, gives `fetch` back, and restores the environment (0.7.0's variables by 0.7.0's `close`, `CHEST_TOOL` and `CHEST_TOOL_URLS` by the studio's) |
 
 `fakeChest` refuses the options the studio dropped with the move to make:
 `chest: {currency}` (no Chest currency), `storage: {publicUploads}`
-(0.7.0's `uploadUrl(folder, {public: true})`).
+(0.7.0's `uploadUrl(folder, {public: true})`), `mail: {perDay}` (a pace:
+`mail: {pace}`).
 
 ## Develop (studio)
 

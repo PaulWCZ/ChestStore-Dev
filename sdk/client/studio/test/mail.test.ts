@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, Unavailable } from "../../src/errors.js";
+import { CapabilityNotGranted, ChestError, Unavailable } from "../../src/errors.js";
 import * as files from "../files.js";
 import * as mail from "../mail.js";
 import type { Member } from "../member.js";
@@ -78,6 +78,50 @@ test("a member is never a recipient: {member} and mbr_… are refused, invalid_r
   }
 });
 
+test("a member's own address is refused too (the Chest knows them), whatever its case, in to or cc; a former member's is not", async () => {
+  const chest = await fakeChest({ members: [camille], former: [{ id: "mbr_danaaaaaaaaaaaaaaaaaaaaaaa", name: "Dan" }], capabilities: ["mail"] });
+  try {
+    await assert.rejects(mail.send({ to: "camille@company.test", subject: "Your payslip", text: "…" }), code("invalid_recipient"));
+    await assert.rejects(mail.send({ to: "CAMILLE@company.test", subject: "x", text: "…" }), code("invalid_recipient"));
+    await assert.rejects(mail.send({ to: "client@example.com", cc: ["camille@company.test"], subject: "x", text: "…" }), code("invalid_recipient"));
+    assert.equal(chest.outbox.length, 0, "nothing sent, not even to the outside recipient");
+    // Someone outside, and a member who left (outside the company now): sent.
+    await mail.send({ to: "client@example.com", subject: "x", text: "…" });
+    await mail.send({ to: "dan@elsewhere.test", subject: "Your last payslip", text: "…" });
+    assert.equal(chest.outbox.length, 2);
+    // Once Camille leaves (the Chest moves her to former), her address is outside.
+    chest.former.push({ id: camille.id, name: camille.name });
+    chest.members = [];
+    await mail.send({ to: "camille@company.test", subject: "Your certificate", text: "…" });
+    assert.equal(chest.outbox.length, 3);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("no daily number: beyond the Chest's pace a message waits its turn (queued), never refused", async () => {
+  assert.equal("perDay" in mail.limits, false);
+  assert.deepEqual(mail.limits.pace, { burst: 100, perMinute: 10 });
+  await assert.rejects(fakeChest({ capabilities: ["mail"], mail: { perDay: 1 } as never }), /perDay is gone/u);
+  const chest = await fakeChest({ capabilities: ["mail"], mail: { pace: { burst: 2, perMinute: 1 } } });
+  try {
+    const sent = [];
+    for (let i = 0; i < 5; i++) sent.push(await mail.send({ to: `a${i}@example.com`, subject: "Receipt", text: "…" }));
+    assert.equal(sent.length, 5, "every send queued, none refused");
+    assert.deepEqual(chest.outbox.map(m => m.status), ["sent", "sent", "queued", "queued", "queued"]);
+    // In order, a minute apart at this pace.
+    const at = chest.outbox.slice(2).map(m => Date.parse(m.sendAt!));
+    assert.ok(at[0]! < at[1]! && at[1]! < at[2]! && at[1]! - at[0]! === 60_000);
+    assert.equal((await mail.status(sent[4]!.id))?.status, "queued");
+    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: null, replyTo: "contact@company.test" });
+    // Its turn comes: sent.
+    for (const m of chest.outbox) if (m.sendAt) m.sendAt = new Date(Date.now() - 1).toISOString();
+    assert.equal((await mail.status(sent[4]!.id))?.status, "sent");
+  } finally {
+    await chest.close();
+  }
+});
+
 test("the earlier shape is refused loudly: mailbox, thread, inReplyTo, references, transactional", async () => {
   const chest = await fakeChest({ capabilities: ["mail"] });
   try {
@@ -95,7 +139,7 @@ test("the earlier shape is refused loudly: mailbox, thread, inReplyTo, reference
 });
 
 test("send refuses before sending: bad addresses, header injection, too many; the Chest refuses the rest", async () => {
-  const chest = await fakeChest({ capabilities: ["mail"], mail: { perDay: 1, suppressed: ["gone@example.com"] } });
+  const chest = await fakeChest({ capabilities: ["mail"], mail: { suppressed: ["gone@example.com"] } });
   try {
     await assert.rejects(mail.send({ to: "not an address", subject: "x", text: "" }), code("invalid_address"));
     await assert.rejects(mail.send({ to: "a@example.com", replyTo: "nope", subject: "x", text: "" }), code("invalid_address"));
@@ -105,7 +149,7 @@ test("send refuses before sending: bad addresses, header injection, too many; th
     await assert.rejects(mail.send({ to: [], subject: "x", text: "" }), code("invalid_message"));
     await assert.rejects(mail.send({ to: "gone@example.com", subject: "x", text: "" }), code("suppressed"));
     await mail.send({ to: "a@example.com", subject: "x", text: "" });
-    await assert.rejects(mail.send({ to: "b@example.com", subject: "y", text: "" }), QuotaExceeded);
+    await mail.send({ to: "b@example.com", subject: "y", text: "" });
     assert.equal(mail.isAddress("léa@exemple.fr"), true);
     assert.equal(mail.isAddress("a@b"), false);
     assert.equal(mail.isAddress("a\u0000b@example.com"), false, "no control character in an address");
@@ -203,17 +247,16 @@ test("idempotency: a long per-recipient key never loses its recipient; a key reu
   }
 });
 
-test("available: ok, or why not (not_granted, not_connected, suspended, quota), and the company's reply address — without sending", async () => {
-  const chest = await fakeChest({ members: [camille], capabilities: ["mail"], mail: { perDay: 2, replyTo: "hello@atelier.test" } });
+test("available: ok, or why not (not_granted, not_connected, suspended), and the company's reply address — without sending", async () => {
+  const chest = await fakeChest({ members: [camille], capabilities: ["mail"], mail: { replyTo: "hello@atelier.test" } });
   try {
-    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: 2, replyTo: "hello@atelier.test" });
+    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: null, replyTo: "hello@atelier.test" });
     assert.equal(chest.outbox.length, 0);
     await mail.send({ to: "a@example.test", subject: "Hello", text: "Hi" });
-    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: 1, replyTo: "hello@atelier.test" });
     await mail.send({ to: "b@example.test", subject: "Hello", text: "Hi" });
-    assert.deepEqual(await mail.available(), { ok: false, reason: "quota", remainingToday: 0, replyTo: "hello@atelier.test" });
+    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: null, replyTo: "hello@atelier.test" }, "no day's number");
     chest.delivery.mail = "suspended";
-    assert.deepEqual(await mail.available(), { ok: false, reason: "suspended", remainingToday: 0, replyTo: "hello@atelier.test" });
+    assert.deepEqual(await mail.available(), { ok: false, reason: "suspended", remainingToday: null, replyTo: "hello@atelier.test" });
     await assert.rejects(mail.send({ to: "c@example.test", subject: "Hello", text: "Hi" }), Unavailable);
   } finally {
     await chest.close();

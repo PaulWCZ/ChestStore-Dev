@@ -26,14 +26,31 @@ test("a check's result reaches the tool, signed; anything else is refused", asyn
 });
 
 test("the manifest's permission, and a list's rules: names, https addresses, 1 to 60 minutes, expectations", async () => {
+  assert.deepEqual(checksRules.checkManifest(true), []);
+  // studio.1's {max}: still read, bounds nothing.
   assert.deepEqual(checksRules.checkManifest({ max: 3 }), []);
-  assert.equal(checksRules.checkManifest({ max: 30 }).length, 1);
+  assert.deepEqual(checksRules.checkManifest({ max: 30 }), []);
+  assert.equal(checksRules.checkManifest({ max: 0 }).length, 1);
+  assert.equal(checksRules.checkManifest(false).length, 1);
   assert.equal(checksRules.checkManifest([]).length, 1);
-  const fake = await fakeChest({ checks: { max: 1 } });
+  assert.equal(checksRules.checkManifest({ max: 3, every: 1 }).length, 1);
+  // No number of checks (0.7.0-studio.2): the Chest paces its probes; 50 are taken.
+  assert.equal("checks" in checks.limits, false);
+  assert.equal(checks.limits.probesPerMinute, 60);
+  const fake = await fakeChest({ checks: true });
   try {
-    await assert.rejects(checks.configure([{ name: "a", url: "https://a.test/", every: 5 }, { name: "b", url: "https://b.test/", every: 5 }]), (e: unknown) => (e as { name?: string }).name === "QuotaExceeded");
+    const many = Array.from({ length: 50 }, (_, i) => ({ name: `site-${i}`, url: `https://s${i}.test/`, every: 1 }));
+    assert.equal((await checks.configure(many)).length, 50);
+    assert.equal((await checks.list()).length, 50);
   } finally {
     await fake.close();
+  }
+  // A studio.1 test's {max} bounds nothing either.
+  const legacy = await fakeChest({ checks: { max: 1 } });
+  try {
+    assert.equal((await checks.configure([{ name: "a", url: "https://a.test/", every: 5 }, { name: "b", url: "https://b.test/", every: 5 }])).length, 2);
+  } finally {
+    await legacy.close();
   }
   assert.deepEqual(checksRules.checkChecks([{ name: "website", url: "https://a.test/", every: 5, expect: { status: 200, maxMs: 3000 } }]), []);
   assert.deepEqual(checksRules.checkChecks([{ name: "local", url: "http://localhost:4000/", every: 1 }]), []);

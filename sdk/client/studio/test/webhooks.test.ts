@@ -43,9 +43,14 @@ test("an address is checked before anything is sent: https, no credentials, no p
   for (const a of ["0.0.0.0", "100.64.1.1", "172.20.0.1", "192.168.1.1", "198.18.0.1", "224.0.0.1", "fd00::1", "fe80::1", "::ffff:7f00:1", "64:ff9b::a00:1", "not an address"]) assert.equal(webhooksRules.isPublicAddress(a), false, a);
   assert.equal(webhooksRules.shownUrl("https://a.example.com/in?token=secret", "generic"), "https://a.example.com/in?…");
   assert.equal(webhooksRules.shownUrl(slack, "slack"), "https://hooks.slack.com/…");
+  assert.deepEqual(webhooksRules.checkManifest(true), []);
+  // studio.1's {max}: still read, bounds nothing (no number of targets).
   assert.deepEqual(webhooksRules.checkManifest({ max: 200 }), []);
+  assert.deepEqual(webhooksRules.checkManifest({ max: 5000 }), []);
   assert.equal(webhooksRules.checkManifest({ max: 0 }).length, 1);
   assert.equal(webhooksRules.checkManifest({ max: 5, extra: 1 }).length, 1);
+  assert.equal(webhooksRules.checkManifest(false).length, 1);
+  assert.equal("targets" in webhooks.limits, false);
 });
 
 test("Slack and Teams get their own shapes; a generic receiver gets the event, signed", () => {
@@ -119,7 +124,7 @@ test("a generic target is pinged, then receives signed deliveries, once per key"
   }
 });
 
-test("what the Chest refuses at add: a bad address, a private name, a receiver that does not answer, beyond max", async () => {
+test("what the Chest refuses at add: a bad address, a private name, a receiver that does not answer; no number of targets", async () => {
   const fake = await fakeChest({ webhooks: { max: 2, resolve: { "rebind.example.com": "10.0.0.7", "gone.example.com": "nxdomain" } } });
   try {
     await assert.rejects(webhooks.add({ url: "http://a.example.com/", kind: "generic", label: "A" }), code("invalid_target"));
@@ -134,7 +139,9 @@ test("what the Chest refuses at add: a bad address, a private name, a receiver t
     assert.equal(s.secret, null);
     assert.equal(s.target.url, "https://hooks.slack.com/…");
     await webhooks.add({ url: teams, kind: "teams", label: "Ops channel" });
-    await assert.rejects(webhooks.add({ url: "https://b.example.com/in", kind: "generic", label: "B" }), (e: unknown) => (e as { name?: string }).name === "QuotaExceeded");
+    // A studio.1 max (2 here) bounds nothing: a third target is added.
+    await webhooks.add({ url: "https://b.example.com/in", kind: "generic", label: "B" });
+    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 3, max: null });
     await assert.rejects(webhooks.send(s.id, { event: "Bad Event", text: "x", key: "k" }), code("invalid_message"));
     await assert.rejects(webhooks.send(s.id, { event: "e", text: "x".repeat(4001), key: "k" }), code("invalid_message"));
     await assert.rejects(webhooks.send([], { event: "e", text: "x", key: "k" }), code("invalid_message"));
@@ -225,15 +232,15 @@ test("a retry left without an answer ends failed after its eighth attempt, 24 ho
 
 // Proposal (0.3.0-studio.16): Support's Settings shows "Send new tickets to
 // Slack" only when the Chest will deliver, before anyone pastes an address.
-test("available (0.3.0-studio.16): whether the Chest would deliver notices, how many addresses the tool has and may have", async () => {
-  const fake = await fakeChest({ webhooks: { max: 3 } });
+test("available (0.3.0-studio.16): whether the Chest would deliver notices, and how many addresses the tool has", async () => {
+  const fake = await fakeChest({ webhooks: {} });
   try {
-    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 0, max: 3 });
+    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 0, max: null });
     await webhooks.add({ url: slack, kind: "slack", label: "Support channel" });
-    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 1, max: 3 });
+    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 1, max: null });
     // Paused by the owner: said without sending, and nothing is added or sent.
     fake.delivery.webhooks = "suspended";
-    assert.deepEqual(await webhooks.available(), { ok: false, reason: "suspended", targets: 1, max: 3 });
+    assert.deepEqual(await webhooks.available(), { ok: false, reason: "suspended", targets: 1, max: null });
     await assert.rejects(webhooks.add({ url: teams, kind: "teams", label: "Teams" }), code("suspended"));
     assert.equal(fake.webhooks.deliveries.length, 0);
   } finally {
@@ -248,4 +255,46 @@ test("available (0.3.0-studio.16): whether the Chest would deliver notices, how 
   }
   delete process.env["CHEST_API"];
   assert.deepEqual(await webhooks.available(), { ok: false, reason: "not_granted", targets: null, max: null });
+});
+
+test("paces, not caps (0.7.0-studio.2): new addresses slow down; deliveries beyond the hour wait their turn; any number of targets in one send", async () => {
+  const fake = await fakeChest({ webhooks: {} });
+  try {
+    const ids: string[] = [];
+    for (let i = 0; i < webhooks.limits.addsPerHour; i++) ids.push((await webhooks.add({ url: `https://hooks.slack.com/services/T0000/B${String(i).padStart(4, "0")}/${"x".repeat(24)}`, kind: "slack", label: `#c${i}` })).id);
+    // The 61st new address this hour: slow down (RateLimited), never QuotaExceeded.
+    await assert.rejects(webhooks.add({ url: `https://hooks.slack.com/services/T0000/B9999/${"x".repeat(24)}`, kind: "slack", label: "#late" }), (e: unknown) => (e as { name?: string }).name === "RateLimited");
+    // 1,000 deliveries an hour at once; the rest wait (pending), none refused.
+    let sent = 0;
+    for (let n = 0; sent < webhooks.limits.deliveriesPerHour; n++) sent += (await webhooks.send(ids, { event: "e", text: "x", key: `k:${n}` })).deliveries.length;
+    const beyond = await webhooks.send(ids, { event: "e", text: "late", key: "late" });
+    assert.equal(beyond.deliveries.length, ids.length, "queued, not refused");
+    const waiting = fake.webhooks.deliveries.filter(d => d.key === "late");
+    assert.ok(waiting.every(d => d.status === "pending" && d.attempts === 0 && d.nextAttemptAt !== null), "held back by the pace");
+    // Their turn comes: delivered.
+    await fake.webhooks.retry();
+    assert.ok(fake.webhooks.deliveries.filter(d => d.key === "late").every(d => d.status === "delivered"));
+  } finally {
+    await fake.close();
+  }
+  // More targets than one call carries: send() makes as many calls as needed.
+  let calls = 0;
+  const big = await fakeChest({ webhooks: {} });
+  try {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(input instanceof Request ? input.url : input).endsWith("/webhooks/send")) calls++;
+      return original(input, init);
+    }) as typeof fetch;
+    try {
+      const many = Array.from({ length: webhooks.limits.perSend + 3 }, (_, i) => "whk_" + "a".repeat(22) + String(i).padStart(4, "0").replace(/[0189]/gu, d => ({ "0": "b", "1": "c", "8": "d", "9": "e" })[d]!));
+      const result = await webhooks.send(many, { event: "e", text: "x", key: "many" });
+      assert.equal(result.skipped.length, many.length, "not this tool's targets: skipped, in two calls");
+      assert.equal(calls, 2);
+    } finally {
+      globalThis.fetch = original;
+    }
+  } finally {
+    await big.close();
+  }
 });
