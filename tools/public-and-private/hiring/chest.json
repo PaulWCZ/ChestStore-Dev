@@ -33,7 +33,6 @@
       "data": {
         "candidate": "id",
         "name": "text",
-        "email": "text?",
         "job": "text",
         "team": "text?",
         "place": "text?",

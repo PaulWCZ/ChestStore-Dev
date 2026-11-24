@@ -261,10 +261,21 @@ proposal moved from the old read-only `groups` key to the capability `members.gr
 Goals receives what the store's other tools emit (SDK 0.5+: events between
 tools, `"receives"` in `chest.json`; the owner approves each link, and
 Goals hears from then on). **Who may see each**: an event carries its
-audience — "all", or the members the sender allowed; Goals shows a key
-result's value to everyone who reads its objective, so **an item for some
-members only is kept (with its audience) but never counted** — a
-confidential deal never moves a number everyone sees. **Who told it**: a
+audience — "all", or the members the sender allowed. **The number counts
+every item; the item stays its audience's.** A key result's value is a
+bare number — a count, or a sum of amounts — that names no item, so Goals
+counts items for some members only in it like any other: Support's solved
+tickets (sent for Support's roles), a card on a private board, a deal
+Clients keeps confidential all move the number everyone who reads the
+objective sees. Anything that would show an item's content — a title, a
+name, a list, a link, an activity line — stays visible only to the
+members its audience allows: Goals keeps no item's title, customer or
+candidate name at all, no page, export, notice or API lists the items
+behind a number, and the one name it does show from another tool, a
+Tasks board's in "Cards done on …", is offered only from cards for
+everyone. (So a sum over a single confidential deal tells its amount to
+the objective's readers: whoever builds a key result on Clients should
+know that.) **Who told it**: a
 type names no tool, so each is read only from the tool its first word
 names — `crm.*` from Clients (`crm`), `tasks.*` from Tasks, `helpdesk.*`
 from Support, `hiring.*` from Hiring — by the `source` the Chest stamps;
@@ -279,7 +290,7 @@ candidate's name (`src/lib/sources.ts`, `src/lib/crm.ts`; table `fed_events`).
 |---|---|---|---|
 | `crm.deal.won` (Clients) | `{deal, amount: cents \| null, currency}` | "Amount won", "Deals won" | Sent by Clients today |
 | `crm.deal.reopened` (Clients) | `{deal}` | takes the deal back | Sent by Clients today |
-| `hiring.hired` (Hiring) | `{candidate, hiredBy: mbr_…}` (Hiring's own shape; the name, email, job are not kept) | "People hired" (only theirs: `hiredBy`) | Sent by Hiring today |
+| `hiring.hired` (Hiring) | `{candidate, hiredBy: mbr_…}` (Hiring's own shape `{candidate, name, job, team?, place?, startDate?, hiredBy}`, for everyone; the name and job are not kept) | "People hired" (only theirs: `hiredBy`) | Sent by Hiring today |
 | `hiring.hire-cancelled` (Hiring) | `{candidate}` | takes the hire back | Renamed from `hiring.hire_cancelled` (0.7.0 refuses an underscore): Hiring renames it too |
 | `tasks.card.done` (Tasks) | `{card, board, boardName, assignees: [mbr_…]}` | "Cards done" (a board or all; only theirs: in `assignees`) | Sent by Tasks today |
 | `tasks.card.reopened` (Tasks) | `{card}` | takes the card back | Sent by Tasks today |
@@ -410,9 +421,9 @@ flow's first steps find nothing to check in.
 
 - **On SDK 0.7.0**: the store's tile and role names stay in English for a
   French member (`translations` is a studio proposal); the company's theme
-  falls back to Goals' own look (`chest.theme()`, a proposal); an item
-  another tool restricted to some members is never counted in a key
-  result's value (above); amounts of different currencies are never
+  falls back to Goals' own look (`chest.theme()`, a proposal); a Tasks
+  board whose every card is for some members only is not offered in
+  "Cards done on …" (its name is that card's content; above); amounts of different currencies are never
   converted (no exchange rates).
 
 - **Import**: a CSV only (not .xlsx: save as CSV first); owners are matched
