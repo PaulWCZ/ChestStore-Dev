@@ -74,8 +74,8 @@ export function readBusy(data: unknown): { at: Date; member: string; from: Date;
   const d = data as Record<string, unknown>;
   const time = (value: unknown) => (typeof value === "string" && instantPattern.test(value) ? Date.parse(value) : NaN);
   // Version 1, or no version at all: 0.7.0's data carries only the fields a
-  // teller declares, and Hiring's hiring.busy declares none (member, at,
-  // from, to, spans). Another version is another shape: ignored.
+  // teller declares, and a teller may declare none (member, at, from, to,
+  // spans). Another version is another shape: ignored.
   if ((d["v"] !== undefined && d["v"] !== 1) || typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
   const at = time(d["at"]), from = time(d["from"]), to = time(d["to"]);
   if (!Number.isFinite(at) || !Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > busyLimits.readDays * day) return null;

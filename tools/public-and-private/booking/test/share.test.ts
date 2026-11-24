@@ -340,13 +340,13 @@ test("erasing a host tells Clients each meeting called off", async () => {
   assert.ok(camille);
 });
 
-test("hiring.busy exactly as Hiring emits it (its chest.json: member, at, from, to, spans as JSON text — no version) is kept; from another tool it is ignored", async () => {
+test("hiring.busy exactly as Hiring emits it (its chest.json: v, member, at, from, to, spans as JSON text) is kept; from another tool it is ignored", async () => {
   const { sql, host, type } = await inesReady();
   const tuesday = async () => (await b.freeTimes(sql, host, type, "2026-10-06", "2026-10-06", monday)).map(s => s.start.slice(11, 16));
   assert.ok((await tuesday()).includes("12:00"), "Tuesday at 14:00 in Paris is open");
   // tools/public-and-private/hiring/src/lib/busy-snapshot.ts busyData: RFC 3339
   // instants from toISOString(), the spans' minutes as JSON text.
-  const emitted = { member: ines.id, at: new Date(monday).toISOString(), from: "2026-10-05T00:00:00.000Z", to: "2027-01-03T00:00:00.000Z", spans: JSON.stringify([["2026-10-06T12:00Z", "2026-10-06T13:00Z"]]) };
+  const emitted = { v: 1, member: ines.id, at: new Date(monday).toISOString(), from: "2026-10-05T00:00:00.000Z", to: "2027-01-03T00:00:00.000Z", spans: JSON.stringify([["2026-10-06T12:00Z", "2026-10-06T13:00Z"]]) };
   // A type names no tool: a "hiring.busy" from another tool is accepted and ignored.
   assert.equal(await chest.deliver({ type: "hiring.busy", source: "forms", data: emitted }, POST), 204);
   assert.ok((await tuesday()).includes("12:00"), "nothing taken from a tool that is not Hiring");
@@ -356,7 +356,8 @@ test("hiring.busy exactly as Hiring emits it (its chest.json: member, at, from, 
   assert.ok(!(await tuesday()).includes("12:00"), "the interview's hour is no longer offered");
   // Another version is another shape: never read as this one.
   assert.equal(readBusy({ ...emitted, v: 2 }), null);
-  assert.ok(readBusy({ ...emitted, v: 1 }));
+  const { v: _, ...unversioned } = emitted;
+  assert.ok(readBusy(unversioned), "a teller that declares no version is read too");
 });
 
 test("a guest's name with an emoji of several parts (a zero-width joiner) is told without the joiner: the Chest refuses format characters; Booking keeps the name as typed", async () => {

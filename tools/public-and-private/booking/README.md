@@ -319,8 +319,8 @@ Booking does not erase them in Clients (the CRM's own erasure does).
 A type names no tool in 0.7.0: each is read **only from the tool its
 first word names** (`hiring.busy` from Hiring, `leave.busy` from Leave —
 the `source` the Chest stamps); another tool's is accepted and ignored.
-`v` is optional (Hiring's 0.7 shape declares none; another `v` is another
-shape, ignored). What Booking tells is cleaned for the Chest: no format
+`v: 1` as Hiring sends it, or no `v` from a teller that declares none
+(another `v` is another shape, ignored). What Booking tells is cleaned for the Chest: no format
 character (an emoji's zero-width joiner, a zero-width space) nor control
 character in a text field — a guest's name keeps them in Booking.
 
