@@ -2,6 +2,7 @@ import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can, inAudience, roleOf, type Grouped } from "./access.ts";
 import { hasTool, haveTool } from "./audience.ts";
 import { chestGroups } from "./groups.ts";
+import { forget } from "./live.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "@argentic/chest-app";
 import { isLocale } from "../i18n/index.ts";
@@ -516,7 +517,11 @@ export async function updatePost(sql: Sql, actor: Member | null, postId: unknown
     if (c.kind !== "event") await tx`delete from rsvps where post_id = ${key}`;
     if (!c.important) await tx`delete from confirmations where post_id = ${key}`;
     await setVersions(tx, key, c.versions);
-    if (audienceChanged) await setAudience(tx, key, c);
+    if (audienceChanged) {
+      await setAudience(tx, key, c);
+      // Other readers: who follows it live is checked again (lib/live.ts).
+      await forget(tx, { post: key });
+    }
     const removed = await setFiles(tx, who, key, c);
     return {
       id: key, published: publishAt.getTime() <= now.getTime(), important: c.important, kind: c.kind, welcome: c.welcome, groups: c.groups, people: c.people, removed, undoUntil: null,
@@ -539,7 +544,11 @@ export async function revisions(sql: Sql, actor: Member | null, postId: unknown)
 export async function deletePost(sql: Sql, actor: Member | null, postId: unknown): Promise<{ important: boolean; kind: Kind }> {
   const who = publisher(actor);
   const row = await visible(sql, who, postId);
-  await sql`update posts set deleted_at = now() where id = ${row.id}`;
+  await sql.begin(async tx => {
+    await tx`update posts set deleted_at = now() where id = ${row.id}`;
+    // Deleted: nobody follows it live any more (lib/live.ts).
+    await forget(tx, { post: String(row.id) });
+  });
   return { important: row.important, kind: row.kind };
 }
 

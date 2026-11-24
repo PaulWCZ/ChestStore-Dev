@@ -42,8 +42,10 @@ export async function chestGroups(options: { fresh?: boolean } = {}): Promise<Gr
 // forgetGroups: someone moved between groups (member.updated): read them
 // again. SDK 0.7.0 sends no group events: a renamed group is read again
 // within the minute.
-export function forgetGroups(): void {
+export function forgetGroups(memberId?: string): void {
   cached = null;
+  // Theirs too, when the Chest could not carry them (overage).
+  if (memberId) overage.delete(memberId);
 }
 
 // A member's groups. The request's assertion carries them, except for a

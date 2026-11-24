@@ -2,6 +2,7 @@ import * as events from "@argentic/chest-sdk/events";
 import { syncEvent } from "./agenda.ts";
 import type { Sql } from "./db.ts";
 import { forgetGroups } from "./groups.ts";
+import { forget } from "./live.ts";
 import { promoted, proposalsWaiting, reconcile } from "./tell.ts";
 import { today } from "./time.ts";
 import { forgetViewer } from "./views.ts";
@@ -28,6 +29,7 @@ import { chestZone } from "./zone.ts";
 //   (README, "On a Chest").
 export async function leave(sql: Sql, memberId: string, day = today(chestZone())): Promise<void> {
   const events = await sql.begin(async tx => {
+    await forget(tx, { member: memberId });
     const gone = await tx<{ post_id: string }[]>`delete from rsvps r using posts p where p.id = r.post_id and r.member = ${memberId} and coalesce(p.event_last_day, p.event_day) >= ${day} returning r.post_id`;
     await tx`delete from visits where member = ${memberId}`;
     // Rows of earlier versions (their email choice, weekly digest): the
@@ -60,6 +62,7 @@ async function freed(sql: Sql, postIds: string[]): Promise<void> {
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   const events = await sql.begin(async tx => {
+    await forget(tx, { member: memberId });
     await tx`update posts set author = 'erased' where author = ${memberId}`;
     await tx`update posts set welcome = 'erased' where welcome = ${memberId}`;
     await tx`update comments set author = 'erased' where author = ${memberId}`;
@@ -98,9 +101,12 @@ export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.r
     // it member by member, with no group events): the Important posts no
     // longer for them leave their bell (and their number); those now for
     // them show on the front page and in their number.
+    // Groups or role changed: the posts they follow live are checked again
+    // (lib/live.ts).
     "member.updated": async event => {
+      if (event.data.changed.includes("groups") || event.data.changed.includes("role")) await forget(sql, { member: event.data.id });
       if (!event.data.changed.includes("groups")) return;
-      forgetGroups();
+      forgetGroups(event.data.id);
       await reconcile(sql, { member: event.data.id });
     },
     "member.erased": async event => {
