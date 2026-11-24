@@ -563,7 +563,7 @@ export const fr: Catalogue = {
     currencyIntro: "Remplit la devise d’un nouveau prix ou coût. Chaque montant garde la sienne : ceux déjà saisis ne changent pas.",
     currencySave: "Enregistrer",
     currencySaved: "Les nouveaux prix seront en {currency}.",
-    currencyGuessed: "Les prix saisis avant cette mise à jour ont été pris pour des euros. Choisissez votre devise et enregistrez : ils y passeront.",
+    currencyGuessed: "Les prix saisis avant cette mise à jour ont été pris pour des euros. Choisissez votre devise et enregistrez : ils y passeront.",
     currencyMoved: "Les prix sont désormais en {currency}.",
     kind: "Elle contient",
     kinds: {
