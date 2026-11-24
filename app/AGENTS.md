@@ -5,13 +5,14 @@ with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
 The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
 Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
-This page is for `@argentic/chest-app` 0.1.0-studio.10.
+This page is for `@argentic/chest-app` 0.1.0-studio.11, on `@argentic/chest-sdk`
+0.7.0 (tool contract 0.7: `"chest": "0.7"` in `chest.json`).
 
 ## Where things are in a tool
 
 | Path | What it is |
 |---|---|
-| `chest.json` | The manifest: capabilities, receives, schedules, public, `build.static: ["/assets/"]` |
+| `chest.json` | The manifest: capabilities, receives, realtime (channels, feeds), schedules, public, `build.static: ["/assets/"]` |
 | `src/app.tsx` | **Every route**: `createApp({…})`, pages, downloads, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name |
 | `src/pages/` | Pages: React components rendered on the server |
@@ -39,11 +40,12 @@ This page is for `@argentic/chest-app` 0.1.0-studio.10.
   function, a Date, a Map — and carry their words (`t.home.remove`…),
   dates already written by `f`, the path if needed. An island imports only
   React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
-  `onLinkClick`, `toast`, `fill`, `plural`, `fail`, `readEmail`,
-  `readMoney` (and `send` for a form it posts itself) from
+  `onLinkClick`, `toast`, `useLive`, `fill`, `plural`, `fail`, `readEmail`,
+  `readMoney`, `currencyDecimals` (and `send` for a form it posts itself) from
   `@argentic/chest-app/client` — with the types an
   island names (`Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain`), never
-  from the package's root (server code). Islands do not nest. Each island is a
+  from the package's root (server code); of the SDK, only its browser
+  module `@argentic/chest-sdk/realtime/client`. Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
   `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
@@ -76,8 +78,9 @@ This page is for `@argentic/chest-app` 0.1.0-studio.10.
   toast says so and the page stays, with what is typed (the Chest's 5xx,
   "Waking up…" included). `refresh()` and `navigate(path)` by hand
   (`{ top: false }`: the scroll and the focus stay — a panel opened beside
-  a list); `useAutoRefresh(60)` from `@argentic/chest-app/client` on a
-  timer (never the kit's: below, "A page others change"). A navigation is
+  a list); `useLive("notes", ["notes"])` from `@argentic/chest-app/client`
+  when the Chest says a row of the page changed (realtime — never a timer:
+  below, "A page others change"). A navigation is
   never lost to a refresh or an action on its way; an island it brings is
   live the moment it shows.
 - **Links** between pages of the same part go in place too (`start()`
@@ -229,13 +232,9 @@ This page is for `@argentic/chest-app` 0.1.0-studio.10.
   after `charge()`, so a flood of refused calls notifies nobody and the
   day's budget bounds the rest. Never `members.get` per request (nor
   `members.list`). Write the notice in every language the tool speaks
-  and let the Chest pick: with the studio SDK (announced for 0.5), the
-  English `title`/`body` plus `translations: { fr: { title, body } }`
-  ("Telling a member", below) — no member's language looked up at all. On
-  the official 0.4.1 (no `translations`): the notice in the Chest's
-  language (`localeIn(locales, chest.language)`), or the language the
-  owner of the record chose when they set it up (the form's, the
-  calendar's), stored with that record — never a lookup per request. A
+  and let the Chest pick: the English `title`/`body` plus `translations:
+  { fr: { title, body } }` ("Telling a member", below) — no member's
+  language looked up at all. A
   test sends `{ chest_form: formToken("book") }` (`formToken` and
   `solveWork` come from the root, `@argentic/chest-app`).
   `bound: false` only for an action that writes nothing (`checkSources`
@@ -288,12 +287,16 @@ control or invisible character, no `@` or two, a display name — `Ana
 `invalid_email`, an optional code of the catalogue that reads as
 `invalid` when absent; `""` is `empty`: `optional(field.email())` for
 one that may be left out),
+`currency()` (an ISO 4217 code, `" gbp "` read as `"GBP"`; a code
+this runtime does not know as a currency is `invalid`),
 `int({ min, max })` (digits only: `""` is `empty`, `"0x5"`, `"1e1"`,
-`"1.0"` are `invalid`), `money({ min?, max, decimals? })` (in minor units — cents with the
-default `decimals: 2`; 0 for yen, 3 for dinars — min and max too; a
-currency known only at run time: `readMoney(text, decimals)`, the same
-rules, in an action or an island;
-store `bigint` cents; write `f.money(cents, { cents: true })`; spaces
+`"1.0"` are `invalid`), `money({ min?, max, decimals? })` (the number
+only, in minor units — cents with the default `decimals: 2`; 0 for yen,
+3 for dinars, `currencyDecimals(code)` says which — min and max too; a
+currency known only at run time: `readMoney(text, currencyDecimals(code))`,
+the same rules, in an action or an island; the Chest has no currency:
+the tool keeps the amount's code beside it — "Money", below; store
+`bigint` cents; write `f.money(cents, code, { cents: true })`; spaces
 only between groups of three; `"1,250"` or `"1.234"` alone is
 `amount_ambiguous` — say it in the catalogue, "Write 1250 or 1,25", else
 it reads as `invalid`), `id()` (a
@@ -315,10 +318,11 @@ the reader's zone; `f.day` takes a `"YYYY-MM-DD"` (a `date` column, which
 `db()` returns as text) and writes that day wherever the reader is (a
 day that does not exist, `""` or `"2026-02-31"`, is `fail("invalid")`:
 read a day from an address with `field.day()` first);
-`f.today()` is the reader's own day (a member's personal deadline);
-the company's day is `chest.today()` (SDK), and in SQL `current_date`,
-`now()::date` and `date_trunc` run in the Chest's zone (the database
-session's), not the member's. `f.number`, `f.money`. Never format in the browser, never `new Intl.…` per row (each
+`f.today()` is the reader's own day; the company's day is `chest.today()`
+(SDK), and in SQL `current_date`, `now()::date` and `date_trunc` run in
+the Chest's zone (the database session's), not the member's — which to
+use: "Time zones", below. `f.number`; `f.money(amount, currency, {
+cents? })` — "Money", below. Never format in the browser, never `new Intl.…` per row (each
 Intl object lives outside V8's heap: hundreds of MiB pile up). French: a
 narrow no-break space (U+202F) before `: ; ? !` (`checkWords` refuses
 otherwise). The catalogue must hold `tool.name`, `pages` (notFound,
@@ -326,6 +330,67 @@ forbidden, failed, signIn, busy, language), `errors` (invalid, empty,
 too_long, too_large, forbidden, not_found, unavailable, unknown — plus the
 tool's own codes) and `kit` (the kit's words). The layout uses only those
 sections and its own (`nav`: the sections' labels), never a page's.
+
+## Time zones
+
+Two zones, never chosen on a screen of the tool (SDK 0.7.0):
+`member.timeZone` is where the member's browser is (it follows them when
+they travel); `chest.timeZone` is the company's reference zone, taken once
+from the owner's browser and set nowhere. The rule:
+
+- **About one member** — what their page shows, "today" on it, their own
+  deadline, a reminder sent to them — in **their** zone: `f` already is
+  (`f.date`, `f.time`, `f.dateTime`, `f.today()` on a members' page are in
+  `member.timeZone`). Outside their request (a schedule picking who to
+  remind at 8:00 their time), read it with `members.get(id)` when needed —
+  never store it as a preference, never offer a "your time zone" setting.
+- **For the whole company** — a document's date (an invoice, a quote, a
+  payslip month), a company-wide deadline, the day a schedule runs, what
+  SQL's `current_date` means, a file's name (`notes-${chest.today()}.csv`)
+  — in the company's: `chest.today()`, `chest.timeZone` (a visitor's `f`
+  is in it too).
+- **A place of its own** — rooms of a site, a booking host's hours, a
+  country's leave, a public status page's "times in…" — a setting of the
+  tool's (a zone per site or record, stored in its table, defaulting to
+  `chest.timeZone`, checked against `Intl.supportedValuesOf("timeZone")`),
+  formatted with `formatter(locale, zone)` from `@argentic/chest-app`.
+  Never a control that pretends to change the Chest's zone.
+
+A page's version already keys on the reader's zone (a member in another
+zone never gets another's 304); a page that also shows the company's day
+adds it: `` version: async () => `${await changeStamp()}.${chest.today()}` ``.
+Tests: `fakeChest({ chest: { timeZone } })` sets the company's zone (the
+database sessions and `testDatabase()`'s `sql` run in it), a test member's
+`timeZone` theirs — give them different zones, and test the day near
+midnight in each.
+
+## Money
+
+The Chest has no currency (SDK 0.7.0): a company may work in several. So:
+
+- **An amount keeps its own ISO 4217 code beside it**, in the same row:
+  `amount_cents bigint not null, currency text not null check (currency ~
+  '^[A-Z]{3}$')` — a quote in `GBP`, an expense in `USD`. Never an amount
+  alone whose currency is "the company's".
+- **The tool's default currency is a setting of its own** — an admin
+  choice stored in the tool's database (a `settings` row), `EUR` until set,
+  or the code of the first amount entered; it fills the currency field of
+  a new amount (`<select name="currency" defaultValue={settings.currency}>`)
+  and nothing else: each amount saved carries its code.
+- **Read** the pair with `field.money({ max, decimals })` and
+  `field.currency()`; when the code comes with the amount, read the amount
+  in its own minor unit: `amount: field.text({ max: 32 })` then
+  `readMoney(input.amount, currencyDecimals(input.currency))` in the run.
+- **Write** with `f.money(row.amount_cents, row.currency, { cents: true })`
+  (`{ cents: true }`: minor units, divided by that currency's decimals);
+  in an island, the amount arrives already written in its props.
+- **Totals**: never add amounts of different currencies — one total per
+  currency (`group by currency`), each written in its own. No conversion
+  (no exchange rates: the Chest gives none, and an outbound call needs a
+  declared host).
+- **Events and actions**: an amount crossing tools is `{ value, currency }`
+  (the contract's `amount` kind for Perseus's actions); in an event's
+  data, two fields (`total`: number, `currency`: text).
 
 ## The database
 
@@ -357,18 +422,58 @@ same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
-**A page others change, left open** (a board, a queue, a timesheet) —
-an island that calls `useAutoRefresh(60)` from
-`@argentic/chest-app/client` (not the kit's: it reads all day long), and
-`page(render, { version: () => changeStamp() })` (below: "A page's
-version that stays right"): the page is read again when the tab comes back and every minute while
-its reader was active in the last ten (idle, it stops: the Chest may
-put the tool to sleep), less often while nothing changes, and a read
-with the same version is a 304 — nothing rendered. A wall display (a
-board on a screen nobody touches): `useAutoRefresh(60, { idleMinutes:
-600 })` — it keeps reading while visible, and keeps the tool awake.
-**A page's version that stays right** (a page left open, read again with
-`useAutoRefresh`) — the change log of the package, never your own:
+**A page others change, left open** (a board, a queue, a timesheet, the
+starter's notes) — **realtime, never a timer** (SDK 0.5+, brief 09): the
+Chest holds the page's connection and tells it each row written, so the
+tool sleeps while the page stays open and the page is never stale. Three
+pieces:
+```jsonc
+// chest.json: the capability, a channel the page joins, the tables whose
+// writes are its events (the Chest adds the triggers: no SQL)
+"capabilities": ["database", "realtime"],
+"realtime": {
+  "channels": [{ "name": "board" }, { "name": "board:{id}", "join": { "table": "board_members", "key": "board_id", "member": "member_id" } }],
+  "feeds": [{ "table": "cards", "channel": "board:{board_id}", "columns": ["id", "board_id"] }]
+}
+```
+```tsx
+// src/islands/LiveBoard.tsx — rendered by the page: <Island name="LiveBoard" props={{ id }} />
+import { useLive } from "@argentic/chest-app/client";
+export function LiveBoard({ id }: { id: string }) {
+  useLive(`board:${id}`, ["cards", "board.renamed"], { focus: true });
+  return null;
+}
+```
+and `page(render, { version: () => changeStamp() })` (below: "A page's
+version that stays right"). `useLive(channel, names)` reads the page
+again (`refresh()`: what is typed, the scroll, the islands' state stay)
+at each event of those names — a table name is its feed's `.insert`,
+`.update` and `.delete`, a dotted name what the server publishes
+(`realtime.publish("board:12", "board.renamed")` from
+`@argentic/chest-sdk/realtime`, for what is not a row) —, a burst of
+events read once, a tab in the background read once when it comes back;
+also when the channel is joined without a replay (the first join too)
+and at a resync. A read with the same version is a 304, nothing
+rendered. Columns: the primary key first, and only what a channel
+pattern needs (`board_id`): the page reads the rest from the server,
+never from the event. `focus: true` says the member is looking at it
+(`realtime.online(ids, { channel })` → `watching`: notify only those
+who are not). Per-member channels: `"inbox:{member}"`. Who joins is the
+Chest's rule (all who have the tool; `"join": ["manager"]`; a membership
+table) — a page never gets rows its reader may not see: a confidential
+row goes on a channel only its readers join, or the feed carries its id
+alone and the page's read (which checks `member`) decides. Typing,
+cursors, "who is here": the SDK's `connect()` in an island (`channel.peers`,
+`presence`; `@argentic/chest-sdk/realtime/client`, its README). Test:
+`fakeChest({ capabilities: [..., "realtime"], realtime: manifest.realtime })`,
+`chest.realtime.commit("cards", "insert", { id, board_id })` tells the
+open pages (the studio's Chromium bench: `lab/starter-bench`, "a page
+left open follows the Chest's realtime"). `useAutoRefresh(seconds)`
+stays for what no write tells — a page whose content follows the clock
+("starts in 5 min"): it keeps the tool awake while someone is active,
+so never for data others change.
+**A page's version that stays right** (a page left open, read again by
+`useLive`) — the change log of the package, never your own:
 the starter's `migrations/0001_chest.sql` already holds it (the
 package's `sql/changes.sql`); a tool made before studio.7 copies
 `node_modules/@argentic/chest-app/sql/changes.sql` into a new migration
@@ -392,7 +497,8 @@ before the commit: a reader stamps the new number on the old rows, and
 every refresh after is a stale 304), **never `max(updated_at)` or
 `now()`** (a transaction's `now()` is its start: a late commit hides
 behind an earlier stamp). The package keys the version by the reader —
-their role, admin or not, their groups, their time zone — their language,
+their role, admin or not, their groups (`null` past about 150: told
+apart from none), their time zone — their language,
 the address, and the build. Anything
 that depends on the time (a button that opens ten minutes before a
 start, "in 5 min") is decided in an island from the browser's clock,
@@ -417,20 +523,20 @@ for the Chest's screens); `member.role` says which, `member.isAdmin` too.
 Who may do what is one function in `src/lib/` (`can(member, "x")`), used
 by pages (to show the button) and actions (to refuse with `forbidden`).
 **Telling a member** (a task assigned, a request approved), outside their
-request — a notification, never a mail (Rules, "Mail"). With the studio
-SDK (announced for 0.5): one notice, `title`/`body` in English (the
-tool's first language) and `translations: { fr: { title, body } }` from
-the French catalogue, a `path` (the page it is about) and a `key` (a
-later notice of that key replaces it; `withdraw(key)` once it is done):
-the Chest shows each member their language — no language looked up.
-On the official 0.4.1 (no `translations`): the member's language from
-`members.lookup(ids)` (`members` capability; group the ids by language,
-one `notify` per language), `localeIn(locales, member.language)` (a
-language the tool speaks, else its first), `words(locale)` (the tool's
-`src/i18n/index.ts`). A date or an amount in it:
-`formatter(locale, member.timeZone, chest.currency)` from
-`@argentic/chest-app` (0.4.1), or the company's zone and words that
-need none ("tomorrow", "on 3 November") with translations. A
+request — a notification, never a mail (Rules, "Mail"): one notice,
+`title`/`body` in English (the tool's first language) and `translations:
+{ fr: { title, body } }` from the French catalogue, a `path` (the page it
+is about) and a `key` (a later notice of that key replaces it;
+`withdraw(key)` once it is done): the Chest shows each member their
+language — no language looked up. A date or an amount in it: for one
+member, in their zone — `formatter(locale, recipient.timeZone)` from
+`@argentic/chest-app` for each language, the zone read with
+`members.get(id)` (the requester's own `member.timeZone` is not the
+recipient's); for several, words that need no zone ("tomorrow", "on 3
+November", a company-wide date in `chest.timeZone`); an amount with its
+own code, `f.money(cents, currency, { cents: true })`. Before notifying
+the readers of a live page, `realtime.online(ids, { channel })`: those
+`watching` already see it. A
 notification's title is 80 characters at most and its body 280 (the SDK
 refuses longer, and a schedule that sends one fails at every run):
 `cutText(title, 80)`, `cutText(body, 280)` — they cut, nothing else. A
@@ -443,20 +549,14 @@ space, empty lines dropped (the tools' `cut`/`cutLines`). Send it in
 hiccup then never fails an action whose data is written. Never a name,
 an email or what a visitor wrote in a title or body (the member opens
 the page: the details are there).
-**Tell everyone or a role** (a post published, a poll opened). With the
-studio SDK (announced for 0.5): `notifications.broadcast(notice, { to:
-{ roles, groups }, except: [author] })` with `translations` — one call,
-the Chest resolves the members, no cap; leave `to` out for everyone
-with the tool, and **never send an empty `to`** (`{}` or `{ groups: [] }`
-from a setting not filled in is refused, never read as everyone: check
-the setting first). On the official 0.4.1 (no broadcast): the members
-from `members.list({ role })` (or `{ group }`; every page, 500 at most
-each), cached a minute (never listed per request); grouped by
-`member.language`, one `notify` per language in chunks of 500 ids (its
-bound), each chunk in its own `try`/`catch` that logs and goes on — a
-failing chunk never stops the others. Mind 0.4.1's quota: 1,000
-recipients an hour per tool (past it, `QuotaExceeded`): a company larger
-than that waits for broadcast.
+**Tell everyone or a role** (a post published, a poll opened) —
+`notifications.broadcast(notice, { to: { roles, groups }, except:
+[author] })` with `translations`: one call, the Chest resolves the
+members, no cap, no pace refused (a burst folds into one grouped item);
+it answers nothing (to say "sent to 42 people", count with
+`members.list`). Leave `to` out for everyone with the tool, and **never
+send an empty `to`** (`{}` or `{ groups: [] }` from a setting not filled
+in is refused, never read as everyone: check the setting first).
 **A reminder button** ("Remind them", "Nudge") — each notice may become
 a mail (the member's choice): give it a limit, one per subject and
 recipient every 12 hours (a `reminded_at` column checked in the
@@ -514,10 +614,15 @@ serves a download or an island's props.
 serve it under that path too: `app.post("/p/:link/actions/:name",
 publicActionsAt())`, and call it there: `call("answer", input, { at:
 location.pathname })` or a form `action="/p/abc/actions/answer"`.
-**More about the member** (every group they are in) —
-`createApp({ complete: async who => ({ ...who, groups }) })`, once per
-/chest request (not for /assets/ nor the look); a hook that asks the Chest
-must cache its answer a minute (600 members calls a minute per tool).
+**More about the member** (every group they are in) — `member.groups`
+holds them (all of them with the `members.groups` capability), but is
+`null` for a member in more groups than an assertion carries (about
+150): `createApp({ complete: async who => (who.groups !== null ? who : {
+...who, groups: (await members.get(who.id))?.groups ?? [] }) })`, once per
+/chest request (not for /assets/ nor the look); a hook that asks the
+Chest must cache its answer a minute (600 members calls a minute per
+tool). Without it, read `who.groups ?? []` only where "in no group" is
+the safe answer.
 **A look chosen at run time** (a theme the company picks) —
 `createApp({ look: viewer => ({ css, colors, logo }) })` (the layout
 receives it as `look`: a brand's logo beside the name): pages link
@@ -598,7 +703,7 @@ catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
   mail (no mailbox, no reply by mail into the tool: a mail to the public
   sets Reply-To to the company's own address). Mail to people outside the
   company (a receipt, a booking's recap, a quote) only through the SDK's
-  `mail` seam (`mail.send`, a studio proposal: SDK 0.4.1 has none yet) —
+  `mail` seam (`mail.send`, a studio proposal: SDK 0.7.0 has none yet) —
   never SMTP, nor a mail service of the tool's own.
 - **Logs**: `log.info("what happened", { note: id })`; ids and counts
   only, never a name, an email, a token or what someone wrote. Every
@@ -645,7 +750,15 @@ class names built at run time — `` `c-${color}` `` — need their family in
 the CSS),
 `atLeast(n)` (a file whose tests were removed fails). Run the tests as the
 workbench does too: `NODE_ENV=development npm test`.
-The SDK's `fakeChest`, `withMember` sign the member.
+The SDK's `fakeChest`, `withMember` sign the member; `chest.deliver(event,
+to)` delivers a Chest event (0.7.0: `emit` is the tool's own, see
+`chest.emitted`), `chest.run(name, to)` a schedule's run,
+`chest.realtime.commit(table, op, row)` a feed's row to the open pages.
+`fakeChest({ chest: { timeZone } })` is the company's zone; it takes no
+currency (0.7.0: a type error to pass one).
+`checkSources` also checks the capabilities `sealed`, `folders` and
+`realtime` (an island's `useLive` or the SDK's realtime modules; with it,
+the `"realtime"` key).
 
 ## Pitfalls
 
@@ -669,3 +782,6 @@ The SDK's `fakeChest`, `withMember` sign the member.
 | `npm test` passes, the tool does not build in the workbench | Tests run with the workbench's `NODE_ENV=development`: run them so too |
 | A total is "1234" (text) | `sum()`/`count()` are bigint: cast in SQL |
 | A POST answers 415 | Its body is neither a form nor JSON |
+| `f.money` throws "not an ISO 4217 code", or a tool still reads `chest.currency` (undefined) | SDK 0.7.0 has no Chest currency: pass the amount's own code, kept beside it ("Money") |
+| `Cannot read properties of null (reading 'includes')` on `member.groups` | A member in about 150 groups or more: `groups` is `null` — complete it ("More about the member") |
+| A page left open never changes, or the browser's console says the realtime join was refused | `realtime` missing from `capabilities`, the channel not in `chest.json`'s `"realtime"`, or the table not in its `"feeds"` |

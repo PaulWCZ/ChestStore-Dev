@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "my-tool",
   "title": "My tool",
   "description": "What the tool does, in one sentence.",
@@ -8,11 +8,28 @@
   ],
   "capabilities": [
     "database",
-    "members"
+    "members",
+    "realtime"
   ],
   "receives": [
     "member.*"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "notes"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "notes",
+        "channel": "notes",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "build": {
     "runtime": "node",
     "install": "npm ci",

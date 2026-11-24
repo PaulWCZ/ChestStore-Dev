@@ -3,6 +3,7 @@
 // keeps focus, scroll, typed text and each island's state, and the same
 // forms work without JavaScript.
 //   node --test lab/starter-bench/browser.test.mjs   (after npm run build in starter/)
+//   CHROMIUM_PATH=/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell node --test …
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -14,7 +15,9 @@ const dir = resolve(import.meta.dirname, "../../starter");
 let tool, browser;
 before(async () => {
   tool = await runTool(dir);
-  browser = await chromium.launch();
+  // CHROMIUM_PATH: a Chromium of another Playwright build than
+  // playwright-core's (the machine's /opt/pw-browsers may be newer).
+  browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 });
 after(async () => {
   await browser?.close();
@@ -294,40 +297,32 @@ test("a download is asked once (a link with download, or to a file's address); a
   await close();
 });
 
-test("a page left open: read again while the person is there (a 304 when nothing changed), never once they are idle; again when they come back", async () => {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.clock.install();
+test("a page left open follows the Chest's realtime: read again when a note is written (a burst once; a 304 when nothing changed), never on a timer", async () => {
+  const { page, problems, close } = await open();
   const statuses = [];
-  page.on("response", r => { if (new URL(r.url()).pathname === "/chest" && r.request().method() === "GET") statuses.push(r.status()); });
-  await page.goto(`${tool.origin}/chest`);
-  await page.waitForFunction(() => document.querySelector("[data-island='AutoRefresh']") !== null && window.__chestStarted !== false);
-  await page.waitForTimeout(300);
-  const reads = () => statuses.length;
-  // Someone else posts a note; the person scrolls: within a minute it shows.
-  tool.sql("insert into notes (body, author) values ('From another desk', 'mbr_" + "s".repeat(26) + "')");
-  await page.mouse.wheel(0, 10);
-  await page.clock.runFor(61_000);
-  await page.waitForSelector("li.note >> text=From another desk");
-  // Nothing new: the next read is a 304 (the page's version), and waits longer.
-  await page.mouse.wheel(0, 10);
-  await page.clock.runFor(61_000);
-  await page.waitForFunction(n => n > 0, statuses.filter(s => s === 304).length || 0).catch(() => {});
-  await page.waitForTimeout(200);
-  assert.ok(statuses.includes(304), `a 304 among ${JSON.stringify(statuses)}`);
-  // Idle: after ten minutes without input, no read at all.
-  await page.clock.runFor(15 * 60_000);
-  await page.waitForTimeout(200);
-  const idle = reads();
-  await page.clock.runFor(60 * 60_000);
-  await page.waitForTimeout(200);
-  assert.equal(reads(), idle, "an idle tab lets the tool sleep");
-  // Back: the window gets the focus, the page is read at once.
-  await page.evaluate(() => dispatchEvent(new Event("focus")));
-  await page.waitForFunction(n => n, true);
-  await page.waitForTimeout(500);
-  assert.equal(reads(), idle + 1, "read again on coming back");
-  await context.close();
+  page.on("response", r => { if (new URL(r.url()).pathname === "/chest" && r.request().method() === "GET" && r.request().headers()["x-tool-navigate"]) statuses.push(r.status()); });
+  // Joined: the first join replays nothing, so the page is read once (a
+  // write between the render and the join is not lost) — a 304.
+  await page.waitForFunction(() => document.querySelector("[data-island='LiveNotes']") !== null);
+  for (let i = 0; i < 100 && statuses.length === 0; i++) await page.waitForTimeout(50);
+  assert.deepEqual(statuses, [304], "read once when joined, nothing new");
+  assert.ok(tool.seen.some(s => s.startsWith("UPGRADE /_chest/realtime")), "the socket is the Chest's, not the tool's");
+  // Someone else posts three notes at once: the Chest tells the page each
+  // row at its commit; the page is read once and shows them.
+  const ids = ["A", "B", "C"].map(x => tool.sql(`insert into notes (body, author) values ('From another desk ${x}', 'mbr_${"s".repeat(26)}') returning id`).trim());
+  for (const id of ids) tool.chest.realtime.commit("notes", "insert", { id: Number(id) });
+  await page.waitForSelector("li.note >> text=From another desk C");
+  await page.waitForTimeout(400);
+  assert.deepEqual(statuses, [304, 200], "a burst: one read");
+  // An event with nothing changed in the database: a 304, nothing rendered.
+  tool.chest.realtime.commit("notes", "update", { id: Number(ids[0]) });
+  for (let i = 0; i < 40 && statuses.length < 3; i++) await page.waitForTimeout(50);
+  assert.deepEqual(statuses, [304, 200, 304]);
+  // Nothing written: no read at all (no timer keeps the tool awake).
+  await page.waitForTimeout(2000);
+  assert.equal(statuses.length, 3);
+  assert.deepEqual(problems, []);
+  await close();
 });
 
 test("actions go one at a time, in the order asked", async () => {

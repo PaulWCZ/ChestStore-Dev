@@ -62,11 +62,25 @@ export const numberFormat = (tag: string, style: Intl.NumberFormatOptions = {}):
 
 
 // How a reader writes dates, times, numbers, amounts and plurals: their
-// language, their time zone (a member's own; the Chest's for a visitor),
-// the Chest's currency. Made on the server for each request: a page is
-// sent already written, never formatted again in the browser.
+// language and their time zone (a member's own, member.timeZone — where
+// their browser is; the company's, chest.timeZone, for a visitor). Made on
+// the server for each request: a page is sent already written, never
+// formatted again in the browser. No currency: the Chest has none (SDK
+// 0.7.0) — an amount is written in its own currency, the ISO 4217 code the
+// tool keeps beside it (f.money(cents, "GBP", { cents: true })).
 export type Format = ReturnType<typeof formatter>;
-export function formatter(locale: string, timeZone: string, currency = "EUR") {
+// An ISO 4217 code as a tool stores it: three letters, upper case.
+export const currencyPattern = /^[A-Z]{3}$/u;
+// The decimals of a currency's minor unit (2 for EUR and USD, 0 for JPY,
+// 3 for KWD), as Intl knows them: what field.money({ decimals }) and
+// readMoney(text, decimals) take for an amount in that currency, and what
+// f.money(…, { cents: true }) divides by.
+export function currencyDecimals(currency: string): number {
+  const code = currency.toUpperCase();
+  if (!currencyPattern.test(code)) throw new RangeError(`currencyDecimals: "${currency}" is not an ISO 4217 code`);
+  return numberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits ?? 2;
+}
+export function formatter(locale: string, timeZone: string) {
   // English as written in Europe (day month year, 24-hour clock).
   const tag = locale === "en" ? "en-GB" : locale;
   const today = (at: Date = new Date()) => {
@@ -98,13 +112,23 @@ export function formatter(locale: string, timeZone: string, currency = "EUR") {
     // "invalid": the page answers as for an address it cannot show), never
     // written as another day.
     day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short", ...(otherYear(iso.slice(0, 4)) ? { year: "numeric" } : {}) }).format(dayOf(iso)),
-    // Today in the reader's zone, "YYYY-MM-DD" (a member's own day; the
-    // company's is chest.today(), and SQL's current_date and now()::date are
-    // the company's too — the database session runs in the Chest's zone).
+    // Today in the reader's zone, "YYYY-MM-DD": a member's own day ("due
+    // today" on their page, their reminder). The company's day — a
+    // document's date, a company-wide deadline — is chest.today(), and SQL's
+    // current_date and now()::date are the company's too (the database
+    // session runs in chest.timeZone).
     today,
     number: (n: number) => numberFormat(tag).format(n),
-    // An amount in cents (field.money stores cents) or units: money(1250, { cents: true }).
-    money: (amount: number, options: { cents?: boolean } = {}) => numberFormat(tag, { style: "currency", currency }).format(options.cents ? amount / 100 : amount),
+    // An amount in its own currency, the ISO 4217 code kept beside it
+    // ("EUR", "GBP", "JPY"): in minor units with { cents: true } (what
+    // field.money reads — cents for EUR, yen for JPY: the currency's own
+    // decimals), else in units. A code that is not three letters throws (a
+    // fault of the tool: its data holds a code it never checked).
+    money: (amount: number, currency: string, options: { cents?: boolean } = {}) => {
+      const code = currency.toUpperCase();
+      if (!currencyPattern.test(code)) throw new RangeError(`f.money: "${currency}" is not an ISO 4217 code (an amount keeps its own: the Chest has no currency)`);
+      return numberFormat(tag, { style: "currency", currency: code }).format(options.cents ? amount / 10 ** currencyDecimals(code) : amount);
+    },
     // The form of n in this language (French says "0 note", English "0 notes").
     plural: (forms: Plural, n: number, values: Record<string, string | number> = {}) => plural(locale, forms, n, values),
   };
