@@ -98,3 +98,59 @@ test("values written in clear before this version are sealed by the morning; rea
   assert.equal(await sealLegacy(sql), 0, "nothing left in clear");
   assert.deepEqual([...sealedFields], ["address", "emergencyName", "emergencyRelation", "emergencyPhone"]);
 });
+
+test("the person's copy opens for that person only: never for another member, even one the tool's code would let in", async () => {
+  const { sql } = database;
+  const { id } = await createRecord(sql, hr, { memberId: sofia.id });
+  await updateRecord(sql, hr, id, { address: "2 rue Mercière", emergencyPhone: "06 98 76 54 32" }, opener(hr));
+  const row = await stored(id);
+  const storedOf = { hr: { address: String(row["address"]), emergencyName: String(row["emergency_name"]), emergencyRelation: String(row["emergency_relation"]), emergencyPhone: String(row["emergency_phone"]) }, own: row["own_sealed"] ?? null };
+  // Sealed for no role, the Chest would open the person's copy for any
+  // member: the tool opens it only when the reader is the record's person.
+  const forHugo = await openPrivate(opener(asMember(hugo)), asMember(hugo), { id, memberId: sofia.id, stored: storedOf });
+  assert.equal(forHugo.state, "hidden");
+  assert.equal(forHugo.values.address, "");
+  // A record no member is linked to: nobody's own copy.
+  assert.equal((await openPrivate(opener(asMember(hugo)), asMember(hugo), { id, memberId: null, stored: storedOf })).state, "hidden");
+  // Copied into another record, a copy does not open there (its context).
+  const other = await createRecord(sql, hr, { memberId: hugo.id });
+  assert.equal((await openPrivate(opener(asMember(hugo)), asMember(hugo), { id: other.id, memberId: hugo.id, stored: storedOf })).state, "hidden");
+  // Sofia (HR) reading her own record opens HR's copy: the same values.
+  assert.equal((await record(sql, asMember(sofia), id, opener(asMember(sofia)))).record.address, "2 rue Mercière");
+  // A member asking someone else's record is told it does not exist.
+  await assert.rejects(record(sql, asMember(hugo), id, opener(asMember(hugo))), (e: unknown) => e instanceof Error && (e as { code?: string }).code === "not_found");
+});
+
+test("locked (the Chest cannot open now): the rest of the record saves, the sealed part is never written over with what the form showed", async () => {
+  const { sql } = database;
+  const { id } = await createRecord(sql, hr, { legalName: "Jeanne Roux" });
+  await updateRecord(sql, hr, id, { address: "5 rue Juiverie", emergencyName: "Marc Petit" }, opener(hr));
+  const sealedBefore = await stored(id);
+  // A request the Chest cannot open values for (no ticket: as when the
+  // Chest waits for its owner's recovery code, the open fails).
+  const locked = new Request("http://tool/chest");
+  const shown = (await record(sql, hr, id, locked)).record;
+  assert.equal(shown.sealed, "locked");
+  assert.deepEqual([shown.address, shown.emergencyName], ["", ""], "nothing shown, nothing to save back");
+  // Another field saves; the sealed texts stay exactly as they were.
+  assert.deepEqual((await updateRecord(sql, hr, id, { job: "Buyer" }, locked)).changed, ["job"]);
+  assert.deepEqual(await stored(id), sealedBefore);
+  // The empty values the page showed, sent back: refused, nothing written.
+  await assert.rejects(updateRecord(sql, hr, id, { address: "", emergencyName: "" }, locked), (e: unknown) => (e as { code?: string }).code === "sealed_locked");
+  await assert.rejects(updateRecord(sql, hr, id, { job: "Lead buyer", emergencyPhone: "06 00 00 00 00" }, locked), (e: unknown) => (e as { code?: string }).code === "sealed_locked");
+  assert.deepEqual(await stored(id), sealedBefore);
+  assert.equal((await record(sql, hr, id, opener(hr))).record.job, "Buyer", "a refused save writes none of its fields");
+  assert.equal((await record(sql, hr, id, opener(hr))).record.address, "5 rue Juiverie");
+});
+
+test("locked: a change asked cannot be accepted (it waits); declining needs no value", async () => {
+  const { sql } = database;
+  const [mine] = await sql<{ id: string }[]>`select id::text as id from records where member_id = ${nora.id}`;
+  const asked = await askChange(sql, asMember(nora), mine!.id, { emergencyRelation: "Sœur" }, opener(asMember(nora)));
+  const locked = new Request("http://tool/chest");
+  await assert.rejects(decideChange(sql, hr, asked.id, true, "", locked), (e: unknown) => (e as { code?: string }).code === "sealed_locked");
+  assert.ok(await waitingChange(sql, hr, mine!.id, opener(hr)), "still waiting");
+  await decideChange(sql, hr, asked.id, false, "Call me", locked);
+  assert.equal(await waitingChange(sql, hr, mine!.id, opener(hr)), null);
+  assert.equal((await record(sql, asMember(nora), mine!.id, opener(asMember(nora)))).record.emergencyRelation, "Mère");
+});

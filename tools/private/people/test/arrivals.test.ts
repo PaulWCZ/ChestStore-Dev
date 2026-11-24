@@ -149,3 +149,31 @@ test("never linked: an arrival and its checklists are deleted 90 days after the 
   const names = (await arrivals.listArrivals(sql, hr)).map(a => a.name);
   assert.ok(!names.includes("Old Hire") && names.includes("Recent Hire"));
 });
+
+test("Hiring's exact shape, with no audience or with one: all of HR, or only the HR people it lists, see and are told", async () => {
+  const { sql } = database;
+  // Exactly what Hiring's chest.json declares for hiring.hired (email,
+  // team, place, startDate optional), nothing more.
+  const declared = { candidate: "cand_70", name: "Noé Lambert", email: null, job: "Designer", team: null, place: null, startDate: null, hiredBy: ines.id };
+  // No audience (the Chest's "all"): every HR person.
+  assert.equal(await chest.deliver({ type: "hiring.hired", source: "hiring", data: declared }, POST), 204);
+  const open = (await arrivals.listArrivals(sql, hr)).find(a => a.name === "Noé Lambert")!;
+  assert.ok((await arrivals.listArrivals(sql, asMember(sofia))).some(a => a.id === open.id));
+  assert.deepEqual(chest.notifications.filter(n => n.key === `arrival:${open.id}`).map(n => n.member).sort(), [camille.id, sofia.id]);
+  // An audience naming Camille only: Sofia (HR too) neither sees nor is told.
+  const listed = { ...declared, candidate: "cand_71", name: "Zoé Marchand" };
+  assert.equal(await chest.deliver({ type: "hiring.hired", source: "hiring", audience: [camille.id], data: listed }, POST), 204);
+  const shown = (await arrivals.listArrivals(sql, hr)).find(a => a.name === "Zoé Marchand")!;
+  assert.ok(shown);
+  assert.ok(!(await arrivals.listArrivals(sql, asMember(sofia))).some(a => a.id === shown.id));
+  await assert.rejects(arrivals.arrival(sql, asMember(sofia), shown.id), refused("not_found"));
+  assert.deepEqual(chest.notifications.filter(n => n.key === `arrival:${shown.id}`).map(n => n.member), [camille.id]);
+  // Its cancellation (Hiring's shape: the candidate alone) is told to the
+  // same people only.
+  const told = () => chest.notifications.filter(n => n.key === `arrival:${shown.id}`);
+  const hiredTitle = told()[0]!.title;
+  assert.equal(await chest.deliver({ type: "hiring.hire-cancelled", source: "hiring", audience: [camille.id], data: { candidate: "cand_71" } }, POST), 204);
+  assert.deepEqual(told().map(n => n.member), [camille.id]);
+  assert.notEqual(told()[0]!.title, hiredTitle, "the item now says the hire is cancelled");
+  assert.ok(!(await arrivals.listArrivals(sql, hr)).some(a => a.id === shown.id));
+});

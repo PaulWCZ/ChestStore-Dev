@@ -51,6 +51,14 @@ declare
   next_month date := (date_trunc('month', current_date) + interval '1 month')::date;
   week date := date_trunc('week', current_date)::date;
   period date;
+  -- Two requests of one person never overlap, whatever today is: Tom's
+  -- RTT waits after his week in the Calanques, Hugo's wedding after his
+  -- week in Porto, Inès's afternoon is not her RTT day (a sample that overlapped itself made "take back" fail
+  -- on some days of the month).
+  tom_rtt date := case when week + 8 between date_trunc('week', month_start + 7)::date and date_trunc('week', month_start + 7)::date + 6
+    then date_trunc('week', month_start + 7)::date + 8 else week + 8 end;
+  hugo_wedding date := date_trunc('week', greatest(next_month + 7, week + 21))::date;
+  ines_pm date := case when pg_temp.workday(week + 9) = pg_temp.workday(month_start + 15) then pg_temp.workday(pg_temp.workday(week + 9) + 1) else pg_temp.workday(week + 9) end;
   r record;
   k bigint;
 begin
@@ -93,13 +101,13 @@ begin
     (nora, paid, pg_temp.workday(month_start + 10), 'pm', pg_temp.workday(month_start + 10) + 1, 'pm', 'approved', camille, null, null, 33),
     (camille, rtt, pg_temp.workday(month_start + 18), 'am', pg_temp.workday(month_start + 18), 'am', 'approved', 'self', null, null, 30),
     (hugo, paid, week + 14, 'am', week + 18, 'pm', 'approved', ines, 'Family trip to Porto', 'Enjoy!', 20),
-    (ines, paid, pg_temp.workday(week + 9), 'pm', pg_temp.workday(week + 9), 'pm', 'approved', camille, null, null, 12),
+    (ines, paid, ines_pm, 'pm', ines_pm, 'pm', 'approved', camille, null, null, 12),
     (lea, paid, week + 3, 'am', week + 4, 'pm', 'approved', camille, null, null, 25),
     (sofia, sick, week + 1, 'am', week + 2, 'pm', 'approved', 'chest', null, null, 5),
-    (tom, rtt, pg_temp.workday(week + 8), 'am', pg_temp.workday(week + 8), 'pm', 'pending', null, 'Moving flat', null, 3),
+    (tom, rtt, pg_temp.workday(tom_rtt), 'am', pg_temp.workday(tom_rtt), 'pm', 'pending', null, 'Moving flat', null, 3),
     (tom, paid, pg_temp.workday(date_trunc('week', month_start + 14)::date + 1), 'am', pg_temp.workday(date_trunc('week', month_start + 14)::date + 1), 'pm', 'refused', lea, null, 'Release day, sorry — any other day that week is fine', 30),
     (lea, paid, date_trunc('week', next_month + 7)::date, 'am', date_trunc('week', next_month + 7)::date + 2, 'pm', 'pending', null, null, null, 4),
-    (hugo, paid, date_trunc('week', next_month + 7)::date + 3, 'am', date_trunc('week', next_month + 7)::date + 4, 'pm', 'pending', null, 'My cousin''s wedding in Nantes', null, 1),
+    (hugo, paid, hugo_wedding + 3, 'am', hugo_wedding + 4, 'pm', 'pending', null, 'My cousin''s wedding in Nantes', null, 1),
     (nora, paid, date_trunc('week', next_month + 14)::date, 'am', date_trunc('week', next_month + 14)::date + 4, 'pm', 'approved', camille, null, null, 15),
     (ines, unpaid, pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', 'pending', null, 'School meeting', null, 0),
     (sofia, remote, pg_temp.workday(week + 10), 'am', pg_temp.workday(week + 10), 'pm', 'approved', 'chest', null, null, 2)
