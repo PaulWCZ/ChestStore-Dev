@@ -6,9 +6,20 @@ import { as, control, done, expect, id, open, step } from "./lib.mjs";
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/boards\/\d+$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
+// A page of Tasks follows its boards live (realtime, SDK 0.7): once its
+// channel is joined it reads itself once more (what was written between
+// the render and the join). A person never acts within that moment; the
+// flow waits for it, so a click is not raced by that read.
+const go = async (url, options) => {
+  const answer = await page.goto(url, options);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(400);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  return answer;
+};
 
 await step("create a board: the dialog opens on its name field, typing names it", async () => {
-  await page.goto(origin + "/chest/boards");
+  await go(origin + "/chest/boards");
   await page.getByRole("button", { name: "New board" }).first().click();
   await page.waitForFunction(() => document.activeElement?.id === "board-name");
   await page.keyboard.type("Trade show");
@@ -115,7 +126,7 @@ await step("a due date typed wrong is refused as typed; the card keeps its date 
   // called — the due date saved on every change is neither erased (null)
   // nor re-sent. Tasks has no date field with min or max: the refused text
   // here is one the field cannot read, the same rule (readTypedDate).
-  await page.goto(boardUrl);
+  await go(boardUrl);
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.waitForURL(/card=/u);
   const held = await page.locator("#card-due").inputValue();
@@ -162,7 +173,7 @@ await step("the file goes to the Chest and opens again", async () => {
 });
 
 await step("make a card repeat every Monday and Thursday; the card says when the next one comes", async () => {
-  await page.goto(boardUrl);
+  await go(boardUrl);
   await page.locator(".card", { hasText: "Print flyers" }).click();
   await page.waitForURL(/card=/u);
   await page.locator("#card-repeat").selectOption("week");
@@ -195,7 +206,7 @@ await step("done, it makes the next one in the first column, with its people and
 
 await step("Inès sees it in My tasks, in French, and in her bell", async () => {
   await as(context, origin, "ines");
-  await page.goto(origin + "/chest");
+  await go(origin + "/chest");
   const text = await page.locator("main").innerText();
   expect(text.includes("Mes tâches"), "French home");
   expect(text.includes("Book the stand"), "the task");
@@ -225,11 +236,11 @@ await step("the morning: Inès finds one reminder in French; run again, still on
   await page.request.post(origin + "/_dev/clear");
   for (let i = 0; i < 2; i++) await page.request.post(origin + "/_dev/schedule", { form: { name: "morning" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const hers = dev.match(/<b>Inès Moreau<\/b> · .*?<\/li>/gu) ?? [];
+  const hers = dev.match(/<b>Inès Moreau<\/b> · [\s\S]*?<\/li>/gu) ?? [];
   expect(hers.length === 1, "one item for Inès: " + hers.join(" | "));
-  // English with its French: the Chest shows Inès hers.
-  expect(/<small lang="fr">fr: \d+ tâches? (pour aujourd’hui|en retard)/u.test(hers[0] ?? ""), "in French: " + hers[0]);
-  await page.goto(origin + "/chest");
+  // Sent with its French translation: the Chest keeps Inès's item in French.
+  expect(/<b>Inès Moreau<\/b> · \d+ tâches? (pour aujourd’hui|en retard)/u.test(hers[0] ?? ""), "in French: " + hers[0]);
+  await go(origin + "/chest");
   const toggle = page.getByRole("switch", { name: "Me rappeler chaque matin (lun.–ven.) ce qui est à faire ou en retard" });
   expect(await toggle.isChecked(), "on by default");
   // The kit's Switch: its input is hidden, its label is what one taps.
@@ -252,16 +263,16 @@ await step("the morning: Inès finds one reminder in French; run again, still on
 
 await step("a viewer cannot drag or add; a stranger to a private board sees nothing", async () => {
   await as(context, origin, "nora");
-  await page.goto(boardUrl);
+  await go(boardUrl);
   expect((await page.locator("#main").innerText()).length > 0, "page");
   await as(context, origin, "sofia");
-  await page.goto(origin + "/chest/boards/3");
+  await go(origin + "/chest/boards/3");
   expect((await page.locator("body").innerText()).includes("Nothing here"), "private board hidden");
 });
 
 await step("archive a card with undo; export the board", async () => {
   await as(context, origin, "hugo");
-  await page.goto(boardUrl);
+  await go(boardUrl);
   await page.locator(".card", { hasText: "Pack the demo laptop" }).click();
   await page.getByRole("button", { name: "Archive" }).click();
   await page.waitForSelector(".ck-toast");
@@ -273,7 +284,7 @@ await step("archive a card with undo; export the board", async () => {
 await step("import a spreadsheet as a new board", async () => {
   const file = tmp + "/plan.csv";
   writeFileSync(file, "Titre;Colonne;Échéance;Responsable\nAppeler le traiteur;À faire;12/10/2026;Léa Dubois\nRéserver la salle;En cours;;Hugo Bernard\n");
-  await page.goto(origin + "/chest/import");
+  await go(origin + "/chest/import");
   await page.locator(".source", { hasText: "Spreadsheet" }).locator("input[type=file]").setInputFiles(file);
   await page.getByRole("button", { name: "Import the board" }).click();
   await page.waitForSelector("text=Imported 2 cards");
@@ -283,7 +294,7 @@ await step("import a spreadsheet as a new board", async () => {
 });
 
 await step("Mark done in the card, then Undo", async () => {
-  await page.goto(boardUrl);
+  await go(boardUrl);
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.getByRole("button", { name: "Mark done" }).click();
   await page.locator(".ck-toast", { hasText: "Done: moved to Done." }).waitFor();
@@ -303,7 +314,7 @@ await step("a step given to Inès with a date shows in her My tasks", async () =
   await page.waitForTimeout(1200);
   expect(await page.locator(".check-item", { hasText: "Choose the size" }).locator(".chip", { hasText: "Inès Moreau" }).count() === 1, "the step says whom");
   await as(context, origin, "ines");
-  await page.goto(origin + "/chest");
+  await go(origin + "/chest");
   const row = page.locator(".task.step", { hasText: "Choose the size" });
   expect(await row.count() === 1, "in her list");
   expect((await row.innerText()).includes("Book the stand"), "with its card");
@@ -311,7 +322,7 @@ await step("a step given to Inès with a date shows in her My tasks", async () =
 });
 
 await step("a comment deleted comes back with Undo; an empty title says why it is refused", async () => {
-  await page.goto(boardUrl);
+  await go(boardUrl);
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.locator("#comment").fill("Password is hunter2");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
@@ -347,29 +358,29 @@ await step("after the move, Inès's bell item, an old link and the card's own ad
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes(`/chest/cards/${moved}`), "the bell item points at the card by its id");
   // An address made before the move (the old board): it follows the card.
-  await page.goto(`${boardUrl}?card=${moved}`);
+  await go(`${boardUrl}?card=${moved}`);
   await page.waitForURL(new RegExp(`/chest/boards/1\\?card=${moved}$`, "u"));
   expect((await page.locator("#card-title").inputValue()) === "Book the stand", "the card opens");
-  await page.goto(`${origin}/chest/cards/${moved}`);
+  await go(`${origin}/chest/cards/${moved}`);
   await page.waitForURL(new RegExp(`/chest/boards/1\\?card=${moved}$`, "u"));
   await page.locator(".panel").waitFor();
   // A card that is gone says so, instead of an empty board.
-  await page.goto(`${origin}/chest/boards/1?card=999999`);
+  await go(`${origin}/chest/boards/1?card=999999`);
   expect((await page.locator(".card-gone").innerText()).includes("n’est plus ici"), "a card gone says so");
   await as(context, origin, "hugo");
 });
 
 await step("fields: add a choice field in settings, set it on a card; the list view shows it, sorts and groups", async () => {
-  await page.goto(origin + "/chest/boards/1/settings");
+  await go(origin + "/chest/boards/1/settings");
   await page.getByPlaceholder("Budget, Client, Priority…").fill("Supplier");
   await page.locator("#new-field-kind").selectOption("choice");
   await page.locator("#new-field-options").fill("MoveUp\nDéménageurs Lyonnais");
   await page.getByRole("button", { name: "Add a field" }).click();
   await page.locator("#field-name-3").waitFor();
-  await page.goto(origin + "/chest/boards/1?card=1");
+  await go(origin + "/chest/boards/1?card=1");
   await page.getByLabel("Supplier").selectOption("MoveUp");
   await page.waitForTimeout(1000);
-  await page.goto(origin + "/chest/boards/1?view=list");
+  await go(origin + "/chest/boards/1?view=list");
   const head = await page.locator("table.cards thead").first().textContent();
   expect(/Supplier/u.test(head) && /Priority/u.test(head), "fields are columns: " + head);
   expect((await page.locator("table.cards").first().innerText()).includes("MoveUp"), "the value shows");
@@ -388,7 +399,7 @@ await step("fields: add a choice field in settings, set it on a card; the list v
 });
 
 await step("calendar: due cards on their day; dragged to another day, the date changes", async () => {
-  await page.goto(origin + "/chest/boards/1?view=calendar");
+  await go(origin + "/chest/boards/1?view=calendar");
   const card = page.locator(".cal-card", { hasText: "Order 40 archive boxes" });
   await card.waitFor();
   const today = page.locator(".cal-day.today");
@@ -406,7 +417,7 @@ await step("calendar: due cards on their day; dragged to another day, the date c
 });
 
 await step("archive a column with cards: the dialog asks where they go; search with the archive finds the others", async () => {
-  await page.goto(boardUrl);
+  await go(boardUrl);
   const lane = page.locator(".lane", { hasText: "Ideas" }).first();
   await page.locator(".lane").nth(0).getByRole("button", { name: "Add a card" }).click();
   await page.getByPlaceholder("What needs doing?").fill("Post on LinkedIn");
@@ -418,14 +429,14 @@ await step("archive a column with cards: the dialog asks where they go; search w
   await page.getByLabel(/Archive them with the column/u).check();
   await page.getByRole("dialog").getByRole("button", { name: "Archive the column" }).click();
   await page.locator(".ck-toast", { hasText: /Column archived with its \d+ cards?\./u }).waitFor();
-  await page.goto(origin + "/chest/search?q=LinkedIn");
+  await go(origin + "/chest/search?q=LinkedIn");
   expect((await page.locator("main").innerText()).includes("No card found"), "hidden from a plain search");
   await page.getByRole("link", { name: /more in the archive/u }).click();
   await page.locator(".task", { hasText: "Post on LinkedIn" }).locator(".chip", { hasText: "Archived" }).waitFor();
 });
 
 await step("a private board shares with the people chosen at creation, and says so in its header", async () => {
-  await page.goto(origin + "/chest/boards");
+  await go(origin + "/chest/boards");
   await page.getByRole("button", { name: "New board" }).first().click();
   await page.keyboard.type("Salaries 2027");
   await page.getByText("Only people I choose").click();
@@ -439,16 +450,16 @@ await step("a private board shares with the people chosen at creation, and says 
   expect((await page.locator(".privacy").innerText()).includes("2 people"), "private marker: " + await page.locator(".privacy").innerText());
   const url = page.url();
   await as(context, origin, "ines");
-  await page.goto(url);
+  await go(url);
   expect(await page.getByRole("heading", { name: "Salaries 2027" }).isVisible(), "Inès sees it");
   await as(context, origin, "tom");
-  await page.goto(url);
+  await go(url);
   expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom does not");
   await as(context, origin, "hugo");
 });
 
 await step("a private board shared with a group that does not give Tasks: its members see it, until they leave the group", async () => {
-  await page.goto(origin + "/chest/boards");
+  await go(origin + "/chest/boards");
   await page.getByRole("button", { name: "New board" }).first().click();
   await page.keyboard.type("Server room");
   await page.getByText("Only people I choose").click();
@@ -460,21 +471,21 @@ await step("a private board shared with a group that does not give Tasks: its me
   expect((await page.locator(".privacy").innerText()).includes("1 group"), "private marker: " + await page.locator(".privacy").innerText());
   const url = page.url();
   await as(context, origin, "tom");
-  await page.goto(url);
+  await go(url);
   expect(await page.getByRole("heading", { name: "Server room" }).isVisible(), "Tom (Tech) sees it");
   await as(context, origin, "ines");
-  await page.goto(url);
+  await go(url);
   expect((await page.locator("body").innerText()).includes("Rien ici") || (await page.locator("body").innerText()).includes("Nothing here"), "Inès (Sales) does not");
   await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
   await as(context, origin, "tom");
-  await page.goto(url);
+  await go(url);
   expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom, out of Tech, no longer does");
   await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
   await as(context, origin, "hugo");
 });
 
 await step("a Trello export: the check says who is found and what stays behind; private by default", async () => {
-  await page.goto(origin + "/chest/import");
+  await go(origin + "/chest/import");
   await page.locator(".source", { hasText: "Trello" }).locator("input[type=file]").setInputFiles(new URL("../../../tools/private/tasks/test/fixtures/trello-board.json", import.meta.url).pathname);
   await page.getByText("2 people found in your Chest").waitFor();
   const check = await page.locator(".summary-box").innerText();
@@ -489,7 +500,7 @@ await step("a Trello export: the check says who is found and what stays behind; 
 
 await step("switch day: a real Trello board's Done list and its cards marked complete come in finished, the archived list archived", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
-  await page.goto(origin + "/chest/import");
+  await go(origin + "/chest/import");
   await page.locator(".source", { hasText: "Trello" }).locator("input[type=file]").setInputFiles(new URL("../../../tools/private/tasks/test/fixtures/trello-switch-day.json", import.meta.url).pathname);
   await page.getByText("Finished work", { exact: true }).waitFor();
   const box = page.locator(".summary-box");
@@ -511,7 +522,7 @@ await step("switch day: a real Trello board's Done list and its cards marked com
   const fait = await page.locator(".lane", { hasText: "Fait" }).last().locator(".card-title").allTextContents();
   expect(fait.includes("Publier l’offre de stage") && fait.includes("Lancer la campagne de printemps"), "done cards: " + fait.join("|"));
   expect(await page.locator(".card", { hasText: "Lancer la campagne de printemps" }).locator(".chip.due-late").count() === 0, "not late on the board");
-  await page.goto(origin + "/chest");
+  await go(origin + "/chest");
   const mine = await page.locator("main").innerText();
   expect(!mine.includes("Publier l’offre de stage") && !mine.includes("Lancer la campagne"), "finished work is not in My tasks");
   expect(mine.includes("Préparer le stand du salon"), "open work is");
@@ -519,7 +530,7 @@ await step("switch day: a real Trello board's Done list and its cards marked com
 
 await step("the French import page: each button stays inside its card, under its words", async () => {
   await as(context, origin, "camille");
-  await page.goto(origin + "/chest/import");
+  await go(origin + "/chest/import");
   for (const source of await page.locator(".source").all()) {
     const card = await source.boundingBox(), button = await source.locator(".file-input").boundingBox(), words = await source.locator("p").boundingBox();
     expect(button.x + button.width <= card.x + card.width + 0.5, `button inside the card: ${Math.round(button.x + button.width)} > ${Math.round(card.x + card.width)}`);
@@ -529,7 +540,7 @@ await step("the French import page: each button stays inside its card, under its
 });
 
 await step("the calendar: my due dates are in my Chest calendar feed; My tasks says so", async () => {
-  await page.goto(origin + "/chest");
+  await go(origin + "/chest");
   await page.waitForTimeout(1500);
   await page.reload();
   const link = page.getByRole("link", { name: "Your due dates in your calendar" });
@@ -547,7 +558,7 @@ await step("the Chest look: late says so in a word, labels show their names", as
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "catalogue:chest" } });
   await as(context, origin, "hugo");
-  await page.goto(origin + "/chest/boards/1");
+  await go(origin + "/chest/boards/1");
   const truck = page.locator(".card", { hasText: "Book the moving truck" });
   const chip = truck.locator(".chip.due-late");
   expect((await chip.innerText()).includes("Late"), "the word: " + await chip.innerText());
@@ -558,7 +569,7 @@ await step("the Chest look: late says so in a word, labels show their names", as
 });
 
 await step("blocked by: the card says so; Mark done is refused, then done anyway; a blocker added from the card", async () => {
-  await page.goto(origin + "/chest/boards/1");
+  await go(origin + "/chest/boards/1");
   const clients = page.locator(".card", { hasText: "Tell our clients about the new address" });
   expect((await clients.locator(".chip.blocked").innerText()).includes("Blocked"), "the card face says Blocked");
   await clients.click();
@@ -573,13 +584,13 @@ await step("blocked by: the card says so; Mark done is refused, then done anyway
   expect((await page.locator(".history").innerText()).includes("while it still waited"), "the history says so");
   await page.getByRole("button", { name: "Reopen" }).click();
   await page.getByRole("button", { name: "Mark done", exact: true }).waitFor();
-  await page.goto(origin + "/chest/boards/1?card=4");
+  await go(origin + "/chest/boards/1?card=4");
   await page.locator("#add-blocker").selectOption({ label: "Order 40 archive boxes" });
   await page.locator(".links .link-line", { hasText: "Order 40 archive boxes" }).waitFor();
 });
 
 await step("timeline: bars from start to due, a line to what a card waits for; moved with the keyboard or dragged, the dates change", async () => {
-  await page.goto(origin + "/chest/boards/1?view=timeline");
+  await go(origin + "/chest/boards/1?view=timeline");
   const bar = () => page.getByRole("button", { name: /^Order 40 archive boxes:/u });
   await bar().waitFor();
   expect(await page.locator(".tl-links path").count() >= 1, "a line joins a card to its blocker");
@@ -621,7 +632,7 @@ await step("timeline: bars from start to due, a line to what a card waits for; m
 await step("a screen reader finds every draggable's instructions, on the board, the calendar and the timeline, page after page", async () => {
   for (const view of ["board", "calendar", "timeline"]) {
     for (let load = 1; load <= 2; load++) {
-      await page.goto(origin + `/chest/boards/1?view=${view}`);
+      await go(origin + `/chest/boards/1?view=${view}`);
       const ready = await page.waitForFunction(() => {
         const items = [...document.querySelectorAll("[aria-describedby][aria-disabled]")];
         return items.length > 0 && items.every(el => {
@@ -637,7 +648,7 @@ await step("a screen reader finds every draggable's instructions, on the board, 
 
 await step("columns speak the reader's language: Inès reads the sample board in French", async () => {
   await as(context, origin, "ines");
-  await page.goto(origin + "/chest/boards/1");
+  await go(origin + "/chest/boards/1");
   const lanes = (await page.locator(".lane h2").allTextContents()).join("|");
   expect(lanes.includes("À faire") && lanes.includes("En cours"), "lanes: " + lanes);
   await as(context, origin, "hugo");
@@ -645,13 +656,13 @@ await step("columns speak the reader's language: Inès reads the sample board in
 
 await step("phone: the first card is near the top; view and filters behind one button; the list is stacked cards", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(origin + "/chest/boards/1");
+  await go(origin + "/chest/boards/1");
   const first = await page.locator(".lane .card").first().boundingBox();
   expect(first.y < 330, "first card at y=" + Math.round(first.y));
   expect(!(await page.locator("#filter-who").isVisible()), "filters folded");
   await page.getByRole("button", { name: "View and filters" }).click();
   expect(await page.locator("#filter-who").isVisible(), "filters shown");
-  await page.goto(origin + "/chest/boards/1?view=list");
+  await go(origin + "/chest/boards/1?view=list");
   expect(!(await page.locator("table.cards").first().isVisible()), "no wide table");
   expect(await page.locator(".list-cards li").first().isVisible(), "stacked cards");
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -660,7 +671,7 @@ await step("phone: the first card is near the top; view and filters behind one b
 
 await step("phone: the timeline is a list of weeks, each card with its dates", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(origin + "/chest/boards/1?view=timeline");
+  await go(origin + "/chest/boards/1?view=timeline");
   await page.locator(".tl-week").first().waitFor();
   expect(!(await page.locator(".tl-scroll").isVisible()), "no narrow grid of 8 days");
   const weeks = await page.locator(".tl-week h3").allTextContents();
@@ -674,7 +685,7 @@ await step("phone: the timeline is a list of weeks, each card with its dates", a
 
 await step("phone width: the board scrolls sideways, the card panel fills the screen", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(boardUrl);
+  await go(boardUrl);
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 400, "page does not overflow: " + width);
   expect(await page.locator(".lane-jump button").count() >= 3, "columns by name above the board");
@@ -688,7 +699,7 @@ await step("phone width: the board scrolls sideways, the card panel fills the sc
 let labUrl = null;
 await step("quick-add eight cards typed fast: they keep the order typed", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
-  await page.goto(origin + "/chest/boards");
+  await go(origin + "/chest/boards");
   await page.getByRole("button", { name: "New board" }).first().click();
   await page.waitForFunction(() => document.activeElement?.id === "board-name");
   await page.keyboard.type("Drag lab");
@@ -744,10 +755,10 @@ await step("start a drag toward the bottom of an empty column, Escape: nothing m
 });
 
 await step("another card opened shows its own panel: no draft of the last one, the focus in it", async () => {
-  await page.goto(labUrl);
+  await go(labUrl);
   const idOf = async title => page.locator(".card-handle", { hasText: new RegExp(`^${title}`, "u") }).getAttribute("data-card");
   const c3 = await idOf("C3"), c4 = await idOf("C4");
-  await page.goto(`${labUrl}?card=${c3}`);
+  await go(`${labUrl}?card=${c3}`);
   // C3 waits for C4: its link opens C4 in place, as Back and Forward do.
   await page.locator("#add-blocker").selectOption(c4);
   await page.locator(".links a", { hasText: "C4" }).waitFor();
@@ -766,7 +777,7 @@ await step("another card opened shows its own panel: no draft of the last one, t
 });
 
 await step("closing a card gives the focus back to the card that opened it", async () => {
-  await page.goto(labUrl);
+  await go(labUrl);
   const handle = page.locator(".card-handle", { hasText: /^C5/u });
   await handle.focus();
   await page.keyboard.press("Enter");

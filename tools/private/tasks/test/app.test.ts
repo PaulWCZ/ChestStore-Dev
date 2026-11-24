@@ -178,8 +178,8 @@ test("the Chest's own deliveries: schedules and events, signed, each handled onc
   const unsigned = await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}", headers: { "content-type": "application/json" } }));
   assert.equal(unsigned.status, 401);
   const erased = { type: "member.erased" as const, id: "evt_" + "c".repeat(26), data: { id: ines.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(erased, to), 204);
-  assert.equal(await chest.emit(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
 });
 

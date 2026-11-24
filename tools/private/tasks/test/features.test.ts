@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
@@ -174,7 +174,7 @@ test("a step of a checklist given to someone with a date is a subtask: in their 
   assert.equal((await cards.urgentCounts(sql, [ines.id])).get(ines.id), 1);
   // Told in her language, by the bell (the Chest mails it if she chose so).
   await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Get the keys" }, change.card);
-  assert.equal(shownTo(chest.notifications.at(-1)!, "fr").title, "Hugo Bernard vous a confié une étape de « Open the new office »");
+  assert.equal(chest.notifications.at(-1)!.title, "Hugo Bernard vous a confié une étape de « Open the new office »");
   // Ticked: out of her list.
   await cards.updateItem(sql, asMember(ines), step.id, { done: true });
   assert.deepEqual(await cards.mySteps(sql, asMember(ines)), []);
@@ -269,25 +269,23 @@ test("no email from Tasks: a card given, a mention and the morning are notices, 
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");
   const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, hugo.id]);
   await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id });
-  // Only Inès (Hugo gave it to himself): one notice, both languages.
+  // Only Inès (Hugo gave it to himself): one notice, in her French.
   assert.deepEqual(chest.notifications.map(n => n.member), [ines.id]);
   const given = chest.notifications[0]!;
-  assert.equal(given.title, "Hugo Bernard gave you a task");
-  assert.equal(shownTo(given, "fr").title, "Hugo Bernard vous a confié une tâche");
+  assert.equal(given.title, "Hugo Bernard vous a confié une tâche");
   assert.equal(given.path, `/chest/cards/${c.id}`);
   assert.equal(given.key, `card:${c.id}:assigned`);
   // Mentioned: Hugo, in English (his language), with the comment's words.
   const said = await cards.addComment(sql, asMember(ines), c.id, "@Hugo Bernard which size?", [hugo.id]);
   await tell.mentioned(asMember(ines), said.mentions, { id: c.id, title: "Order boxes", boardId: b.id }, said.comment.body, sql, said.comment.id);
-  assert.equal(shownTo(chest.notifications.at(-1)!, "en").title, "Inès Moreau mentioned you on “Order boxes”");
-  // The morning: what is due, one notice per person, in both languages.
+  assert.equal(chest.notifications.at(-1)!.title, "Inès Moreau mentioned you on “Order boxes”");
+  // The morning: what is due, one notice per person, in their language.
   await cards.updateCard(sql, asMember(hugo), c.id, { due: addDays(chestToday(), -1) });
   const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1 };
   await morning(sql, run);
   const reminder = chest.notifications.find(n => n.key === "digest" && n.member === ines.id)!;
-  assert.equal(reminder.title, "1 task late");
-  assert.equal(shownTo(reminder, "fr").title, "1 tâche en retard");
-  assert.match(shownTo(reminder, "fr").body ?? "", /Order boxes/u);
+  assert.equal(reminder.title, "1 tâche en retard");
+  assert.match(reminder.body ?? "", /Order boxes/u);
   // Nothing ever left by email from the tool.
   assert.equal(chest.outbox.length, 0);
 });
