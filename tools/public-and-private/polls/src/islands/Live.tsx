@@ -23,9 +23,12 @@ export function LiveHome({ member }: { member: string }) {
 // does not notify an organiser who is watching (lib/live.ts). And once, at
 // its closing time on the browser's clock, the page is read again: the
 // poll then shows as closed (closing is evaluated on read).
-export function LivePoll({ id, closesAt }: { id: string; closesAt: string | null }) {
+// ticket: the mark of the reader's row in poll_live (lib/live.ts), which
+// lets them join "poll:<id>". When it went (their groups changed), the
+// Chest took them out and the page read itself again: still allowed, a new
+// mark — and the channel is joined again.
+export function LivePoll({ id, ticket, closesAt }: { id: string; ticket: string; closesAt: string | null }) {
   useLive("polls", ["polls"]);
-  useLive(`poll:${id}`, ["comments", "replies", "poll.answered"], { focus: true });
   useEffect(() => {
     if (!closesAt) return;
     const wait = new Date(closesAt).getTime() - Date.now() + 1000;
@@ -35,5 +38,9 @@ export function LivePoll({ id, closesAt }: { id: string; closesAt: string | null
     const timer = setTimeout(() => void refresh(), wait);
     return () => clearTimeout(timer);
   }, [closesAt]);
+  return <FollowPoll key={ticket} id={id} />;
+}
+function FollowPoll({ id }: { id: string }) {
+  useLive(`poll:${id}`, ["comments", "replies", "poll.answered"], { focus: true });
   return null;
 }

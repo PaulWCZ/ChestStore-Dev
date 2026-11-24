@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import { forgetGroups } from "./groups.ts";
+import { forget } from "./live.ts";
 import type { Sql } from "./db.ts";
 import { regrouped } from "./tell.ts";
 
@@ -21,12 +22,14 @@ import { regrouped } from "./tell.ts";
 //   never tied to them; only the fact that they answered is unnamed. Then
 //   the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
+  await forget(sql, { member: memberId });
   await sql`delete from polls where organiser = ${memberId} and status = 'draft'`;
   await sql`update series set stopped_at = now() where organiser = ${memberId} and stopped_at is null`;
 }
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
+    await forget(tx, { member: memberId });
     await tx`delete from polls where organiser = ${memberId} and status = 'draft'`;
     await tx`update polls set organiser = 'erased' where organiser = ${memberId}`;
     await tx`update participants set member = 'erased' where member = ${memberId}`;
@@ -45,9 +48,12 @@ export function handlers(sql: Sql): events.Handlers<"member.removed" | "member.u
     // leaves their bell and their tile, and the groups' sizes are read
     // again (the composer's choices, results per team). SDK 0.7.0 sends no
     // group events: a renamed group is read at render (a minute's cache).
+    // Groups or role changed: the polls they follow live are checked again
+    // (lib/live.ts).
     "member.updated": async event => {
+      if (event.data.changed.includes("groups") || event.data.changed.includes("role")) await forget(sql, { member: event.data.id });
       if (event.data.changed.includes("groups")) {
-        forgetGroups();
+        forgetGroups(event.data.id);
         await regrouped(sql, event.data.id);
       }
     },

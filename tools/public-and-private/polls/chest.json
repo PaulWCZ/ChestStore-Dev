@@ -30,7 +30,12 @@
         "name": "polls"
       },
       {
-        "name": "poll:*"
+        "name": "poll:{id}",
+        "join": {
+          "table": "poll_live",
+          "key": "poll_id",
+          "member": "member_id"
+        }
       },
       {
         "name": "mine:{member}"
