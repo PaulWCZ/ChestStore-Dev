@@ -79,10 +79,10 @@ test("updates of one key result at once: each kept, its value always the latest'
 test("Clients' deals: a malformed event is ignored, a reopened deal no longer counts", async () => {
   const { sql } = w.database;
   const at = new Date().toISOString();
-  await dealWon(sql, { id: "evt_1", type: "crm.deal.won", source: "crm", occurredAt: at, data: { deal: "bad ref!", amount: "lots" } });
-  await dealWon(sql, { id: "evt_2", type: "crm.deal.won", source: "crm", occurredAt: at, data: { deal: "D-9", amount: 125000, currency: "EUR", title: "never kept" } });
+  await dealWon(sql, { id: "evt_1", type: "crm.deal.won", source: "crm", occurredAt: at, audience: "all", data: { deal: "bad ref!", amount: "lots" } });
+  await dealWon(sql, { id: "evt_2", type: "crm.deal.won", source: "crm", occurredAt: at, audience: "all", data: { deal: "D-9", amount: 125000, currency: "EUR", title: "never kept" } });
   assert.deepEqual([...await sql`select deal, amount_cents::int as cents, currency from crm_deals`], [{ deal: "D-9", cents: 125000, currency: "EUR" }]);
-  await dealReopened(sql, { id: "evt_3", type: "crm.deal.reopened", source: "crm", occurredAt: at, data: { deal: "D-9" } });
+  await dealReopened(sql, { id: "evt_3", type: "crm.deal.reopened", source: "crm", occurredAt: at, audience: "all", data: { deal: "D-9" } });
   const [row] = await sql<{ won_at: Date | null }[]>`select won_at from crm_deals where deal = 'D-9'`;
   assert.equal(row!.won_at, null);
 });

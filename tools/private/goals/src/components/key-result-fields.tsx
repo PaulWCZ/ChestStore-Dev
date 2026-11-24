@@ -3,7 +3,7 @@ import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/componen
 import { useId } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, pluralRules } from "../shared/format.ts";
-import { singularOf, unitOf, unitParts, valueText } from "../shared/values.ts";
+import { commonCurrencies, singularOf, unitOf, unitParts, valueText } from "../shared/values.ts";
 
 // Where the value comes from (lib/sources.ts): its owner, or another tool.
 const sources = ["manual", "crm.won_amount", "crm.won_count", "tasks.done", "helpdesk.solved", "hiring.hired"] as const;
@@ -12,14 +12,16 @@ const sourceWord = (s: Source) => s.replace(".", "_") as keyof Catalogue["form"]
 const toolOf = (s: Source) => s.split(".")[0] as keyof Catalogue["tools"];
 const counts = (s: Source) => s === "tasks.done" || s === "helpdesk.solved" || s === "hiring.hired";
 // mine: only what names the key result's owner; scope: a board of Tasks ("" every board).
-export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source; mine: boolean; scope: string };
+// currency: a money key result's ISO 4217 code ("" until chosen: the tool's
+// default, the `currency` prop).
+export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source; mine: boolean; scope: string; currency: string };
 export type FieldWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; tools: Catalogue["tools"]; peoplePicker: PeoplePickerWords };
 // A board of Tasks Goals has heard of (lib/sources.ts, knownBoards).
 export type Board = { id: string; name: string };
 // Someone who may own a key result (everyone who has the tool).
 export type Owner = { id: string; name: string; photo: string | null };
 
-export const emptyDraft = (owner: string): KrDraft => ({ title: "", kind: "number", start: "0", target: "", unit: "", owner, weight: "1", source: "manual", mine: false, scope: "" });
+export const emptyDraft = (owner: string): KrDraft => ({ title: "", kind: "number", start: "0", target: "", unit: "", owner, weight: "1", source: "manual", mine: false, scope: "", currency: "" });
 
 // Whether a draft is still as it was (a dialog asks before closing only
 // when something changed).
@@ -42,7 +44,11 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
   const f = t.form;
   const fed = draft.source !== "manual";
   const start = typed(draft.start) ?? 0, target = typed(draft.target);
-  const measured = { kind: draft.kind === "milestone" ? "number" as const : draft.kind, unit: draft.kind === "number" ? draft.unit.trim() : "", currency, unitLocale: locale };
+  // A money key result keeps its own currency (the Chest has none): the
+  // tool's default until another is chosen.
+  const code = draft.currency || currency || "EUR";
+  const codes = [...new Set([code, ...(currency ? [currency] : []), ...commonCurrencies])];
+  const measured = { kind: draft.kind === "milestone" ? "number" as const : draft.kind, unit: draft.kind === "number" ? draft.unit.trim() : "", currency: code, unitLocale: locale };
   // "From 0 to 20 customers": the unit once, after the target; a
   // percentage or an amount carries its sign on both.
   const plain = (n: number) => valueText({ kind: "number", unit: "", currency: null }, n, locale);
@@ -91,6 +97,14 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
               <div className="unit">
                 <label className="label" htmlFor={`${uid}-unit`}>{f.unit}</label>
                 <input id={`${uid}-unit`} className="field" maxLength={20} value={parts.plural} placeholder={f.unitPlaceholder} onChange={e => setPlural(e.target.value)} />
+              </div>
+            )}
+            {draft.kind === "money" && (
+              <div className="unit">
+                <label className="label" htmlFor={`${uid}-currency`}>{f.currency}</label>
+                <select id={`${uid}-currency`} className="select" value={code} onChange={e => set({ currency: e.target.value })}>
+                  {codes.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             )}
           </div>
@@ -146,7 +160,7 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
 
 // What an action receives for a draft (src/actions.ts reads each part):
 // the numbers as typed, read on the server in either convention.
-export type KeyResultSent = { title: string; kind: KrDraft["kind"]; start: string; target: string; unit: string; owner: string; weight: string; source: Source; mine: boolean; scope: string };
+export type KeyResultSent = { title: string; kind: KrDraft["kind"]; start: string; target: string; unit: string; owner: string; weight: string; source: Source; mine: boolean; scope: string; currency: string };
 export function krInput(d: KrDraft): KeyResultSent {
-  return { title: d.title, kind: d.kind, start: d.start, target: d.target, unit: d.unit, owner: d.owner, weight: d.weight, source: d.source, mine: d.mine, scope: d.scope };
+  return { title: d.title, kind: d.kind, start: d.start, target: d.target, unit: d.unit, owner: d.owner, weight: d.weight, source: d.source, mine: d.mine, scope: d.scope, currency: d.kind === "money" ? d.currency : "" };
 }

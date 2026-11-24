@@ -1,5 +1,5 @@
+import { defaultCurrency } from "../lib/money.ts";
 import { Island, notFound, type PageContext, type View } from "@argentic/chest-app";
-import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Chevron, Lock } from "../components/icons.tsx";
 import { PersonLine } from "../components/person.tsx";
@@ -66,7 +66,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
   const carryTarget = ended && mayEdit(member, o) ? next.find(c => c.startsOn > cycle.endsOn) ?? next[0] ?? null : null;
   const cardWords = { checkIn: t.checkIn, tools: t.tools, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, objective: t.objective, progress: t.progress, form: t.form, kinds: t.kinds, kindHints: t.kindHints, peoplePicker: t.peoplePicker, dialog: t.dialog, tables: t.tables };
   const levelLine = o.level === "team" ? view.teamName ?? t.levels.team : t.levels[o.level];
-  const currency = chest.currency;
+  const currency = await defaultCurrency(sql);
   const nameOf = (id: string) => personView(who, id, locale).name;
   const addProps = { objectiveId: o.id, owners, boards, defaultOwner: o.owner, locale, currency, t: cardWords };
 
@@ -74,7 +74,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
     title: o.title,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
         <nav className="crumbs" aria-label={t.objective.breadcrumb}>
           <a href={`/chest/company?cycle=${cycle.id}`}>{t.company.title} · {cycle.name}</a>
           {grandParent && <><Chevron /><a href={`/chest/objectives/${grandParent.id}`}>{grandParent.title}</a></>}

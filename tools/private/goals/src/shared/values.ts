@@ -103,3 +103,8 @@ export function unitFor(unit: string, value: number, unitLocale: string | null):
 export function plainNumber(value: number, locale: string): string {
   return numberFormat(locale, { useGrouping: false, maximumFractionDigits: 4 }).format(value);
 }
+
+// The currencies a money key result may be counted in (the tool's own
+// default first, src/lib/money.ts): the ones companies use most; another
+// ISO 4217 code is kept as it is when an import brings it.
+export const commonCurrencies = ["EUR", "USD", "GBP", "CHF", "CAD", "AUD", "JPY", "SEK", "NOK", "DKK", "PLN", "CZK", "MAD", "SGD"] as const;

@@ -61,7 +61,7 @@ export function AddKeyResult({ objectiveId, owners, defaultOwner, locale, curren
 
 // Editing one: the same fields, filled.
 export function EditKeyResult({ kr, owners, locale, t, onClose, boards = [] }: { boards?: Board[]; kr: KeyResultView; owners: Owner[]; locale: string; t: KrWords; onClose: () => void }) {
-  const initial: KrDraft = { title: kr.title, kind: kr.kind, start: kr.kind === "milestone" ? "0" : kr.startInput, target: kr.kind === "milestone" ? "1" : kr.targetInput, unit: kr.unit, owner: kr.owner.id, weight: String(kr.weight), source: kr.source, mine: kr.sourceMine, scope: kr.sourceScope ?? "" };
+  const initial: KrDraft = { title: kr.title, kind: kr.kind, start: kr.kind === "milestone" ? "0" : kr.startInput, target: kr.kind === "milestone" ? "1" : kr.targetInput, unit: kr.unit, owner: kr.owner.id, weight: String(kr.weight), source: kr.source, mine: kr.sourceMine, scope: kr.sourceScope ?? "", currency: kr.currency ?? "" };
   return (
     <KeyResultDialog open title={t.objective.editKeyResult} initial={initial} saveLabel={t.form.save} owners={owners} boards={boards} locale={locale} currency={kr.currency} t={t} onClose={onClose}
       save={async draft => {

@@ -11,10 +11,11 @@ type Orphans = { owner: string; name: string; more: number; items: { kind: "obje
 type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; teams: Catalogue["teams"]; peoplePicker: PeoplePickerWords };
 type Person = { id: string; name: string; photo: string | null };
 
-export function SettingsView({ personal, teams, groups, orphans, morePeople, owners, locale, t }: { personal: boolean; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; morePeople: number; owners: Person[]; locale: string; t: Words }) {
+export function SettingsView({ personal, currency, currencies, teams, groups, orphans, morePeople, owners, locale, t }: { personal: boolean; currency: string; currencies: string[]; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; morePeople: number; owners: Person[]; locale: string; t: Words }) {
   const s = t.settings;
   const [pending, setPending] = useState(false);
   const [on, setOn] = useState(personal);
+  const [code, setCode] = useState(currency);
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -45,6 +46,17 @@ export function SettingsView({ personal, teams, groups, orphans, morePeople, own
           {s.personalOn}
         </label>
         <p className="notice"><Alert />{s.personalLegal}</p>
+      </section>
+
+      <section className="card card-pad stack" aria-labelledby="currency-title">
+        <h2 id="currency-title">{s.currency}</h2>
+        <p id="currency-hint">{s.currencyBody}</p>
+        <div>
+          <label className="label" htmlFor="currency">{s.currencyLabel}</label>
+          <select id="currency" className="select" value={code} disabled={pending} aria-describedby="currency-hint" onChange={e => { const next = e.target.value, before = code; setCode(next); act(() => call("saveCurrency", { currency: next }, quiet).then(r => { if (!r.ok) setCode(before); return r; }), () => s.currencySaved); }}>
+            {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
       </section>
 
       <section className="card card-pad stack" aria-labelledby="teams-title" id="teams">

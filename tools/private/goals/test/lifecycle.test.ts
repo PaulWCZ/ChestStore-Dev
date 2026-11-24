@@ -32,8 +32,8 @@ test("someone leaves: their goals stay, marked as needing a new owner, and the a
   w.chest.members.splice(w.chest.members.findIndex(m => m.id === ines.id), 1);
   w.chest.clearCaches();
   const event = { type: "member.removed" as const, id: "evt_" + "r".repeat(26), data: { id: ines.id } };
-  assert.equal(await w.chest.emit(event, POST), 204);
-  assert.equal(await w.chest.emit(event, POST), 204);
+  assert.equal(await w.chest.deliver(event, POST), 204);
+  assert.equal(await w.chest.deliver(event, POST), 204);
   const lost = await orphans(sql);
   assert.deepEqual(lost.map(o => [o.kind, o.title]), [["key_result", "Customers signed"], ["objective", "Sign 12 shops"], ["key_result", "Shops"]]);
   const all = await cycleObjectives(sql, cycle.id, clockAt(), null);
@@ -67,8 +67,8 @@ test("an erasure: the person's id goes everywhere, their check-ins and comments 
   await sql`insert into objective_viewers (objective_id, member_id) values (${company.id}, ${hugo.id})`;
   await sql`insert into nudges (member_id, day, sent_by) values (${hugo.id}, current_date, ${camille.id}), (${sofia.id}, current_date, ${hugo.id})`;
   const event = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await w.chest.emit(event, POST), 204);
-  assert.equal(await w.chest.emit(event, POST), 204);
+  assert.equal(await w.chest.deliver(event, POST), 204);
+  assert.equal(await w.chest.deliver(event, POST), 204);
   assert.deepEqual(w.chest.acknowledged, [erasure]);
   const tables = ["objectives where owner = $1 or created_by = $1 or retro_by = $1", "key_results where owner = $1 or created_by = $1", "check_ins where author = $1", "comments where author = $1", "cycles where created_by = $1 or closed_by = $1", "key_result_changes where author = $1 or before = $1 or after = $1", "objective_viewers where member_id = $1", "nudges where member_id = $1 or sent_by = $1"];
   for (const where of tables) assert.equal((await sql.unsafe(`select count(*)::int as n from ${where}`, [hugo.id]))[0]!.n, 0, where);

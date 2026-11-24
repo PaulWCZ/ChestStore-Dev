@@ -40,8 +40,9 @@ test("the admins see who has not checked in this week, an objective's owner sees
   await assert.rejects(remind(sql, sofiaM, hugo.id, clock), refused("not_found"));
   assert.equal(await remind(sql, inesM, hugo.id, clock), null);
   const nudge = w.chest.notifications.find(n => n.member === hugo.id && n.key === "checkin")!;
+  // In Hugo's language (English); the French words go with the notice
+  // for a French reader (src/lib/notify.ts, tested in notice tests).
   assert.equal(nudge.title, "Inès Moreau asks for your weekly update");
-  assert.equal(nudge.translations?.fr?.title, "Inès Moreau vous demande votre point de la semaine");
   assert.match(nudge.body!, /Shops signed/u);
   assert.equal(w.chest.outbox.length, 0, "the tool mails nobody: the Chest mails notifications by each member's choice");
   // Once a day, whoever asks.

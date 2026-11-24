@@ -1,4 +1,4 @@
-import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
+import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
@@ -15,12 +15,12 @@ export type Team = { id: string; name: string; groupId: string | null; archived:
 export type Group = { id: string; name: string };
 
 // The Chest's groups, by name. With the capability "members.groups"
-// (Proposal (studio), announced for 0.5, as News, Wiki and Polls) every
-// group of the Chest — Sales, Tech, the warehouse — even when Goals is open
-// to everyone; without it, only the groups that give Goals (a company that
-// gives it to everyone then has none). No cap of the tool's own: the
-// Chest's list as it is. [] when the Chest cannot say. Kept a minute (the
-// SDK's advice), per Chest API.
+// (official since SDK 0.5, chest.json) every group of the Chest — Sales,
+// Tech, the warehouse — even when Goals is open to everyone; without it,
+// only the groups that give Goals (a company that gives it to everyone then
+// has none). Paged by the Chest (members.groups.list({after})): read to the
+// end, no cap of the tool's own. [] when the Chest cannot say. Kept a
+// minute (the SDK's advice), per Chest API.
 let named: { at: number; api: string | undefined; groups: Group[] } | null = null;
 // The members of the groups that are teams, asked only for those (a
 // company may have many groups and few teams), kept a minute each.
@@ -29,18 +29,18 @@ const fresh = (entry: { at: number; api: string | undefined }) => entry.api === 
 
 export async function chestGroups(): Promise<Group[]> {
   if (named && fresh(named)) return named.groups;
-  let groups: Group[];
+  const groups: Group[] = [];
   try {
-    groups = (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
+    let after: string | undefined;
+    do {
+      const page = await members.groups.list({ limit: 500, ...(after ? { after } : {}) });
+      for (const g of page.groups) groups.push({ id: g.id, name: g.name });
+      // A cursor that comes back is the Chest's bug: stop rather than loop.
+      after = page.next && page.next !== after ? page.next : undefined;
+    } while (after);
   } catch (error) {
-    if (!(error instanceof ChestError)) throw error;
-    if (!(error instanceof CapabilityNotGranted)) return [];
-    try {
-      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
-    } catch (inner) {
-      if (inner instanceof ChestError) return [];
-      throw inner;
-    }
+    if (error instanceof ChestError) return [];
+    throw error;
   }
   named = { at: Date.now(), api: process.env["CHEST_API"], groups };
   return groups;

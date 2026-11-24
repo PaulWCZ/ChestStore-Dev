@@ -1,7 +1,7 @@
 import { ToastHost } from "@argentic/chest-app/client";
 import { AddKeyResult } from "../components/key-result-dialog.tsx";
 import { AddExample } from "./AddExample.tsx";
-import { AutoRefresh } from "./AutoRefresh.tsx";
+import { Live } from "./Live.tsx";
 import { CloseCycle } from "./CloseCycle.tsx";
 import { Comments } from "./Comments.tsx";
 import { CompanyTools } from "./CompanyTools.tsx";
@@ -21,7 +21,7 @@ import { WaitingList } from "./WaitingList.tsx";
 // else is HTML from the server, with no script (the company's tree folds
 // with the browser's own <details>). Islands do not nest.
 export const islands = {
-  ToastHost, AutoRefresh,
+  ToastHost, Live,
   WaitingList, StartCycle, AddExample,
   CompanyTools, Remind, RemindAll,
   KeyResultCard, AddKeyResult, ObjectiveActions, Retro, Comments, ObjectiveForm,

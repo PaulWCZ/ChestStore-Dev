@@ -39,7 +39,7 @@ export async function teamPage({ member, t, locale: language, param, query }: Pa
     title: team.name,
     body: (
       <div className="page narrow">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ channel: "goals", names: ["objectives", "key_results", "check_ins", "comments"] }} />
         <a className="link-button" href="/chest/teams"><Back />{t.teams.title}</a>
         <div className="head">
           <div className="titles">

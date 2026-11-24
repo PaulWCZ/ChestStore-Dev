@@ -43,7 +43,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased"> {
   return {
     "access.revoked": async event => {
       await leave(sql, event.data.id);
@@ -53,13 +53,11 @@ export function handlers(sql: Sql): events.Handlers {
       await leave(sql, event.data.id);
       await tellAdminsOfOrphans(sql);
     },
-    // The Chest's groups changed (Proposal (studio): "members.groups",
-    // "receives": ["group.*"]): their names and members are read again.
-    "group.changed": async () => { forgetGroups(); },
-    "group.removed": async () => { forgetGroups(); },
     // Someone moved in or out of a group (changed: ["groups"]), or their
     // role changed: the teams' members are read again (a member's own
-    // groups come with each request, member(request).groups).
+    // groups come with each request, member(request).groups). SDK 0.7.0
+    // has no group events: a renamed group is read at the next minute
+    // (lib/teams.ts keeps the list a minute).
     "member.updated": async () => { forgetGroups(); },
     "member.erased": async event => {
       await erase(sql, event.data.id);
