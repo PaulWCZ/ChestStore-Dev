@@ -9,7 +9,7 @@ import { fold } from "../shared/fold.ts";
 import { catalogue, format, formatDay, isLocale, type Locale } from "../i18n/index.ts";
 import { limits } from "../shared/model.ts";
 import { accentedLetters, plainLetters } from "./clients.ts";
-import { formatMoney, isCurrency } from "../shared/money.ts";
+import { formatMoney, fromCents, isCurrency } from "../shared/money.ts";
 import { notify, withdraw } from "./notify.ts";
 import { holders } from "./people.ts";
 import { lineNet, totals } from "../shared/totals.ts";
@@ -22,6 +22,8 @@ import { lineNet, totals } from "../shared/totals.ts";
 //   timesheets.billable {version: 1, handoff, projectName, clientName?,
 //     from?, to? (days), currency, minutes, amount, entries,
 //     lines: JSON text of [{label, task, minutes, rate: cents an hour | null, amount, entries}],
+//     (amounts and rates in cents — hundredths, whatever the currency's
+//     decimals —, read in the currency's minor units: fromCents)
 //     path}
 //   timesheets.billable-cancelled {version: 1, handoff}
 //
@@ -100,7 +102,10 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
   const currency = isCurrency(data["currency"]) ? data["currency"] : null;
   if (!currency) return null;
   const total = data["amount"];
-  const amount = typeof total === "number" && Number.isSafeInteger(total) && total >= 0 && total <= limits.total ? total : null;
+  // Timesheets counts in cents (hundredths) whatever the currency; Quotes
+  // keeps the currency's minor units (fromCents: the same for the euro).
+  const counted = typeof total === "number" && Number.isSafeInteger(total) && total >= 0 ? fromCents(total, currency) : null;
+  const amount = counted !== null && counted <= limits.total ? counted : null;
   const raw = listOf(data["lines"]);
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > limits.lines) return null;
   const lines: Billable["lines"] = [];
@@ -110,8 +115,10 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
     const minutes = l["minutes"];
     const rate = l["rate"];
     if (typeof minutes !== "number" || !Number.isSafeInteger(minutes) || minutes < 0 || minutes > 60 * limits.quantity / 1000) return null;
-    if (rate !== null && rate !== undefined && (typeof rate !== "number" || !Number.isSafeInteger(rate) || rate < 0 || rate > limits.unitPrice)) return null;
-    lines.push({ label: text(l["label"], limits.description) || text(record(l["task"])?.["name"], limits.description) || project, minutes, rate: typeof rate === "number" ? rate : 0 });
+    if (rate !== null && rate !== undefined && (typeof rate !== "number" || !Number.isSafeInteger(rate) || rate < 0)) return null;
+    const price = typeof rate === "number" ? fromCents(rate, currency) : 0;
+    if (price > limits.unitPrice) return null;
+    lines.push({ label: text(l["label"], limits.description) || text(record(l["task"])?.["name"], limits.description) || project, minutes, rate: price });
   }
   return { handoff, project, client, from: day(period["from"]), to: day(period["to"]), currency, lines, path: pathOf(data["path"] ?? record(data["source"])?.["path"]), amount };
 }

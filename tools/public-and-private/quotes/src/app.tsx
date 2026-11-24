@@ -60,8 +60,9 @@ export const app = createApp({
 // page). A member whose role gives nothing gets the layout's "no access"
 // (the page reads nothing).
 //
-// The desk and the lists read again by themselves while their reader is
-// there (an AutoRefresh island: the package's useAutoRefresh), and a read
+// The desk and the lists read again when the Chest's realtime says a
+// document, a payment or an answer changed (the LiveDocuments island: the
+// package's useLive — never a timer), and a read
 // with nothing new is a 304 (their version: src/lib/stamp.ts).
 const team = (render: (ctx: PageContext<MemberContext>) => Promise<View> | View, options: { live?: boolean } = {}) => page(async ctx => {
   if (!roleOf(ctx.member)) return { title: ctx.t.noAccess.title, body: null };

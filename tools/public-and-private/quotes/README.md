@@ -625,12 +625,13 @@ said):
 owner approved the link). The data is flat, of the Chest's kinds. Quotes
 receives:
 
-- `crm.deal.won` `{ deal, title, amount (minor units of its currency) |
-  null, currency, owner: "mbr_…" | null, companyRef, companyName,
+- `crm.deal.won` `{ deal, title, amount (integer cents: hundredths,
+  whatever the currency's decimals, as Clients counts) | null, currency, owner: "mbr_…" | null, companyRef, companyName,
   companyAddress, companyPostcode, companyCity, companyCountry,
   companySiren, companyVat, companyEmail, contactName, contactEmail }` (the
   nested `company: {…}`, `contact: {…}` of before are read too) — a
-  **draft quote** in the deal's own currency, titled like the deal, with
+  **draft quote** in the deal's own currency (the cents read in its minor
+  units: ¥10,000 for 1,000,000 cents), titled like the deal, with
   one line of the amount (a price of 0 when there is none) at 20 % VAT,
   for the deal's client; owned by the deal's owner if they may write quotes
   here (their Quotes role, asked of the Chest), otherwise by the tool; the
@@ -671,8 +672,9 @@ Timesheets' README, "With the other tools" (version 1).
   from, to, currency, minutes, amount, entries, lines (JSON text), path}`
   — flat, as the Chest carries it (the nested `project`, `client`,
   `period`, `lines[]`, `source` of before are read too; `v` stands for
-  `version`) — **one draft invoice per `handoff`**, in the hand-off's own
-  currency, for
+  `version`; `amount` and each line's hourly `rate` in cents, hundredths
+  whatever the currency) — **one draft invoice per `handoff`**, in the
+  hand-off's own currency, for
   ever (the `handoffs` table keeps each id: a second delivery, even after
   the draft was dropped, changes nothing). The client is the one whose name
   is Timesheets' (accents, case, spaces and punctuation aside: an indexed key, migration `0015_client_name_key.sql`), when exactly one

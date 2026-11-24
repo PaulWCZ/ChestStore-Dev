@@ -119,6 +119,22 @@ test("catalogue items from Pennylane- and Sellsy-style exports: VAT codes, decim
   assert.equal(all.find(i => i.name === "Livre de recettes")!.unitPrice, 1200);
 });
 
+test("imported items keep the currency their prices were read in: the tool's default of the day", async () => {
+  // A database of its own: the other tests' catalogue stays in one currency.
+  const own = await testDatabase();
+  await company(own.sql);
+  const database = own;
+  const text = "Nom;Prix unitaire HT;TVA\nAtelier Tokyo;120000;0\nCours Londres;450,50;20\n";
+  const mapping = ["name", "unitPrice", "vatRate"];
+  assert.equal((await importTable(database.sql, asMember(hugo), "items", text.split("\n").slice(0, 2).join("\n") + "\n", mapping, { ...options, currency: "JPY" })).created, 1);
+  assert.equal((await importTable(database.sql, asMember(hugo), "items", "Nom;Prix unitaire HT;TVA\n" + text.split("\n")[2] + "\n", mapping, { ...options, currency: "GBP" })).created, 1);
+  const all = await listItems(database.sql, asMember(lea));
+  const tokyo = all.find(i => i.name === "Atelier Tokyo")!, london = all.find(i => i.name === "Cours Londres")!;
+  assert.deepEqual([tokyo.currency, tokyo.unitPrice], ["JPY", 120000], "yen, no decimals — never labelled EUR");
+  assert.deepEqual([london.currency, london.unitPrice], ["GBP", 45050]);
+  await own.close();
+});
+
 test("a mapping is checked again on the server, and a file that is not a table is refused", async () => {
   const text = fixture("pennylane-products.csv");
   await assert.rejects(importTable(database.sql, asMember(hugo), "items", text, ["name"], options), refused("import_invalid"));

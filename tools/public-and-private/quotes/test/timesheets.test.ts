@@ -239,6 +239,17 @@ test("SDK 0.7.0's flat shape: names as fields, the lines as JSON text, the path 
   assert.ok(await draftOf("80"));
 });
 
+test("rates and amounts come in cents (Timesheets counts hundredths in every currency): read in the currency's minor units", () => {
+  const flat = {
+    version: 1, handoff: "81", projectName: "Tokyo", currency: "JPY", minutes: 60, amount: 1200000, entries: 1,
+    lines: JSON.stringify([{ label: "Design", task: null, minutes: 60, rate: 1200000, amount: 1200000, entries: 1 }]),
+  };
+  const read = readBillable(flat)!;
+  assert.deepEqual([read.amount, read.lines[0]!.rate], [12000, 12000], "12,000 yen an hour, not 1,200,000");
+  const euro = readBillable({ ...flat, currency: "EUR" })!;
+  assert.deepEqual([euro.amount, euro.lines[0]!.rate], [1200000, 1200000], "the euro: the same");
+});
+
 test("a hand-off for some people only (its audience): no draft; the billing members it names invoice it by hand", async () => {
   const before = chest.notifications.filter(n => n.member === sofia.id).length;
   const grouped = () => chest.notifications.find(n => n.member === sofia.id && n.grouped !== undefined)?.grouped ?? 0;
