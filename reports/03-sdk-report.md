@@ -28,6 +28,42 @@ new layout's: what earlier drafts cited as `src/lib/x.ts` is `src/src/lib/x.ts`;
 the Next.js routes (`app/…/route.ts`) are routes declared in each tool's
 `src/app.tsx`._
 
+_**Update, 24 November 2026: SDK 0.7.0** (Chest-SDK PR #38, head `1a825a6`, contract
+0.7). All 18 tools now declare `"chest": "0.7"` and vendor `sdk/` = `0.7.0-studio.2`
+(the official 0.7.0 byte for byte, plus the proposals still needed) and
+`@argentic/chest-app` `0.1.0-studio.13`. **The current, verified list of what the tools
+need against 0.7.0, with the tool and code that prove each item, is
+[`reports/08-sdk-0.7.md`](08-sdk-0.7.md). It supersedes this report where they
+differ.**_
+
+_**What 0.7.0 answered from this report:**_
+- _groups read: `members.groups`, §4.11;_
+- _broadcast with translations: §4.12;_
+- _events between tools with subject, audience and `occurredAt`: §4.4, now
+  `events.emit` with a schema in `chest.json`;_
+- _visitors' uploads into a folder: §4.7, first half;_
+- _sealed values, realtime and folders: new, adopted by the tools;_
+- _currency: removed by the owner's decision, now each tool's own (report 08 §1)._
+
+_**What 0.7.0 still lacks** (report 08 §2): mail to outside people (§4.2), the calendar
+bridge (§4.3), other tools' addresses (§4.5), the look (§4.6), public files (§4.7,
+second half), the visitor key (§4.8), webhooks (§4.9), checks (§4.10), the store's
+words in French (§4.13), matchEmails and leftAt (§4.14), and an API behind the `todo`
+capability._
+
+_**New needs found by the 0.7 migration** (report 08 §7):_
+- _a shared declared shape for paired events;_
+- _event types tied to their emitter;_
+- _amount and list kinds in event data;_
+- _a seal for "roles or this member";_
+- _realtime join rules by groups or audience;_
+- _feeds to per-member or several channels;_
+- _a "taken out of a channel" signal;_
+- _gaps in the fake._
+
+_The sections below keep the 0.4.1 analysis, which is still the design record of each
+proposal._
+
 How to read it: §2 is what 0.4.1 gives and which of our earlier asks it
 answered; §4 is what the 18 tools still need beyond it, one section per
 gap, with the studio's built proposal; §5 is where the official shape
