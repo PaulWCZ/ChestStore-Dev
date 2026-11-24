@@ -1,9 +1,10 @@
 import { forbidden, Island, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { PageHeader } from "@argentic/chest-ui/components";
-import { People, Upload } from "../components/icons.tsx";
+import { Upload } from "../components/icons.tsx";
 import { format, formatDate, formatDay, localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
-import { currency, today } from "../lib/clock.ts";
+import { today } from "../lib/clock.ts";
+import { currencies, currency, currencyFixed } from "../lib/money.ts";
 import { db } from "../lib/db.ts";
 import { nameFor, people } from "../lib/people.ts";
 import { endOfLastMonth, settings } from "../lib/settings.ts";
@@ -14,7 +15,7 @@ import { endOfLastMonth, settings } from "../lib/settings.ts";
 export async function settingsPage({ member, locale: lang, t }: PageContext<MemberContext>): Promise<View> {
   const locale = localeOf(lang);
   if (!can(member, "settings")) forbidden();
-  const s = await settings(db());
+  const [s, code, fixed] = await Promise.all([settings(db()), currency(db()), currencyFixed(db())]);
   const who = s.lockedBy ? await people([s.lockedBy]) : new Map();
   const day = today();
   const lastMonth = endOfLastMonth(day);
@@ -35,15 +36,11 @@ export async function settingsPage({ member, locale: lang, t }: PageContext<Memb
             approvals: s.approvals,
             hoursStyle: s.hoursStyle,
             comma: locale === "fr",
+            money: { currency: code, currencies: [...new Set([code, ...currencies])], fixed },
             t: { settings: t.settings, errors: t.errors, date: t.kit.date },
             locale,
           }}
         />
-        <section className="panel">
-          <h2>{t.settings.money.title}</h2>
-          <p>{format(t.settings.money.body, { currency: currency() })}</p>
-          <p><a className="button quiet" href="/chest/people"><People />{t.settings.peopleLink}</a></p>
-        </section>
         <section className="panel">
           <h2>{t.settings.import.title}</h2>
           <p>{t.settings.import.body}</p>

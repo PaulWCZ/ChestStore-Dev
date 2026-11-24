@@ -12,6 +12,8 @@ import { rateDayProblem } from "../src/shared/rate-day.ts";
 import { catalogue } from "../src/i18n/index.ts";
 import { report } from "../src/lib/reports.ts";
 import { lock } from "../src/lib/settings.ts";
+import { currency, currencyFixed, setCurrency } from "../src/lib/money.ts";
+import { markInvoiced } from "../src/lib/invoicing.ts";
 import { migrate, testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -185,4 +187,33 @@ test("where a person's usual rate is used: a project's own rate, or theirs on it
   ]);
   assert.equal(use.get(nora.id), undefined);
   await assert.rejects(rateUse(sql, asMember(hugo), [ines.id]), refused("forbidden"));
+});
+
+test("the currency is the tool's own (the Chest has none): every rate carries it; changed, it relabels; fixed once time is invoiced", async () => {
+  const { sql } = database;
+  await sql`delete from handoffs`;
+  await sql`update entries set invoiced_at = null, invoiced_by = null`;
+  assert.equal(await currency(sql), "EUR", "EUR until a manager picks another");
+  const p = await projects.createProject(sql, m(), { name: "In pounds", rateCents: 9000, budget: { kind: "money", cents: 100000 } });
+  await setRate(sql, m(), { kind: "cost", memberId: hugo.id, cents: 4000, from: base });
+  assert.deepEqual((await sql`select distinct currency from rates`).map(r => r["currency"]), ["EUR"]);
+  // Only a manager; only a currency with cents.
+  await assert.rejects(setCurrency(sql, asMember(hugo), "GBP"), refused("forbidden"));
+  await assert.rejects(setCurrency(sql, m(), "JPY"), refused("invalid"));
+  await assert.rejects(setCurrency(sql, m(), "XYZ"), refused("invalid"));
+  // A correction: the same numbers, labelled GBP — rates, projects, nothing converted.
+  assert.equal(await setCurrency(sql, m(), "gbp"), "GBP");
+  assert.deepEqual((await sql`select distinct currency from rates`).map(r => r["currency"]), ["GBP"]);
+  assert.deepEqual((await sql`select currency, rate_cents::int as rate, budget_cents::int as budget from projects where id = ${p.id}`).map(r => ({ ...r })), [{ currency: "GBP", rate: 9000, budget: 100000 }]);
+  // A new rate is in it too.
+  await setRate(sql, m(), { kind: "bill", memberId: ines.id, cents: 7000, from: base });
+  assert.deepEqual((await sql`select distinct currency from rates`).map(r => r["currency"]), ["GBP"]);
+  // Once time was invoiced, it stays: those amounts left the tool in it.
+  await addEntry(sql, asMember(hugo), { projectId: p.id, day: base, minutes: 60 });
+  await markInvoiced(sql, m(), { from: base, to: base, billable: "uninvoiced" });
+  assert.equal(await currencyFixed(sql), true);
+  const [fixed] = await sql<{ c: string }[]>`select rates_currency as c from entries where project_id = ${p.id}`;
+  assert.equal(fixed!.c, "GBP", "the rates written on invoiced time carry their currency");
+  await assert.rejects(setCurrency(sql, m(), "EUR"), refused("currency_fixed"));
+  assert.equal(await setCurrency(sql, m(), "GBP"), "GBP", "choosing the same one is no change");
 });

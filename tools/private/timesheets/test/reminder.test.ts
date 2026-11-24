@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as POST } from "../src/calls.ts";
 import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
 import { addEntry } from "../src/lib/entries.ts";
@@ -42,7 +42,7 @@ test("on Friday, whoever has a short week gets one notice, in every language; de
   await addEntry(sql, asMember(hugo), { projectId: p.id, day: addDays(friday, -7), minutes: 600 }); // last week's
   const scheduledAt = new Date(`${friday}T13:30:00Z`).toISOString();
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
-  const items = chest.notifications.map(n => [n.member, shownTo(n, everyone.find(p => p.id === n.member)!.language ?? "en"), n.key] as const).map(([m, w, k]) => [m, w.title, k]).sort();
+  const items = chest.notifications.map(n => [n.member, n.title, n.key] as const).sort();
   // Tom has no entry yet: his start is the tool's (last week, Hugo's first
   // entry), so this week is expected of him — as the Team page says.
   assert.deepEqual(items, [
@@ -89,9 +89,11 @@ test("a week sent to two managers: each is told, the French words with the notic
     chest.notifications.length = 0;
     const sent = await submitWeek(sql, asMember(hugo), week);
     assert.equal(sent.approvers, 2);
-    const told = chest.notifications.filter(n => n.title.startsWith("Hugo Bernard sent their week"));
+    // Each in their language: Camille in French, Sofia in English.
+    const told = chest.notifications.filter(n => n.title.startsWith("Hugo Bernard sent their week") || n.title.startsWith("Hugo Bernard a envoyé sa semaine du "));
     assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
-    assert.match(shownTo(told[0]!, "fr").title, /^Hugo Bernard a envoyé sa semaine du /u);
+    assert.match(told.find(n => n.member === camille.id)!.title, /^Hugo Bernard a envoyé sa semaine du /u);
+    assert.match(told.find(n => n.member === sofia.id)!.title, /^Hugo Bernard sent their week/u);
     assert.ok(told.every(n => n.path === `/chest/team/${hugo.id}?week=${week}`));
     assert.equal(chest.outbox.length, 0);
   } finally {

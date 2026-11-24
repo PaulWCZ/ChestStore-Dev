@@ -294,11 +294,11 @@ export async function createProject(sql: Query, actor: Member | null, input: Pro
     await checkClient(tx, clientId);
     if (await nameTaken(tx, clientId, p.name, null)) throw new AppError("duplicate");
     const [row] = await tx<{ id: string }[]>`
-      insert into projects (client_id, name, color, billable, rate_cents, budget_kind, budget_minutes, budget_cents, everyone, lead_id)
+      insert into projects (client_id, name, color, billable, rate_cents, budget_kind, budget_minutes, budget_cents, everyone, lead_id, currency)
       values (${clientId}, ${p.name}, ${p.color}, ${p.billable}, ${p.rateCents}, ${p.budget.kind},
-        ${p.budget.kind === "hours" ? p.budget.minutes : null}, ${p.budget.kind === "money" ? p.budget.cents : null}, ${p.everyone}, ${p.lead})
+        ${p.budget.kind === "hours" ? p.budget.minutes : null}, ${p.budget.kind === "money" ? p.budget.cents : null}, ${p.everyone}, ${p.lead}, (select currency from settings where id))
       returning id::text`;
-    if (p.rateCents !== null) await tx`insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${row!.id}, ${origin}, ${p.rateCents}, ${actor!.id})`;
+    if (p.rateCents !== null) await tx`insert into rates (kind, project_id, from_day, rate_cents, set_by, currency) values ('bill', ${row!.id}, ${origin}, ${p.rateCents}, ${actor!.id}, (select currency from settings where id))`;
     for (const name of tasks) await tx`insert into tasks (project_id, name) values (${row!.id}, ${name})`;
     for (const person of p.people) await tx`insert into project_people (project_id, member_id) values (${row!.id}, ${person}) on conflict do nothing`;
     return row!.id;
@@ -350,8 +350,8 @@ async function changeRate(tx: Query, actor: Member, projectId: string, rateCents
   } else day = from === origin ? origin : checkDay(from, now);
   if (isLocked(await settings(tx, { share: true }), day)) throw new AppError("rate_locked");
   await tx`
-    insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${projectId}, ${day}, ${rateCents}, ${actor.id})
-    on conflict (kind, coalesce(project_id, 0), coalesce(member_id, ''), from_day) do update set rate_cents = excluded.rate_cents, set_by = excluded.set_by, set_at = now()`;
+    insert into rates (kind, project_id, from_day, rate_cents, set_by, currency) values ('bill', ${projectId}, ${day}, ${rateCents}, ${actor.id}, (select currency from settings where id))
+    on conflict (kind, coalesce(project_id, 0), coalesce(member_id, ''), from_day) do update set rate_cents = excluded.rate_cents, currency = excluded.currency, set_by = excluded.set_by, set_at = now()`;
   // A later step would hide the new rate: the new one wins from its day on.
   await tx`delete from rates where kind = 'bill' and project_id = ${projectId} and member_id is null and from_day > ${day}`;
   await mirror(tx, projectId);

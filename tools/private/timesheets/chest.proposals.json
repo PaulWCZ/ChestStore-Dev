@@ -1,11 +1,4 @@
 {
-  "emits": [
-    "timesheets.billable",
-    "timesheets.billable_cancelled"
-  ],
-  "receives": [
-    "quotes.invoiced"
-  ],
   "translations": {
     "fr": {
       "title": "Temps",

@@ -358,7 +358,7 @@ export const fr: Catalogue = {
   reports: {
     found: { zero: "Aucune note ne contient « {q} » sur ces jours", one: "1 entrée dont la note contient « {q} »", other: "{count} entrées dont la note contient « {q} »" },
     foundMany: "Les {count} entrées les plus récentes dont la note contient « {q} » : le CSV les a toutes",
-    quotes: { title: "Brouillons de facture dans Devis", intro: "Le temps facturable de chaque projet sur ces jours devient un brouillon de facture dans Devis : une ligne par tâche et par taux. Le temps est marqué facturé quand Devis émet la facture.", nothing: "Plus rien à envoyer pour ces jours.", entries: { one: "1 entrée", other: "{count} entrées" }, send: "Brouillon de facture dans Devis", sendLabel: "Brouillon de facture dans Devis : {project}", sent: { one: "1 entrée de {project} envoyée à Devis en brouillon de facture.", other: "{count} entrées de {project} envoyées à Devis en brouillon de facture." }, recent: "Envoyé à Devis", span: "{from} – {to}", waiting: "En attente de sa facture", invoiced: "Facturé", invoicedAs: "Facturé : {invoice}", cancelled: "Repris", open: "Ouvrir dans Devis", takeBack: "Reprendre", takeBackLabel: "Reprendre : {what}", takenBack: "Repris : le temps peut être modifié et renvoyé. Devis a été prévenu.", notLinked: "Devis est installé mais pas encore relié à Temps : un administrateur de votre Chest les relie. D’ici là, marquez le temps facturé à la main." },
+    quotes: { title: "Brouillons de facture dans Devis", intro: "Le temps facturable de chaque projet sur ces jours devient un brouillon de facture dans Devis : une ligne par tâche et par taux. Le temps est marqué facturé quand Devis émet la facture.", nothing: "Plus rien à envoyer pour ces jours.", entries: { one: "1 entrée", other: "{count} entrées" }, send: "Brouillon de facture dans Devis", sendLabel: "Brouillon de facture dans Devis : {project}", sent: { one: "1 entrée de {project} envoyée à Devis en brouillon de facture.", other: "{count} entrées de {project} envoyées à Devis en brouillon de facture." }, recent: "Envoyé à Devis", span: "{from} – {to}", waiting: "En attente de sa facture", invoiced: "Facturé", invoicedAs: "Facturé : {invoice}", cancelled: "Repris", open: "Ouvrir dans Devis", takeBack: "Reprendre", takeBackLabel: "Reprendre : {what}", takenBack: "Repris : le temps peut être modifié et renvoyé. Devis a été prévenu.", notInstalled: "Devis n’est pas installé dans votre Chest : marquez le temps facturé à la main." },
     title: "Rapports",
     period: "Période",
     presets: {
@@ -471,7 +471,11 @@ export const fr: Catalogue = {
     peopleLink: "Taux et semaine normale de chacun",
     money: {
       title: "Argent",
-      body: "Taux et montants sont en {currency}, la devise de votre Chest.",
+      body: "Les taux, les budgets en argent et les montants sont tous dans une seule devise.",
+      currency: "Devise",
+      correct: "La changer renomme tous les taux et budgets (80 EUR deviennent 80 GBP) : changez-la seulement pour la corriger. Une fois du temps facturé, elle reste.",
+      fixed: "Du temps a été facturé en {currency} : la devise reste.",
+      saved: "Devise enregistrée.",
     },
     import: {
       title: "Import",
@@ -555,6 +559,7 @@ export const fr: Catalogue = {
     self_approval: "Personne ne valide sa propre semaine : un autre responsable le fait.",
     lead_invalid: "Le responsable d’un projet doit être responsable dans Temps.",
     nothing_to_send: "Plus de temps facturable à envoyer pour ce projet sur ces jours.",
+    currency_fixed: "Du temps a déjà été facturé dans cette devise : elle ne peut plus changer.",
     quotes_unavailable: "Devis ne peut pas encore être prévenu (votre Chest ne relie pas encore les outils, ou Devis n’est pas relié à Temps). Marquez plutôt le temps facturé à la main.",
     handoff_state: "Ce temps a déjà été facturé ou repris.",
     forbidden: "Votre rôle ne le permet pas.",

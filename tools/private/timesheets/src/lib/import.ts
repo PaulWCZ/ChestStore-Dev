@@ -3,7 +3,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { checkBudgets } from "./budgets.ts";
-import { currency as chestCurrency, today, zone } from "./clock.ts";
+import { today, zone } from "./clock.ts";
+import { currency } from "./money.ts";
 import type { Query, Sql } from "./db.ts";
 import { instantOf, mondayOf } from "../shared/days.ts";
 import { fold, foldText, parseExport, type DateOrder, type Imported, type Source } from "../shared/import-formats.ts";
@@ -26,7 +27,7 @@ import { transaction } from "./tx.ts";
 // - rows in the locked period, or in a week already approved or sent for
 //   approval, are imported only when the manager says so (history), and
 //   left out otherwise; the plan asks.
-// When the export gives its rates (in the Chest's currency), each row keeps
+// When the export gives its rates (in Timesheets' currency, src/lib/money.ts), each row keeps
 // them for good: the amounts match the old tool's invoices. Harvest rows
 // marked invoiced come in invoiced.
 
@@ -90,7 +91,7 @@ async function prepare(sql: Query, actor: Member | null, text: unknown, options:
   const latest = String(Number(today().slice(0, 4)) + 1) + today().slice(4);
   const keepFormer = options.former !== "skip";
   const importLocked = options.locked === "import";
-  const ratesOk = parsed.rates && (parsed.currency === null || parsed.currency === chestCurrency());
+  const ratesOk = parsed.rates && (parsed.currency === null || parsed.currency === await currency(sql));
   const formers = new Map((await sql<{ id: string; name: string }[]>`select id::text, name from former_people`).map(f => [fold(f.name), `imp_${f.id}`]));
   const skipped = { person: 0, locked: 0, duplicate: 0, invalid: parsed.invalid.length, dayFull: 0 };
   const people = new Map<string, { name: string; memberId: string | null; former: boolean; rows: number }>();
@@ -250,7 +251,7 @@ export async function runImport(sql: Sql, actor: Member | null, text: unknown, o
         if (projects.size >= limits.projects) throw new AppError("too_many", { max: limits.projects });
         const billable = (votes.get(`${foldText(r.client)}|${foldText(r.project)}`) ?? 1) >= 0;
         const color = colors[colorIndex++ % colors.length]!;
-        p = { id: (await tx<{ id: string }[]>`insert into projects (client_id, name, color, billable) values (${clientId}, ${r.project}, ${color}, ${billable}) returning id::text`)[0]!.id, billable };
+        p = { id: (await tx<{ id: string }[]>`insert into projects (client_id, name, color, billable, currency) values (${clientId}, ${r.project}, ${color}, ${billable}, (select currency from settings where id)) returning id::text`)[0]!.id, billable };
         projects.set(pk, p);
       }
       let taskId: string | null = null;
