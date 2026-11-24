@@ -50,8 +50,14 @@ async function publish(type: "hiring.hired" | "hiring.hire-cancelled" | "hiring.
 
 // hired: the key carries the time of the move, so hired, taken back, hired
 // again is two events (the same move told twice is one).
+// The Chest refuses a format character (Unicode Cf: a zero-width joiner
+// inside an emoji, a zero-width space, a BOM) in an event's text: taken out
+// of what is told only — Hiring keeps the names as typed.
+export const eventText = (text: string): string => text.replace(/\p{Cf}/gu, "");
+const optionalText = (text: string | null): string | null => (text ? eventText(text) || null : null);
+
 export async function hired(h: Hire, at: string): Promise<boolean> {
-  return publish("hiring.hired", { ...h, email: h.email || null, team: h.team || null, place: h.place || null }, `hiring:${h.candidate}:hired:${Date.parse(at)}`, { subject: h.candidate, audience: hireAudience });
+  return publish("hiring.hired", { ...h, name: eventText(h.name), job: eventText(h.job), email: optionalText(h.email), team: optionalText(h.team), place: optionalText(h.place) }, `hiring:${h.candidate}:hired:${Date.parse(at)}`, { subject: h.candidate, audience: hireAudience });
 }
 
 // hireCancelled: moved out of "hired", rejected after it, or erased.
@@ -121,7 +127,9 @@ export async function shareDueBusy(sql: Query, now = Date.now()): Promise<number
 // event's audience does not narrow who sees them: there is nothing to see.
 export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boolean> {
   const source = event.source;
-  if (typeof source !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || source.length > 63 || source === "hiring") return false;
+  // Each type only from the tool its first word names: "booking.busy" from
+  // Booking, "leave.busy" from Leave — never another tool emitting it.
+  if (typeof source !== "string" || source !== event.type.split(".")[0] || source === "hiring") return false;
   const s = readBusy(event.data);
   if (!s) return false;
   return sql.begin(async tx => {

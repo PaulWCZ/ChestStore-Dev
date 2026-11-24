@@ -133,3 +133,4 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   AI what was opened; never keep one in clear when the Chest cannot seal.
 - **Events are flat** (contract 0.7): lists go as JSON in a text field;
   a type's data only grows.
+- **Busy times only from the tool their type names** (`takeBusy`: `booking.busy` from Booking, `leave.busy` from Leave, by `source`); emitted names go through `eventText` (no Unicode Cf: the Chest refuses them), stored names stay as typed.

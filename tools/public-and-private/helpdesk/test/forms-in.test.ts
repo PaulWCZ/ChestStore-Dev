@@ -114,6 +114,18 @@ test("the same event again, or another event for the same answer, opens nothing 
   assert.equal(await count(), total + 1);
 });
 
+test("a forms.request from any tool but Forms is not filed: a type is read only from the tool it names", async () => {
+  const total = await count();
+  assert.equal(await chest.deliver({ type: "forms.request", source: "crm", audience: "all", data: request() }, POST), 204);
+  assert.equal(await count(), total);
+});
+
+test("Forms' request as its chest.json declares it (v, answeredAt; fields with their question) is read, nothing more required", async () => {
+  const total = await count();
+  assert.equal(await deliver({ v: 1, answeredAt: new Date().toISOString(), ...request({ subject: "Declared shape" }) }), 204);
+  assert.equal(await count(), total + 1);
+});
+
 test("a request only some people may see in Forms is not filed: every agent reads the inbox", async () => {
   const total = await count();
   assert.equal(await deliver(request(), undefined, [hugo.id]), 204, "accepted, never delivered again");

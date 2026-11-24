@@ -80,6 +80,12 @@ test("resolved or removed: gone; an event published earlier, arriving late, neve
   assert.deepEqual(await openIncidents(sql, asMember(hugo), "en"), []);
 });
 
+test("a status.incident from any tool but Status is ignored", async () => {
+  const { sql } = database;
+  assert.equal(await chest.deliver({ type: "status.incident", source: "crm", subject: "78", data: incident("opened", { id: "78" }) }, POST), 204);
+  assert.ok(!(await openIncidents(sql, asMember(hugo), "en")).some(i => i.id === "78"));
+});
+
 test("an incident only some people may see is not shown to every agent", async () => {
   const { sql } = database;
   assert.equal(await deliver(incident("opened", { id: "77" }), [hugo.id]), 204);

@@ -59,6 +59,13 @@ test("a hire is told with who, where and when — nothing of the application; th
   assert.deepEqual(Object.keys(manifest.emits).sort(), ["hiring.busy", "hiring.hire-cancelled", "hiring.hired"]);
 });
 
+test("a format character typed in a name is left out of the event only", async () => {
+  const at = new Date().toISOString();
+  assert.equal(await share.hired({ candidate: "43", name: "Zo\u200be 👩\u200d🎨", email: null, job: "Designer\ufeff", team: "\u200b", place: null, startDate: null, hiredBy: camille.id }, at), true);
+  const d = chest.emitted.at(-1)!.data;
+  assert.deepEqual([d["name"], d["job"], d["team"]], ["Zoe 👩🎨", "Designer", null]);
+});
+
 test("without events between tools, nothing breaks", async () => {
   await chest.close();
   chest = await fakeChest({ members: everyone });
