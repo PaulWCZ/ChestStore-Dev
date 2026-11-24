@@ -145,7 +145,8 @@ collected here.
   language) and its PDF, then **accepts** — their name typed, the box
   "Bon pour accord" ticked, the day written — or **declines**, with a
   reason if they wish. The answer is kept with its proof: the server's
-  time, a hash of the visitor's address (never the address), the browser,
+  time, the Chest's opaque key for the visitor (proposal; never the
+  address, and `unknown` on a 0.7.0 Chest), the browser,
   and the **SHA-256 of the exact PDF they were shown** (the file itself is
   kept in the Chest's files, and downloadable from the quote's margin).
   The quote becomes accepted or refused, its author (and whoever sent it)
@@ -341,30 +342,35 @@ empty states and state badges (drawn as the tool's rubber stamps).
 
 ## On a Chest
 
-`chest.json` (contract 0.4): `"public": true` (the client's pages: the
+`chest.json` (contract 0.7, `chest check` says OK): `"public": true` (the client's pages: the
 package's strict policy — no inline script or style —, framed by nobody,
 `no-store` and `noindex`); `build.static` `["/assets/"]`;
 capabilities `database`, `files` (the logo, the terms and conditions, the
 PDFs kept, the PDFs answered on and of earlier versions, the monthly
 archives),
 `members` (names of who did what), `notifications` (billing told of drafts
-handed to them; a badge counting those drafts and the overdue invoices);
-receives `member.*`; `network`: `recherche-entreprises.api.gouv.fr` only
+handed to them; a badge counting those drafts and the overdue invoices),
+`realtime` (the desk and the lists left open follow the channel
+`documents`: feeds of `documents`, `payments` and `quote_answers`
+carrying a row's id only — the page's read, versioned, decides what its
+reader sees); receives `member.*`, `crm.deal.won`, `crm.deal.reopened`,
+`timesheets.billable`, `timesheets.billable-cancelled`; emits
+`quotes.invoiced` (`handoff` id, `invoice` text, `path` text, `by`
+member?); `network`: `recherche-entreprises.api.gouv.fr` only
 (filling a client from its SIREN); `schedules`: `badges` (06:50 every
 day, sets the badge again — an invoice becomes overdue by the date alone),
 `followup` (07:10 every day: the recurring invoices' drafts, and the
 reminders if an administrator turned them on — the only emails a schedule
 sends — and a monthly archive missed) and `archive` (04:30 on the 1st).
-`chest.proposals.json`: `mail.send`, the events between tools, French
-title and role labels. A Chest that has not run the follow-up by the first
+`chest.proposals.json`: `mail.send`, French title and role labels. A Chest that has not run the follow-up by the first
 visit of the desk that day has it run then (`followed_up_on`).
 
 Its process: Hono serving React rendered on the server, with islands
 hydrated in the browser (built by Vite), on the package
 `@argentic/chest-app` (vendored). At rest, nothing runs: no timer, no
-polling of its own — the desk and the lists read again only while their
-reader is active (the package's `useAutoRefresh`), so the Chest can put
-the tool to sleep; what a request keeps in memory (the public PDFs by
+polling — the desk and the lists are read again when the Chest's
+realtime says a document, a payment or an answer changed (SDK 0.7.0), so
+the tool sleeps while they stay open; what a request keeps in memory (the public PDFs by
 their fingerprint) is lost then, and made again.
 
 Lifecycle: losing access or leaving changes nothing (documents are the
@@ -376,8 +382,11 @@ acknowledged.
 
 Dates are the Chest's (`chest.today()`, its time zone; the database's
 sessions are in it too, so the sample data's `current_date` is the same
-day); the currency of new documents is the Chest's (`chest.currency`); the
-default language of new documents without a client is the Chest's
+day); there is no Chest currency (SDK 0.7.0): a new document, catalogue
+item or import starts in **the tool's default currency** (Settings →
+Documents, an administrator's choice, EUR until changed — the migration
+starts it as the currency most documents were in), and every amount keeps
+its own code; the default language of new documents without a client is the Chest's
 (`chest.language`). Documents print the legal name the admin entered in
 Settings; pages and emails use the trade name, else the legal name, and
 only before Settings are filled in the Chest's organization name
@@ -448,8 +457,15 @@ and, for an individual buyer (B2C, outside the e-invoicing flow), the
 French warnings "PMT missing" and "BT-49 missing" — the €40 indemnity does
 not apply to consumers and they have no directory address. The XSD check
 runs in the tests when `FACTURX_XSD` points to the schema.
-**Currencies.** The Chest's currency is the documents' (`chest.currency`).
-In euros, everything above. **Another currency of two or no decimals**
+**Currencies.** Each document has its own currency (SDK 0.7.0 has no
+Chest currency): a new one starts in the tool's default (Settings), a
+draft quote or an invoice written here may take another (*Amounts in* on
+the paper; an invoice of a quote and a credit note keep their source's),
+a deal won in Clients or a hand-off from Timesheets comes in its own. No
+total adds two currencies: the desk and the export page give one figure
+per currency, the revenue counts the default currency and lists the
+others' year to date apart (no rate of exchange). In euros, everything
+above. **Another currency of two or no decimals**
 (USD, CHF, GBP, JPY…): the member gives the exchange rate on the paper
 ("Exchange rate, 1 € = 1.0823 USD", as the ECB publishes it) before
 finalising; the PDF states the VAT in euros at that rate and the Factur-X
@@ -521,38 +537,56 @@ mail); the bell's notices carry their French translation in one notice.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.7 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
+Built on SDK **0.7.0** + the studio's proposals (`0.7.0-studio.2`) and the
+package `@argentic/chest-app` 0.1.0-studio.12, in `vendor/`; contract 0.7.
+From 0.7.0 itself: `chest.today()`, `timeZone`, `language`,
+`organization.name`, `tool.publicUrl` and `teamUrl`; members;
+notifications with `translations`; events between tools with schemas
+and audiences; realtime; schedules; files. **What Quotes cannot do on a
+0.7.0 Chest, and why** (the proposals still run in its tests and harness;
+on a real 0.7 Chest those calls are refused and the tool falls back as
+said):
 
-- **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
-  quote, invoice, credit note or reminder with its PDF attached — to
-  clients only (people outside the company; see *Mail to people outside
-  the company*). Call site: `src/lib/sending.ts` only. On a Chest without
-  mail (`CapabilityNotGranted`) or whose mail connector is not connected
-  (`Unavailable`) nothing is sent, the tool remembers it (`company.mail_works`) and offers
-  "Download the PDF" + "Mark as sent". Before offering, it asks the Chest
-  (`mail.available()`, studio.16; `src/lib/mailing.ts`): the send dialog opens
-  on "Send it yourself" and says why (not connected, paused, the day's
-  emails used) when the Chest would not send; Settings says the same under
-  "Email the client"; the morning's reminders go to the bell alone when the
-  Chest has no mail or it is not connected. When the Chest does not
-  answer, what the last send taught. An automatic reminder's key carries its recipient
-  (`reminder-<invoice>-<step>-<address>`): after a restore, an invoice id
-  may name another invoice.
-- **schedules** (contract 0.4, `chest.json`): `badges`, `followup`,
-  `archive`. Badges are also set after each change, and the follow-up
-  runs at the first desk visit of a day it has not run.
-- **chest**: `today()`, `timeZone`, `language`, `organization.name`
-  (SDK 0.3.0); `currency`, `publicUrl`, `toolLink` (studio proposals).
-- **Events between tools** (studio proposal, `chest.proposals.json`
-  `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients,
-  `timesheets.billable`, `timesheets.billable_cancelled` from Timesheets;
-  `emits` `quotes.invoiced` — see "With the other tools". `chest.toolLink`
-  for the link back to Timesheets (studio proposal, vendored). A
-  `quotes.invoiced` the Chest refuses when the invoice is issued is
-  published by the next morning's follow-up, once (its key
-  `quotes:invoiced:<handoff>`), with `occurredAt` the time the invoice was
-  issued (studio.16) when that is less than 24 hours back (five minutes of
-  margin); older, without it — the Chest then stamps the publish.
+- **Email a document to a client** — **mail** is a proposal
+  (`chest.proposals.json` `mail.send`; 0.7.0 sends no mail to people
+  outside): the quote, invoice, credit note or reminder with its PDF
+  attached — to clients only (see *Mail to people outside the company*).
+  Call site: `src/lib/sending.ts` only. On a Chest without mail
+  (`CapabilityNotGranted`) or whose mail connector is not connected
+  (`Unavailable`) nothing is sent, the tool remembers it
+  (`company.mail_works`) and offers "Download the PDF" + "Mark as sent".
+  Before offering, it asks the Chest (`mail.available()`;
+  `src/lib/mailing.ts`): the send dialog opens on "Send it yourself" and
+  says why when the Chest would not send; the morning's reminders go to
+  the bell alone. An automatic reminder's key carries its recipient.
+- **A visitor's key in the acceptance proof** — **visitors** is a
+  proposal: `visitors.visitor()` reads `Chest-Visitor`, an HMAC of the
+  visitor's address under a key only the Chest holds (never the address,
+  nothing the tool can turn back into it); 0.7.0's front sets no such
+  header, so a quote accepted online keeps `unknown` there — the proof
+  holds the time, the name typed, the browser and the SHA-256 of the PDF
+  shown, not who sent it. The public answer form's bounds are the
+  package's `publicAction` with `bound` (`formSeconds` 3; per link: 20
+  accepts and 20 declines, per visitor 20 — every visitor is one on
+  0.7.0 —, 600 a day for the whole public part). Without **mail**, the
+  member copies the link from the quote's margin into their own email.
+- **The link back to Timesheets** — `chest.tools.link` is a proposal
+  (`CHEST_TOOL_URLS`): 0.7.0 tells a tool its own addresses only. Without
+  it, an invoice from Timesheets says where it came from, without a link.
+- **The store's words in French** — `translations` is a proposal: the
+  tile and the role names read in English for a French member.
+- **Live public pages**: realtime is for members; the client's page of a
+  quote is as it was read (an answer to a quote changed meanwhile is
+  refused and says so).
+- **schedules** (0.7.0, `chest.json`): `badges`, `followup`, `archive`.
+  Badges are also set after each change, and the follow-up runs at the
+  first desk visit of a day it has not run.
+- **Events between tools** (0.7.0, `chest.json` `receives` and `emits`):
+  see "With the other tools". A `quotes.invoiced` the Chest refuses when
+  the invoice is issued is emitted by the next morning's follow-up, once
+  (its key `quotes:invoiced:<handoff>`), with `occurredAt` the time the
+  invoice was issued when that is less than 72 hours back (five minutes of
+  margin); older, without it — the Chest then stamps the emit.
 - **Sending to the company's PA — not built, needs the SDK.** The
   Factur-X is ready; transmitting it needs a primitive the Chest does not
   have: *declared outbound HTTPS to a partner, with a per-company secret the
@@ -570,19 +604,9 @@ Built on SDK 0.4.1-studio.7 (contract 0.4 + studio proposals) and the package `@
   side would be one module (`src/lib/transmit.ts`) called after finalising,
   plus a status on the invoice page. Not built as a fake: until then,
   "keep your PA".
-- **visitors** (studio proposal) for the public answer form: the signed
-  "shown at" token (`formToken`/`checkForm`: a form sent within 3 s is
-  refused as a robot's), the Chest's counting (`count`, 20 answers an hour
-  per visitor; a Chest that cannot count yet is tolerated — each link
-  answers once), and `visitor()` (the hash of the address kept as proof).
-  The form's token and its bounds are now the package's `publicAction`
-  with `bound` (`formSeconds` 3; per link: 20 accepts and 20 declines,
-  per visitor 20, 600 a day for the whole public part), never a call to
-  the Chest per public request. Call site: `src/actions.ts`
-  (`answerQuote`). And `chest.tool.publicUrl` for every link's
-  address — the company's own domain once connected — in emails and on the
-  team's pages (`src/lib/public-origin.ts`; never the request's host). Without **mail** on a real Chest, the member copies the
-  link from the quote's margin into their own email.
+- `chest.tool.publicUrl` for every link's address — the company's own
+  domain once connected — in emails and on the team's pages
+  (`src/lib/public-origin.ts`; never the request's host).
 - **Declared network** (`chest.json` `network`, in the Chest today, not a
   proposal): the public directory of companies, called with plain
   `fetch()` through the Chest's egress proxy (`src/lib/registry.ts`; Node
@@ -597,14 +621,17 @@ Built on SDK 0.4.1-studio.7 (contract 0.4 + studio proposals) and the package `@
 
 ## With the other tools
 
-**Clients (CRM) → Quotes** (Proposal (studio): events between tools, once an
-admin linked the two tools in the Chest). Quotes receives:
+**Clients (CRM) → Quotes** (SDK 0.7.0 events between tools, once the
+owner approved the link). The data is flat, of the Chest's kinds. Quotes
+receives:
 
-- `crm.deal.won` `{ deal, title, amount (cents) | null, currency, company:
-  { ref, name, address, postcode, city, country, siren, vat, email } | null,
-  contact: { name, email } | null, owner: "mbr_…" | null }` — a **draft
-  quote** titled like the deal, with one line of the amount (a price of 0
-  when there is none, or when the currency is not the Chest's) at 20 % VAT,
+- `crm.deal.won` `{ deal, title, amount (minor units of its currency) |
+  null, currency, owner: "mbr_…" | null, companyRef, companyName,
+  companyAddress, companyPostcode, companyCity, companyCountry,
+  companySiren, companyVat, companyEmail, contactName, contactEmail }` (the
+  nested `company: {…}`, `contact: {…}` of before are read too) — a
+  **draft quote** in the deal's own currency, titled like the deal, with
+  one line of the amount (a price of 0 when there is none) at 20 % VAT,
   for the deal's client; owned by the deal's owner if they may write quotes
   here (their Quotes role, asked of the Chest), otherwise by the tool; the
   owner — or else everyone with the `sales` role — told in the bell. The
@@ -615,6 +642,10 @@ admin linked the two tools in the Chest). Quotes receives:
   (never saved since it was made, never sent), and its bell item withdrawn;
   otherwise the quote stays and its history says the deal was reopened.
   Won again later, an untouched-and-deleted deal makes a new draft.
+- **The audience** (who in Clients may see the deal): Quotes has no
+  private document — every member with a role reads every quote —, so a
+  deal told for some people only makes **no draft**; its owner, when the
+  audience names them, is told in the bell to write its quote.
 
 **The client**: found by the CRM's reference (`clients.external_ref` =
 `crm:<ref>`), else by SIREN (and then linked), else created from the
@@ -630,26 +661,30 @@ The country is the card's own default (France), as for a client added by
 hand. Code: `src/lib/crm.ts`, `src/lib/deliveries.ts`;
 tests: `test/crm.test.ts` (`chest.deliver`).
 
-**Timesheets → Quotes → Timesheets** (Proposal (studio): events between
-tools; `chest.proposals.json` `receives` `timesheets.billable`,
-`timesheets.billable_cancelled`, `emits` `quotes.invoiced`). Contract:
+**Timesheets → Quotes → Timesheets** (SDK 0.7.0 events between tools;
+`chest.json` `receives` `timesheets.billable`,
+`timesheets.billable-cancelled` — renamed from `…_cancelled`: 0.7.0's
+types have no underscore —, `emits` `quotes.invoiced`). Contract:
 Timesheets' README, "With the other tools" (version 1).
 
-- `timesheets.billable {version: 1, handoff, project, client, period,
-  currency, lines[], source}` — **one draft invoice per `handoff`**, for
+- `timesheets.billable {version: 1, handoff, projectName, clientName,
+  from, to, currency, minutes, amount, entries, lines (JSON text), path}`
+  — flat, as the Chest carries it (the nested `project`, `client`,
+  `period`, `lines[]`, `source` of before are read too; `v` stands for
+  `version`) — **one draft invoice per `handoff`**, in the hand-off's own
+  currency, for
   ever (the `handoffs` table keeps each id: a second delivery, even after
   the draft was dropped, changes nothing). The client is the one whose name
   is Timesheets' (accents, case, spaces and punctuation aside: an indexed key, migration `0015_client_name_key.sql`), when exactly one
   matches; otherwise none, and the invoice's margin says which name
   Timesheets gave ("choose it on the invoice"). One line per `lines[]`
   item: its label, `minutes / 60` **hours** (unit "heure"/"hour"), the
-  hourly `rate` as unit price (0 when none, or when the currency is not the
-  Chest's), at the standard 20 % VAT (the company's exemption or the
+  hourly `rate` as unit price (0 when none), at the standard 20 % VAT (the company's exemption or the
   client's reverse charge apply as on any invoice; Timesheets sends no VAT
   rate). Titled "<project>, du <from> au <to>", created by "Timesheets",
   **handed to billing** (bell, desk "Ready to finalise — prepared by
   Timesheets"), and linked back to the project with
-  `chest.toolLink("timesheets", source.path)` ("Open in Timesheets"; no
+  `chest.tools.link("timesheets", path)` ("Open in Timesheets"; no
   link when Timesheets is not installed or the path is not under `/chest`).
 - **Rounding, the two sides.** Timesheets freezes the rates at hand-off
   and counts `amount` as each entry's minutes × rate ÷ 60 **rounded to the
@@ -660,22 +695,26 @@ Timesheets' README, "With the other tools" (version 1).
   checked by Factur-X). The two can differ by a few cents: 50 minutes at
   90.00 an hour are 75.00 for Timesheets, 0.833 h × 90.00 = 74.97 on the
   invoice. Quotes does not force the invoice to Timesheets' figure; it
-  keeps Timesheets' `amount` (when in the Chest's currency) and, when the
+  keeps Timesheets' `amount` and, when the
   invoice's total excluding VAT differs, the draft's margin says both, as a
   caution ("Timesheets says €75.00; this invoice says €74.97 (€0.03 of
   rounding). Adjust a line if you want them equal.").
   They agree whenever each entry's amount is a whole number of cents and
   each line's minutes make hours to the thousandth (e.g. rates in whole
   units of currency and entries in quarters of an hour).
-- `timesheets.billable_cancelled {version: 1, handoff}` — the draft is
+- A hand-off told for some people only (its audience) makes **no draft**
+  (Quotes has no private document); the billing members it names are told
+  to invoice it by hand.
+- `timesheets.billable-cancelled {version: 1, handoff}` — the draft is
   deleted if it was not issued; an issued invoice is **kept** (a legal
   record) and billing hear it in the bell ("make a credit note if it
   should not stand").
-- When billing **finalises** such an invoice, Quotes publishes
+- When billing **finalises** such an invoice, Quotes emits
   `quotes.invoiced {handoff, invoice: "F-2026-0008", path:
-  "/chest/documents/<id>", by: "mbr_…"}` with the key
-  `quotes:invoiced:<handoff>`, once; a Chest that cannot publish at that
-  moment is tried again by the daily follow-up.
+  "/chest/documents/<id>", by: "mbr_…"}` (subject `handoff:<handoff>`,
+  key `quotes:invoiced:<handoff>`, no audience: every reader of Quotes
+  reads its invoices), once; a Chest that cannot take it at that moment is
+  tried again by the daily follow-up.
 - Untrusted data: version 1 only; `handoff` 1–18 digits; names and labels
   cleaned and bounded; 1 to 300 lines; minutes and rates whole, bounded,
   never negative; a day `YYYY-MM-DD`; the path a `/chest…` path of 300
@@ -737,7 +776,8 @@ verified of their formats).
   knowing whether the client opened the quote: not built.
 - The client's page speaks the visitor's browser language, not the
   document's (the switch is one tap).
-- Multi-currency within one company; purchase invoices; full bookkeeping
+- Exchange rates between currencies (a total in one currency of documents
+  in several); purchase invoices; full bookkeeping
   (the entries are a sales journal, not a whole FEC); other VAT rates than 20/10/5.5/2.1/0 % (Corsica, overseas);
   situation invoices and retention money (*factures de situation*,
   *retenue de garantie*): **not for construction firms billing by

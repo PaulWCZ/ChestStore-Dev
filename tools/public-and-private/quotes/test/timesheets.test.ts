@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest, type FakeEmits } from "@argentic/chest-sdk/testing";
+import { emits } from "./support/emits.ts";
 import { chestEvents as POST } from "../src/lib/deliveries.ts";
 import { chestSchedules as JOB } from "../src/lib/deliveries.ts";
 import { finalise, getDocument } from "../src/lib/documents.ts";
@@ -17,13 +18,13 @@ import { camille, everyone, lea, sofia } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-// The Chest this tool runs on; `emits: []` plays one that refuses the
-// event (not approved yet, or down), as the SDK's publish then throws.
-const chestWith = (emits: string[]) => fakeChest({
-  tool: "quotes", members: everyone, emits, tools: { timesheets: true }, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" },
+// The Chest this tool runs on; `emits: {}` plays one that refuses the
+// event (its version emits nothing), as the SDK's emit then throws.
+const chestWith = (given: Record<string, FakeEmits>) => fakeChest({
+  tool: "quotes", members: everyone, emits: given, tools: { timesheets: true }, chest: { organization: "Atelier Martin", language: "fr" },
 });
 before(async () => {
-  chest = await chestWith(["quotes.invoiced"]);
+  chest = await chestWith(emits);
   database = await testDatabase();
   await company(database.sql);
   await client(database.sql, { name: "Boulangerie Dupain SAS" });
@@ -44,7 +45,7 @@ const billable = (handoff: string, extra: Record<string, unknown> = {}) => ({
   source: { tool: "timesheets", path: "/chest/projects/3" },
   ...extra,
 });
-const told = (type: "timesheets.billable" | "timesheets.billable_cancelled", data: Record<string, unknown>) => chest.deliver({ type, source: "timesheets", data }, POST);
+const told = (type: "timesheets.billable" | "timesheets.billable-cancelled", data: Record<string, unknown>) => chest.deliver({ type, source: "timesheets", data }, POST);
 const draftOf = async (handoff: string) => (await database.sql<{ document_id: number | null }[]>`select document_id from handoffs where handoff = ${handoff}`)[0]?.document_id ?? null;
 
 test("a hand-off becomes one draft invoice for the client of that name, handed to billing, linked back", async () => {
@@ -106,9 +107,13 @@ test("rounding: Timesheets counts each entry to the cent, the invoice its hours 
   assert.deepEqual(full.lines.map(l => [l.quantity, l.unitPrice, l.net]), [[833, 9000, 7497]]);
   assert.equal(full.net, 7497);
   assert.equal((await handoffOf(sql, full.id))?.counted, 7500, "what Timesheets counted is kept, for the draft's margin");
-  // Another currency, or no amount: nothing to compare.
+  // Another currency: the invoice is in it (SDK 0.7.0: each document in
+  // its own), what Timesheets counted kept; no amount: nothing to compare.
   await told("timesheets.billable", billable("41", { currency: "USD" }));
-  assert.equal((await handoffOf(sql, String((await draftOf("41"))!)))?.counted ?? null, null);
+  const usd = await getDocument(sql, asMember(lea), (await draftOf("41"))!, today);
+  assert.equal(usd.currency, "USD");
+  assert.deepEqual(usd.lines.map(l => l.unitPrice), [9000, 6750]);
+  assert.equal((await handoffOf(sql, usd.id))?.counted, 81000);
   await told("timesheets.billable", billable("42", { amount: null }));
   assert.equal((await handoffOf(sql, String((await draftOf("42"))!)))?.counted, null);
 });
@@ -136,7 +141,7 @@ test("taken back before it is issued: the draft goes, and never comes back for t
   await told("timesheets.billable", billable("30"));
   const id = await draftOf("30");
   assert.ok(id);
-  assert.equal(await told("timesheets.billable_cancelled", { version: 1, handoff: "30" }), 204);
+  assert.equal(await told("timesheets.billable-cancelled", { version: 1, handoff: "30" }), 204);
   assert.equal(await draftOf("30"), null);
   assert.equal((await sql`select 1 from documents where id = ${id}`).length, 0);
   await told("timesheets.billable", billable("30"));
@@ -149,14 +154,14 @@ test("issued: Timesheets hears quotes.invoiced once; taken back after, the invoi
   const id = String(await draftOf("40"));
   const issued = await finalise(sql, asMember(sofia), id, today);
   assert.equal(await invoicedHandoff(sql, id, sofia.id), true);
-  const sent = chest.published.filter(e => e.type === "quotes.invoiced");
+  const sent = chest.emitted.filter(e => e.type === "quotes.invoiced");
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0]!.data, { handoff: "40", invoice: issued.number, path: `/chest/documents/${id}`, by: sofia.id });
   assert.equal(sent[0]!.key, "quotes:invoiced:40");
   assert.equal(await invoicedHandoff(sql, id, sofia.id), false, "once");
   assert.equal(await publishPending(sql), 0);
   const before = chest.notifications.length;
-  await told("timesheets.billable_cancelled", { version: 1, handoff: "40" });
+  await told("timesheets.billable-cancelled", { version: 1, handoff: "40" });
   assert.equal((await getDocument(sql, asMember(lea), id, today)).status, "final", "an issued invoice is kept");
   const bell = chest.notifications.slice(before);
   assert.ok(bell.some(n => n.member === sofia.id && n.title.includes(issued.number!) && n.path === `/chest/documents/${id}`), "billing told");
@@ -167,10 +172,10 @@ test("the Chest refuses quotes.invoiced when the invoice is issued: the next mor
   await told("timesheets.billable", billable("50"));
   const id = String(await draftOf("50"));
   await chest.close();
-  chest = await chestWith([]);
+  chest = await chestWith({});
   const issued = await finalise(sql, asMember(sofia), id, today);
   assert.equal(await invoicedHandoff(sql, id, sofia.id), false, "refused: not told yet");
-  assert.equal(chest.published.length, 0);
+  assert.equal(chest.emitted.length, 0);
   const [waiting] = await sql<{ published_at: Date | null }[]>`select published_at from handoffs where handoff = '50'`;
   assert.equal(waiting!.published_at, null, "kept to tell later");
   // The invoice is issued all the same.
@@ -178,9 +183,9 @@ test("the Chest refuses quotes.invoiced when the invoice is issued: the next mor
 
   // The next morning, on a Chest that takes it: the "followup" schedule.
   await chest.close();
-  chest = await chestWith(["quotes.invoiced"]);
+  chest = await chestWith(emits);
   assert.equal(await chest.run("followup", JOB), 204);
-  const sent = chest.published.filter(e => e.type === "quotes.invoiced");
+  const sent = chest.emitted.filter(e => e.type === "quotes.invoiced");
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0]!.data, { handoff: "50", invoice: issued.number, path: `/chest/documents/${id}`, by: sofia.id }, "who issued it, from the invoice");
   assert.equal(sent[0]!.key, "quotes:invoiced:50");
@@ -189,10 +194,10 @@ test("the Chest refuses quotes.invoiced when the invoice is issued: the next mor
   // The follow-up again (or the first visit of the day): nothing more.
   assert.equal(await chest.run("followup", JOB), 204);
   assert.equal(await publishPending(sql), 0);
-  assert.equal(chest.published.filter(e => e.type === "quotes.invoiced").length, 1, "published once");
+  assert.equal(chest.emitted.filter(e => e.type === "quotes.invoiced").length, 1, "published once");
 });
 
-test("told late, quotes.invoiced keeps the time the invoice was issued; past 24 hours it goes without it", async () => {
+test("told late, quotes.invoiced keeps the time the invoice was issued; past 72 hours it goes without it", async () => {
   const { sql } = database;
   // Issued now on a Chest that refused; told 3 hours later.
   await told("timesheets.billable", billable("60"));
@@ -201,18 +206,45 @@ test("told late, quotes.invoiced keeps the time the invoice was issued; past 24 
   const issuedAt = (await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${id}`)[0]!.finalised_at;
   const later = issuedAt.getTime() + 3 * 3600_000;
   assert.equal(await invoicedHandoff(sql, id, null, later), true);
-  const [late] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "60");
+  const [late] = chest.emitted.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "60");
   assert.equal(late!.occurredAt, issuedAt.toISOString(), "the time it was issued, not the time it was told");
 
-  // Told 30 hours after it was issued: the Chest would refuse that time; told without it.
+  // Told 80 hours after it was issued: the Chest would refuse that time (72 hours); told without it.
   await told("timesheets.billable", billable("61"));
   const old = String(await draftOf("61"));
   await finalise(sql, asMember(sofia), old, today);
   const oldAt = (await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${old}`)[0]!.finalised_at;
   const before = Date.now();
-  assert.equal(await publishPending(sql, oldAt.getTime() + 30 * 3600_000), 1);
-  const [older] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "61");
+  assert.equal(await publishPending(sql, oldAt.getTime() + 80 * 3600_000), 1);
+  const [older] = chest.emitted.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "61");
   assert.ok(Date.parse(older!.occurredAt) >= before - 1000, "the Chest's time of the publish");
-  assert.equal(occurredAtFor(new Date(Date.now() - 24 * 3600_000 + 60_000)), undefined, "within the margin of the 24 hours: without it");
+  assert.equal(occurredAtFor(new Date(Date.now() - 72 * 3600_000 + 60_000)), undefined, "within the margin of the 72 hours: without it");
+  assert.ok(occurredAtFor(new Date(Date.now() - 30 * 3600_000)), "30 hours back: kept (0.7.0 takes 72)");
+  // Emitted as chest.json declares it: about the hand-off, its key once.
+  assert.equal(late!.subject, "handoff:60");
+  assert.equal(late!.key, "quotes:invoiced:60");
   assert.equal(occurredAtFor(null), undefined);
+});
+
+test("SDK 0.7.0's flat shape: names as fields, the lines as JSON text, the path as a field", async () => {
+  const flat = {
+    version: 1, handoff: "80", projectName: "Site vitrine", clientName: "boulangerie dupain sas", from: "2026-09-01", to: "2026-09-30",
+    currency: "EUR", minutes: 60, amount: 9000, entries: 1, path: "/chest/projects/3",
+    lines: JSON.stringify([{ label: "Design", task: null, minutes: 60, rate: 9000, amount: 9000, entries: 1 }]),
+  };
+  const read = readBillable(flat)!;
+  assert.deepEqual([read.project, read.client, read.from, read.to, read.path, read.lines.length], ["Site vitrine", "boulangerie dupain sas", "2026-09-01", "2026-09-30", "/chest/projects/3", 1]);
+  assert.equal(readBillable({ ...flat, lines: "[" }), null, "text that is no JSON");
+  assert.equal(await told("timesheets.billable", flat), 204);
+  assert.ok(await draftOf("80"));
+});
+
+test("a hand-off for some people only (its audience): no draft; the billing members it names invoice it by hand", async () => {
+  const before = chest.notifications.filter(n => n.member === sofia.id).length;
+  const grouped = () => chest.notifications.find(n => n.member === sofia.id && n.grouped !== undefined)?.grouped ?? 0;
+  const was = grouped();
+  assert.equal(await chest.deliver({ type: "timesheets.billable", source: "timesheets", audience: [sofia.id], data: billable("81") }, POST), 204);
+  assert.equal(await draftOf("81"), null);
+  assert.ok(chest.notifications.some(n => n.member === sofia.id && n.key === "timesheets:81:private") || grouped() > was || chest.notifications.filter(n => n.member === sofia.id).length > before, "billing is told");
+  assert.ok(!chest.notifications.some(n => n.key === "timesheets:81:private" && n.member !== sofia.id), "only those the audience names");
 });

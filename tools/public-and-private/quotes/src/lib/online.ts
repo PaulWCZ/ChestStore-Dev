@@ -17,8 +17,10 @@ import { clean, id } from "../shared/model.ts";
 // else opens it). The client reads the quote there, as a page and as the
 // PDF, and accepts it — their name typed, the box "Bon pour accord" ticked,
 // the day written — or declines it, with a reason if they wish. The answer
-// is kept as its proof: the server's time, a hash of the visitor's address
-// (never the address), their browser, and the SHA-256 of the exact PDF they
+// is kept as its proof: the server's time, the Chest's opaque key for the
+// visitor (visitors.visitor(), Chest-Visitor: an HMAC of their address
+// under a key only the Chest holds — never the address; "unknown" on a
+// Chest that does not set it, as 0.7.0), their browser, and the SHA-256 of the exact PDF they
 // were shown (the file itself kept in the Chest's files). This is a record
 // of consent, not a qualified electronic signature (eIDAS): the page says so.
 //

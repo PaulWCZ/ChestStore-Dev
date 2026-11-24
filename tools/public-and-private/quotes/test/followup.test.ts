@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as POST } from "../src/lib/deliveries.ts";
 import { updateCompany } from "../src/lib/company.ts";
 import { finalise, getDocument, listDocuments } from "../src/lib/documents.ts";
@@ -83,7 +83,7 @@ test("reminders by the bell only, when the company says so or the client has no 
   assert.equal(run.told, 1);
   assert.equal(chest.outbox.length, sent);
   // Camille finalised it and is still an issuer (admin): she hears of it.
-  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && shownTo(n, "fr").title.includes("en retard de 8 jours")));
+  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && n.title.includes("en retard de 8 jours")));
   await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
 });
 

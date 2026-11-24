@@ -1,13 +1,13 @@
 import { Island, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { chest } from "@argentic/chest-sdk/chest";
-import { catalogue, format, formatDate, formatDay, localeOf, locales, type Catalogue, type Locale } from "../i18n/index.ts";
+import { catalogue, currencyOptions, format, formatDate, formatDay, localeOf, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { clientMissing } from "../lib/clients.ts";
 import { company, missing } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
-import { editAbility, editable, getDocument, upcomingNumber, type Full } from "../lib/documents.ts";
+import { currencyEditable, editAbility, editable, getDocument, upcomingNumber, type Full } from "../lib/documents.ts";
 import { mailState } from "../lib/mailing.ts";
-import { formatMoney } from "../shared/money.ts";
+import { currencyChoices, formatMoney } from "../shared/money.ts";
 import { sellerOf } from "../shared/parties.ts";
 import { continuedAt } from "../lib/numbering.ts";
 import { versioned } from "../shared/model.ts";
@@ -167,6 +167,7 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
         dates: { issue: day(full.issueDate ?? today), due: day(full.dueDate), valid: day(full.validUntil), delivery: day(full.deliveryDate), reference: day(ref?.issueDate ?? null) },
         rights: { edit: canEdit, quote: can(member, "quotes.write"), draftInvoice: can(member, "invoices.draft"), issue: can(member, "invoices.issue"), pay: can(member, "payments"), settings: can(member, "settings") },
         clients,
+        currencies: canEdit && editable(full) && currencyEditable(full) ? currencyOptions(currencyChoices(), locale) : null,
         logo: seller.logo ? `/chest/logo?v=${encodeURIComponent(seller.logo)}` : null,
         facts,
         history,

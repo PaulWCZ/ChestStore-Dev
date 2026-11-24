@@ -25,8 +25,8 @@ test("leaving changes nothing: the documents are the company's", async () => {
   const { sql } = database;
   const c = await client(sql);
   const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], hugo);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
   assert.equal((await getDocument(sql, asMember(lea), q.id, today)).createdBy, hugo.id);
 });
 
@@ -42,8 +42,8 @@ test("an erasure replaces the person's id everywhere — finalised invoices incl
   const other = await draft(sql, "invoice", c.id, [line("Autre", 1000, 100)], camille);
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "b".repeat(26), data: { id: sofia.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const quote = await getDocument(sql, asMember(lea), q.id, today);
   assert.equal(quote.createdBy, "erased");

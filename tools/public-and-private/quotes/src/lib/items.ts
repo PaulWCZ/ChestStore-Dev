@@ -11,10 +11,12 @@ import { foldedLike, likeOf } from "./clients.ts";
 // own words and price: changing the catalogue never changes a document).
 // Items are archived, never deleted.
 
-export type Item = { id: string; name: string; description: string; unit: string; unitPrice: number; vatRate: number; goods: boolean; archived: boolean };
+// An item's price keeps its currency (SDK 0.7.0: the Chest has none): an
+// item is made in the tool's default currency of the day and keeps it.
+export type Item = { id: string; name: string; description: string; unit: string; unitPrice: number; currency: string; vatRate: number; goods: boolean; archived: boolean };
 
-type Row = { id: number; name: string; description: string; unit: string; unit_price: number; vat_rate: number; goods: boolean; archived_at: Date | null };
-const toItem = (r: Row): Item => ({ id: String(r.id), name: r.name, description: r.description, unit: r.unit, unitPrice: r.unit_price, vatRate: r.vat_rate, goods: r.goods, archived: r.archived_at !== null });
+type Row = { id: number; name: string; description: string; unit: string; unit_price: number; currency: string; vat_rate: number; goods: boolean; archived_at: Date | null };
+const toItem = (r: Row): Item => ({ id: String(r.id), name: r.name, description: r.description, unit: r.unit, unitPrice: r.unit_price, currency: r.currency, vatRate: r.vat_rate, goods: r.goods, archived: r.archived_at !== null });
 
 // The items, by name, a page at a time (`limit`, all of them by default;
 // the catalogue's island and the document's picker take a page): searched
@@ -61,20 +63,23 @@ function fields(input: ItemInput, currency: string, current?: Item) {
   };
 }
 
+// addItem: a new item, its price in the given currency (the tool's
+// default: src/actions.ts).
 export async function addItem(sql: Sql, actor: Member | null, input: ItemInput, currency: string): Promise<Item> {
   if (!can(actor, "catalogue.write")) throw new AppError("forbidden");
-  const f = fields(input, currency);
+  const f = { ...fields(input, currency), currency };
   const [counted] = await sql<{ n: number }[]>`select count(*)::int as n from items where archived_at is null`;
   if ((counted?.n ?? 0) >= limits.items) throw new AppError("too_many", { max: limits.items });
   const [row] = await sql<Row[]>`insert into items ${sql({ ...f, created_by: actor!.id })} returning *`;
   return toItem(row!);
 }
 
-export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown, input: ItemInput, currency: string): Promise<Item> {
+// updateItem: its price read in the item's own currency.
+export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown, input: ItemInput): Promise<Item> {
   if (!can(actor, "catalogue.write")) throw new AppError("forbidden");
   const [current] = await sql<Row[]>`select * from items where id = ${id(itemId)}`;
   if (!current) throw new AppError("not_found");
-  const f = fields(input, currency, toItem(current));
+  const f = fields(input, current.currency, toItem(current));
   const [row] = await sql<Row[]>`update items set ${sql(f)}, updated_at = now() where id = ${current.id} returning *`;
   return toItem(row!);
 }

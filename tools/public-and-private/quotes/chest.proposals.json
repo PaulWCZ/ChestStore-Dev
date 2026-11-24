@@ -2,15 +2,6 @@
   "mail": {
     "send": true
   },
-  "emits": [
-    "quotes.invoiced"
-  ],
-  "receives": [
-    "crm.deal.won",
-    "crm.deal.reopened",
-    "timesheets.billable",
-    "timesheets.billable_cancelled"
-  ],
   "translations": {
     "fr": {
       "title": "Devis et factures",

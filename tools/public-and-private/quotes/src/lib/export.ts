@@ -100,18 +100,21 @@ export async function clientsCsv(sql: Query, actor: Member | null, locale: Local
   return toCsv([header, ...body], separatorFor(locale));
 }
 
-export async function itemsCsv(sql: Query, actor: Member | null, locale: Locale, currency: string): Promise<string> {
+// The catalogue as the importer reads it, each price in its item's own
+// currency (a column of its own when the catalogue holds more than one).
+export async function itemsCsv(sql: Query, actor: Member | null, locale: Locale): Promise<string> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const t = catalogue(locale);
   const f = t.importer.fields.items;
-  const rows = await sql<{ name: string; description: string; unit: string; unit_price: number; vat_rate: number; goods: boolean; archived_at: Date | null }[]>`
+  const rows = await sql<{ name: string; description: string; unit: string; unit_price: number; currency: string; vat_rate: number; goods: boolean; archived_at: Date | null }[]>`
     select * from items order by lower(name), id limit ${limits.items * 5}`;
-  const header = [f.name, f.description, f.unit, f.unitPrice, f.vatRate, f.kind, t.csv.archived];
-  const body = rows.map(r => [r.name, r.description, r.unit, plainAmount(r.unit_price, currency, locale), formatRate(r.vat_rate, locale), r.goods ? t.csv.goods : t.csv.service, r.archived_at ? t.csv.yes : ""]);
+  const several = new Set(rows.map(r => r.currency)).size > 1;
+  const header = [f.name, f.description, f.unit, f.unitPrice, ...(several ? [t.csv.currency] : []), f.vatRate, f.kind, t.csv.archived];
+  const body = rows.map(r => [r.name, r.description, r.unit, plainAmount(r.unit_price, r.currency, locale), ...(several ? [r.currency] : []), formatRate(r.vat_rate, locale), r.goods ? t.csv.goods : t.csv.service, r.archived_at ? t.csv.yes : ""]);
   return toCsv([header, ...body], separatorFor(locale));
 }
 
-export async function exportZip(sql: Query, actor: Member | null, locale: Locale, p: Period, today: string, currency = "EUR"): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
+export async function exportZip(sql: Query, actor: Member | null, locale: Locale, p: Period, today: string): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
   const list = await rows(sql, actor, p, today);
   if (list.length > limits.exportFiles) throw new AppError("export_too_large");
   const numbers = await corrected(sql, list);
@@ -136,7 +139,7 @@ export async function exportZip(sql: Query, actor: Member | null, locale: Locale
           for (const chunk of zip.file(journal.fileName, encode(journal.text))) controller.enqueue(chunk);
           const t = catalogue(locale).csv;
           for (const chunk of zip.file(t.clientsFile + ".csv", encode(await clientsCsv(sql, actor, locale)))) controller.enqueue(chunk);
-          for (const chunk of zip.file(t.itemsFile + ".csv", encode(await itemsCsv(sql, actor, locale, list[0]?.currency ?? currency)))) controller.enqueue(chunk);
+          for (const chunk of zip.file(t.itemsFile + ".csv", encode(await itemsCsv(sql, actor, locale)))) controller.enqueue(chunk);
           controller.enqueue(zip.finish());
         }
         controller.close();

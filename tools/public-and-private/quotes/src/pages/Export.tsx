@@ -8,7 +8,8 @@ import { db } from "../lib/db.ts";
 import { listDocuments } from "../lib/documents.ts";
 import { period as checkPeriod, type Period } from "../lib/export.ts";
 import { addDays } from "../shared/model.ts";
-import { formatMoney } from "../shared/money.ts";
+import { formatMoney, totalsBy } from "../shared/money.ts";
+import { company } from "../lib/company.ts";
 import { listArchives } from "../lib/monthly.ts";
 
 // The accountant's export: choose a period, see what it holds, download the
@@ -53,8 +54,10 @@ export async function exportPage(ctx: PageContext<MemberContext>): Promise<View>
   const rows = (await listDocuments(db(), member, { types: ["invoice", "credit"], from: chosen.from, to: chosen.to }, today)).filter(r => r.status === "final");
   const invoices = rows.filter(r => r.type === "invoice");
   const credits = rows.filter(r => r.type === "credit");
-  const currency = rows[0]?.currency ?? chest.currency;
-  const sum = (key: "net" | "vat" | "gross") => rows.reduce((s, r) => s + (r.type === "credit" ? -r[key] : r[key]), 0);
+  // One sum per currency, the tool's default first: amounts of different
+  // currencies are never added (SDK 0.7.0: each keeps its own code).
+  const currency = (await company(db())).currency;
+  const sum = (key: "net" | "vat" | "gross") => totalsBy(rows, r => r.currency, r => (r.type === "credit" ? -r[key] : r[key]), currency).map(x => formatMoney(x.amount, x.currency, locale)).join(" · ");
   const query = new URLSearchParams(chosen).toString();
   const day = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
   const archives = await listArchives(db(), member);
@@ -82,9 +85,9 @@ export async function exportPage(ctx: PageContext<MemberContext>): Promise<View>
             <dl className="facts wide">
               <dt>{x.invoices}</dt><dd>{plural(x.count, invoices.length, locale)}</dd>
               <dt>{x.credits}</dt><dd>{plural(x.count, credits.length, locale)}</dd>
-              <dt>{x.net}</dt><dd>{formatMoney(sum("net"), currency, locale)}</dd>
-              <dt>{x.vat}</dt><dd>{formatMoney(sum("vat"), currency, locale)}</dd>
-              <dt>{x.gross}</dt><dd className="strong">{formatMoney(sum("gross"), currency, locale)}</dd>
+              <dt>{x.net}</dt><dd>{sum("net")}</dd>
+              <dt>{x.vat}</dt><dd>{sum("vat")}</dd>
+              <dt>{x.gross}</dt><dd className="strong">{sum("gross")}</dd>
             </dl>
             <div className="downloads">
               <a className="button download" href={`/chest/export/zip?${query}`} download><Zip />{x.zip}</a>

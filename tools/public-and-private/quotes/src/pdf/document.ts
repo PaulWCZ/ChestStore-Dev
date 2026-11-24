@@ -359,7 +359,9 @@ export function renderPdf(input: PdfInput): Uint8Array {
 
   // --- The footer of every page: who the seller is, the page.
   const legal: string[] = [seller.legalName];
-  if (seller.legalForm) legal.push(seller.capital !== null ? format(t.capital, { form: seller.legalForm, amount: money(seller.capital) }) : seller.legalForm);
+  // The share capital in its own currency (a document numbered before it
+  // was kept prints it in its own, as it always did).
+  if (seller.legalForm) legal.push(seller.capital !== null ? format(t.capital, { form: seller.legalForm, amount: formatMoney(seller.capital, seller.capitalCurrency ?? doc.currency, locale) }) : seller.legalForm);
   legal.push([seller.address.replace(/\n/gu, ", "), [seller.postcode, seller.city].filter(Boolean).join(" ")].filter(Boolean).join(", "));
   if (seller.siret) legal.push(format(t.siret, { value: spacedSiren(seller.siret) }));
   else if (seller.siren) legal.push(format(t.siren, { value: spacedSiren(seller.siren) }));

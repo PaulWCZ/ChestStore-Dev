@@ -9,7 +9,7 @@ import { db } from "../lib/db.ts";
 import { desk } from "../lib/desk.ts";
 import { followUpOnce } from "../lib/followup.ts";
 import { waitingArchives } from "../lib/monthly.ts";
-import { formatMoney } from "../shared/money.ts";
+import { formatMoney, type Totals } from "../shared/money.ts";
 import { change, revenue } from "../lib/revenue.ts";
 import { versioned } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -24,15 +24,19 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
   // The morning's follow-up (reminders, recurring drafts), when the Chest's
   // schedule has not run it today.
   await followUpOnce(sql, today);
-  const d = await desk(sql, member, today);
+  const c = await company(sql);
+  // The tool's default currency (Settings): figures in it first, each
+  // other currency beside it, never added together (SDK 0.7.0: an amount
+  // keeps its own currency).
+  const currency = c.currency;
+  const d = await desk(sql, member, today, currency);
   // A month's archive nobody kept a copy of yet (for who exports).
   const archive = (await waitingArchives(sql, member))[0] ?? null;
-  const c = await company(sql);
   const gaps = missing(c);
-  const currency = d.currency ?? chest.currency;
-  const money = (minor: number) => formatMoney(minor, currency, locale);
+  const money = (minor: number, code = currency) => formatMoney(minor, code, locale);
+  const amounts = (list: Totals) => (list.length === 0 ? money(0) : list.map(x => money(x.amount, x.currency)).join(" · "));
   // Revenue, for whoever reads the books (lib/revenue.ts).
-  const sales = d.empty ? null : await revenue(sql, member, today, chest.currency);
+  const sales = d.empty ? null : await revenue(sql, member, today, currency);
   const who = await people([...d.needs.map(n => n.row.createdBy), ...(sales?.bySeller.map(s => s.id) ?? [])]);
   const monthName = (key: string) => formatDay(key + "-01", locale, { month: "long", year: "numeric" });
   const versus = (before: number, key: string, now: number) => {
@@ -50,7 +54,7 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
   const reason = (n: (typeof d.needs)[number]) => {
     const r = n.row;
     if (n.reason === "ready") return format(t.desk.reasons.ready, { name: r.createdBy === "tool:timesheets" ? t.doc.history.timesheetsTool : nameOf(who.get(r.createdBy), locale) });
-    if (n.reason === "overdue") return format(t.desk.reasons.overdue, { date: formatDay(r.dueDate ?? today, locale), amount: money(r.due) });
+    if (n.reason === "overdue") return format(t.desk.reasons.overdue, { date: formatDay(r.dueDate ?? today, locale), amount: money(r.due, r.currency) });
     if (n.reason === "accepted") return t.desk.reasons.accepted;
     if (n.reason === "crm") return format(t.desk.reasons.crm, { title: r.crmTitle ?? "" });
     if (n.reason === "expiring") return format(r.validUntil && r.validUntil < today ? t.desk.reasons.expired : t.desk.reasons.expiring, { date: formatDay(r.validUntil ?? today, locale) });
@@ -58,7 +62,7 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
   };
   const body = (
     <div className="page">
-      <Island name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island name="LiveDocuments" props={{}} />
       <p className="over-title">{formatDay(today, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
       <PageHeader
         size="m"
@@ -113,17 +117,17 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
           <div className="figures">
             <a className="figure" href="/chest/quotes?state=sent">
               <span className="label">{t.desk.figures.waiting}</span>
-              <span className="value">{money(d.waiting.net)}</span>
+              <span className="value">{amounts(d.waiting.net)}</span>
               <span className="sub">{plural(t.desk.figures.quotes, d.waiting.count, locale)}</span>
             </a>
             <a className="figure" href="/chest/invoices?state=open">
               <span className="label">{t.desk.figures.toCollect}</span>
-              <span className="value">{money(d.toCollect.due)}</span>
+              <span className="value">{amounts(d.toCollect.due)}</span>
               <span className="sub">{plural(t.desk.figures.invoices, d.toCollect.count, locale)}</span>
             </a>
             <a className={d.overdue.count > 0 ? "figure alert" : "figure"} href="/chest/invoices?state=overdue">
               <span className="label">{t.desk.figures.overdue}</span>
-              <span className="value">{money(d.overdue.due)}</span>
+              <span className="value">{amounts(d.overdue.due)}</span>
               <span className="sub">{plural(t.desk.figures.invoices, d.overdue.count, locale)}</span>
             </a>
           </div>
@@ -138,6 +142,7 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
                   <span className="sub">{versus(sales.lastMonth, sales.lastMonthKey, sales.thisMonth)}</span>
                   <span className="sub">{versus(sales.lastYear, sales.lastYearKey, sales.thisMonth)}</span>
                   <span className="sub strong">{format(t.desk.revenue.yearToDate, { amount: money(sales.yearToDate) })}</span>
+                  {sales.others.length > 0 && <span className="sub">{format(t.desk.revenue.otherCurrencies, { amounts: sales.others.map(o => money(o.yearToDate, o.currency)).join(" · ") })}</span>}
                 </div>
                 <div className="ranking">
                   <h3>{t.desk.revenue.byClient}</h3>
@@ -171,7 +176,7 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
                       <strong>{kindOf(n.row, t)} {(n.row.type === "quote" ? versioned(n.row.number, n.row.version) : n.row.number) ?? ""} · {n.row.clientName || t.list.noClient}</strong>
                       <span className="sub">{reason(n)}</span>
                     </span>
-                    <span className="num">{money(n.reason === "overdue" ? n.row.due : n.row.gross)}</span>
+                    <span className="num">{money(n.reason === "overdue" ? n.row.due : n.row.gross, n.row.currency)}</span>
                   </li>
                 ))}
               </ul>

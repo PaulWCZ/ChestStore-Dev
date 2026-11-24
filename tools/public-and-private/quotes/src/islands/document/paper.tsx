@@ -1,4 +1,4 @@
-import { call, toast } from "@argentic/chest-app/client";
+import { call, refresh, toast } from "@argentic/chest-app/client";
 import { DateField, Menu } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
@@ -22,7 +22,7 @@ import { ItemPicker } from "./item-picker.tsx";
 // server's (lib/totals.ts).
 
 type EditLine = { key: string; kind: "line" | "section"; itemId: string | null; description: string; quantity: string; unit: string; unitPrice: string; discount: string; vatRate: number; goods: boolean; depositOf?: string | null };
-type Header = { clientId: string | null; title: string; language: Locale; deliveryDate: string; validUntil: string; paymentDays: string; vatTreatment: "standard" | "reverse_charge"; notes: string; eurRate: string };
+type Header = { clientId: string | null; title: string; language: Locale; currency: string; deliveryDate: string; validUntil: string; paymentDays: string; vatTreatment: "standard" | "reverse_charge"; notes: string; eurRate: string };
 // The exchange rate typed ("1,0823"), in millionths; null when empty, NaN when unreadable.
 const rateOf = (text: string): number | null => (text.trim() === "" ? null : (parseDecimal(text, 6) ?? Number.NaN) || Number.NaN);
 export type SaveState = "saved" | "pending" | "saving" | "invalid" | "error";
@@ -65,6 +65,9 @@ export type PaperProps = {
   // The document's client, when it has one (the picker finds the others).
   clients: ClientOption[];
   canAddClient: boolean;
+  // The currencies a draft may take (a quote, an invoice written here), or
+  // null: its currency is its source's.
+  currencies: readonly { code: string; name: string }[] | null;
   logo: string | null;
   dates: { issue: string; due: string; valid: string; delivery: string; reference: string };
   flushRef: MutableRefObject<() => Promise<boolean>>;
@@ -74,10 +77,8 @@ export type PaperProps = {
 
 export function Paper(props: PaperProps) {
   const { doc, t, words, locale, editing, dates } = props;
-  // Outside the euro, an invoice or credit note gives its exchange rate.
-  const foreign = doc.type !== "quote" && doc.currency !== "EUR";
   const [header, setHeader] = useState<Header>({
-    clientId: doc.clientId, title: doc.title, language: doc.language, deliveryDate: doc.deliveryDate ?? "", validUntil: doc.validUntil ?? "",
+    clientId: doc.clientId, title: doc.title, language: doc.language, currency: doc.currency, deliveryDate: doc.deliveryDate ?? "", validUntil: doc.validUntil ?? "",
     paymentDays: String(doc.paymentDays), vatTreatment: doc.vatTreatment, notes: doc.notes,
     eurRate: doc.eurRate ? formatEurRate(doc.eurRate, locale) : "",
   });
@@ -107,16 +108,21 @@ export function Paper(props: PaperProps) {
     refusedDays.current = {};
     setDateProblems({});
   }, [editing]);
+  // The paper's currency: the document's, or the one just chosen (its
+  // amounts are read in it). Outside the euro, an invoice or credit note
+  // gives its exchange rate.
+  const currency = header.currency;
+  const foreign = doc.type !== "quote" && currency !== "EUR";
   const w = words[header.language] ?? words.en;
   const client = clients.find(c => c.id === header.clientId) ?? null;
   const buyer = editing ? client : doc.buyer;
   const noVat = doc.franchise || header.vatTreatment === "reverse_charge";
-  const parsed = useMemo(() => lines.map(l => parse(l, doc.currency)), [lines, doc.currency]);
+  const parsed = useMemo(() => lines.map(l => parse(l, currency)), [lines, currency]);
   const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "") || (editing && Object.keys(dateProblems).length > 0) || Number.isNaN(rateOf(header.eurRate));
   const sums = useMemo(() => totals(lines.map((l, i) => ({ kind: l.kind, quantity: parsed[i]!.quantity ?? 0, unitPrice: parsed[i]!.unitPrice ?? 0, discount: parsed[i]!.discount ?? 0, vatRate: l.vatRate })), { noVat }), [lines, parsed, noVat]);
-  const money = (minor: number) => formatMoney(minor, doc.currency, header.language);
+  const money = (minor: number) => formatMoney(minor, currency, header.language);
   const anyDiscount = parsed.some((p, i) => lines[i]!.kind === "line" && (p.discount ?? 0) !== 0);
-  const figure = (minor: number) => formatNumber(minor, doc.currency, header.language);
+  const figure = (minor: number) => formatNumber(minor, currency, header.language);
   const { onTotals, onState } = props;
   useEffect(() => onTotals(sums.gross), [sums.gross, onTotals]);
 
@@ -132,7 +138,7 @@ export function Paper(props: PaperProps) {
     }
     if (!dirty.current) return true;
     const { header: h, lines: ls } = latest.current;
-    const values = ls.map(l => parse(l, doc.currency));
+    const values = ls.map(l => parse(l, h.currency));
     if (values.some(p => p.quantity === null || p.unitPrice === null || p.discount === null)) {
       onState("invalid");
       return false;
@@ -144,9 +150,10 @@ export function Paper(props: PaperProps) {
     const result = await call("saveDraft", { id: doc.id, draft: {
       ...(doc.type !== "credit" ? { clientId: h.clientId, vatTreatment: h.vatTreatment } : {}),
       title: h.title, language: h.language, notes: h.notes, deliveryDate: h.deliveryDate || null,
+      ...(props.currencies ? { currency: h.currency } : {}),
       ...(doc.type === "quote" && h.validUntil ? { validUntil: h.validUntil } : {}),
       ...(doc.type === "invoice" ? { paymentDays: Number(h.paymentDays) } : {}),
-      ...(foreign ? { eurRate: rateOf(h.eurRate) } : {}),
+      ...(h.currency === doc.currency && h.currency !== "EUR" && doc.type !== "quote" ? { eurRate: rateOf(h.eurRate) } : {}),
       lines: ls.map((l, i) => ({ kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods, quantity: values[i]!.quantity ?? 0, unitPrice: values[i]!.unitPrice ?? 0, discount: values[i]!.discount ?? 0, depositOf: l.depositOf ?? null })),
     } }, { refresh: false, quiet: true });
     if (!result.ok) {
@@ -156,6 +163,9 @@ export function Paper(props: PaperProps) {
       return false;
     }
     onState(dirty.current ? "pending" : "saved");
+    // Another currency: the page is read again (its totals, its margin,
+    // the exchange rate's field are the document's).
+    if (h.currency !== doc.currency) refresh();
     return true;
   }
   props.flushRef.current = flush;
@@ -247,10 +257,10 @@ export function Paper(props: PaperProps) {
           <label className="mini price">
             <span>{w.unitPrice}</span>
             <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })}
-              aria-describedby={ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) ? `ambiguous-${l.key}` : undefined} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
+              aria-describedby={ambiguousAmount(l.unitPrice, currency, { negative: true }) ? `ambiguous-${l.key}` : undefined} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
           </label>
           {/* "1,234": a thousand, or one twenty-three? Said, not guessed. */}
-          {ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) && <p className="amount-problem" id={`ambiguous-${l.key}`} role="alert">{t.errors.amount_ambiguous}</p>}
+          {ambiguousAmount(l.unitPrice, currency, { negative: true }) && <p className="amount-problem" id={`ambiguous-${l.key}`} role="alert">{t.errors.amount_ambiguous}</p>}
           <label className="mini disc">
             <span>{w.discount}</span>
             <input className="ink num" inputMode="decimal" value={l.discount} placeholder="%" aria-invalid={p.discount === null ? true : undefined} aria-label={format(e.discount, { n: i + 1 })} onChange={ev => setLine(l.key, { discount: ev.target.value })} />
@@ -334,7 +344,7 @@ export function Paper(props: PaperProps) {
               <>
                 <dt>{editing ? <label htmlFor="eur-rate">{t.editor.eurRate}</label> : t.editor.eurRate}</dt>
                 <dd>{editing ? (
-                  <span className="eur-rate"><input id="eur-rate" className="ink num" inputMode="decimal" value={header.eurRate} placeholder="1,0823" aria-invalid={Number.isNaN(rateOf(header.eurRate)) || undefined} onChange={ev => setH({ eurRate: ev.target.value })} /> {doc.currency}</span>
+                  <span className="eur-rate"><input id="eur-rate" className="ink num" inputMode="decimal" value={header.eurRate} placeholder="1,0823" aria-invalid={Number.isNaN(rateOf(header.eurRate)) || undefined} onChange={ev => setH({ eurRate: ev.target.value })} /> {currency}</span>
                 ) : `${formatEurRate(doc.eurRate!, locale)} ${doc.currency}`}</dd>
               </>
             )}
@@ -350,6 +360,18 @@ export function Paper(props: PaperProps) {
                 <dd>
                   <select id="language" className="ink" value={header.language} onChange={ev => setH({ language: ev.target.value as Locale })}>
                     {(Object.keys(words) as Locale[]).map(code => <option key={code} value={code} lang={code}>{languageNames[code] ?? code}</option>)}
+                  </select>
+                </dd>
+              </>
+            )}
+            {/* Each document in its own currency (SDK 0.7.0: the Chest has
+                none); a new one starts in the tool's default (Settings). */}
+            {editing && props.currencies && (
+              <>
+                <dt><label htmlFor="currency">{t.editor.currency}</label></dt>
+                <dd>
+                  <select id="currency" className="ink" value={header.currency} onChange={ev => setH({ currency: ev.target.value })}>
+                    {props.currencies.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 </dd>
               </>
@@ -480,9 +502,10 @@ export function Paper(props: PaperProps) {
           }} />
       )}
       {picking === "item" && (
-        <ItemPicker t={t} currency={doc.currency} locale={locale} onClose={() => setPicking(null)}
+        <ItemPicker t={t} locale={locale} onClose={() => setPicking(null)}
           onPick={item => {
-            addLine({ itemId: item.id, description: item.description ? `${item.name}\n${item.description}` : item.name, unit: item.unit, unitPrice: inputAmount(item.unitPrice, doc.currency, header.language), vatRate: doc.franchise ? 0 : item.vatRate, goods: item.goods });
+            // A price in another currency is never copied: it is typed.
+            addLine({ itemId: item.id, description: item.description ? `${item.name}\n${item.description}` : item.name, unit: item.unit, unitPrice: item.currency === currency ? inputAmount(item.unitPrice, currency, header.language) : "", vatRate: doc.franchise ? 0 : item.vatRate, goods: item.goods });
             focusNext.current = null;
             setPicking(null);
             toast(format(t.editor.itemAdded, { name: item.name }));

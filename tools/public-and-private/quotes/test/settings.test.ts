@@ -103,7 +103,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   assert.equal(item.unitPrice, 65000);
   const book = await addItem(sql, asMember(sofia), { name: "Guide imprimé", unitPrice: "12.50", vatRate: 550, goods: true }, "EUR");
   assert.equal(book.goods, true);
-  const cheaper = await updateItem(sql, asMember(hugo), item.id, { unitPrice: "600" }, "EUR");
+  const cheaper = await updateItem(sql, asMember(hugo), item.id, { unitPrice: "600" });
   assert.equal(cheaper.unitPrice, 60000);
   assert.deepEqual((await listItems(sql, asMember(lea))).map(i => i.name), ["Guide imprimé", "Journée de développement"]);
   assert.deepEqual((await listItems(sql, asMember(lea), { q: "IMPRIME" })).map(i => i.name), ["Guide imprimé"]);
@@ -111,7 +111,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   assert.equal(await countItems(sql), 2);
   await archiveItem(sql, asMember(hugo), book.id, true);
   assert.deepEqual((await listItems(sql, asMember(lea))).map(i => i.name), ["Journée de développement"]);
-  await assert.rejects(updateItem(sql, asMember(hugo), "999", { name: "x" }, "EUR"), refused("not_found"));
+  await assert.rejects(updateItem(sql, asMember(hugo), "999", { name: "x" }), refused("not_found"));
 });
 
 test("the company's row comes back empty if it was ever missing, and the payment link is https only", async () => {

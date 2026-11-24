@@ -10,6 +10,10 @@ export type Seller = {
   legalForm: string;
   // Share capital in minor units; null when the form has none (EI).
   capital: number | null;
+  // Its currency (SDK 0.7.0: the Chest has none); absent on documents
+  // numbered before it was kept — they print it in their own currency, as
+  // they always did.
+  capitalCurrency?: string;
   address: string;
   postcode: string;
   city: string;
@@ -54,7 +58,7 @@ export type Buyer = {
   vatNumber: string;
 };
 
-const sellerKeys: (keyof Seller)[] = ["legalName", "tradeName", "legalForm", "capital", "address", "postcode", "city", "country", "siren", "siret", "rcsCity", "vatNumber", "franchise", "vatOnDebits", "email", "phone", "website", "bank", "iban", "bic", "logo", "logoType", "paymentDays", "penaltyRate", "earlyDiscount", "footer", "paymentLink"];
+const sellerKeys: (keyof Seller)[] = ["legalName", "tradeName", "legalForm", "capital", "capitalCurrency", "address", "postcode", "city", "country", "siren", "siret", "rcsCity", "vatNumber", "franchise", "vatOnDebits", "email", "phone", "website", "bank", "iban", "bic", "logo", "logoType", "paymentDays", "penaltyRate", "earlyDiscount", "footer", "paymentLink"];
 const buyerKeys: (keyof Buyer)[] = ["kind", "name", "contact", "email", "address", "postcode", "city", "country", "deliveryAddress", "siren", "vatNumber"];
 
 export function sellerOf(source: Seller): Seller {

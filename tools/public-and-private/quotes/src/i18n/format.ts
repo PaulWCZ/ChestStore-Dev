@@ -89,6 +89,21 @@ export function countryName(code: string, locale: Locale, fallback: "code" | "no
   }
 }
 
+// The currencies to choose among, each named in a language ("EUR — euro"):
+// the codes given, in their order (made on the server, sent to an island).
+export function currencyOptions(codes: readonly string[], locale: Locale): { code: string; name: string }[] {
+  let names: Intl.DisplayNames | null = null;
+  try {
+    names = once(`c|${locale}`, () => new Intl.DisplayNames([locale], { type: "currency", fallback: "none" }));
+  } catch {
+    names = null;
+  }
+  return codes.map(code => {
+    const name = names?.of(code) ?? "";
+    return { code, name: name && name !== code ? `${code} — ${name}` : code };
+  });
+}
+
 // A size in kilobytes or megabytes, in the reader's language ("1,2 Mo").
 export function formatSize(bytes: number, locale: Locale): string {
   const mega = bytes >= 1048576;

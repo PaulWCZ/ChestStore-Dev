@@ -43,6 +43,21 @@ export function minorDigits(currency: string): number {
 //   package's field.money for typed amounts.
 const anySpace = /[\s    ]+/gu;
 const knownCurrencies = new Set<string>(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : ["EUR", "USD", "GBP", "CHF", "JPY", "KWD"]);
+// isCurrency: an ISO 4217 code this runtime knows ("EUR", "GBP").
+export const isCurrency = (value: unknown): value is string => typeof value === "string" && /^[A-Z]{3}$/u.test(value) && knownCurrencies.has(value);
+// The currencies a company picks its default among: the common ones first,
+// then every other the runtime knows, by code.
+export const commonCurrencies = ["EUR", "USD", "GBP", "CHF", "CAD", "JPY"] as const;
+export const currencyChoices = (): string[] => [...commonCurrencies, ...[...knownCurrencies].filter(c => !(commonCurrencies as readonly string[]).includes(c)).sort()];
+
+// Totals that never mix currencies: one amount per currency, the given
+// one first (the tool's default), then by code. Empty: none.
+export type Totals = { currency: string; amount: number }[];
+export function totalsBy<T>(items: readonly T[], currency: (item: T) => string, amount: (item: T) => number, first?: string): Totals {
+  const by = new Map<string, number>();
+  for (const item of items) by.set(currency(item), (by.get(currency(item)) ?? 0) + amount(item));
+  return [...by].map(([c, a]) => ({ currency: c, amount: a })).sort((a, b) => (a.currency === first ? -1 : b.currency === first ? 1 : a.currency.localeCompare(b.currency)));
+}
 const grouped = { ",": /^\d{1,3}(?:,\d{3})*$/u, ".": /^\d{1,3}(?:\.\d{3})*$/u } as const;
 const groupsOf = (whole: string, mark: "," | ".") => grouped[mark].test(whole);
 export type DecimalMark = "," | ".";

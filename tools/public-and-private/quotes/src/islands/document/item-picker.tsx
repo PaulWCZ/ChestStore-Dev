@@ -8,8 +8,10 @@ import type { DocWords } from "../../lib/views.ts";
 
 // Adding a line from the catalogue: its words, unit, price and VAT rate
 // copied onto the document (which keeps them if the catalogue changes).
+// Each price is shown in its item's own currency; an item in another
+// currency than the document's brings its words, never its price.
 // The catalogue is searched on the server as one types.
-export function ItemPicker({ t, currency, locale, onPick, onClose }: { t: DocWords; currency: string; locale: Locale; onPick: (item: ItemOption) => void; onClose: () => void }) {
+export function ItemPicker({ t, locale, onPick, onClose }: { t: DocWords; locale: Locale; onPick: (item: ItemOption) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
   const found = useFound<ItemOption>("findItems", q, {});
   const shown = found.rows ?? [];
@@ -23,7 +25,7 @@ export function ItemPicker({ t, currency, locale, onPick, onClose }: { t: DocWor
               <li key={i.id}>
                 <button type="button" onClick={() => onPick(i)}>
                   <strong>{i.name}</strong>
-                  <span className="price">{formatMoney(i.unitPrice, currency, locale)}{i.unit ? " / " + i.unit : ""}</span>
+                  <span className="price">{formatMoney(i.unitPrice, i.currency, locale)}{i.unit ? " / " + i.unit : ""}</span>
                   <span className="sub">{i.description.split("\n")[0]}</span>
                   <span className="sub">{t.picker.vat} {formatRate(i.vatRate, locale)}</span>
                 </button>

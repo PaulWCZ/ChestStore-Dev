@@ -83,7 +83,7 @@ export async function makeArchive(sql: Sql, month: string, today: string, locale
     [fileBase(p, locale) + ".csv", encode(csvText(list, locale, await corrected(sql, list)))],
     [journal.fileName, encode(journal.text)],
     [t.clientsFile + ".csv", encode(await clientsCsv(sql, system, locale))],
-    [t.itemsFile + ".csv", encode(await itemsCsv(sql, system, locale, list[0]!.currency))],
+    [t.itemsFile + ".csv", encode(await itemsCsv(sql, system, locale))],
   ];
   const parts: { chunks: Uint8Array[]; size: number; documents: number }[] = [];
   let zip = new ZipWriter();

@@ -8,7 +8,7 @@ import { camille, sofia } from "./members.ts";
 // A small French company, as the tests need it: its legal details, a client
 // or two, and documents with lines.
 export const today = "2026-09-28";
-export const defaults: Defaults = { today, locale: "fr", currency: "EUR" };
+export const defaults: Defaults = { today, locale: "fr" };
 
 export async function company(sql: Sql, extra: Record<string, unknown> = {}): Promise<void> {
   await updateCompany(sql, asMember(camille), {

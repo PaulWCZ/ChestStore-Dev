@@ -26,6 +26,8 @@ export type DocumentViewProps = {
   dates: { issue: string; due: string; valid: string; delivery: string; reference: string };
   rights: Rights;
   clients: ClientOption[];
+  // The currencies the draft may take, or null (lib/documents.ts currencyEditable).
+  currencies: readonly { code: string; name: string }[] | null;
   logo: string | null;
   facts: Fact[];
   history: Moment[];
@@ -178,7 +180,7 @@ export function DocumentView(props: DocumentViewProps) {
             </section>
           ) : (
             <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.kit.date} editing={rights.edit} clients={props.clients} canAddClient={rights.quote}
-              logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
+              currencies={props.currencies} logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
           )}
         </div>
         <aside className="side" aria-label={d.margin}>

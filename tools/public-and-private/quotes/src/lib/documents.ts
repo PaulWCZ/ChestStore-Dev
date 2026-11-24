@@ -6,7 +6,7 @@ import { company, missing, type Company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
 import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, versioned, wholeDays, type DocumentType, type Status, type VatTreatment } from "../shared/model.ts";
-import { formatMoney, formatRate, isVatRate, parseDecimal } from "../shared/money.ts";
+import { formatMoney, formatRate, isCurrency, isVatRate, parseDecimal } from "../shared/money.ts";
 import { buyerOf, sellerOf, type Buyer, type Seller } from "../shared/parties.ts";
 import { lineNet, totals, depositBases, type RateTotal, type Totals } from "../shared/totals.ts";
 
@@ -277,7 +277,9 @@ export function editable(d: Pick<Doc, "type" | "status" | "deleted">): boolean {
 
 // --- Creating --------------------------------------------------------------
 
-export type Defaults = { today: string; locale: Locale; currency: string };
+// The day and the Chest's language; the currency of a new document is the
+// tool's default (company.currency, Settings), unless one is given.
+export type Defaults = { today: string; locale: Locale; currency?: string };
 
 async function clientFor(sql: Query, clientId: unknown): Promise<Client> {
   const [row] = await sql`select * from clients where id = ${id(clientId)}`;
@@ -301,7 +303,7 @@ export async function createDocument(sql: Sql, actor: Member | null, type: unkno
       // The client's language; without a client yet, the author's own, so
       // the paper they write on speaks their language.
       language: client?.language ?? (isLocale(actor!.language) ? actor!.language : defaults.locale),
-      currency: defaults.currency,
+      currency: defaults.currency ?? c.currency,
       valid_until: kind === "quote" ? addDays(defaults.today, c.validityDays) : null,
       payment_days: c.paymentDays,
       vat_treatment: client?.reverseCharge ? "reverse_charge" : "standard",
@@ -365,7 +367,13 @@ async function recompute(sql: Query, documentId: string): Promise<Doc> {
 // --- Editing a draft -------------------------------------------------------
 
 export type LineInput = Partial<Record<"kind" | "itemId" | "description" | "quantity" | "unit" | "unitPrice" | "discount" | "vatRate" | "goods" | "depositOf", unknown>>;
-export type DraftInput = Partial<Record<"clientId" | "title" | "language" | "deliveryDate" | "validUntil" | "paymentDays" | "vatTreatment" | "notes" | "eurRate", unknown>> & { lines?: unknown };
+export type DraftInput = Partial<Record<"clientId" | "title" | "language" | "currency" | "deliveryDate" | "validUntil" | "paymentDays" | "vatTreatment" | "notes" | "eurRate", unknown>> & { lines?: unknown };
+
+// Whether a draft may take another currency: a quote or an invoice written
+// here (an invoice of a quote, a credit note, keep their source's: their
+// amounts follow it), and only with its lines in the same save — the
+// lines' amounts are in the currency they are sent with.
+export const currencyEditable = (d: Pick<Doc, "type" | "quoteId">): boolean => d.type === "quote" || (d.type === "invoice" && d.quoteId === null);
 
 const int = (value: unknown, min: number, max: number, code: "quantity_invalid" | "amount_invalid" | "discount_invalid"): number => {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) throw new AppError(code);
@@ -437,7 +445,16 @@ export async function saveDraft(sql: Sql, actor: Member | null, documentId: unkn
     if (input.deliveryDate !== undefined) set["delivery_date"] = input.deliveryDate === null || input.deliveryDate === "" ? null : day(input.deliveryDate);
     if (input.validUntil !== undefined && d.type === "quote") set["valid_until"] = day(input.validUntil);
     if (input.paymentDays !== undefined && d.type === "invoice") set["payment_days"] = wholeDays(input.paymentDays, 0, limits.paymentDays, "terms_invalid");
-    if (input.eurRate !== undefined) {
+    let currency = d.currency;
+    if (input.currency !== undefined && input.currency !== d.currency) {
+      if (!currencyEditable(d) || lines === undefined) throw new AppError("invalid");
+      if (!isCurrency(input.currency)) throw new AppError("currency_invalid");
+      currency = input.currency;
+      set["currency"] = currency;
+      // An exchange rate to the euro is said again in the new currency.
+      set["eur_rate"] = null;
+    }
+    if (input.eurRate !== undefined && currency === d.currency) {
       if (d.type === "quote" || d.currency === "EUR") throw new AppError("invalid");
       set["eur_rate"] = eurRateOf(input.eurRate);
     }

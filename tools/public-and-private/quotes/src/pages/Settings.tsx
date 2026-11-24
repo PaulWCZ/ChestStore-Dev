@@ -1,13 +1,13 @@
 import { Island, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { chest } from "@argentic/chest-sdk/chest";
 import { Info } from "../components/icons.tsx";
-import { format, formatDate, formatSize, localeOf } from "../i18n/index.ts";
+import { currencyOptions, format, formatDate, formatSize, localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { company, missing } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
 import { mailState } from "../lib/mailing.ts";
 import { documentNumber } from "../shared/model.ts";
-import { formatRate, vatRates } from "../shared/money.ts";
+import { currencyChoices, formatRate, vatRates } from "../shared/money.ts";
 import { numberingChanges, sequences } from "../lib/numbering.ts";
 import { nameOf, people } from "../lib/people.ts";
 
@@ -44,7 +44,7 @@ export async function settingsPage(ctx: PageContext<MemberContext>): Promise<Vie
           company: c,
           missing: missing(c),
           canEdit,
-          currency: chest.currency,
+          currencies: currencyOptions(currencyChoices(), locale),
           sample: documentNumber("X", year, 1),
           logo: c.logo ? `/chest/logo?v=${encodeURIComponent(c.logo)}` : null,
           terms: c.terms ? { name: c.terms.name, size: formatSize(c.terms.size, locale) } : null,

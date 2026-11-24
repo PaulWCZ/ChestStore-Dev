@@ -56,6 +56,13 @@ test("the desk: the member's language, the strict policy, the look as a styleshe
   assert.match(html, /<link rel="stylesheet" href="\/chest\/look\.css\?v=[\w-]{16}"\/>/u);
   assert.match(html, /Bureau/u);
   assert.match(html, /data-island="MoreMenu"/u);
+  // Left open, the desk follows the Chest's realtime (feeds of documents,
+  // payments, answers), never a timer.
+  assert.match(html, /data-island="LiveDocuments"/u);
+  assert.doesNotMatch(html, /AutoRefresh/u);
+  // The tool's own default currency, an administrator's setting.
+  const settings = await (await get(camille, "/chest/settings")).text();
+  assert.match(settings, /&quot;currencies&quot;:\[\{&quot;code&quot;:&quot;EUR&quot;/u);
   assert.equal((await app.fetch(new Request(team + "/chest"))).status, 401);
 });
 
@@ -224,8 +231,8 @@ test("a plain form without JavaScript: the answer's page, or back with the refus
 test("the Chest's events and schedules, signed, each delivered at least once", async () => {
   const to = request => app.fetch(request);
   const erased = { type: "member.erased", id: "evt_" + "q".repeat(26), data: { id: hugo.id, erasure: "era_" + "q".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(erased, to), 204);
-  assert.equal(await chest.emit(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
   const [{ n }] = await database.sql`select count(*)::int as n from documents where created_by = ${hugo.id}`;
   assert.equal(n, 0);

@@ -91,7 +91,7 @@ test("open invoices come with their numbers; paid ones and bad rows are said", a
   assert.equal(c.dueDate, "2026-09-30");
   // On the desk and the tile: money to collect, overdue.
   const d = await desk(sql, asMember(sofia), today);
-  assert.equal(d.toCollect.due, 120000 + 200000 + 96000);
+  assert.deepEqual(d.toCollect.due, [{ currency: "EUR", amount: 120000 + 200000 + 96000 }], "one total per currency");
   assert.equal(d.overdue.count, 2);
   assert.equal(await overdueCount(sql, today), 2);
   // The same file again: nothing doubles.

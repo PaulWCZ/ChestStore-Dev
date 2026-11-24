@@ -9,20 +9,27 @@ import { fold } from "../shared/fold.ts";
 import { catalogue, format, formatDay, isLocale, type Locale } from "../i18n/index.ts";
 import { limits } from "../shared/model.ts";
 import { accentedLetters, plainLetters } from "./clients.ts";
-import { formatMoney } from "../shared/money.ts";
+import { formatMoney, isCurrency } from "../shared/money.ts";
 import { notify, withdraw } from "./notify.ts";
 import { holders } from "./people.ts";
 import { lineNet, totals } from "../shared/totals.ts";
 
-// What Timesheets tells Quotes (Proposal (studio): events between tools,
-// once an admin linked the two): the billable time of a project and a
-// period, handed over to be invoiced.
+// What Timesheets tells Quotes (SDK 0.7.0 events between tools, once the
+// owner approved the link): the billable time of a project and a period,
+// handed over to be invoiced. Flat, as the Chest carries it (fields of its
+// kinds: a list travels as JSON text):
 //
-//   timesheets.billable {version: 1, handoff, project: {id, name}, client: {id, name} | null,
-//     period: {from, to}, currency, minutes, amount, entries,
-//     lines: [{label, task, minutes, rate: cents an hour | null, amount, entries}],
-//     source: {tool: "timesheets", path}}
-//   timesheets.billable_cancelled {version: 1, handoff}
+//   timesheets.billable {version: 1, handoff, projectName, clientName?,
+//     from?, to? (days), currency, minutes, amount, entries,
+//     lines: JSON text of [{label, task, minutes, rate: cents an hour | null, amount, entries}],
+//     path}
+//   timesheets.billable-cancelled {version: 1, handoff}
+//
+// The nested shape of before (project: {name}, client: {name}, period:
+// {from, to}, lines: [...], source: {path}) is read too; `v` stands for
+// `version`. A hand-off told for some people only (its audience) makes no
+// draft — Quotes has no private document —; the billing members it names
+// are told to invoice it by hand.
 //
 // Quotes makes one **draft invoice** per hand-off — never two, whatever
 // the deliveries (the `handoffs` row stays even when its draft is dropped)
@@ -67,20 +74,34 @@ const record = (value: unknown): Record<string, unknown> | null => (value && typ
 // A path in Timesheets: its team host's, as chest.tools.link accepts it.
 const pathOf = (value: unknown): string => (typeof value === "string" && /^\/chest(\/[\x21-\x7e]*)?$/u.test(value) && !value.includes("\\") && value.length <= 300 ? value : "");
 
+// A name told flat ("projectName") or in an object of before ({name}).
+const nameOf = (data: Record<string, unknown>, key: string, max: number): string => text(data[key + "Name"] ?? record(data[key])?.["name"] ?? (typeof data[key] === "string" ? data[key] : undefined), max);
+// A list told as JSON text (flat), or as a list (before).
+function listOf(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  if (value.length > 64 * 1024) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+const versionOf = (data: Record<string, unknown>) => data["version"] ?? data["v"];
+
 export function readBillable(data: Record<string, unknown>): Billable | null {
-  if (data["version"] !== 1) return null;
+  if (versionOf(data) !== 1) return null;
   const handoff = data["handoff"];
   if (typeof handoff !== "string" || !handoffPattern.test(handoff)) return null;
-  const project = text(record(data["project"])?.["name"], 120);
+  const project = nameOf(data, "project", 120);
   if (!project) return null;
-  const client = text(record(data["client"])?.["name"], limits.name);
-  const period = record(data["period"]);
+  const client = nameOf(data, "client", limits.name);
+  const period = record(data["period"]) ?? { from: data["from"], to: data["to"] };
   const day = (v: unknown) => (typeof v === "string" && dayPattern.test(v) && !Number.isNaN(Date.parse(v + "T00:00:00Z")) ? v : null);
-  const currency = typeof data["currency"] === "string" && /^[A-Z]{3}$/u.test(data["currency"]) ? data["currency"] : null;
+  const currency = isCurrency(data["currency"]) ? data["currency"] : null;
   if (!currency) return null;
   const total = data["amount"];
   const amount = typeof total === "number" && Number.isSafeInteger(total) && total >= 0 && total <= limits.total ? total : null;
-  const raw = data["lines"];
+  const raw = listOf(data["lines"]);
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > limits.lines) return null;
   const lines: Billable["lines"] = [];
   for (const item of raw) {
@@ -92,7 +113,7 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
     if (rate !== null && rate !== undefined && (typeof rate !== "number" || !Number.isSafeInteger(rate) || rate < 0 || rate > limits.unitPrice)) return null;
     lines.push({ label: text(l["label"], limits.description) || text(record(l["task"])?.["name"], limits.description) || project, minutes, rate: typeof rate === "number" ? rate : 0 });
   }
-  return { handoff, project, client, from: day(period?.["from"]), to: day(period?.["to"]), currency, lines, path: pathOf(record(data["source"])?.["path"]), amount };
+  return { handoff, project, client, from: day(period["from"]), to: day(period["to"]), currency, lines, path: pathOf(data["path"] ?? record(data["source"])?.["path"]), amount };
 }
 
 async function issuerIds(): Promise<string[]> {
@@ -100,13 +121,22 @@ async function issuerIds(): Promise<string[]> {
   return [...new Set(found.flat().map(h => h.id))];
 }
 
-// billableReceived: the draft invoice of a hand-off (made once).
-export async function billableReceived(sql: Sql, event: ToolEvent, context: { locale: Locale; currency: string }): Promise<{ documentId: string | null; created: boolean } | null> {
+// billableReceived: the draft invoice of a hand-off (made once), in the
+// hand-off's own currency.
+export async function billableReceived(sql: Sql, event: ToolEvent, context: { locale: Locale }): Promise<{ documentId: string | null; created: boolean } | null> {
   const b = readBillable(event.data);
   if (!b) return null;
+  // For some people only: no draft every reader of Quotes would see; the
+  // billing members it names invoice it by hand.
+  if (event.audience !== "all") {
+    const allowed = new Set(event.audience);
+    const to = (await issuerIds()).filter(id => allowed.has(id));
+    await notify(to, t => ({ title: format(t.notifications.timesheetsTitle, { project: b.project }), body: t.notifications.timesheetsPrivate }), { path: "/chest/invoices", key: `timesheets:${b.handoff}:private` });
+    return null;
+  }
   const made = await sql.begin(async tx => {
     const [seen] = await tx`insert into handoffs (handoff, project, period_from, period_to, source_path, client_name, amount)
-      values (${b.handoff}, ${b.project}, ${b.from}, ${b.to}, ${b.path}, ${b.client}, ${b.currency === context.currency ? b.amount : null}) on conflict (handoff) do nothing returning handoff`;
+      values (${b.handoff}, ${b.project}, ${b.from}, ${b.to}, ${b.path}, ${b.client}, ${b.amount}) on conflict (handoff) do nothing returning handoff`;
     if (!seen) {
       const [row] = await tx<{ document_id: number | null }[]>`select document_id from handoffs where handoff = ${b.handoff}`;
       return { documentId: row?.document_id ? String(row.document_id) : null, created: false, gross: 0, clientName: "" };
@@ -122,15 +152,14 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
     const client = matches.length === 1 ? matches[0]! : null;
     const language: Locale = client && isLocale(client.language) ? client.language : context.locale;
     const w = catalogue(language);
-    const sameCurrency = b.currency === context.currency;
-    const lines = b.lines.map(l => ({ kind: "line" as const, quantity: Math.round((l.minutes * 1000) / 60), unitPrice: sameCurrency ? l.rate : 0, discount: 0, vatRate: 2000, description: l.label }));
+    const lines = b.lines.map(l => ({ kind: "line" as const, quantity: Math.round((l.minutes * 1000) / 60), unitPrice: l.rate, discount: 0, vatRate: 2000, description: l.label }));
     const noVat = c.franchise || Boolean(client?.reverse_charge);
     const t = totals(lines, { noVat });
     const day = (d: string | null) => (d ? formatDay(d, language, { day: "numeric", month: "long", year: "numeric" }) : "");
     const title = b.from && b.to ? format(w.lines.timesheetsTitle, { project: b.project, from: day(b.from), to: day(b.to) }) : b.project;
     const [doc] = await tx<{ id: number }[]>`
       insert into documents ${tx({
-        type: "invoice", client_id: client ? client.id : null, title: [...title].slice(0, limits.title).join(""), language, currency: context.currency,
+        type: "invoice", client_id: client ? client.id : null, title: [...title].slice(0, limits.title).join(""), language, currency: b.currency,
         payment_days: c.paymentDays, vat_treatment: client?.reverse_charge ? "reverse_charge" : "standard", franchise: c.franchise,
         created_by: "tool:timesheets", net: t.net, vat: t.vat, gross: t.gross, rates: tx.json(t.rates as never), ready_at: new Date(),
       })} returning id`;
@@ -144,7 +173,7 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
   if (made.created) {
     await notify(await issuerIds(), (t, locale) => ({
       title: format(t.notifications.timesheetsTitle, { project: b.project }),
-      body: format(made.clientName ? t.notifications.timesheetsBody : t.notifications.timesheetsNoClient, { client: made.clientName || b.client, amount: formatMoney(made.gross, context.currency, locale) }),
+      body: format(made.clientName ? t.notifications.timesheetsBody : t.notifications.timesheetsNoClient, { client: made.clientName || b.client, amount: formatMoney(made.gross, b.currency, locale) }),
     }), { path: `/chest/documents/${made.documentId}`, key: `ready:${made.documentId}` });
   }
   return { documentId: made.documentId, created: made.created };
@@ -153,7 +182,7 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
 // billableCancelled: the hand-off taken back in Timesheets. Its draft goes;
 // an issued invoice stays, and billing hear of it.
 export async function billableCancelled(sql: Sql, event: ToolEvent): Promise<"deleted" | "kept" | null> {
-  if (event.data["version"] !== 1) return null;
+  if (versionOf(event.data) !== 1) return null;
   const handoff = event.data["handoff"];
   if (typeof handoff !== "string" || !handoffPattern.test(handoff)) return null;
   const result = await sql.begin(async tx => {
@@ -182,17 +211,18 @@ export async function billableCancelled(sql: Sql, event: ToolEvent): Promise<"de
   return "kept";
 }
 
-// When the invoice was issued, told to the Chest (events.publish's
-// occurredAt, studio.16): a retry the next morning still says the day it
-// was issued, not the day it was told. The Chest takes a time at most 24
-// hours back; older (a Chest that refused for longer), the event goes
+// When the invoice was issued, told to the Chest (events.emit's
+// occurredAt): a retry the next morning still says the day it was issued,
+// not the day it was told. The Chest takes a time at most 72 hours back
+// (SDK 0.7.0); older (a Chest that refused for longer), the event goes
 // without it, and the receiver reads the Chest's time. Five minutes of
 // margin for the two clocks.
 export const occurredMarginMs = 5 * 60_000;
+export const occurredBehindMs = 72 * 3600_000;
 export function occurredAtFor(at: Date | null, now = Date.now()): Date | undefined {
   if (!at) return undefined;
   const age = now - at.getTime();
-  return age >= 0 && age < events.occurredLimits.behindMs - occurredMarginMs ? at : undefined;
+  return age >= 0 && age < occurredBehindMs - occurredMarginMs ? at : undefined;
 }
 
 // invoicedHandoff tells Timesheets the invoice of a hand-off is issued
@@ -205,9 +235,9 @@ export async function invoicedHandoff(sql: Query, documentId: string, by: string
   const who = by ?? h.finalised_by;
   const occurredAt = occurredAtFor(h.finalised_at, now);
   try {
-    await events.publish("quotes.invoiced", {
+    await events.emit("quotes.invoiced", {
       handoff: h.handoff, invoice: h.number, path: `/chest/documents/${documentId}`, ...(who && /^mbr_[a-z2-7]{26}$/u.test(who) ? { by: who } : {}),
-    }, { key: `quotes:invoiced:${h.handoff}`, ...(occurredAt ? { occurredAt } : {}) });
+    }, { subject: `handoff:${h.handoff}`, key: `quotes:invoiced:${h.handoff}`, ...(occurredAt ? { occurredAt } : {}) });
   } catch (error) {
     if (error instanceof ChestError) return false;
     throw error;

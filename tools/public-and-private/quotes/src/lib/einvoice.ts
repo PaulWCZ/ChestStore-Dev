@@ -174,7 +174,7 @@ export function einvoiceXml(input: EInvoiceInput): string {
   });
 
   // --- The parties.
-  const legal = [seller.legalForm && (seller.capital !== null ? format(t.capital, { form: seller.legalForm, amount: money(seller.capital) }) : seller.legalForm),
+  const legal = [seller.legalForm && (seller.capital !== null ? format(t.capital, { form: seller.legalForm, amount: formatMoney(seller.capital, seller.capitalCurrency ?? doc.currency, locale) }) : seller.legalForm),
     seller.rcsCity && seller.siren ? format(t.rcs, { city: seller.rcsCity, siren: spacedSiren(seller.siren) }) : ""].filter(Boolean).join(" · ");
   const sellerContact = seller.phone || seller.email
     ? `<ram:DefinedTradeContact>${seller.phone ? `<ram:TelephoneUniversalCommunication><ram:CompleteNumber>${esc(seller.phone)}</ram:CompleteNumber></ram:TelephoneUniversalCommunication>` : ""}${seller.email ? `<ram:EmailURIUniversalCommunication><ram:URIID>${esc(seller.email)}</ram:URIID></ram:EmailURIUniversalCommunication>` : ""}</ram:DefinedTradeContact>`

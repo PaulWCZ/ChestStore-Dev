@@ -15,7 +15,7 @@ import { everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" } });
+  chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", language: "fr" } });
   database = await testDatabase();
   await company(database.sql);
 });
@@ -84,14 +84,18 @@ test("an owner without a Quotes role: the draft is the tool's, and the sales peo
   assert.deepEqual(chest.notifications.filter(n => n.key === crmKey("D4")).map(n => n.member).sort(), [hugo.id, ines.id].sort());
 });
 
-test("no amount, another currency, no company: an empty line, a person as client", async () => {
+test("no amount, another currency, no company: an empty line, the deal's own currency, a person as client", async () => {
   await told("crm.deal.won", won("D5", { amount: null, company: null, contact: { name: "Jeanne Roux", email: "jeanne@example.test" } }));
   const q = await getDocument(database.sql, asMember(lea), String(await quoteOf("D5")), today);
   assert.equal(q.lines[0]?.unitPrice, 0);
   assert.equal(q.client?.kind, "person");
   assert.equal(q.client?.name, "Jeanne Roux");
+  // A deal in dollars: a quote in dollars, the deal's amount on its line
+  // (SDK 0.7.0: each document in its own currency).
   await told("crm.deal.won", won("D6", { currency: "USD" }));
-  assert.equal((await getDocument(database.sql, asMember(lea), String(await quoteOf("D6")), today)).lines[0]?.unitPrice, 0);
+  const usd = await getDocument(database.sql, asMember(lea), String(await quoteOf("D6")), today);
+  assert.equal(usd.currency, "USD");
+  assert.equal(usd.lines[0]?.unitPrice, 480000);
 });
 
 test("a deal reopened: an untouched draft goes (and can come back); a changed or sent one stays, and says so", async () => {
@@ -145,4 +149,32 @@ test("events of another shape are accepted and change nothing", async () => {
   const read = readWon({ deal: "D11", title: "  Site\n ", amount: 1, currency: "EUR", company: { ref: "c", name: "X", siren: "123", vat: "1", email: "no", country: "France" } });
   assert.deepEqual(read?.company && { siren: read.company.siren, vat: read.company.vat, email: read.company.email, country: read.company.country }, { siren: "", vat: "", email: "", country: "FR" });
   assert.equal(read?.title, "Site");
+});
+
+test("SDK 0.7.0's flat shape: the company and the contact as fields of their own", async () => {
+  const flat = {
+    deal: "F1", title: "Refonte du site", amount: 480000, currency: "EUR", owner: hugo.id,
+    companyRef: "co-77", companyName: "Menuiserie Noir SARL", companyAddress: "4 rue du Bois", companyPostcode: "69005", companyCity: "Lyon", companyCountry: "FR",
+    companyEmail: "contact@noir.test", contactName: "Paul Noir", contactEmail: "paul@noir.test",
+  };
+  const read = readWon(flat)!;
+  assert.deepEqual([read.company?.ref, read.company?.name, read.company?.city, read.contact?.name], ["co-77", "Menuiserie Noir SARL", "Lyon", "Paul Noir"]);
+  assert.equal(await told("crm.deal.won", flat), 204);
+  const q = await getDocument(database.sql, asMember(lea), String(await quoteOf("F1")), today);
+  assert.equal(q.client?.name, "Menuiserie Noir SARL");
+});
+
+test("a deal for some people only (its audience): no draft every reader of Quotes would see; its owner is told to write it", async () => {
+  // Hugo had many notices already: past the Chest's pace (0.7.0), a new
+  // one folds into his grouped item instead of keeping its key.
+  const grouped = () => chest.notifications.find(n => n.member === hugo.id && n.grouped !== undefined)?.grouped ?? 0;
+  const was = grouped();
+  assert.equal(await chest.deliver({ type: "crm.deal.won", source: "crm", audience: [hugo.id], data: won("P1") }, POST), 204);
+  assert.equal(await quoteOf("P1"), undefined, "no draft");
+  assert.ok(chest.notifications.some(n => n.member === hugo.id && n.key === crmKey("P1")) || grouped() > was, "Hugo is told");
+  // Not in the audience: nobody told, nothing made.
+  const after = chest.notifications.length;
+  await chest.deliver({ type: "crm.deal.won", source: "crm", audience: [lea.id], data: won("P2") }, POST);
+  assert.equal(chest.notifications.length, after);
+  assert.equal(await quoteOf("P2"), undefined);
 });

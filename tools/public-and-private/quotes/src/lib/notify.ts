@@ -16,7 +16,7 @@ export async function notify(recipients: Iterable<string>, message: (t: Catalogu
     const b = body ? cutLines(body, 280) : "";
     return { title: cut(title, 80), ...(b ? { body: b } : {}) };
   };
-  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as notifications.Translations;
+  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as Record<string, notifications.Words>;
   try {
     // 500 recipients a call at most (0.4.1's notify).
     for (let i = 0; i < ids.length; i += 500) await notifications.notify(ids.slice(i, i + 500), { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations });

@@ -13,7 +13,9 @@ import type { Query } from "./db.ts";
 // issued, whose lines taking deposits back are left out too — so a quote
 // invoiced in two times counts once, in full, in the month of its final
 // invoice. Invoices imported from the previous tool are not counted (they
-// were that tool's sales). Only the Chest's currency.
+// were that tool's sales). The figures are in the tool's default currency
+// (Settings); sales in other currencies are never added to them (no rate
+// of exchange): their year to date is given apart, one per currency.
 //
 // The salesperson is who wrote the quote an invoice came from, else who
 // wrote the invoice (a credit note: its invoice's). Who may read it: whoever
@@ -30,6 +32,8 @@ export type Revenue = {
   yearToDate: number;
   byClient: { name: string; net: number }[];
   bySeller: { id: string; net: number }[];
+  // The year to date in each other currency with sales this year.
+  others: { currency: string; yearToDate: number }[];
 };
 
 const monthBefore = (month: string): string => {
@@ -44,8 +48,8 @@ export async function revenue(sql: Query, actor: Member | null, today: string, c
   const lastYearKey = `${Number(month.slice(0, 4)) - 1}${month.slice(4)}`;
   const yearStart = `${month.slice(0, 4)}-01-01`;
   const from = [`${lastYearKey}-01`, `${lastMonthKey}-01`, yearStart].sort()[0]!;
-  const rows = await sql<{ type: "invoice" | "credit"; day: string; client: string; seller: string; sales: number }[]>`
-    select d.type, d.issue_date as day, coalesce(d.buyer->>'name', cl.name, '') as client,
+  const rows = await sql<{ type: "invoice" | "credit"; day: string; client: string; seller: string; sales: number; currency: string }[]>`
+    select d.type, d.issue_date as day, d.currency, coalesce(d.buyer->>'name', cl.name, '') as client,
            coalesce(q.created_by, iq.created_by, i.created_by, d.created_by) as seller,
            coalesce(sum(l.net) filter (where l.kind = 'line' and l.deposit_of is null), 0)::bigint as sales
     from documents d
@@ -54,15 +58,20 @@ export async function revenue(sql: Query, actor: Member | null, today: string, c
     left join documents q on q.id = d.quote_id
     left join documents iq on iq.id = i.quote_id
     left join lines l on l.document_id = d.id
-    where d.type in ('invoice', 'credit') and d.status = 'final' and d.deleted_at is null and d.currency = ${currency}
+    where d.type in ('invoice', 'credit') and d.status = 'final' and d.deleted_at is null
       and d.deposit_percent is null and (d.type = 'invoice' or i.deposit_percent is null)
       and d.issue_date >= ${from} and d.issue_date <= ${today}
     group by d.id, cl.name, q.created_by, iq.created_by, i.created_by`;
   let thisMonth = 0, lastMonth = 0, lastYear = 0, yearToDate = 0;
   const clients = new Map<string, number>();
   const sellers = new Map<string, number>();
+  const others = new Map<string, number>();
   for (const r of rows) {
     const net = r.type === "credit" ? -r.sales : r.sales;
+    if (r.currency !== currency) {
+      if (r.day >= yearStart) others.set(r.currency, (others.get(r.currency) ?? 0) + net);
+      continue;
+    }
     const key = r.day.slice(0, 7);
     if (key === month) thisMonth += net;
     if (key === lastMonthKey) lastMonth += net;
@@ -79,6 +88,7 @@ export async function revenue(sql: Query, actor: Member | null, today: string, c
     month, thisMonth, lastMonth, lastMonthKey, lastYear, lastYearKey, yearToDate,
     byClient: top(clients, (name, net) => ({ name, net })),
     bySeller: top(sellers, (id, net) => ({ id, net })),
+    others: [...others].filter(([, net]) => net !== 0).sort((a, b) => a[0].localeCompare(b[0])).map(([c, yearToDate]) => ({ currency: c, yearToDate })),
   };
 }
 

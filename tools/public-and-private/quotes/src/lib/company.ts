@@ -5,7 +5,7 @@ import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { email } from "./email.ts";
 import { bic, clean, country, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
-import { ambiguousAmount, parseAmount, parsePercent } from "../shared/money.ts";
+import { ambiguousAmount, isCurrency, parseAmount, parsePercent } from "../shared/money.ts";
 import type { Seller } from "../shared/parties.ts";
 
 // The seller: the company's legal details, which every document prints
@@ -19,6 +19,10 @@ export type Accounts = { journal: string; client: string; services: string; good
 export const defaultAccounts: Accounts = { journal: "VE", client: "411000", services: "706000", goods: "707000", deposits: "419100", vat: { "2000": "445710", "1000": "445710", "550": "445710", "210": "445710" } };
 
 export type Company = Seller & {
+  // The tool's default currency (SDK 0.7.0: the Chest has none): what a
+  // new document, catalogue item or import starts in. Each amount keeps
+  // its own code; changing this changes nothing already made.
+  currency: string;
   validityDays: number;
   quotePrefix: string;
   invoicePrefix: string;
@@ -37,7 +41,7 @@ export type Company = Seller & {
 export type Terms = { object: string; name: string; sha256: string; size: number };
 
 type Row = {
-  legal_name: string; trade_name: string; legal_form: string; capital: number | null; address: string; postcode: string; city: string; country: string;
+  legal_name: string; trade_name: string; legal_form: string; capital: number | null; capital_currency: string | null; currency: string; address: string; postcode: string; city: string; country: string;
   siren: string; siret: string; rcs_city: string; vat_number: string; vat_regime: string; vat_on_debits: boolean; email: string; phone: string; website: string;
   bank: string; iban: string; bic: string; logo_object: string | null; logo_type: string | null; payment_days: number; validity_days: number; penalty_rate: number | null;
   early_discount: string; quote_prefix: string; invoice_prefix: string; credit_prefix: string; footer: string; mail_works: boolean | null; updated_by: string | null; updated_at: Date | null;
@@ -48,7 +52,8 @@ type Row = {
 const accountsOf = (value: Partial<Accounts> | null): Accounts => ({ ...defaultAccounts, ...(value ?? {}), vat: { ...defaultAccounts.vat, ...(value?.vat ?? {}) } });
 
 const toCompany = (r: Row): Company => ({
-  legalName: r.legal_name, tradeName: r.trade_name, legalForm: r.legal_form, capital: r.capital, address: r.address, postcode: r.postcode, city: r.city, country: r.country,
+  legalName: r.legal_name, tradeName: r.trade_name, legalForm: r.legal_form, capital: r.capital, ...(r.capital !== null ? { capitalCurrency: r.capital_currency ?? r.currency ?? "EUR" } : {}),
+  currency: r.currency ?? "EUR", address: r.address, postcode: r.postcode, city: r.city, country: r.country,
   siren: r.siren, siret: r.siret, rcsCity: r.rcs_city, vatNumber: r.vat_number, franchise: r.vat_regime === "franchise", vatOnDebits: r.vat_on_debits,
   email: r.email, phone: r.phone, website: r.website, bank: r.bank, iban: r.iban, bic: r.bic, logo: r.logo_object, logoType: r.logo_type,
   paymentDays: r.payment_days, penaltyRate: r.penalty_rate, earlyDiscount: r.early_discount, footer: r.footer, paymentLink: r.payment_link ?? "",
@@ -99,7 +104,7 @@ export function missing(c: Company): string[] {
 }
 
 export type CompanyInput = Partial<Record<
-  | "legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber"
+  | "legalName" | "tradeName" | "legalForm" | "capital" | "currency" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber"
   | "franchise" | "vatOnDebits" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate"
   | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "remindersOn" | "reminderDays" | "remindersEmail" | "accounts", unknown>>;
 
@@ -166,14 +171,24 @@ export async function updateCompany(sql: Sql, actor: Member | null, input: Compa
     const sirenValue = input.siren === undefined ? current.siren : siren(input.siren);
     const siretValue = input.siret === undefined ? current.siret : siret(input.siret);
     if (siretValue && sirenValue && !siretValue.startsWith(sirenValue)) throw new AppError("siret_invalid");
+    // The default currency: an ISO 4217 code the runtime knows.
+    if (input.currency !== undefined && !isCurrency(input.currency)) throw new AppError("currency_invalid");
+    const currency = (input.currency as string | undefined) ?? current.currency;
+    // The share capital is written in the company's currency of the day,
+    // and keeps it (capital_currency) when the default changes later.
     let capital = current.capital;
+    let capitalCurrency = current.capital === null ? null : current.capitalCurrency ?? current.currency;
     if (input.capital !== undefined) {
-      if (input.capital === null || input.capital === "") capital = null;
-      else {
-        if (ambiguousAmount(input.capital)) throw new AppError("amount_ambiguous");
-        const parsed = parseAmount(input.capital);
+      if (input.capital === null || input.capital === "") {
+        capital = null;
+        capitalCurrency = null;
+      } else {
+        const written = capitalCurrency ?? currency;
+        if (ambiguousAmount(input.capital, written)) throw new AppError("amount_ambiguous");
+        const parsed = parseAmount(input.capital, written);
         if (parsed === null || parsed < 0 || parsed > limits.total) throw new AppError("capital_invalid");
         capital = parsed;
+        capitalCurrency = written;
       }
     }
     let penalty = current.penaltyRate;
@@ -190,6 +205,8 @@ export async function updateCompany(sql: Sql, actor: Member | null, input: Compa
       trade_name: text("tradeName", limits.name) ?? current.tradeName,
       legal_form: text("legalForm", 60) ?? current.legalForm,
       capital,
+      capital_currency: capitalCurrency,
+      currency,
       address: text("address", limits.address, true) ?? current.address,
       postcode: text("postcode", limits.postcode) ?? current.postcode,
       city: text("city", limits.city) ?? current.city,

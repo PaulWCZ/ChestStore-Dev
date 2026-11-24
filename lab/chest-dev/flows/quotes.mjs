@@ -1,6 +1,8 @@
 // Quotes & invoices, as people use it, in a real browser:
 //   node lab/chest-dev/flows/quotes.mjs [port]
-// (the harness runs the tool with --reset: the sample company is there).
+// (the harness runs the tool with --reset --tools crm,timesheets: the
+// sample company is there, and Clients and Timesheets are installed for
+// the links back.)
 // Hugo (sales, English) writes a quote on his phone and sends it; the
 // client accepts; he makes a deposit invoice and hands it to billing. Sofia
 // (billing, English) finalises it, sends it, records a payment. Camille
@@ -16,7 +18,9 @@
 import { as, control, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
-const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
+// /_chest/realtime: the desk's and the lists' live channel (SDK 0.7.0
+// realtime); this harness does not serve the Chest's realtime yet.
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$|\/_chest\/realtime$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const french = async () => context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -262,10 +266,11 @@ await step("Sofia sends it and records a partial payment, then deletes and resto
 });
 
 await step("Timesheets hands over billable time: one draft invoice, linked back, finalised by Sofia, and Timesheets hears it once", async () => {
-  const data = { version: 1, handoff: "901", project: { id: "3", name: "Site vitrine" }, client: { id: "2", name: "garage ROSSI sarl" },
-    period: { from: "2026-09-01", to: "2026-09-30" }, currency: "EUR", minutes: 450, amount: 67500, entries: 12,
-    lines: [{ label: "Design", task: { id: "7", name: "Design" }, minutes: 450, rate: 9000, amount: 67500, entries: 12 }],
-    source: { tool: "timesheets", path: "/chest/projects/3" } };
+  // Flat, as SDK 0.7.0 carries it: names as fields, the lines as JSON text.
+  const data = { version: 1, handoff: "901", projectName: "Site vitrine", clientName: "garage ROSSI sarl",
+    from: "2026-09-01", to: "2026-09-30", currency: "EUR", minutes: 450, amount: 67500, entries: 12,
+    lines: JSON.stringify([{ label: "Design", task: null, minutes: 450, rate: 9000, amount: 67500, entries: 12 }]),
+    path: "/chest/projects/3" };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
   expect((await dev()).includes("Time to invoice from Timesheets: Site vitrine"), "billing told in the bell");
@@ -681,6 +686,30 @@ await step("phone: every place with its words — five labelled tabs, the rest i
   await page.waitForURL(/\/chest\/settings$/u);
 });
 
+await step("each document in its own currency: the tool's default in Settings, a draft quote changed to dollars, its totals in dollars", async () => {
+  await as(context, origin, "camille");
+  await english();
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/settings");
+  const select = page.getByLabel("Default currency");
+  expect((await select.inputValue()) === "EUR", "EUR by default");
+  expect((await page.locator("#s-currency-hint").innerText()).includes("Each document keeps its own"), "said in plain words");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "New quote" }).first().click();
+  await page.waitForURL(/\/chest\/documents\/\d+$/u);
+  await page.getByLabel("Amounts in").selectOption("USD");
+  if (!(await page.getByLabel("Description of line 1").count())) await page.getByRole("button", { name: "Add a line" }).click();
+  await page.getByLabel("Description of line 1").fill("Licence");
+  await page.getByLabel("Unit price excluding VAT of line 1").fill("100");
+  await saved();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.getByLabel("Amounts in").inputValue()) === "USD", "kept in dollars");
+  const totals = await page.locator(".totals").innerText();
+  expect(/\$|US\s?\$/u.test(totals) && !totals.includes("€"), "the totals in dollars: " + totals);
+});
+
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -692,4 +721,7 @@ await step("phone width: no page scrolls sideways", async () => {
 });
 
 await browser.close();
-done(problems);
+// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
+// the desk's live channel (SDK 0.7.0 realtime) cannot connect here, and the
+// page stays as read. Its refusals are the harness's, not Quotes'.
+done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));

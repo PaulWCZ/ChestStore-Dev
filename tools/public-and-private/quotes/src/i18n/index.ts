@@ -35,4 +35,4 @@ export const words = (language: string): Catalogue => catalogues[localeIn(locale
 // A member's or the Chest's language, narrowed to one the tool speaks.
 export const localeOf = (language: string | null | undefined): Locale => localeIn(locales, language);
 
-export { countryName, format, formatDate, formatDay, formatSize, intl, languageNames, numericDay, plural, relative } from "./format.ts";
+export { countryName, currencyOptions, format, formatDate, formatDay, formatSize, intl, languageNames, numericDay, plural, relative } from "./format.ts";

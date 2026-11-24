@@ -3,21 +3,24 @@ import { can } from "./access.ts";
 import type { Query } from "./db.ts";
 import { collectable, listDocuments, type ListRow } from "./documents.ts";
 import { addDays } from "../shared/model.ts";
+import { totalsBy, type Totals } from "../shared/money.ts";
 
 // The desk: what the company waits for (quotes sent, money to collect), what
 // is late, and what needs someone now — each list short, the oldest first.
 
+// Each figure is one amount per currency (SDK 0.7.0: no Chest currency;
+// amounts of different currencies are never added), the tool's default
+// first.
 export type Desk = {
-  waiting: { count: number; net: number };
-  toCollect: { count: number; due: number };
-  overdue: { count: number; due: number };
+  waiting: { count: number; net: Totals };
+  toCollect: { count: number; due: Totals };
+  overdue: { count: number; due: Totals };
   needs: { row: ListRow; reason: "ready" | "overdue" | "expiring" | "expired" | "accepted" | "draft" | "crm" }[];
   recent: ListRow[];
   empty: boolean;
-  currency: string | null;
 };
 
-export async function desk(sql: Query, actor: Member, today: string): Promise<Desk> {
+export async function desk(sql: Query, actor: Member, today: string, currency = "EUR"): Promise<Desk> {
   const all = await listDocuments(sql, actor, { types: ["quote", "invoice", "credit"], limit: 2000 }, today);
   const waitingQuotes = all.filter(r => r.type === "quote" && r.state === "sent");
   const open = all.filter(r => collectable(r) && r.due > 0 && r.state !== "credited");
@@ -34,12 +37,11 @@ export async function desk(sql: Query, actor: Member, today: string): Promise<De
   if (can(actor, "quotes.write")) for (const r of all.filter(r => r.type === "quote" && r.status === "draft" && r.crmTitle && (r.createdBy === actor.id || r.createdBy === "tool:crm"))) needs.push({ row: r, reason: "crm" });
   for (const r of all.filter(r => r.status === "draft" && r.createdBy === actor.id && !r.readyAt && !r.crmTitle)) needs.push({ row: r, reason: "draft" });
   return {
-    waiting: { count: waitingQuotes.length, net: waitingQuotes.reduce((s, r) => s + r.net, 0) },
-    toCollect: { count: open.length, due: open.reduce((s, r) => s + r.due, 0) },
-    overdue: { count: late.length, due: late.reduce((s, r) => s + r.due, 0) },
+    waiting: { count: waitingQuotes.length, net: totalsBy(waitingQuotes, r => r.currency, r => r.net, currency) },
+    toCollect: { count: open.length, due: totalsBy(open, r => r.currency, r => r.due, currency) },
+    overdue: { count: late.length, due: totalsBy(late, r => r.currency, r => r.due, currency) },
     needs: needs.slice(0, 12),
     recent: all.filter(r => r.status !== "draft").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6),
     empty: all.length === 0,
-    currency: all[0]?.currency ?? null,
   };
 }

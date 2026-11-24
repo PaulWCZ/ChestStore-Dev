@@ -8,7 +8,7 @@ import type { Buyer, Seller } from "../shared/parties.ts";
 import type { RateTotal } from "../shared/totals.ts";
 
 export type ClientOption = Buyer & { id: string; language: Locale; reverseCharge: boolean; archived: boolean; countryName: string };
-export type ItemOption = { id: string; name: string; description: string; unit: string; unitPrice: number; vatRate: number; goods: boolean };
+export type ItemOption = { id: string; name: string; description: string; unit: string; unitPrice: number; currency: string; vatRate: number; goods: boolean };
 
 export type DocView = {
   id: string;

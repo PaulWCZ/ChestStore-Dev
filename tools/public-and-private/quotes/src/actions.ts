@@ -39,13 +39,15 @@ import * as versions from "./lib/versions.ts";
 // do what is checked there, from `member` — never from the input —, every
 // value is checked again there, and a refusal is a code (src/i18n,
 // errors) the reader sees in their words. The day is always the Chest's
-// (chest.today()), the currency the Chest's (chest.currency).
+// (chest.today()); there is no Chest currency (SDK 0.7.0): what a new
+// document, item or import starts in is the tool's default (Settings,
+// company.currency), and every amount keeps its own code.
 
 const id = field.id();
 // What a person typed, as it was sent (a string, or a number an island
 // sent as one): the rules clean, bound and read it themselves — lines kept
 // where a text may have several (an address, notes), an amount read in the
-// currency of the document or of the Chest. field.money() is not used for
+// currency of the document or of the item. field.money() is not used for
 // amounts: it reads cents, and Quotes' currency may have no decimals (JPY)
 // or three (KWD) — src/lib/money.ts, parseAmount.
 const typed = (max: number): Field<string, string | number> => ({
@@ -54,7 +56,9 @@ const typed = (max: number): Field<string, string | number> => ({
 // An amount typed ("1 234,50", "12.5"), read by the rule in its currency.
 const amount = typed(40);
 const today = () => chest.today();
-const defaults = (): documents.Defaults => ({ today: today(), locale: localeOf(chest.language), currency: chest.currency });
+const defaults = (): documents.Defaults => ({ today: today(), locale: localeOf(chest.language) });
+// The tool's default currency (Settings).
+const defaultCurrency = async (): Promise<string> => (await company.company(db())).currency;
 
 // A client's card, as its form sends it.
 const clientFields = {
@@ -71,7 +75,7 @@ const companyFields = {
   vatOnDebits: field.bool(), email: optionalEmail, phone: typed(limits.phone), website: typed(120), bank: typed(limits.name), iban: typed(42), bic: typed(11),
   paymentDays: typed(8), validityDays: typed(8), penaltyRate: typed(12), earlyDiscount: typed(limits.terms), footer: typed(limits.terms), quotePrefix: typed(limits.prefix),
   invoicePrefix: typed(limits.prefix), creditPrefix: typed(limits.prefix), paymentLink: typed(300), remindersOn: field.bool(), reminderDays: typed(40),
-  remindersEmail: field.bool(), accounts: field.json(),
+  remindersEmail: field.bool(), accounts: field.json(), currency: field.currency(),
 };
 // A file the browser sends to the Chest's files (a logo, the terms): what
 // it says it is, before it is granted.
@@ -229,7 +233,7 @@ export const actions = {
   // The statement's text (the columns chosen) read against the invoices
   // still to collect: each payment received with its match. Reads only.
   readBank: action({ text: typed(bankLimits.bytes), mapping: field.json() }, async ({ text, mapping }, { member }): Promise<bank.Reading> =>
-    bank.readBank(db(), member, text, mapping, today(), chest.currency), { maxBody: 3 << 20, parallel: true }),
+    bank.readBank(db(), member, text, mapping, today(), await defaultCurrency()), { maxBody: 3 << 20, parallel: true }),
 
   recordBank: action({ key: field.text({ max: 80 }), invoiceId: id, date: field.day(), amount: field.int({ min: 1, max: limits.total }), label: typed(400) }, async (input, { member }): Promise<{ id: string; due: number }> => {
     const done = await bank.recordBankLine(db(), member, input, today());
@@ -255,7 +259,7 @@ export const actions = {
     })), { parallel: true }),
 
   findItems: action({ q: field.optional(field.text({ max: 80 })) }, async ({ q }, { member }): Promise<ItemOption[]> =>
-    (await items.listItems(db(), member, { q: q ?? "", limit: 50 })).map(i => ({ id: i.id, name: i.name, description: i.description, unit: i.unit, unitPrice: i.unitPrice, vatRate: i.vatRate, goods: i.goods })),
+    (await items.listItems(db(), member, { q: q ?? "", limit: 50 })).map(i => ({ id: i.id, name: i.name, description: i.description, unit: i.unit, unitPrice: i.unitPrice, currency: i.currency, vatRate: i.vatRate, goods: i.goods })),
   { parallel: true }),
 
   addClient: action(clientFields, async (input, { member }): Promise<clients.Client> => clients.addClient(db(), member, input)),
@@ -267,9 +271,9 @@ export const actions = {
     return null;
   }),
 
-  addItem: action(itemFields, async (input, { member }): Promise<items.Item> => items.addItem(db(), member, input, chest.currency)),
+  addItem: action(itemFields, async (input, { member }): Promise<items.Item> => items.addItem(db(), member, input, await defaultCurrency())),
 
-  updateItem: action({ id, ...itemFields }, async ({ id: itemId, ...input }, { member }): Promise<items.Item> => items.updateItem(db(), member, itemId, input, chest.currency)),
+  updateItem: action({ id, ...itemFields }, async ({ id: itemId, ...input }, { member }): Promise<items.Item> => items.updateItem(db(), member, itemId, input)),
 
   archiveItem: action({ id, archived: field.bool() }, async ({ id: itemId, archived }, { member }): Promise<null> => {
     await items.archiveItem(db(), member, itemId, archived);
@@ -280,7 +284,7 @@ export const actions = {
   // invoices still to collect; the file is read again here. Slow: sent
   // beside the queue.
   importFile: action({ kind: field.choice(importKinds), text: typed(importLimits.bytes), mapping: field.json() }, async ({ kind, text, mapping }, { member }): Promise<importers.ImportReport> => {
-    const report = await importers.importTable(db(), member, kind, text, mapping, { currency: chest.currency, defaultLanguage: localeOf(chest.language), today: today() });
+    const report = await importers.importTable(db(), member, kind, text, mapping, { currency: await defaultCurrency(), defaultLanguage: localeOf(chest.language), today: today() });
     // Imported invoices may be overdue already: billing's count follows.
     if (kind === "invoices" && report.created > 0) recount();
     return report;

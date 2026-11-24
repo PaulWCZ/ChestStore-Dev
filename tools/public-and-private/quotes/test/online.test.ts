@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { decideQuote, getDocument, saveDraft } from "../src/lib/documents.ts";
 import { AppError } from "../src/shared/app-error.ts";
 import { erase } from "../src/lib/lifecycle.ts";
@@ -113,8 +113,8 @@ test("the client accepts: name, Bon pour accord, the PDF they saw; the author he
   assert.equal(full.decidedBy, "client");
   const told = chest.notifications.slice(before);
   assert.deepEqual(told.map(n => n.member), [ines.id]);
-  assert.equal(shownTo(told[0]!, "fr").title, `Marie Dupain a accepté le devis ${full.number} en ligne`);
-  assert.equal(told[0]!.title, `Marie Dupain accepted quote ${full.number} online`, "English, the fallback, in the same notice");
+  // Inès reads French: the Chest keeps the notice's French translation for her.
+  assert.equal(told[0]!.title, `Marie Dupain a accepté le devis ${full.number} en ligne`);
   assert.equal(told[0]!.path, `/chest/documents/${id}`);
   // The page now says it is accepted, by whom; a second answer is refused.
   const after = (await openLink(sql, secret, today))!;

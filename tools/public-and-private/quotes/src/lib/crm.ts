@@ -11,21 +11,29 @@ import { addDays, country, limits, siren, vatNumber } from "../shared/model.ts";
 import { lineNet, totals } from "../shared/totals.ts";
 import { holders } from "./people.ts";
 import { notify, withdraw } from "./notify.ts";
-import { formatMoney } from "../shared/money.ts";
+import { formatMoney, isCurrency } from "../shared/money.ts";
 
-// What Clients (the CRM tool) tells Quotes (Proposal (studio): events
-// between tools, once an admin linked the two). A deal won there becomes a
-// draft quote here — once per deal — for its client, with one line of the
-// deal's amount, owned by the deal's owner when they may write quotes, and
-// the owner (or else the sales people) told in the bell. A deal reopened
-// takes its draft back if nobody touched it; otherwise the quote stays and
-// says so in its history.
+// What Clients (the CRM tool) tells Quotes (SDK 0.7.0 events between
+// tools, once the owner approved the link). A deal won there becomes a
+// draft quote here — once per deal — in the deal's own currency, for its
+// client, with one line of the deal's amount, owned by the deal's owner
+// when they may write quotes, and the owner (or else the sales people)
+// told in the bell. A deal reopened takes its draft back if nobody touched
+// it; otherwise the quote stays and says so in its history.
 //
-// Data, as Clients publishes it:
-//   crm.deal.won      { deal, title, amount: cents | null, currency, company: {ref, name, address, postcode,
-//                       city, country, siren, vat, email} | null, contact: {name, email} | null, owner: "mbr_…" | null }
+// Data, as Clients emits it — flat (SDK 0.7.0: fields of the Chest's
+// kinds, no object):
+//   crm.deal.won      { deal, title, amount: cents | null, currency, owner: "mbr_…" | null,
+//                       companyRef, companyName, companyAddress, companyPostcode, companyCity,
+//                       companyCountry, companySiren, companyVat, companyEmail, contactName, contactEmail }
 //   crm.deal.reopened { deal }
-// Anything of another shape is accepted and ignored.
+// The nested shape of before (company: {ref, name, …}, contact: {name,
+// email}) is read too. Anything of another shape is accepted and ignored.
+//
+// The audience (who in Clients may see the deal): Quotes has no private
+// document — every member with a role in Quotes reads every quote — so a
+// deal told for some people only makes no draft here; the deal's owner,
+// when the audience names them, is told to write its quote.
 //
 // The client: found by the CRM's reference (clients.external_ref), else by
 // SIREN (then linked), else created from the company. **The rule for an
@@ -55,19 +63,29 @@ const refPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 // hashed, so two references differing by case never share one).
 export const crmKey = (deal: string) => "crm:" + createHash("sha256").update(deal).digest("hex").slice(0, 40);
 
+// The company and the contact of a deal, as Clients sends them: flat
+// fields (company*, contact*), or the nested objects of before.
+const prefixed = (data: Record<string, unknown>, prefix: string, keys: string[]): Record<string, unknown> | null => {
+  const nested = data[prefix];
+  if (nested !== undefined && nested !== null) return typeof nested === "object" && !Array.isArray(nested) ? nested as Record<string, unknown> : null;
+  const flat = Object.fromEntries(keys.map(k => [k, data[prefix + k[0]!.toUpperCase() + k.slice(1)]]).filter(([, v]) => v !== undefined && v !== null));
+  return Object.keys(flat).length > 0 ? flat : null;
+};
+
 export function readWon(data: Record<string, unknown>): Won | null {
   const { deal, title, amount, currency, owner } = data;
+  if (data["company"] !== undefined && data["company"] !== null && (typeof data["company"] !== "object" || Array.isArray(data["company"]))) return null;
+  if (data["contact"] !== undefined && data["contact"] !== null && (typeof data["contact"] !== "object" || Array.isArray(data["contact"]))) return null;
   if (typeof deal !== "string" || !refPattern.test(deal)) return null;
   const name = line(title, limits.title);
   if (!name) return null;
   if (amount !== null && amount !== undefined && (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount < 0 || amount > limits.unitPrice)) return null;
-  if (typeof currency !== "string" || !/^[A-Z]{3}$/u.test(currency)) return null;
+  if (!isCurrency(currency)) return null;
   if (owner !== null && owner !== undefined && (typeof owner !== "string" || !/^mbr_[a-z2-7]{26}$/u.test(owner))) return null;
   let c: Company | null = null;
-  const raw = data["company"];
-  if (raw !== null && raw !== undefined) {
-    if (typeof raw !== "object" || Array.isArray(raw)) return null;
-    const r = raw as Record<string, unknown>;
+  const raw = prefixed(data, "company", ["ref", "name", "address", "postcode", "city", "country", "siren", "vat", "email"]);
+  if (raw !== null) {
+    const r = raw;
     if (typeof r["ref"] !== "string" || !refPattern.test(r["ref"])) return null;
     const companyName = line(r["name"], limits.name);
     if (!companyName) return null;
@@ -77,10 +95,9 @@ export function readWon(data: Record<string, unknown>): Won | null {
     };
   }
   let contact: Won["contact"] = null;
-  const rc = data["contact"];
-  if (rc !== null && rc !== undefined) {
-    if (typeof rc !== "object" || Array.isArray(rc)) return null;
-    const r = rc as Record<string, unknown>;
+  const rc = prefixed(data, "contact", ["name", "email"]);
+  if (rc !== null) {
+    const r = rc;
     const contactName = line(r["name"], limits.contact);
     if (contactName) contact = { name: contactName, email: safe(() => email(r["email"] ?? ""), "") };
   }
@@ -139,10 +156,18 @@ async function mayQuote(owner: string | null): Promise<boolean> {
 
 export type Made = { documentId: string; created: boolean };
 
-export async function dealWon(sql: Sql, event: ToolEvent, context: { today: string; locale: Locale; currency: string }): Promise<Made | null> {
+export async function dealWon(sql: Sql, event: ToolEvent, context: { today: string; locale: Locale }): Promise<Made | null> {
   const won = readWon(event.data);
   if (!won) return null;
   const owner = (await mayQuote(won.owner)) ? won.owner : null;
+  // A deal for some people only: no draft every reader of Quotes would
+  // see; its owner, when they may see it, writes the quote.
+  if (event.audience !== "all") {
+    if (owner && event.audience.includes(owner)) {
+      await notify([owner], t => ({ title: format(t.notifications.crmWonTitle, { title: won.title }), body: t.notifications.crmWonPrivate }), { path: "/chest/quotes", key: crmKey(won.deal) });
+    }
+    return null;
+  }
   const made = await sql.begin(async tx => {
     const [existing] = await tx<{ id: number }[]>`select id from documents where crm_deal = ${won.deal}`;
     if (existing) {
@@ -151,13 +176,14 @@ export async function dealWon(sql: Sql, event: ToolEvent, context: { today: stri
     }
     const c = await company(tx);
     const client = await clientFor(tx, won, context.locale);
-    const lines = [{ kind: "line" as const, quantity: 1000, unitPrice: won.currency === context.currency ? won.amount ?? 0 : 0, discount: 0, vatRate: 2000 }];
+    // The quote is in the deal's currency, its amount as Clients counted it.
+    const lines = [{ kind: "line" as const, quantity: 1000, unitPrice: won.amount ?? 0, discount: 0, vatRate: 2000 }];
     const noVat = c.franchise || Boolean(client?.reverse_charge);
     const t = totals(lines, { noVat });
     const [doc] = await tx<{ id: number }[]>`
       insert into documents ${tx({
         type: "quote", client_id: client && !client.archived_at ? client.id : null, title: won.title, language: client && isLocale(client.language) ? client.language : context.locale,
-        currency: context.currency, valid_until: addDays(context.today, c.validityDays), payment_days: c.paymentDays, vat_treatment: client?.reverse_charge ? "reverse_charge" : "standard",
+        currency: won.currency, valid_until: addDays(context.today, c.validityDays), payment_days: c.paymentDays, vat_treatment: client?.reverse_charge ? "reverse_charge" : "standard",
         franchise: c.franchise, created_by: owner ?? "tool:crm", net: t.net, vat: t.vat, gross: t.gross, crm_deal: won.deal, crm_title: won.title, rates: tx.json(t.rates as never),
       })}
       on conflict (crm_deal) where crm_deal is not null do nothing returning id`;
@@ -175,7 +201,7 @@ export async function dealWon(sql: Sql, event: ToolEvent, context: { today: stri
     const { gross, clientName } = made as Made & { gross: number; clientName: string };
     await notify(to, (t, locale) => ({
       title: format(t.notifications.crmWonTitle, { title: won.title }),
-      body: format(clientName ? t.notifications.crmWonBody : t.notifications.crmWonNoClient, { client: clientName, amount: formatMoney(gross, context.currency, locale) }),
+      body: format(clientName ? t.notifications.crmWonBody : t.notifications.crmWonNoClient, { client: clientName, amount: formatMoney(gross, won.currency, locale) }),
     }), { path: `/chest/documents/${made.documentId}`, key: crmKey(won.deal) });
   }
   return { documentId: made.documentId, created: made.created };

@@ -18,20 +18,20 @@ import { billableCancelled, billableReceived } from "./timesheets.ts";
 // skipped (seen: chest_events).
 
 // POST /chest-events: the members' lifecycle, and what Clients (the CRM)
-// and Timesheets tell (Proposal (studio): events between tools).
+// and Timesheets tell (SDK 0.7.0 events between tools, chest.json
+// "receives"): one handler map. A deal's quote or a hand-off's invoice is
+// in the deal's or the hand-off's own currency (a document keeps its code).
 export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
   const locale = localeOf(chest.language);
   return new Response(null, {
-    status: await events.handle(request, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "crm.deal.won": async e => { await dealWon(sql, e, { today: chest.today(), locale, currency: chest.currency }); },
-        "crm.deal.reopened": async e => { await dealReopened(sql, e); },
-        "timesheets.billable": async e => { await billableReceived(sql, e, { locale, currency: chest.currency }); await refreshBadges(sql, chest.today()); },
-        "timesheets.billable_cancelled": async e => { await billableCancelled(sql, e); await refreshBadges(sql, chest.today()); },
-      },
-    }),
+    status: await events.handle(request, {
+      ...handlers(sql),
+      "crm.deal.won": async e => { await dealWon(sql, e, { today: chest.today(), locale }); },
+      "crm.deal.reopened": async e => { await dealReopened(sql, e); },
+      "timesheets.billable": async e => { await billableReceived(sql, e, { locale }); await refreshBadges(sql, chest.today()); },
+      "timesheets.billable-cancelled": async e => { await billableCancelled(sql, e); await refreshBadges(sql, chest.today()); },
+    }, { seen: seen(sql) }),
   });
 }
 

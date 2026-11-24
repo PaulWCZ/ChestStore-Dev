@@ -136,7 +136,7 @@ test("what leaves comes back: the clients and catalogue exports import as they a
   await client(sql, { name: "Client exporté", siren: "", vatNumber: "", account: "EXP01" });
   for (const locale of ["fr", "en"] as const) {
     const clientsText = await clientsCsv(sql, asMember(lea), locale);
-    const itemsText = await itemsCsv(sql, asMember(lea), locale, "EUR");
+    const itemsText = await itemsCsv(sql, asMember(lea), locale);
     const head = readTable(clientsText).head;
     const mapping = guessMapping("clients", head);
     // Every column but "reverse charge" and "archived" is known.

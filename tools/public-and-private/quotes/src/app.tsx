@@ -121,14 +121,14 @@ app.get("/chest/export/journal", download(async ({ member, locale, query }) => {
   return { name: fileName, type: "text/csv; charset=utf-8", body: text };
 }));
 app.get("/chest/export/zip", download(async ({ member, locale, query }) => {
-  const { stream, fileName } = await exportZip(db(), member, localeOf(locale), period(query("from"), query("to")), chest.today(), chest.currency);
+  const { stream, fileName } = await exportZip(db(), member, localeOf(locale), period(query("from"), query("to")), chest.today());
   return { name: fileName, type: "application/zip", body: stream };
 }));
 // The clients or the catalogue, with the importer's column names.
 app.get("/chest/export/lists/:name", download(async ({ member, locale, t, param }) => {
   const name = param("name");
   if (name !== "clients" && name !== "items") fail("not_found");
-  const text = name === "clients" ? await clientsCsv(db(), member, localeOf(locale)) : await itemsCsv(db(), member, localeOf(locale), chest.currency);
+  const text = name === "clients" ? await clientsCsv(db(), member, localeOf(locale)) : await itemsCsv(db(), member, localeOf(locale));
   return { name: (name === "clients" ? t.csv.clientsFile : t.csv.itemsFile) + ".csv", type: "text/csv; charset=utf-8", body: text };
 }));
 // One month's archive (?part= when it was cut into parts), as it was kept

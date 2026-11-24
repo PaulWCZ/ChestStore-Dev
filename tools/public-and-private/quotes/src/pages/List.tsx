@@ -105,7 +105,7 @@ function listPage(ctx: PageContext<MemberContext>, { path, title, intro, filters
   const newButton = (label: string) => create && <Island name="NewDocument" props={{ type: create.type, label }} />;
   return (
     <div className="page">
-      <Island name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island name="LiveDocuments" props={{}} />
       {/* Empty, the page's one action is the empty state's: no header button. */}
       <PageHeader size="m" title={title} intro={intro}
         secondary={side && (rows.length > 0 || q) ? <a className="button quiet" href={side.href}>{side.label}</a> : undefined}

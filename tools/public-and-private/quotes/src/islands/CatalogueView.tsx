@@ -16,13 +16,14 @@ type Fields = { name: string; description: string; unit: string; unitPrice: stri
 
 export function CatalogueView({ t, locale, items, archived, canWrite, currency }: { t: CatalogueWords; locale: Locale; items: readonly Item[]; archived: boolean; canWrite: boolean; currency: string }) {
   const c = t.catalogue;
-  const [editing, setEditing] = useState<{ id: string | null; fields: Fields; initial: Fields } | null>(null);
+  // An item keeps its currency; a new one is in the tool's default.
+  const [editing, setEditing] = useState<{ id: string | null; currency: string; fields: Fields; initial: Fields } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const open = (item: Item | null) => {
     setError(null);
-    const fields: Fields = item ? { name: item.name, description: item.description, unit: item.unit, unitPrice: inputAmount(item.unitPrice, currency, locale), vatRate: item.vatRate, goods: item.goods } : { name: "", description: "", unit: "", unitPrice: "", vatRate: 2000, goods: false };
-    setEditing({ id: item?.id ?? null, fields, initial: fields });
+    const fields: Fields = item ? { name: item.name, description: item.description, unit: item.unit, unitPrice: inputAmount(item.unitPrice, item.currency, locale), vatRate: item.vatRate, goods: item.goods } : { name: "", description: "", unit: "", unitPrice: "", vatRate: 2000, goods: false };
+    setEditing({ id: item?.id ?? null, currency: item?.currency ?? currency, fields, initial: fields });
   };
   const set = (patch: Partial<Fields>) => setEditing(e => (e ? { ...e, fields: { ...e.fields, ...patch } } : e));
   async function submit(e: React.FormEvent) {
@@ -64,7 +65,7 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
           columns={[
             { key: "name", label: c.name, rowHeader: true, value: i => i.name, render: i => <><span className="who">{i.name}</span>{i.description && <span className="what">{i.description.split("\n")[0]}</span>}</> },
             { key: "unit", label: c.unit, hideOnPhone: true, width: "narrow", render: i => <span className="date">{i.unit}</span> },
-            { key: "price", label: c.price, align: "end", width: "narrow", value: i => i.unitPrice, render: i => <span className="amount">{formatMoney(i.unitPrice, currency, locale)}</span> },
+            { key: "price", label: c.price, align: "end", width: "narrow", value: i => i.unitPrice, render: i => <span className="amount">{formatMoney(i.unitPrice, i.currency, locale)}</span> },
             { key: "vat", label: c.vat, align: "end", width: "narrow", hideOnPhone: true, value: i => i.vatRate, render: i => <span className="num">{formatRate(i.vatRate, locale)}</span> },
             ...(canWrite ? [{ key: "act", label: c.actions, align: "end" as const, width: "narrow" as const, render: (i: Item) => archived
               ? <button type="button" className="link-button" onClick={() => void archive(i, false)}>{c.restore}</button>
@@ -85,7 +86,10 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
             </div>
             <div className="field-row third">
               <label htmlFor="i-price">{c.price}</label>
-              <input id="i-price" className="field num" inputMode="decimal" value={editing.fields.unitPrice} onChange={e => set({ unitPrice: e.target.value })} />
+              <span className="with-unit">
+                <input id="i-price" className="field num" inputMode="decimal" value={editing.fields.unitPrice} aria-describedby="i-price-currency" onChange={e => set({ unitPrice: e.target.value })} />
+                <span className="hint" id="i-price-currency">{editing.currency}</span>
+              </span>
             </div>
             <div className="field-row third">
               <label htmlFor="i-unit">{c.unit}</label>

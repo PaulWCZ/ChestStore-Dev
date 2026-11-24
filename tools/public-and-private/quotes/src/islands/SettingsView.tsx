@@ -12,21 +12,21 @@ import { inputAmount, inputPercent } from "../shared/money.ts";
 
 export type SettingsWords = Pick<Catalogue, "settings" | "errors" | "kit">;
 
-type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate" | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "reminderDays", string>
+type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate" | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "reminderDays" | "currency", string>
   & { franchise: boolean; vatOnDebits: boolean; remindersOn: boolean; remindersEmail: boolean; accounts: Accounts };
 
 const fieldOf: Record<string, keyof Fields> = {
   siren_invalid: "siren", siret_invalid: "siret", vat_number_invalid: "vatNumber", iban_invalid: "iban", bic_invalid: "bic", invalid_email: "email", prefix_invalid: "invoicePrefix",
-  capital_invalid: "capital", penalty_invalid: "penaltyRate", terms_invalid: "paymentDays", country_invalid: "country", link_invalid: "paymentLink", reminder_days_invalid: "reminderDays",
+  capital_invalid: "capital", currency_invalid: "currency", penalty_invalid: "penaltyRate", terms_invalid: "paymentDays", country_invalid: "country", link_invalid: "paymentLink", reminder_days_invalid: "reminderDays",
   account_invalid: "accounts",
 };
 const forms = ["SARL", "SAS", "SASU", "EURL", "EI", "SA", "SCOP", "SNC", "SCI"];
 
-export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, mailReason, replyTo }: { mailReason: MailState["reason"]; replyTo: string | null; t: SettingsWords; locale: Locale; company: Company; missing: readonly string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: readonly { rate: string; text: string }[] }) {
+export function SettingsView({ t, locale, company: c, missing, canEdit, currencies, sample, logo, terms, rates, mailReason, replyTo }: { mailReason: MailState["reason"]; replyTo: string | null; t: SettingsWords; locale: Locale; company: Company; missing: readonly string[]; canEdit: boolean; currencies: readonly { code: string; name: string }[]; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: readonly { rate: string; text: string }[] }) {
   const s = t.settings;
   const r = s.reminderRules;
   const [f, setF] = useState<Fields>({
-    legalName: c.legalName, tradeName: c.tradeName, legalForm: c.legalForm, capital: c.capital === null ? "" : inputAmount(c.capital, currency, locale), address: c.address,
+    legalName: c.legalName, tradeName: c.tradeName, legalForm: c.legalForm, capital: c.capital === null ? "" : inputAmount(c.capital, c.capitalCurrency ?? c.currency, locale), currency: c.currency, address: c.address,
     postcode: c.postcode, city: c.city, country: c.country, siren: c.siren, siret: c.siret, rcsCity: c.rcsCity, vatNumber: c.vatNumber, email: c.email, phone: c.phone,
     website: c.website, bank: c.bank, iban: c.iban, bic: c.bic, paymentDays: String(c.paymentDays), validityDays: String(c.validityDays),
     penaltyRate: c.penaltyRate === null ? "" : inputPercent(c.penaltyRate, locale), earlyDiscount: c.earlyDiscount, footer: c.footer, quotePrefix: c.quotePrefix,
@@ -117,7 +117,7 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
             {text("legalForm", s.fields.legalForm, { className: "third", list: "forms", max: 60, hint: s.hints.legalForm })}
             <datalist id="forms">{forms.map(x => <option key={x} value={x} />)}</datalist>
             {text("tradeName", s.fields.tradeName, { className: "two-thirds", hint: s.hints.tradeName })}
-            {text("capital", s.fields.capital, { className: "third", inputMode: "decimal", hint: format(s.hints.capital, { currency }) })}
+            {text("capital", s.fields.capital, { className: "third", inputMode: "decimal", hint: format(s.hints.capital, { currency: c.capital === null ? f.currency : c.capitalCurrency ?? c.currency }) })}
             <div className="field-row">
               <label htmlFor="s-address">{s.fields.address}{needed("address") && <span className="error"> · {s.needed}</span>}</label>
               <textarea id="s-address" className="field" rows={2} value={f.address} maxLength={300} readOnly={!canEdit} aria-invalid={needed("address") ? true : undefined} onChange={e => set({ address: e.target.value })} />
@@ -237,6 +237,15 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
           <h2 id="s-documents">{s.sections.documents}</h2>
           <p className="hint">{s.sections.documentsHint}</p>
           <div className="form-grid">
+            {/* The tool's default currency (SDK 0.7.0: the Chest has none):
+                what new documents and items start in; each keeps its own. */}
+            <div className="field-row">
+              <label htmlFor="s-currency">{s.fields.currency}</label>
+              <select id="s-currency" className="field" value={f.currency} disabled={!canEdit} aria-describedby="s-currency-hint" aria-invalid={bad("currency")} onChange={e => set({ currency: e.target.value })}>
+                {currencies.map(x => <option key={x.code} value={x.code}>{x.name}</option>)}
+              </select>
+              <span className="hint" id="s-currency-hint">{s.hints.currency}</span>
+            </div>
             {text("validityDays", s.fields.validityDays, { className: "third", inputMode: "numeric", max: 3 })}
             {text("quotePrefix", s.fields.quotePrefix, { className: "third", max: 8, hint: sample.replace("X", f.quotePrefix || "?") })}
             {text("invoicePrefix", s.fields.invoicePrefix, { className: "third", max: 8, hint: sample.replace("X", f.invoicePrefix || "?") })}

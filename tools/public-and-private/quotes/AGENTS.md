@@ -10,8 +10,9 @@ The stack: Hono serving React rendered on the server, islands hydrated in
 the browser, built by Vite, on the package `@argentic/chest-app`
 (vendored: `createApp`, `page`/`publicPage`, `download`, `action`/
 `publicAction` with `field.*` and `bound`, `Island`, `call`/`refresh`/
-`navigate`/`toast`/`useAutoRefresh` from `/client`) and the SDK
-`@argentic/chest-sdk` 0.4.1-studio.7. Never copy the package's code into
+`navigate`/`toast`/`useLive` from `/client`; 0.1.0-studio.12) and the SDK
+`@argentic/chest-sdk` 0.7.0-studio.2 (0.7.0 and the studio's proposals:
+`mail`, `visitors`, `chest.tools`, `translations`), contract 0.7. Never copy the package's code into
 the tool.
 
 - `src/main.ts` (the server), `src/app.tsx` (every route: the team's pages,
@@ -94,7 +95,7 @@ the tool.
 - `src/lib/revenue.ts` — the desk's revenue card (as the journal counts sales).
 - `src/lib/timesheets.ts` — Timesheets' hand-offs (`handoffs`, migrations
   `0009_timesheets.sql`, `0012_handoff_amount.sql`): one draft invoice per
-  hand-off, cancel, `quotes.invoiced` published on finalise and retried by
+  hand-off, cancel, `quotes.invoiced` emitted on finalise and retried by
   the follow-up; what Timesheets counted kept beside the invoice (the
   rounding of the two sides: README, "With the other tools").
 - `src/lib/registry.ts` — the public directory of companies, the tool's only
@@ -177,9 +178,24 @@ numbering), `npm run build`, the studio's
 - **The PDF never follows the look**: nothing in `src/pdf/`,
   `src/lib/archive.ts` or `src/lib/einvoice.ts` reads the theme (tested). Legal
   documents keep their neutral print design.
-- **Nothing runs at rest**: no timer, no polling of your own (the package's
-  `useAutoRefresh` only), nothing in process memory that must survive a
-  sleep. Every Intl object comes from `src/i18n/format.ts`.
+- **Nothing runs at rest**: no timer, no polling — the desk and the lists
+  follow the Chest's realtime (`src/islands/LiveDocuments.tsx`, the
+  channel `documents` and its feeds in `chest.json`: a new table they
+  show gets a feed, ids only) —, nothing in process memory that must
+  survive a sleep.
+- **No Chest currency** (SDK 0.7.0): every amount keeps its ISO 4217 code
+  beside it (a document's `currency`, an item's `currency`, the share
+  capital's `capital_currency`); what is new starts in the tool's default
+  (`company.currency`, Settings); totals are one per currency
+  (`totalsBy`, the default first), never added across; a deal or a
+  hand-off comes in its own currency. A document's currency changes only
+  on a draft quote or an invoice written here, with its lines in the same
+  save (`currencyEditable`).
+- **Events between tools** (0.7.0): data flat, of the kinds `chest.json`
+  declares (a list is JSON text); received events are read in the flat
+  shape and the nested one of before; an event whose audience is a list
+  makes no document (Quotes has no private document): the members it
+  names are told instead. Every Intl object comes from `src/i18n/format.ts`.
 - **An island's props stay small**: a list that grows with the company
   goes by pages or is searched on the server; never hand an island a whole
   table, or the whole catalogue of words (`test/sources.test.ts`).

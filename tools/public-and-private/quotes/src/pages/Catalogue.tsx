@@ -3,6 +3,7 @@ import { chest } from "@argentic/chest-sdk/chest";
 import { Pager, pageOf, pageSize } from "../components/pager.tsx";
 import { localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
+import { company } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
 import { countItems, listItems } from "../lib/items.ts";
 
@@ -22,7 +23,7 @@ export async function cataloguePage(ctx: PageContext<MemberContext>): Promise<Vi
       <>
         <Island name="CatalogueView" props={{
           t: { catalogue: t.catalogue, list: t.list, kit: t.kit, errors: t.errors, common: t.common, units: Object.values(t.pdf.units).map(u => u.one) },
-          locale, items, archived, canWrite: can(member, "catalogue.write"), currency: chest.currency,
+          locale, items, archived, canWrite: can(member, "catalogue.write"), currency: (await company(db())).currency,
         }} />
         {pages > 1 && <div className="page pager-page">
           <Pager path="/chest/catalogue" params={archived ? { archived: "1" } : {}} page={page} pages={pages} shown={items.length} count={count} words={t.list} locale={locale} back={t.list.previous} next={t.list.next} />
