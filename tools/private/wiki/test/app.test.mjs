@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { atLeast, checkPage } from "@argentic/chest-app/testing";
+import { atLeast, checkPage, settled } from "@argentic/chest-app/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
 
@@ -21,7 +21,8 @@ before(async () => {
     tool: "wiki",
     network: {},
     members: everyone,
-    capabilities: ["members", "files", "notifications", "members.groups"],
+    capabilities: ["members", "files", "notifications", "members.groups", "realtime"],
+    realtime: JSON.parse(readFileSync("chest.json", "utf8")).realtime,
     groups: [
       { id: groups.office, name: "Office", members: [camille.id] },
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
@@ -98,7 +99,8 @@ test("a page: its text from the server, the islands people act on, the editor's 
   assert.match(html, /<div class="prose">/u);
   assert.match(html, /data-island="PageActions"/u);
   assert.match(html, /data-island="Comments"/u);
-  assert.match(html, /data-island="AutoRefresh"/u);
+  assert.match(html, /data-island="LivePage"/u, "the page follows the Chest's realtime");
+  assert.doesNotMatch(html, /AutoRefresh/u, "never a timer");
   assert.equal((await get(hugo, "/chest/pages/999")).status, 404);
   assert.equal((await get(hugo, "/chest/pages/abc")).status, 404);
   assert.match(await (await get(lea, "/chest/pages/999")).text(), /Rien ici[\s\S]*Retour au wiki/u);
@@ -143,8 +145,17 @@ test("actions from an island: a page made, moved, deleted and restored; refusals
   const locked = await (await call(ines, "openEditor", { pageId: value.id })).json();
   assert.equal(locked.value.status, "locked");
   assert.equal(locked.value.holder.name, "Tom Walker");
+  // What the waiting editor needs to wait without asking again: who (the
+  // page's presence), when Tom would turn idle, the lease of a lock.
+  assert.equal(locked.value.holder.id, tom.id);
+  assert.ok(locked.value.holder.idleIn > 800 && locked.value.holder.idleIn <= 900, "15 minutes, less what passed");
+  assert.equal(locked.value.holder.lapse, 120);
   const saved = await (await call(tom, "publishPage", { pageId: value.id, title: "Coffee machine", doc: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Descale it on Fridays." }] }] }), baseVersion: opened.value.version })).json();
   assert.equal(saved.ok, true);
+  // The lock taken, then given back by the save: the page's readers and
+  // the waiting editor are told (realtime, no payload).
+  await settled();
+  assert.deepEqual(chest.realtime.published.filter(p => p.channel === `page:${value.id}`).map(p => [p.event, p.payload]), [["page.lock", null], ["page.lock", null]]);
   assert.match(await page(hugo, `/chest/pages/${value.id}`), /Descale it on Fridays/u);
   // An upload: the Chest's address to PUT to, then the file recorded.
   const grant = await (await call(tom, "requestUpload", { pageId: value.id, size: 10 })).json();
@@ -159,7 +170,18 @@ test("cross-site requests are refused: actions, the beacon, the import", async (
   assert.equal((await app.fetch(noHeader)).status, 403, "JSON without the island's header");
   const beacon = (site, body = "") => app.fetch(withMember(new Request(url("/chest/api/pages/1/leave"), { method: "POST", body, headers: { "content-type": "text/plain", "sec-fetch-site": site } }), tom));
   assert.equal((await beacon("cross-site")).status, 403);
+  // Tom's editor of page 1 open, then its tab closed: the lock given back
+  // by the beacon, and said once; a second beacon has nothing to give back.
+  assert.equal((await call(tom, "openEditor", { pageId: "1" })).status, 200);
+  await settled();
+  const said = () => chest.realtime.published.filter(p => p.channel === "page:1" && p.event === "page.lock").length;
+  const before = said();
   assert.equal((await beacon("same-origin")).status, 204, "the lock given back");
+  await settled();
+  assert.equal(said(), before + 1, "and said");
+  assert.equal((await beacon("same-origin")).status, 204);
+  await settled();
+  assert.equal(said(), before + 1, "nothing given back: nothing said");
   const form = new FormData();
   form.append("files", new Blob(["# Hello\n\nA page."], { type: "text/markdown" }), "hello.md");
   const imported = (site, who = camille) => app.fetch(withMember(new Request(url("/chest/api/import"), { method: "POST", body: form, headers: { "sec-fetch-site": site } }), who));
@@ -204,8 +226,8 @@ test("the host's root, the language switch, the error pages, the browser's files
 test("the Chest's events and schedule runs, signed, each handled once", async () => {
   const to = request => app.fetch(request);
   const left = { type: "member.removed", id: "evt_" + "d".repeat(26), data: { id: lea.id } };
-  assert.equal(await chest.emit(left, to), 204);
-  assert.equal(await chest.emit(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
   assert.equal(await chest.run("reviews", to), 204);
   assert.equal(await chest.run("nothing", to), 404);
   assert.equal((await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}" }))).status, 401, "unsigned");

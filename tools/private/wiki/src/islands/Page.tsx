@@ -1,4 +1,4 @@
-import { toast, useAutoRefresh } from "@argentic/chest-app/client";
+import { toast, useLive } from "@argentic/chest-app/client";
 import { SearchBox } from "@argentic/chest-ui/components";
 import type { SearchWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef } from "react";
@@ -22,13 +22,16 @@ export function Ready() {
   return null;
 }
 
-// The Chest has no WebSocket: a page others change is read again while
-// its reader is there — when the tab comes back, and every `seconds` while
-// they were active in the last ten minutes (the package's useAutoRefresh:
-// idle, it stops, so a tab left open lets the tool sleep). The page's
-// version (src/app.tsx: pageStamp) makes a read with nothing new a 304.
-export function AutoRefresh({ seconds }: { seconds: number }) {
-  useAutoRefresh(seconds);
+// A page others change, read again when the Chest says it changed —
+// never on a timer (SDK 0.7.0's realtime: the "page:<id>" channel and its
+// feeds in chest.json): a new version, title or flag (pages), a comment
+// (page_comments), someone starting or stopping to edit it (page.lock,
+// published by the wiki: lib/live.ts). The wiki sleeps while the page
+// stays open. The page's version (src/app.tsx: pageStamp) makes a read
+// with nothing new a 304. focus: the reader has it on screen — the
+// people watching it are not notified of a comment they see arrive.
+export function LivePage({ id }: { id: string }) {
+  useLive(`page:${id}`, ["pages", "page_comments", "page.lock"], { focus: true });
   return null;
 }
 

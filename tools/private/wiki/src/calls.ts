@@ -3,11 +3,12 @@ import * as events from "@argentic/chest-sdk/events";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { AppError, log, sameOrigin, type Download } from "@argentic/chest-app";
+import { after, AppError, log, sameOrigin, type Download } from "@argentic/chest-app";
 import { catalogue, format, formatDate, localeOf } from "./i18n/index.ts";
 import { can } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { leave } from "./lib/editing.ts";
+import { lockChanged } from "./lib/live.ts";
 import { boundaryOf, parseMultipart } from "./lib/multipart.ts";
 import { exportZip, pageHtml, pageMarkdown } from "./lib/export.ts";
 import { fileOf } from "./lib/files.ts";
@@ -71,7 +72,7 @@ export async function leaveEditor(request: Request, actor: Member, pageId: strin
         draft = undefined;
       }
     }
-    await leave(db(), actor, pageId, draft);
+    if (await leave(db(), actor, pageId, draft)) after("live", () => lockChanged(pageId));
     return done(204);
   } catch (error) {
     if (error instanceof AppError) return done(error.code === "not_found" ? 404 : 403);

@@ -12,6 +12,14 @@ const { browser, context, page, origin, problems } = await open(port, "sofia", {
 // that read is done, as a person would (they never act in the first 200 ms).
 const plainGoto = page.goto.bind(page);
 page.goto = (url, options) => plainGoto(url, { waitUntil: "networkidle", ...options });
+const plainReload = page.reload.bind(page);
+page.reload = options => plainReload({ waitUntil: "networkidle", ...options });
+// A page put in place (a link, an action's navigation) joins too: the same.
+const plainWaitForURL = page.waitForURL.bind(page);
+page.waitForURL = async (url, options) => {
+  await plainWaitForURL(url, options);
+  await page.waitForLoadState("networkidle").catch(() => {});
+};
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 // Another member in the same browser: the page left first, so that a read

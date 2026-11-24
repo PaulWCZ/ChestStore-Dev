@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as comments from "../src/lib/comments.ts";
 import { forgetGroups, companyGroups } from "../src/lib/groups.ts";
 import { confluenceDate } from "../src/lib/html.ts";
@@ -33,7 +33,7 @@ before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
     network: {},
-    members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@lumen.test", ...(p.id === hugo.id ? { groups: [...p.groups, warehouse] } : {}) })),
+    members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@lumen.test", ...(p.id === hugo.id ? { groups: [...(p.groups ?? []), warehouse] } : {}) })),
     capabilities: ["members", "files", "notifications", "members.groups"],
     // The runs below are read on the Chest's clock (SDK 0.4: a run has no
     // zone of its own).
@@ -127,8 +127,8 @@ test("asked to confirm: a notification in each one's language, never an email; r
   // Inès, Tom, Hugo, Léa: one notice, each sees their language.
   const asked = () => chest.notifications.filter(n => n.key === `read:${p.id}`);
   assert.deepEqual(asked().map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
-  assert.match(shownTo(asked().find(n => n.member === lea.id)!, "fr").title, /Camille Martin vous demande de lire/u);
-  assert.match(shownTo(asked().find(n => n.member === hugo.id)!, "en").title, /asks you to read/u);
+  assert.match((asked().find(n => n.member === lea.id)!).title, /Camille Martin vous demande de lire/u);
+  assert.match((asked().find(n => n.member === hugo.id)!).title, /asks you to read/u);
   assert.equal(asked()[0]!.path, `/chest/pages/${p.id}`);
   assert.equal(chest.outbox.length, 0, "members are never emailed by the wiki");
   // Hugo confirms; a reminder goes to the three others only.
@@ -137,7 +137,7 @@ test("asked to confirm: a notification in each one's language, never an email; r
   const ask = (await reads.readState(sql, asMember(camille), p.id)).asked!;
   assert.equal(await tell.remindReaders(sql, page, ask), 3);
   assert.deepEqual(asked().map(n => n.member).sort(), [ines.id, lea.id, tom.id].sort());
-  assert.match(shownTo(asked().find(n => n.member === tom.id)!, "en").title, /^Reminder: please read/u);
+  assert.match((asked().find(n => n.member === tom.id)!).title, /^Reminder: please read/u);
   // An editor's reminder: once every 12 hours per page (each one may be
   // an email from the Chest); two clicks never both pass.
   await sql`update pages set read_reminded_at = null where id = ${p.id}`;

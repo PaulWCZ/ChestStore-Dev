@@ -11,6 +11,7 @@ import { membersOfTool } from "./groups.ts";
 import { concerns, pending, type ReadAsk } from "./reads.ts";
 import { audienceOf } from "./spaces.ts";
 import { watchers } from "./watching.ts";
+import { onScreen } from "./live.ts";
 
 // What the wiki tells people through the Chest's notifications, each in
 // their own language (one notice with its translations). The wiki never
@@ -54,7 +55,10 @@ export async function commented(sql: Query, actor: Member, page: { id: string; t
   const named = await audience(page.space, mentioned.filter(p => p !== actor.id));
   await notify(named, t => ({ title: format(t.bell.mentioned, { name: actor.name, title: cut(page.title, 40) }), body: comment.body }), { path: `${pagePath(page.id)}#comment-${comment.id}`, key: `mention:${page.id}` });
   const people = [page.createdBy, ...(await commenters(sql, page.id)), ...(await watchers(sql, page.id))].filter(p => p !== actor.id && !named.includes(p));
-  const told = await audience(page.space, people);
+  // Those who have the page on screen see the comment arrive (realtime)
+  // and are not told again; a mention is always told (it names them).
+  const seeing = await onScreen(people, page.id);
+  const told = (await audience(page.space, people)).filter(p => !seeing.has(p));
   // A reply says so: "Camille replied on …".
   await notify(told, t => ({ title: format(comment.parentId ? t.bell.replied : t.bell.commented, { name: actor.name, title: cut(page.title, 40) }), body: comment.body }), { path: `${pagePath(page.id)}#comment-${comment.id}`, key: `comments:${page.id}` });
   await remember(sql, page.id, named, "mention", comment.id);
