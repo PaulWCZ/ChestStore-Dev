@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "goals",
   "title": "Goals",
   "description": "Agree on what matters this quarter: company and team objectives, key results, weekly check-ins, progress for all to see.",
@@ -16,11 +16,58 @@
   "capabilities": [
     "database",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "crm.deal.won",
+    "crm.deal.reopened",
+    "tasks.card.done",
+    "tasks.card.reopened",
+    "helpdesk.ticket.solved",
+    "helpdesk.ticket.reopened",
+    "hiring.hired",
+    "hiring.hire-cancelled"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "goals"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "objectives",
+        "channel": "goals",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "key_results",
+        "channel": "goals",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "check_ins",
+        "channel": "goals",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "comments",
+        "channel": "goals",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "reminder",

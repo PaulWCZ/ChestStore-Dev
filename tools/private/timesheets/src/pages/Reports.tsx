@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { BarStack } from "../components/gauges.tsx";
@@ -6,9 +5,10 @@ import { Download, Note } from "../components/icons.tsx";
 import { compare, decimal, format, formatDay, localeOf, money, percent, plural } from "../i18n/index.ts";
 import type { LineRow } from "../islands/ReportViews.tsx";
 import { can } from "../lib/access.ts";
-import { currency, today } from "../lib/clock.ts";
+import { today } from "../lib/clock.ts";
+import { currency } from "../lib/money.ts";
 import { db } from "../lib/db.ts";
-import { linked, recentHandoffs, sendable } from "../lib/handoff.ts";
+import { reachable, recentHandoffs, sendable } from "../lib/handoff.ts";
 import { nameFor, people } from "../lib/people.ts";
 import { billableFilters, foundEntries, foundLimit, groups, isGroup, report, reportPeople, searchWords, type Line } from "../lib/reports.ts";
 import { settings } from "../lib/settings.ts";
@@ -38,12 +38,13 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
   // entries found all follow them.
   const words = searchWords(query("q")) ?? "";
   const sql = db();
-  // Billable time to Quotes: offered when a tool receives it now (Quotes
-  // installed AND linked by an admin); installed only, the panel says so;
-  // the hand-offs made are listed either way (to take one back).
+  // Billable time to Quotes: offered when Quotes may receive it
+  // (lib/handoff.ts, reachable: a send that reaches no tool says so); the
+  // hand-offs made are listed either way (to take one back).
   const offer = all && kind === "uninvoiced";
-  const [linkedNow, r, candidates, s, found, handed] = await Promise.all([
-    offer ? linked() : Promise.resolve(false),
+  const linkedNow = offer && reachable();
+  const [code, r, candidates, s, found, handed] = await Promise.all([
+    currency(sql),
     report(sql, member, { from: p.from, to: p.to, group, person: person || undefined, billable: kind, q: words }),
     all ? reportPeople(sql, member) : Promise.resolve([]),
     settings(sql),
@@ -51,10 +52,9 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
     offer ? recentHandoffs(sql, member) : Promise.resolve([]),
   ]);
   const toSend = linkedNow ? await sendable(sql, member, p.from, p.to) : [];
-  const quotes = offer && (linkedNow || chest.tools.get("quotes") !== null || handed.length > 0);
+  const quotes = offer && (linkedNow || handed.length > 0);
   const h = (minutes: number) => (s.hoursStyle === "decimal" ? decimal(decimalHours(minutes), locale) : formatDuration(minutes));
   const who = await people([...candidates, ...r.lines.flatMap(l => (l.memberId ? [l.memberId] : [])), ...found.map(f => f.memberId)]);
-  const code = currency();
   const showMoney = all && r.priced;
   const showCost = all && r.costed;
   const margin = (cents: number, cost: number) => (cents ? format(t.reports.marginOf, { amount: money(cents - cost, code, locale), percent: percent((cents - cost) / cents, locale) }) : money(cents - cost, code, locale));

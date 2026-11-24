@@ -391,7 +391,7 @@ function TripForm({ data, initial, locale, t }: { data: ComposeData; initial: In
     const prior = data.prior.find(p => p.year === year && p.kind === v.kind)?.tenths ?? 0;
     const before = prior + data.trips.filter(tr => tr.id !== initial?.id && tr.kind === v.kind && tr.day.slice(0, 4) === day.slice(0, 4) && tr.day <= day).reduce((s, tr) => s + tr.tenths, 0);
     try {
-      return { amount: formatMoney(Math.max(1, tripCents(scale.data, v.kind, v.power, v.electric, before, tenths)), data.currency, locale), year: scale.year, before: km(before, locale) };
+      return { amount: formatMoney(Math.max(1, tripCents(scale.data, v.kind, v.power, v.electric, before, tenths)), scale.currency, locale), year: scale.year, before: km(before, locale) };
     } catch {
       return null;
     }
@@ -524,8 +524,8 @@ function AllowanceForm({ data, initial, locale, t }: { data: ComposeData; initia
       </div>
       <div className="paper flat" aria-live="polite">
         <div className="estimate">
-          <span className="label">{chosen && count > 0 ? allowanceDetail(count, chosen.unit, formatMoney(chosen.amount, data.currency, locale), t, locale) : ""}</span>
-          <span className="amount">{chosen && count > 0 ? formatMoney(chosen.amount * count, data.currency, locale) : "—"}</span>
+          <span className="label">{chosen && count > 0 ? allowanceDetail(count, chosen.unit, formatMoney(chosen.amount, chosen.currency, locale), t, locale) : ""}</span>
+          <span className="amount">{chosen && count > 0 ? formatMoney(chosen.amount * count, chosen.currency, locale) : "—"}</span>
         </div>
         <p className="hint">{t.allowance.hint}</p>
       </div>

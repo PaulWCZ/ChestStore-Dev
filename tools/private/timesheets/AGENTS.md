@@ -16,10 +16,12 @@ This page is the map and the tool's own rules.
 | `src/downloads.ts` | The report's CSV, streamed through a cursor |
 | `src/layout.tsx`, `src/timer-view.ts` | The kit's shell, the tabs, the timer island (fed by each page's `layout: { timer }`), the toasts |
 | `src/pages/` | Week, Reports, Team, PersonWeek, People, Projects (list, new, one), Settings, Import, PublicHome |
-| `src/islands/` | WeekView (+ DayPanel: one island keyed `week-<monday>`), TimerBar, Team (WaitingList, Decision, ApproveAll, RemindButton, TeamTable), People, Clients, ProjectForm (+ TasksEditor), PersonRates, ReportViews, QuotesPanel, MarkInvoiced, SettingsView, Importer, AutoRefresh, AutoSubmit; `index.ts` lists them |
+| `src/islands/` | WeekView (+ DayPanel: one island keyed `week-<monday>`), TimerBar, Team (WaitingList, Decision, ApproveAll, RemindButton, TeamTable), People, Clients, ProjectForm (+ TasksEditor), PersonRates, ReportViews, QuotesPanel, MarkInvoiced, SettingsView, Importer, Live (realtime), AutoSubmit; `index.ts` lists them |
 | `src/components/` | Icons, the mark, the project picker (`work-picker.tsx`: the kit has no picker of records), SVG gauges (`gauges.tsx`), `useStep` (`step.ts`) |
 | `src/lib/access.ts` | Roles (`manager`, `member`), abilities, `offered()` |
-| `src/lib/clock.ts` | The Chest's zone and currency, today (= the database's `current_date`), `clock.now` (tests move it) |
+| `src/lib/clock.ts` | The company's zone, today (= the database's `current_date`), `clock.now` (tests move it) |
+| `src/lib/money.ts` | The tool's own currency (the Chest has none): `currency(sql)`, `setCurrency` (relabels; refused once time is invoiced or handed over) |
+| `src/lib/live.ts` | Realtime: `live(members)`/`told(members, write)` publish "time.changed" on `mine:<id>`; managers' pages also follow the feeds on `team` |
 | `src/lib/projects.ts` | Clients, projects, tasks, people, budgets; `offeredProjects`, `writable` |
 | `src/lib/entries.ts` | Entries, the week grid (`week`, `saveCell`, `setNote`, rows), the day list; the 24-hour rule; `checkOpen` |
 | `src/lib/rates.ts` | Rates with a history; SQL `bill_rate()`/`cost_rate()`; `fixRates` |
@@ -128,9 +130,17 @@ own form), the project picker (above).
   `src/lib/rates.ts`): each entry to the cent, then added — reports, the
   CSV and the hand-off's lines agree to the cent.
 - **A hand-off writes its rates** on its entries (`handoff_fixed`); taken
-  back (`release`), they are forgotten again. It is offered and sent only
-  when `events.receivers("timesheets.billable")` names a tool (`linked()`);
-  0 receivers undoes it (`quotes_unavailable`).
+  back (`release`), they are forgotten again. The panel is offered when
+  Quotes may be there (`reachable()`); `events.emit` answers how many tools
+  it reached: 0 (or a refusal) undoes it (`quotes_unavailable`). The event
+  is flat (0.7.0): `lines` is JSON text; its fields are `chest.json`'s
+  `"emits"` — a type's data only grows (a new shape is a new type).
+- **Money**: one currency per Timesheets, the tool's (`src/lib/money.ts`);
+  every insert of a rate or a project sets `currency` from settings, every
+  write of fixed rates `rates_currency`. Never `chest.currency` (gone).
+- **Realtime, never a timer**: a write that changes someone's time goes
+  through `told([memberId], …)` in `src/actions.ts`; the feeds of
+  `entries` and `weeks` keep managers' pages live.
 - **Members never see money**, not even derived: a money budget is a
   share for them (`kind: "share"` in `report()`).
 - **Locked days**: every write to a person's day goes through

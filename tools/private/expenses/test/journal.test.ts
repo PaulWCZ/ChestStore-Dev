@@ -9,6 +9,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 import { get as fetchAs } from "./support/server.ts";
+import { tool } from "./support/chest.ts";
 
 atLeast(3);
 
@@ -21,7 +22,7 @@ const ids: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
   const { sql } = database;
   for (const r of await sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
   const [night] = await sql<{ id: string }[]>`select id from allowances where key = 'night_other'`;

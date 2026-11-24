@@ -2,7 +2,7 @@
 -- month of expenses of a small company, the ids of the studio's dev harness
 -- (lab/chest-dev). Receipts are named here but the harness holds no file:
 -- the pages show a PDF icon for them; photos come from the browser flows.
-update categories set cap_cents = 6000 where key = 'meals';
+update categories set cap_cents = 6000, cap_currency = 'EUR' where key = 'meals';
 insert into approvers (member_id, approver_id) values
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'), ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'), ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
 insert into vehicles (member_id, kind, power, electric) values
@@ -96,6 +96,8 @@ insert into history (expense_id, actor, kind, detail, at) values
 -- tolls and parking, a trip abroad in pounds, a flat rate, a hotel's nights.
 update expenses set base_cents = amount_cents, base_currency = currency where base_cents is null and currency = 'EUR';
 insert into settings (key, value) values ('setupDone', 'true'), ('payer', '"Atelier Roux SARL"'), ('bankLocale', '"fr"');
+-- Bank details in the tool's old format ("v0.", before the Chest sealed
+-- them: SQL cannot seal): the nightly cleanup has the Chest seal them.
 insert into bank_accounts (owner, iban, last4, country, bic, holder, updated_by, updated_at) values
   ('company', 'v0.FR1420041010050500013M02606', '2606', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-01 10:00:00+02'),
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7630006000011234567890189', '0189', 'FR', 'AGRIFRPP', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-06-02 10:00:00+02'),

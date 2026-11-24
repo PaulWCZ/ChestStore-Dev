@@ -37,7 +37,7 @@ export function stampOf(e: Expense, t: Catalogue): { kind: StampKind; text: stri
 }
 
 export function warningText(w: Warning, t: Catalogue, currency: string, locale: Locale): string {
-  if (w.code === "over_cap") return format(t.warnings.over_cap, { cap: formatMoney(w.cap ?? 0, currency, locale) });
+  if (w.code === "over_cap") return format(t.warnings.over_cap, { cap: formatMoney(w.cap ?? 0, w.capCurrency ?? currency, locale) });
   if (w.code === "resent") return format(t.warnings.resent, { reason: w.reason ?? "" });
   return t.warnings[w.code];
 }

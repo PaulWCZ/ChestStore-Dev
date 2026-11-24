@@ -15,20 +15,19 @@ import type { Scale, VehicleKind } from "../shared/scale.ts";
 type Option = { value: string; label: string };
 type Words = Catalogue["settings"] & { files: Catalogue["files"]; table: Catalogue["table"] };
 type Errors = Catalogue["errors"];
-type CategoryRow = { id: string; name: string; placeholder: string; account: string; vatRecovery: string; cap: string; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean; allowance: boolean };
+type CategoryRow = { id: string; name: string; placeholder: string; account: string; vatRecovery: string; cap: string; capCurrency: string; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean; allowance: boolean };
 type Company = {
   team: { id: string; name: string }[];
   payer: string;
   journal: { code: string; employees: string; vat: string; card: string };
   vehicles: { member: string; name: string; label: string; proof: string | null; checked: boolean }[];
-  allowances: { id: string; name: string; placeholder: string; amount: string; unit: string; account: string; archived: boolean }[];
+  allowances: { id: string; name: string; placeholder: string; amount: string; currency: string; unit: string; account: string; archived: boolean }[];
   units: Option[];
   rates: { currency: string; rate: string }[];
   bank: BankCurrent;
   countries: Option[];
   bankLocale: string;
   bankTexts: { value: string; label: string; sample: string }[];
-  sealed: boolean;
   currency: string;
   currencies: string[];
   reminder: boolean;
@@ -37,7 +36,7 @@ type Company = {
   cardRules: { id: string; words: string; category: string }[];
   cardCategories: Option[];
   approvers: { id: string; name: string }[];
-  scales: { year: number; data: Scale; source: string }[];
+  scales: { year: number; data: Scale; currency: string; source: string }[];
   year: number;
   fallback: string | null;
   kinds: { value: VehicleKind; label: string; powers: Record<string, string> }[];
@@ -255,9 +254,10 @@ function CompanyForm({ company, t, errors }: { company: Company; t: Words; error
       <div className="form-grid">
         <div className="field-row narrow">
           <label htmlFor="currency">{t.company.currency}</label>
-          <select id="currency" className="field" defaultValue={company.currency} disabled={pending} onChange={e => run(() => updateCompany({ currency: e.target.value }), () => t.company.saved)}>
+          <select id="currency" className="field" aria-describedby="currency-hint" defaultValue={company.currency} disabled={pending} onChange={e => run(() => updateCompany({ currency: e.target.value }), () => t.company.saved)}>
             {company.currencies.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          <span id="currency-hint" className="hint">{t.company.currencyHint}</span>
         </div>
         <Switch label={t.company.reminder} checked={reminder} disabled={pending} onChange={on => {
           setReminder(on);
@@ -307,7 +307,7 @@ function CompanyBank({ company, t, errors, cancel }: { company: Company; t: Word
           <span id="bank-locale-hint" className="hint">{format(t.bank.languageHint, { sample })}</span>
         </div>
         <BankForm owner="company" current={company.bank} countries={company.countries} t={t.bank} errors={errors} save={t.bank.companySave} cancel={cancel} holder={false} idPrefix="company-bank" />
-        {!company.sealed && <p className="hint">{t.bank.notSealed}</p>}
+        <p className="hint">{t.bank.sealedNote}</p>
       </div>
     </section>
   );
@@ -341,7 +341,7 @@ function Categories({ company, t, errors }: { company: Company; t: Words; errors
                 </td>
                 <td><label className="visually-hidden" htmlFor={`cat-account-${c.id}`}>{t.categories.account}</label><input id={`cat-account-${c.id}`} className="field num mono" defaultValue={c.account} maxLength={20} onBlur={e => save(c.id, "account", e.target.value.trim(), c.account)} /></td>
                 <td><label className="visually-hidden" htmlFor={`cat-vat-${c.id}`}>{t.categories.vatRecovery}</label><input id={`cat-vat-${c.id}`} className="field num short" inputMode="numeric" defaultValue={c.vatRecovery} onBlur={e => save(c.id, "vatRecovery", e.target.value.trim(), c.vatRecovery)} /></td>
-                <td>{!c.mileage && !c.allowance && <><label className="visually-hidden" htmlFor={`cat-cap-${c.id}`}>{t.categories.cap}</label><input id={`cat-cap-${c.id}`} className="field num" inputMode="decimal" defaultValue={c.cap} placeholder="—" onBlur={e => save(c.id, "cap", e.target.value.trim(), c.cap)} /></>}</td>
+                <td>{!c.mileage && !c.allowance && <><label className="visually-hidden" htmlFor={`cat-cap-${c.id}`}>{t.categories.cap}</label><input id={`cat-cap-${c.id}`} className="field num" inputMode="decimal" defaultValue={c.cap} placeholder="—" onBlur={e => save(c.id, "cap", e.target.value.trim(), c.cap)} aria-describedby={c.cap && c.capCurrency !== company.currency ? `cat-cap-${c.id}-currency` : undefined} />{c.cap && c.capCurrency !== company.currency && <span id={`cat-cap-${c.id}-currency`} className="hint kept">{format(t.company.keptCurrency, { currency: c.capCurrency, company: company.currency })}</span>}</>}</td>
                 <td>{!c.mileage && !c.allowance && <input type="checkbox" className="pick" aria-label={`${t.categories.guests}: ${c.name || c.placeholder}`} defaultChecked={c.guests} disabled={pending} onChange={e => run(() => updateCategory(c.id, { guests: e.target.checked }), () => t.company.saved)} />}</td>
                 <td>{!c.mileage && !c.allowance && <input type="checkbox" className="pick" aria-label={`${t.categories.perNight}: ${c.name || c.placeholder}`} defaultChecked={c.perNight} disabled={pending} onChange={e => run(() => updateCategory(c.id, { perNight: e.target.checked }), () => t.company.saved)} />}</td>
                 <td>{!c.mileage && !c.allowance && <button type="button" className="link-button" disabled={pending} onClick={() => run(() => updateCategory(c.id, { archived: !c.archived }))}>{c.archived ? t.categories.show : t.categories.hide}</button>}</td>
@@ -458,7 +458,7 @@ function Allowances({ company, t, errors }: { company: Company; t: Words; errors
             {company.allowances.map(a => (
               <tr key={a.id} className={a.archived ? "hidden" : undefined}>
                 <td><input className="field" aria-label={t.allowances.name} defaultValue={a.name} placeholder={a.placeholder} maxLength={80} onBlur={e => save(a.id, "name", e.target.value.trim(), a.name)} /></td>
-                <td><input className="field num mono" inputMode="decimal" aria-label={`${t.allowances.amount}: ${a.name || a.placeholder}`} defaultValue={a.amount} onBlur={e => save(a.id, "amount", e.target.value.trim(), a.amount)} /></td>
+                <td><input className="field num mono" inputMode="decimal" aria-label={`${t.allowances.amount}: ${a.name || a.placeholder}`} defaultValue={a.amount} onBlur={e => save(a.id, "amount", e.target.value.trim(), a.amount)} />{a.currency !== company.currency && <span className="hint kept">{format(t.company.keptCurrency, { currency: a.currency, company: company.currency })}</span>}</td>
                 <td>
                   <select className="field" aria-label={`${t.allowances.unit}: ${a.name || a.placeholder}`} defaultValue={a.unit} disabled={pending} onChange={e => run(() => saveAllowanceRate(a.id, { unit: e.target.value }), () => t.company.saved)}>
                     {company.units.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -589,7 +589,7 @@ function Vehicles({ company, t, errors }: { company: Company; t: Words; errors: 
 }
 
 // Rates are typed as people read them on impots.gouv.fr ("0,636" €/km);
-// the scale keeps thousandths of a euro.
+// the scale keeps thousandths of its currency's unit.
 const rateText = (milli: number, locale: string) => numberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(milli / 1000);
 const readRate = (text: string) => Math.round(Number(text.replace(/\s/gu, "").replace(",", ".")) * 1000);
 const readWhole = (text: string) => Number(text.replace(/[\s  .]/gu, "").replace(",", ""));
@@ -615,6 +615,7 @@ function ScaleEditor({ company, locale, t, errors }: { company: Company; locale:
         <Stamp kind="submitted" text={t.scale.check} />
       </div>
       <p className="hint">{t.scale.intro}</p>
+      {base && base.currency !== company.currency && <p className="hint kept">{format(t.company.keptCurrency, { currency: base.currency, company: company.currency })}</p>}
       {company.fallback && <p className="notice scale-fallback">{company.fallback}</p>}
       <hr className="rule" />
       <div className="year-tabs" role="group" aria-label={t.scale.year}>

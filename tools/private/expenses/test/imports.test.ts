@@ -10,6 +10,7 @@ import { importExpenses } from "../src/lib/imports.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { tool } from "./support/chest.ts";
 
 // Past expenses from the tool used before. The two files in fixtures/ are
 // modelled on the exports those tools document (THIRD_PARTY.md: sources
@@ -20,7 +21,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
 });
 after(async () => {
   await chest.close();

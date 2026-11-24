@@ -1,3 +1,5 @@
+import { defaultCurrency } from "../lib/money.ts";
+import { commonCurrencies } from "../shared/values.ts";
 import { Island, notFound, type PageContext, type View } from "@argentic/chest-app";
 import { localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
@@ -15,7 +17,7 @@ export async function settingsPage({ member, t, locale: language }: PageContext)
   if (!can(member, "settings.manage")) return notFound();
   const sql = db();
   const groups = await chestGroups();
-  const [s, list, lost, owners] = await Promise.all([settings(sql), teams(sql, { archived: true, groups }), orphans(sql, locale), everyone()]);
+  const [s, list, lost, owners, currency] = await Promise.all([settings(sql), teams(sql, { archived: true, groups }), orphans(sql, locale), everyone(), defaultCurrency(sql)]);
   const taken = new Set(list.filter(x => x.groupId && !x.archived).map(x => x.groupId));
   const who = await people(lost.map(o => o.owner));
   const byOwner = new Map<string, { owner: string; name: string; items: typeof lost }>();
@@ -34,6 +36,8 @@ export async function settingsPage({ member, t, locale: language }: PageContext)
         <div className="head"><div className="titles"><h1>{t.settings.title}</h1></div></div>
         <Island id="settings" name="SettingsView" props={{
           personal: s.personal,
+          currency,
+          currencies: [...new Set([currency, ...commonCurrencies])],
           teams: list.map(x => ({ id: x.id, name: x.name, group: x.groupId !== null, archived: x.archived, members: x.members?.length ?? null })),
           groups: groups.filter(g => !taken.has(g.id)).map(g => ({ id: g.id, name: g.name })),
           orphans: groupsShown.map(g => ({ owner: g.owner, name: g.name, more: Math.max(0, g.items.length - itemsShown), items: g.items.slice(0, itemsShown).map(i => ({ kind: i.kind, id: i.id, title: i.title, objectiveTitle: i.objectiveTitle, objectiveId: i.objectiveId, cycle: i.cycle })) })),

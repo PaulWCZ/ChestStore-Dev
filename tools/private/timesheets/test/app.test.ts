@@ -144,11 +144,12 @@ test("a member never sees money: a money budget is a share in their reports, no 
   assert.match(await (await get(camille, "/chest/reports?preset=week")).text(), /€/u);
 });
 
-test("Quotes installed but not linked: the panel says an administrator links them, and offers nothing to send", async () => {
+test("Quotes installed: the panel offers the time; a send the Chest delivers to no tool (the link not approved) is refused and locks nothing", async () => {
   const html = await (await get(camille, "/chest/reports?preset=week&kind=uninvoiced")).text();
-  assert.match(html, /pas encore relié à Temps/u);
-  assert.doesNotMatch(html, /Brouillon de facture dans Devis :/u);
+  assert.match(html, /Brouillons de facture dans Devis/u);
+  assert.doesNotMatch(html, /<p class="notice small">Devis n’est pas installé/u);
   assert.equal((await call(camille, "sendToQuotes", { projectId: "1", from: monday, to: addDays(monday, 6) })).error, "quotes_unavailable");
+  assert.equal((await database.sql`select 1 from handoffs`).length, 0, "nothing kept");
 });
 
 test("the timer: started, shown on every page with its project, stopped into an entry", async () => {
@@ -215,8 +216,8 @@ test("the Chest's deliveries: the Friday run (and none other), a member erased o
   assert.equal(await chest.run("friday", to), 204);
   assert.equal(await chest.run("nothing", to), 404);
   const erased = { type: "member.erased" as const, id: "evt_" + "c".repeat(26), data: { id: ines.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(erased, to), 204);
-  assert.equal(await chest.emit(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
   const n = (await database.sql<{ n: number }[]>`select count(*)::int as n from entries where member_id = ${ines.id}`)[0]?.n;
   assert.equal(n, 0);

@@ -8,6 +8,8 @@ import { checkBudgets, levels } from "../src/lib/budgets.ts";
 import { db, provide } from "../src/lib/db.ts";
 import { everyoneOrNone, isManager, managerIds } from "../src/lib/directory.ts";
 import { cut, notice, notify } from "../src/lib/notify.ts";
+import { live, told } from "../src/lib/live.ts";
+import manifest from "../chest.json" with { type: "json" };
 import { friday } from "../src/lib/reminder.ts";
 import { removeStep } from "../src/lib/rates.ts";
 import { saveReminder } from "../src/lib/settings.ts";
@@ -72,18 +74,18 @@ test("a notice is written once in every language: English its own words, French 
 
 test("budget alerts are at 80 and 100 %, and a project without a budget rings nobody", async () => {
   assert.deepEqual([...levels], [80, 100]);
-  chest = await fakeChest({ members: everyone, network: {} });
+  chest = await fakeChest({ members: everyone, network: {}, capabilities: ["members", "notifications", "realtime"], realtime: manifest.realtime });
   await checkBudgets(database.sql, []);
   const [row] = await database.sql<{ id: string }[]>`insert into projects (name) values ('Free') returning id::text`;
   await checkBudgets(database.sql, [row!.id]);
   assert.equal(chest.notifications.length, 0);
 });
 
-test("a notice goes to members only, its French with it; none to an id the Chest does not know", async () => {
-  await notify([hugo.id, "mbr_" + "z".repeat(26)], t => ({ title: t.bell.emptyWeek }), { path: "/chest", key: "week" });
-  assert.equal(chest!.notifications.length, 1);
-  assert.equal(chest!.notifications[0]!.title, "Your week is empty — fill it in?");
-  assert.deepEqual(chest!.notifications[0]!.translations, { fr: { title: "Votre semaine est vide — la remplir\u202f?" } });
+test("a notice goes to members only, each in their language; none to an id the Chest does not know", async () => {
+  await notify([hugo.id, camille.id, "mbr_" + "z".repeat(26)], t => ({ title: t.bell.emptyWeek }), { path: "/chest", key: "week" });
+  assert.equal(chest!.notifications.length, 2);
+  assert.equal(chest!.notifications.find(n => n.member === hugo.id)!.title, "Your week is empty — fill it in?");
+  assert.equal(chest!.notifications.find(n => n.member === camille.id)!.title, "Votre semaine est vide — la remplir\u202f?");
 });
 
 test("the Friday reminder, turned off, sends nothing", async () => {
@@ -103,4 +105,11 @@ test("the first day someone opened the tool is written once; later visits only r
   await seenNow(database.sql, hugo.id);
   const [row] = await database.sql<{ d: string }[]>`select to_char(first_seen, 'YYYY-MM-DD') as d from seen where member_id = ${hugo.id}`;
   assert.equal(row!.d, "2026-01-05");
+});
+
+test("a page left open hears its member's time changed (realtime, no timer); a Chest that cannot tell changes nothing", async () => {
+  chest!.realtime.published.length = 0;
+  assert.equal(await told([hugo.id, "erased"], Promise.resolve(7)), 7);
+  await live([camille.id, camille.id]);
+  assert.deepEqual(chest!.realtime.published.map(p => [p.channel, p.event]), [[`mine:${hugo.id}`, "time.changed"], [`mine:${camille.id}`, "time.changed"]]);
 });

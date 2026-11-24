@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
-import { openIban, sealedAccounts, type Address } from "./bank.ts";
+import { sealedAccounts, type Address } from "./bank.ts";
+import { openIbans } from "./seal.ts";
 import type { Query, Sql } from "./db.ts";
 import { expensesByIds, type Decision } from "./expenses.ts";
 import { catalogue, format, type Locale } from "../i18n/index.ts";
@@ -180,8 +181,10 @@ export async function runs(sql: Query, actor: Member | null): Promise<Run[]> {
 // message id: a bank refuses a file it already received). The names are
 // the account holder's when given, else the person's in the Chest; the
 // remittance text says which expenses, in the company's language (the one
-// its bank statements speak: Settings → Company).
-export async function runFile(sql: Query, actor: Member | null, runValue: unknown): Promise<{ xml: string; fileName: string }> {
+// its bank statements speak: Settings → Company). The account numbers are
+// opened by the Chest for the accountant whose request this is (their
+// ticket, `request`), all in one call, and only here.
+export async function runFile(sql: Query, actor: Member | null, runValue: unknown, request: Request): Promise<{ xml: string; fileName: string }> {
   if (!can(actor, "pay")) throw new AppError("forbidden");
   const runId = typeof runValue === "string" && /^[1-9][0-9]{0,17}$/u.test(runValue) ? runValue : null;
   if (!runId) throw new AppError("not_found");
@@ -193,6 +196,7 @@ export async function runFile(sql: Query, actor: Member | null, runValue: unknow
   if (file.transfers.some(t => t.member === "erased" || t.iban === "")) throw new AppError("file_gone");
   const who = await people(file.transfers.map(t => t.member));
   const { bankLocale } = await settings(sql);
+  const [payerIban, ...ibans] = await openIbans(request, [{ sealed: file.payer.iban, owner: "company" }, ...file.transfers.map(t => ({ sealed: t.iban, owner: t.member }))]);
   const transfers = file.transfers.map((t, i) => {
     const person = who.get(t.member);
     const refs = t.ids.map(id => "E" + id).join(" ");
@@ -202,13 +206,13 @@ export async function runFile(sql: Query, actor: Member | null, runValue: unknow
       // Someone who only lost access to the tool is still an employee: their
       // plain name (never "… (no access)") on the bank's file.
       name: t.holder || (person?.status === "no_access" ? person.name : nameOf(person, bankLocale)),
-      iban: openIban(t.iban, t.member),
+      iban: ibans[i]!,
       bic: t.bic,
       address: t.address ?? null,
       text: remittance(bankLocale, refs),
     };
   });
-  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: openIban(file.payer.iban, "company"), bic: file.payer.bic, address: file.payer.address ?? null }, executionDate: row.execution_date, transfers }, chest.timeZone);
+  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: payerIban!, bic: file.payer.bic, address: file.payer.address ?? null }, executionDate: row.execution_date, transfers }, chest.timeZone);
   return { xml, fileName: `${row.message_id}.xml` };
 }
 

@@ -21,7 +21,7 @@ after(async () => { await w.close(); });
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const admin = asMember(camille), inesM = asMember(ines);
 const won = (deal: string, amount: number | null, occurredAt = new Date().toISOString(), currency = "EUR") =>
-  w.chest.deliver({ type: "crm.deal.won", data: { deal, title: "Deal " + deal, amount, currency, company: null, contact: null, owner: ines.id }, occurredAt } as never, POST);
+  w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal, title: "Deal " + deal, amount, currency, company: null, contact: null, owner: ines.id }, occurredAt } as never, POST);
 
 test("amount and number of deals won in the cycle follow what Clients tells", async () => {
   const { sql } = w.database;
@@ -45,10 +45,10 @@ test("amount and number of deals won in the cycle follow what Clients tells", as
   assert.deepEqual(await read(), [["money", "crm.won_amount", 15500.5], ["number", "crm.won_count", 3]]);
   // Won again (the same deal, a new amount) replaces it; reopened, it no longer counts.
   assert.equal(await won("D-2", 400000), 204);
-  assert.equal(await w.chest.deliver({ type: "crm.deal.reopened", data: { deal: "D-1" } } as never, POST), 204);
+  assert.equal(await w.chest.deliver({ type: "crm.deal.reopened", source: "crm", data: { deal: "D-1" } } as never, POST), 204);
   assert.deepEqual(await read(), [["money", "crm.won_amount", 4000], ["number", "crm.won_count", 2]]);
   // Nonsense is accepted and ignored.
-  assert.equal(await w.chest.deliver({ type: "crm.deal.won", data: { deal: "bad ref!", amount: "lots" } } as never, POST), 204);
+  assert.equal(await w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal: "bad ref!", amount: "lots" } } as never, POST), 204);
   // The owner's check-in keeps the CRM's value, whatever is typed, and says how sure they are.
   const done = await checkIn(sql, inesM, amount!.id, { value: "999999", confidence: "at_risk" });
   assert.equal(done.value, 4000);

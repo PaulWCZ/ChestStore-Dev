@@ -14,7 +14,11 @@ import { checkScale, isVehicleKind, powers, type Scale, type VehicleKind } from 
 // categories, the mileage scale, who approves whom — and each person's
 // vehicle.
 
-// currency: the company's; reminder: on the 25th; setupDone: the
+// currency: the one people are paid back in — the tool's own setting (the
+// Chest has no currency, SDK 0.7.0), EUR until the accountant picks one; it
+// is the currency a new expense starts in, the one a foreign expense's
+// amount is converted to, and the one new limits, flat rates and mileage
+// scales are entered in (each keeps its own code once saved); reminder: on the 25th; setupDone: the
 // accountant went through the first checks (the banner goes); journal:
 // the accounts of the accounting journal (lib/journal.ts), editable by the
 // accountant, French chart defaults; payer: the company's name as the bank
@@ -84,11 +88,12 @@ export async function updateSettings(sql: Sql, actor: Member | null, input: Sett
 // until the accountant gives it a name.
 // guests: people choosing it are asked who was at the table (meals);
 // perNight: its limit is per night (hotels), people say how many nights.
-export type Category = { id: string; key: string | null; name: string | null; account: string; vatRecovery: number; cap: number | null; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean };
+// cap: in capCurrency (the reimbursement currency when it was entered).
+export type Category = { id: string; key: string | null; name: string | null; account: string; vatRecovery: number; cap: number | null; capCurrency: string | null; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean };
 
-type CategoryRow = { id: string; key: string | null; name: string | null; account: string; vat_recovery: number; cap_cents: string | null; mileage: boolean; archived_at: Date | null; guests: boolean; per_night: boolean };
-const toCategory = (r: CategoryRow): Category => ({ id: String(r.id), key: r.key, name: r.name, account: r.account, vatRecovery: r.vat_recovery, cap: r.cap_cents === null ? null : Number(r.cap_cents), mileage: r.mileage, archived: r.archived_at !== null, guests: r.guests, perNight: r.per_night });
-const categoryColumns = "id, key, name, account, vat_recovery, cap_cents, mileage, archived_at, guests, per_night";
+type CategoryRow = { id: string; key: string | null; name: string | null; account: string; vat_recovery: number; cap_cents: string | null; cap_currency: string | null; mileage: boolean; archived_at: Date | null; guests: boolean; per_night: boolean };
+const toCategory = (r: CategoryRow): Category => ({ id: String(r.id), key: r.key, name: r.name, account: r.account, vatRecovery: r.vat_recovery, cap: r.cap_cents === null ? null : Number(r.cap_cents), capCurrency: r.cap_currency, mileage: r.mileage, archived: r.archived_at !== null, guests: r.guests, perNight: r.per_night });
+const categoryColumns = "id, key, name, account, vat_recovery, cap_cents, cap_currency, mileage, archived_at, guests, per_night";
 
 export async function categories(sql: Query, options: { archived?: boolean } = {}): Promise<Category[]> {
   const rows = await sql<CategoryRow[]>`select ${sql.unsafe(categoryColumns)} from categories ${options.archived ? sql`` : sql`where archived_at is null`} order by archived_at nulls first, position, id`;
@@ -147,8 +152,8 @@ export async function addCategory(sql: Sql, actor: Member | null, input: Categor
   const n = counted?.n ?? 0;
   if (n >= limits.categories) throw new AppError("too_many", { max: limits.categories });
   const [row] = await sql<CategoryRow[]>`
-    insert into categories (name, account, vat_recovery, cap_cents, guests, position)
-    values (${f.name}, ${f.account ?? ""}, ${f.vatRecovery ?? 100}, ${f.cap ?? null}, ${f.guests ?? false}, (select coalesce(max(position), 0) + 1 from categories))
+    insert into categories (name, account, vat_recovery, cap_cents, cap_currency, guests, position)
+    values (${f.name}, ${f.account ?? ""}, ${f.vatRecovery ?? 100}, ${f.cap ?? null}, ${f.cap ? currency : null}, ${f.guests ?? false}, (select coalesce(max(position), 0) + 1 from categories))
     returning ${sql.unsafe(categoryColumns)}`;
   return toCategory(row!);
 }
@@ -174,6 +179,7 @@ export async function updateCategory(sql: Sql, actor: Member | null, categoryId:
       account = ${f.account !== undefined ? f.account : current.account},
       vat_recovery = ${f.vatRecovery !== undefined ? f.vatRecovery : current.vat_recovery},
       cap_cents = ${f.cap !== undefined ? f.cap : current.cap_cents},
+      cap_currency = ${f.cap !== undefined ? (f.cap === null ? null : currency) : current.cap_currency},
       guests = ${f.guests !== undefined ? f.guests : current.guests},
       per_night = ${f.perNight !== undefined ? f.perNight : current.per_night},
       archived_at = ${archived ? (current.archived_at ?? new Date()) : null}
@@ -183,21 +189,23 @@ export async function updateCategory(sql: Sql, actor: Member | null, categoryId:
 }
 
 // The mileage scale of each year.
-export type ScaleYear = { year: number; data: Scale; source: string; updatedAt: string };
+// currency: the one its amounts are in (the reimbursement currency when it
+// was saved).
+export type ScaleYear = { year: number; data: Scale; currency: string; source: string; updatedAt: string };
 
 export async function scales(sql: Query): Promise<ScaleYear[]> {
-  const rows = await sql<{ year: number; data: unknown; source: string; updated_at: Date }[]>`select year, data, source, updated_at from mileage_scales order by year desc`;
-  return rows.map(r => ({ year: r.year, data: checkScale(r.data), source: r.source, updatedAt: r.updated_at.toISOString() }));
+  const rows = await sql<{ year: number; data: unknown; currency: string; source: string; updated_at: Date }[]>`select year, data, currency, source, updated_at from mileage_scales order by year desc`;
+  return rows.map(r => ({ year: r.year, data: checkScale(r.data), currency: r.currency, source: r.source, updatedAt: r.updated_at.toISOString() }));
 }
 
 // The scale that applies to a year: its own, or the latest one before it
 // (the scale of a year is published the next spring), or the first one.
 export async function scaleFor(sql: Query, year: number): Promise<ScaleYear> {
-  const [row] = await sql<{ year: number; data: unknown; source: string; updated_at: Date }[]>`
-    select year, data, source, updated_at from mileage_scales
+  const [row] = await sql<{ year: number; data: unknown; currency: string; source: string; updated_at: Date }[]>`
+    select year, data, currency, source, updated_at from mileage_scales
     order by (year <= ${year}) desc, case when year <= ${year} then -year else year end limit 1`;
   if (!row) throw new AppError("no_scale");
-  return { year: row.year, data: checkScale(row.data), source: row.source, updatedAt: row.updated_at.toISOString() };
+  return { year: row.year, data: checkScale(row.data), currency: row.currency, source: row.source, updatedAt: row.updated_at.toISOString() };
 }
 
 export async function saveScale(sql: Sql, actor: Member | null, yearValue: unknown, data: unknown, source: unknown): Promise<ScaleYear> {
@@ -206,9 +214,11 @@ export async function saveScale(sql: Sql, actor: Member | null, yearValue: unkno
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new AppError("invalid");
   const scale = checkScale(data);
   const text = clean(source ?? "", 500, { optional: true });
+  // Its amounts are entered in the reimbursement currency of the day.
+  const { currency } = await settings(sql);
   await sql`
-    insert into mileage_scales (year, data, source, updated_by, updated_at) values (${year}, ${sql.json(scale as never)}, ${text}, ${actor!.id}, now())
-    on conflict (year) do update set data = excluded.data, source = excluded.source, updated_by = excluded.updated_by, updated_at = now()`;
+    insert into mileage_scales (year, data, currency, source, updated_by, updated_at) values (${year}, ${sql.json(scale as never)}, ${currency}, ${text}, ${actor!.id}, now())
+    on conflict (year) do update set data = excluded.data, currency = excluded.currency, source = excluded.source, updated_by = excluded.updated_by, updated_at = now()`;
   return scaleFor(sql, year);
 }
 
@@ -369,13 +379,14 @@ export async function setRate(sql: Sql, actor: Member | null, currencyValue: unk
 // it. Archived ones stay on the expenses that used them.
 export const allowanceUnits = ["day", "night", "meal"] as const;
 export type AllowanceUnit = (typeof allowanceUnits)[number];
-export type Allowance = { id: string; key: string | null; name: string | null; amount: number; unit: AllowanceUnit; account: string; source: string; archived: boolean };
-type AllowanceRow = { id: string; key: string | null; name: string | null; amount_cents: string; unit: AllowanceUnit; account: string; source: string; archived_at: Date | null };
-const toAllowance = (r: AllowanceRow): Allowance => ({ id: String(r.id), key: r.key, name: r.name, amount: Number(r.amount_cents), unit: r.unit, account: r.account, source: r.source, archived: r.archived_at !== null });
+// amount: in currency (the reimbursement currency when it was entered).
+export type Allowance = { id: string; key: string | null; name: string | null; amount: number; currency: string; unit: AllowanceUnit; account: string; source: string; archived: boolean };
+type AllowanceRow = { id: string; key: string | null; name: string | null; amount_cents: string; currency: string; unit: AllowanceUnit; account: string; source: string; archived_at: Date | null };
+const toAllowance = (r: AllowanceRow): Allowance => ({ id: String(r.id), key: r.key, name: r.name, amount: Number(r.amount_cents), currency: r.currency, unit: r.unit, account: r.account, source: r.source, archived: r.archived_at !== null });
 
 export async function allowances(sql: Query, options: { archived?: boolean } = {}): Promise<Allowance[]> {
   const rows = await sql<AllowanceRow[]>`
-    select id, key, name, amount_cents, unit, account, source, archived_at from allowances
+    select id, key, name, amount_cents, currency, unit, account, source, archived_at from allowances
     ${options.archived ? sql`` : sql`where archived_at is null`} order by archived_at nulls first, position, id`;
   return rows.map(toAllowance);
 }
@@ -385,12 +396,16 @@ type AllowanceInput = { name?: unknown; amount?: unknown; unit?: unknown; accoun
 export async function saveAllowanceRate(sql: Sql, actor: Member | null, allowanceId: unknown, input: AllowanceInput): Promise<Allowance> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
   const { currency } = await settings(sql);
-  const current = allowanceId === null || allowanceId === undefined ? null : (await sql<AllowanceRow[]>`select id, key, name, amount_cents, unit, account, source, archived_at from allowances where id = ${id(allowanceId)}`)[0];
+  const current = allowanceId === null || allowanceId === undefined ? null : (await sql<AllowanceRow[]>`select id, key, name, amount_cents, currency, unit, account, source, archived_at from allowances where id = ${id(allowanceId)}`)[0];
   if (allowanceId !== null && allowanceId !== undefined && !current) throw new AppError("not_found");
   const name = input.name === undefined ? current?.name ?? null : input.name === "" ? null : clean(input.name, limits.allowanceName);
   if (name === null && !current?.key) throw new AppError("empty");
   let amount = current ? Number(current.amount_cents) : null;
+  // An amount typed is in the reimbursement currency; one left as it was
+  // keeps its own.
+  let amountCurrency = current?.currency ?? currency;
   if (input.amount !== undefined) {
+    amountCurrency = currency;
     amount = parseAmount(input.amount, currency);
     if (amount === null) throw new AppError(amountRefusal(input.amount, currency));
     if (amount <= 0 || amount > 10_000_000) throw new AppError("amount_invalid");
@@ -410,14 +425,14 @@ export async function saveAllowanceRate(sql: Sql, actor: Member | null, allowanc
     const [counted] = await sql<{ n: number }[]>`select count(*)::int as n from allowances where archived_at is null`;
     if ((counted?.n ?? 0) >= limits.categories) throw new AppError("too_many", { max: limits.categories });
     const [row] = await sql<AllowanceRow[]>`
-      insert into allowances (name, amount_cents, unit, account, source, position)
-      values (${name}, ${amount}, ${unit}, ${account}, ${source}, (select coalesce(max(position), 0) + 1 from allowances))
-      returning id, key, name, amount_cents, unit, account, source, archived_at`;
+      insert into allowances (name, amount_cents, currency, unit, account, source, position)
+      values (${name}, ${amount}, ${amountCurrency}, ${unit}, ${account}, ${source}, (select coalesce(max(position), 0) + 1 from allowances))
+      returning id, key, name, amount_cents, currency, unit, account, source, archived_at`;
     return toAllowance(row!);
   }
   const [row] = await sql<AllowanceRow[]>`
-    update allowances set name = ${name}, amount_cents = ${amount}, unit = ${unit}, account = ${account}, source = ${source}, archived_at = ${archived}
-    where id = ${current.id} returning id, key, name, amount_cents, unit, account, source, archived_at`;
+    update allowances set name = ${name}, amount_cents = ${amount}, currency = ${amountCurrency}, unit = ${unit}, account = ${account}, source = ${source}, archived_at = ${archived}
+    where id = ${current.id} returning id, key, name, amount_cents, currency, unit, account, source, archived_at`;
   return toAllowance(row!);
 }
 

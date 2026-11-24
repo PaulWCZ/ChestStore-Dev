@@ -47,7 +47,7 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
     title: t.home.title,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ channel: `mine:${member.id}`, names: ["expenses.changed"] }} />
         {can(member, "settings") && !company.setupDone && <Island name="SetupBanner" props={{ t: t.home.setup }} />}
         {lonely && <p className="notice alone"><span>{t.home.alone} <a href="/chest/settings/company#approvers">{t.home.aloneLink}</a></span></p>}
         <Island

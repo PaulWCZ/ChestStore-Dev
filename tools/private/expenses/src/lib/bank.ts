@@ -4,7 +4,7 @@ import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { checkBic, checkIban, countryCode, maskIban, needsAddress, sepaCountry } from "../shared/iban.ts";
 import { clean, limits, memberId } from "../shared/model.ts";
-import { seal, unseal } from "./seal.ts";
+import { isLegacy, openLegacy, sealIban } from "./seal.ts";
 import { relative, type Locale } from "../i18n/index.ts";
 import type { BankCurrent } from "../components/bank-form.tsx";
 
@@ -34,8 +34,6 @@ const isHeld = (r: Row) => r.owner !== "company" && r.updated_by !== r.owner && 
 export function addressOf(r: { street: string; postcode: string; town: string; address_country: string | null }): Address | null {
   return r.town !== "" && r.address_country ? { street: r.street, postcode: r.postcode, town: r.town, country: r.address_country } : null;
 }
-
-const context = (owner: string) => "bank:" + owner;
 
 function mayReach(actor: Member | null, owner: string): boolean {
   if (!actor) return false;
@@ -91,9 +89,11 @@ export async function setBankDetails(sql: Sql, actor: Member | null, ownerValue:
   // Without a town, no address is kept (a country alone says nothing).
   const addressCountry = town === "" ? null : typedCountry ?? checked.country;
   if (needsAddress(checked.country) && (town === "" || addressCountry === null)) throw new AppError("address_needed");
+  // Sealed by the Chest before the write (sealing needs no member).
+  const iban = saved ? saved.iban : await sealIban(checked.iban, owner);
   const [row] = await sql<Row[]>`
     insert into bank_accounts (owner, iban, last4, country, bic, holder, street, postcode, town, address_country, updated_by)
-    values (${owner}, ${saved ? saved.iban : seal(checked.iban, context(owner))}, ${saved ? saved.last4 : checked.iban.slice(-4)}, ${checked.country}, ${bic}, ${holder}, ${street}, ${postcode}, ${town}, ${addressCountry}, ${actor!.id})
+    values (${owner}, ${iban}, ${saved ? saved.last4 : checked.iban.slice(-4)}, ${checked.country}, ${bic}, ${holder}, ${street}, ${postcode}, ${town}, ${addressCountry}, ${actor!.id})
     on conflict (owner) do update set iban = excluded.iban, last4 = excluded.last4, country = excluded.country, bic = excluded.bic, holder = excluded.holder,
       street = excluded.street, postcode = excluded.postcode, town = excluded.town, address_country = excluded.address_country,
       updated_by = excluded.updated_by, updated_at = now()
@@ -123,8 +123,34 @@ export async function sealedAccounts(sql: Query, owners: string[]): Promise<Map<
   return new Map(rows.map(r => [r.owner, { owner: r.owner, iban: r.iban, country: r.country, bic: r.bic, holder: r.holder, address: addressOf(r), updatedAt: r.updated_at, held: isHeld(r) }]));
 }
 
-export function openIban(sealed: string, owner: string): string {
-  return unseal(sealed, context(owner));
+// resealLegacy moves account numbers kept in the tool's own formats before
+// the Chest sealed them (src/lib/seal.ts) to the Chest's sealing — in
+// bank_accounts and in the transfer files kept to be downloaded again. Run
+// by the nightly cleanup; a value it cannot open (its key gone) stays, and
+// the accountant is told to enter it again when a file needs it. Answers
+// how many were moved.
+export async function resealLegacy(sql: Sql): Promise<number> {
+  let moved = 0;
+  const rows = await sql<{ owner: string; iban: string }[]>`select owner, iban from bank_accounts where iban like 'v0.%' or iban like 'v1.%'`;
+  for (const r of rows) {
+    let plain: string;
+    try { plain = openLegacy(r.iban, r.owner); } catch { continue; }
+    const sealed = await sealIban(plain, r.owner);
+    const done = await sql`update bank_accounts set iban = ${sealed} where owner = ${r.owner} and iban = ${r.iban} returning owner`;
+    moved += done.length;
+  }
+  const runs = await sql<{ id: string; file: { payer: { iban: string }; transfers: { member: string; iban: string }[] } }[]>`
+    select id, file from payment_runs where file #>> '{payer,iban}' like 'v_.%' or exists (select 1 from jsonb_array_elements(file -> 'transfers') t where t ->> 'iban' like 'v_.%')`;
+  for (const r of runs) {
+    const again = async (value: string, owner: string) => {
+      if (!isLegacy(value)) return value;
+      try { return await sealIban(openLegacy(value, owner), owner); } catch { return value; }
+    };
+    const file = { ...r.file, payer: { ...r.file.payer, iban: await again(r.file.payer.iban, "company") }, transfers: await Promise.all(r.file.transfers.map(async t => ({ ...t, iban: t.iban === "" ? "" : await again(t.iban, t.member) }))) };
+    await sql`update payment_runs set file = ${sql.json(file as never)} where id = ${r.id}`;
+    moved++;
+  }
+  return moved;
 }
 
 // What the bank details form shows of a saved account (masked).
