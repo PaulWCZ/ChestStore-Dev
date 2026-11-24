@@ -32,6 +32,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from feedback_requests where member_id = ${memberId}`;
     await tx`delete from candidate_seen where member_id = ${memberId}`;
     await live.forget(tx, { member: memberId });
+    await tx`delete from live_out where member_id = ${memberId}`;
     await tx`update job_interviewers set added_by = 'erased' where added_by = ${memberId}`;
     await tx`update feedback_requests set requested_by = 'erased' where requested_by = ${memberId}`;
     await tx`update notes set author = 'erased' where author = ${memberId}`;

@@ -43,6 +43,7 @@ export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.r
         await tx`update participants set member = 'erased' where member = ${id}`;
         await tx`update forms set owner = 'erased' where owner = ${id}`;
         await tx`update form_hooks set created_by = 'erased' where created_by = ${id}`;
+        await tx`delete from live_out where member_id = ${id}`;
         return rows.flatMap(r => filesOf(r.data));
       });
       await remove(gone);

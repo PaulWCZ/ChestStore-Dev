@@ -37,7 +37,7 @@ export async function candidateVersion(ctx: PageContext<MemberContext>): Promise
       (select string_agg(id || updated_at::text, ',' order by id) from interviews where candidate_id = ${id}),
       (select string_agg(id || coalesce(booked_at::text, '') || coalesce(cancelled_at::text, ''), ',' order by id) from interview_requests where candidate_id = ${id}),
       (select count(*)::text from activity where candidate_id = ${id}),
-      (select 'live:' || l.since::text from job_live l join candidates c on c.job_id = l.job_id where c.id = ${id} and l.member_id = ${ctx.member.id}))) as v`;
+      (select 'out:' || n from live_out where member_id = ${ctx.member.id}))) as v`;
   return row?.v ?? null;
 }
 

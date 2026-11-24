@@ -42,7 +42,7 @@ export async function boardVersion(ctx: PageContext<MemberContext>): Promise<str
       (select count(*)::text from candidate_seen s join candidates c on c.id = s.candidate_id where c.job_id = ${id} and s.member_id = ${ctx.member.id}),
       (select count(*)::text from feedback_requests r join candidates c on c.id = r.candidate_id where c.job_id = ${id} and r.member_id = ${ctx.member.id}),
       ${ctx.url.search}::text,
-      (select 'live:' || since::text from job_live where job_id = ${id} and member_id = ${ctx.member.id}))) as v`;
+      (select 'out:' || n from live_out where member_id = ${ctx.member.id}))) as v`;
   return row?.v ?? null;
 }
 

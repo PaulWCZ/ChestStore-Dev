@@ -110,11 +110,12 @@ test("a form's channel: only who may open it joins; unsharing, the trash, a role
   assert.deepEqual(await rows(f.id), []);
 });
 
-test("a home's version holds its reader's marks: taken out, the page is read again (never a 304) and lets them in again", async () => {
+test("a home's version counts its reader's exits: taken out, the page is read again (never a 304); let in, nothing changes", async () => {
   const { sql } = database;
   const f = await forms.create(sql, asMember(camille), { definition: form([q("short", "Name")], "Mine " + Math.random()) });
-  await admit(sql, [f.id], camille.id);
   const before = await homeVersion(sql, asMember(camille));
+  await admit(sql, [f.id], camille.id);
+  assert.equal(await homeVersion(sql, asMember(camille)), before, "let in: the same version (a first read then a 304)");
   await sql`delete from form_live where member_id = ${camille.id}`;
   assert.notEqual(await homeVersion(sql, asMember(camille)), before);
 });

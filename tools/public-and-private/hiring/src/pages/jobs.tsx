@@ -26,9 +26,10 @@ export async function jobsVersion({ member }: PageContext<MemberContext>): Promi
       (select max(updated_at)::text from interviews),
       (select count(*)::text from messages where candidate_id is null),
       (select string_agg(stage_id || ':' || position, ',' order by stage_id) from (select id as stage_id, position from stages) s),
-      -- The marks that let the reader follow the jobs live (lib/live.ts):
-      -- one gone, the page is read again (never a 304) and lets them in.
-      (select string_agg(job_id || ':' || since::text, ',' order by job_id) from job_live where member_id = ${member.id}))) as v`;
+      -- How many times the reader was taken out of a job's live channel
+      -- (lib/live.ts, migration 0010): then the page is read again (never
+      -- a 304) and lets them in again.
+      (select 'out:' || n from live_out where member_id = ${member.id}))) as v`;
   return row?.v ?? null;
 }
 
