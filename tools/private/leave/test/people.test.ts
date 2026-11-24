@@ -86,6 +86,10 @@ test("a part-timer's leave is counted on their week: to the day before they are 
   // RTT: only the days he works.
   const t = await requests.createRequest(sql, asMember(tom), { typeId: rtt, ...week(addDays(monday, 14)) });
   assert.equal(t.days, 3);
+  // Both taken back: Lucca's file below brings Tom's leave of its own, on
+  // days these may fall on (they move with today).
+  assert.equal(await requests.cancel(sql, asMember(tom), r.id), "cancelled");
+  assert.equal(await requests.cancel(sql, asMember(tom), t.id), "cancelled");
 });
 
 test("HR, or the person's approver, records leave for them: approved at once, the person told; nobody else may", async () => {

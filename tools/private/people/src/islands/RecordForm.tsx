@@ -30,11 +30,16 @@ type Words = {
 // keeps what was typed. Fields the register needs are marked. The page
 // gives the island an id of the record's version: a record saved (here or
 // by someone else) comes back as a fresh form with what is stored.
-export function RecordForm({ id, initial, linked, erased, members, today, lang, t }: {
+export function RecordForm({ id, initial, linked, erased, sealedOpen, members, today, lang, t }: {
   id: string;
   initial: Record<Field, string>;
   linked: string | null;
   erased: boolean;
+  // Whether the address and the emergency contact were opened (HR's copy):
+  // when the Chest cannot open them now (locked), their fields are not
+  // shown — an empty field saved would write over what the Chest holds
+  // (the server refuses it: sealed_locked); the page says why.
+  sealedOpen: boolean;
   members: { id: string; name: string; photo: string | null }[];
   // Today in the Chest's time zone (the date fields), the words' language.
   today: string;
@@ -117,7 +122,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
             {text("workPermit", limits.workPermit, false, t.record.hints.workPermit)}
             {(values.workPermit !== "" || values.permitEnd !== "") && date("permitEnd", false, t.record.hints.permitEnd)}
             {/* A record detached by an erasure keeps no address nor emergency contact. */}
-            {!erased && field("address", <textarea id={uid + "address"} className="field" rows={3} value={values.address} onChange={set("address")} maxLength={limits.address} />)}
+            {!erased && sealedOpen && field("address", <textarea id={uid + "address"} className="field" rows={3} value={values.address} onChange={set("address")} maxLength={limits.address} />)}
           </div>
         </fieldset>
 
@@ -167,7 +172,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
           </div>
         </fieldset>
 
-        {!erased && <fieldset className="card-block">
+        {!erased && sealedOpen && <fieldset className="card-block">
           <legend>{t.record.emergency}</legend>
           <div className="grid-2">
             {text("emergencyName", limits.name)}

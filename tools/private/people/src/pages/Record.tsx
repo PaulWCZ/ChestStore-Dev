@@ -75,6 +75,7 @@ export async function recordPage({ member, locale, t, param, request }: PageCont
               initial: toForm(r),
               linked: r.memberId,
               erased: r.erased,
+              sealedOpen: r.sealed === "open",
               members: pickable,
               today: today(),
               lang: locale,

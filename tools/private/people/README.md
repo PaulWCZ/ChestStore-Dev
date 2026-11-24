@@ -168,7 +168,11 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
   Chest. A change the person asks waits sealed the same way. What lists,
   filters and the staff register need (names, dates, contract, job,
   nationality, work permit) stays in clear. Values written before this
-  version are sealed by the next morning run.
+  version are sealed by the next morning run. When the Chest cannot open
+  them (restored, waiting for its owner's recovery code), the record says
+  so, HR's form leaves the address and the emergency contact out (an empty
+  field saved would write over them) and the rest of the record saves; a
+  change the person asked waits until they open again.
 - **Who sees what**: HR edits every record; **the person reads their own**
   ("My HR record" on their profile), read-only; **anyone else — their
   manager included — is told it does not exist** (404).
