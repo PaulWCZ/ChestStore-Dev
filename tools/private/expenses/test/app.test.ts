@@ -21,6 +21,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
 import { call, deliver, get, server } from "./support/server.ts";
+import { tool } from "./support/chest.ts";
 
 // The server as built for the tests, over a month of sample expenses
 // (seed/sample.sql): every page for every role, the policy, the look, the
@@ -34,7 +35,7 @@ let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
   await database.sql.unsafe(readFileSync(join(import.meta.dirname, "..", "seed", "sample.sql"), "utf8")).simple();
-  chest = await fakeChest({ members: [...everyone, sofia], network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: [...everyone, sofia], network: {}, chest: { publicUrl: null } });
   await server();
 });
 after(async () => {
@@ -228,7 +229,10 @@ test("the small rules of the pages: rows, words, files, letters", async () => {
   assert.deepEqual(selectionOf(new URLSearchParams("month=2026-09&by=paid")), { month: "2026-09", person: null, by: "paid" });
   assert.equal(cut("a  b", 3), "a b");
   assert.equal(cut("abcdef", 4), "abc…");
-  assert.deepEqual(await cleanup(database.sql), { uploads: 0, drafts: 0 });
+  // The sample's bank details are in the tool's old format ("v0."): the
+  // nightly cleanup has the Chest seal them, once.
+  assert.deepEqual(await cleanup(database.sql), { uploads: 0, drafts: 0, resealed: 5 });
+  assert.deepEqual(await cleanup(database.sql), { uploads: 0, drafts: 0, resealed: 0 });
 });
 
 test("a sent expense nobody decided on is taken back by its owner, and only then", async () => {

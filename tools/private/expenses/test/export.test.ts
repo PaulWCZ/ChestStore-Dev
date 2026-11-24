@@ -10,6 +10,7 @@ import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
 import { call, get } from "./support/server.ts";
 import { readZip } from "./zip.test.ts";
+import { tool } from "./support/chest.ts";
 
 atLeast(5);
 
@@ -20,7 +21,7 @@ const yes = async () => true;
 const ids: Record<string, string> = {};
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
   const { sql } = database;
   for (const r of await sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
   // September: Hugo's lunch (receipt, VAT), hotel on the company card, a trip;

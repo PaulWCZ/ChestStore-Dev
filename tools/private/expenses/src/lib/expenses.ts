@@ -156,21 +156,21 @@ function toExpense(r: Row): Expense {
 // "self_approved": approved by its own owner — only before the rule that
 // nobody approves their own (an accountant alone could, then); kept
 // visible where it is paid and exported.
-export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night" | "card_own_money" | "self_approved"; cap?: number; reason?: string };
+// cap: in capCurrency, the limit's own.
+export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night" | "card_own_money" | "self_approved"; cap?: number; capCurrency?: string; reason?: string };
 
 export async function warnings(sql: Query, list: Expense[], options: { anyone?: boolean } = {}): Promise<Map<string, Warning[]>> {
   const out = new Map<string, Warning[]>();
   if (list.length === 0) return out;
   const idList = list.map(e => e.id);
-  const { currency } = await settings(sql);
-  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null; refused: string | null; guests: boolean; card: boolean }[]>`
+  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null; cap_currency: string | null; refused: string | null; guests: boolean; card: boolean }[]>`
     select e.id,
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and o.kind = 'expense' and e.kind = 'expense'
               and o.member_id = e.member_id and o.spent_on = e.spent_on and o.amount_cents = e.amount_cents and o.currency = e.currency
               and lower(o.merchant) = lower(e.merchant)) as duplicate,
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and e.receipt_sha256 is not null and o.receipt_sha256 = e.receipt_sha256
               and (${options.anyone === true} or o.member_id = e.member_id)) as reused,
-      c.cap_cents as cap, c.guests,
+      c.cap_cents as cap, c.cap_currency, c.guests,
       (e.paid_by = 'me' and exists (select 1 from card_lines l where l.expense_id = e.id)) as card,
       case when e.status = 'submitted' then (select h.detail from history h where h.expense_id = e.id and h.kind = 'refused' order by h.at desc, h.id desc limit 1) end as refused
     from expenses e join categories c on c.id = e.category_id
@@ -187,12 +187,14 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (r?.card) found.push({ code: "card_own_money" });
     if ((e.status === "approved" || e.status === "paid") && e.decidedBy === e.owner && !e.imported) found.push({ code: "self_approved" });
     if (e.kind === "expense" && r?.guests && !e.alone && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
-    // A hotel's limit is per night. The limit is in the company's money: an
-    // expense in another one is compared by its amount in it (none without
-    // a rate: "no rate" says so already).
-    const inCompany = e.currency === currency ? e.amount : e.base !== null && e.baseCurrency === currency ? e.base : null;
-    const perUnit = inCompany === null ? null : e.nights ? Math.ceil(inCompany / e.nights) : inCompany;
-    if (r?.cap !== null && r?.cap !== undefined && perUnit !== null && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap) });
+    // A hotel's limit is per night. The limit is in its own currency: an
+    // expense in another one is compared by its amount paid back when that
+    // is in the limit's currency; else not at all (never through a rate
+    // guessed here; "no rate" says so when there is none).
+    const capCurrency = r?.cap_currency ?? null;
+    const inCap = capCurrency === null ? null : e.currency === capCurrency ? e.amount : e.base !== null && e.baseCurrency === capCurrency ? e.base : null;
+    const perUnit = inCap === null ? null : e.nights ? Math.ceil(inCap / e.nights) : inCap;
+    if (r?.cap !== null && r?.cap !== undefined && capCurrency !== null && perUnit !== null && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap), capCurrency });
     if (found.length > 0) out.set(e.id, found);
   }
   return out;
@@ -350,8 +352,21 @@ export function count(value: unknown): number {
   return n;
 }
 
+// What an amount the company sets (a flat rate, a trip on the scale) is
+// paid back as: itself when it is in the reimbursement currency, else
+// converted at the company's rate for its currency (none yet: no base, the
+// expense says "no rate", as a foreign receipt does).
+type PaidBack = { base: number | null; baseCurrency: string | null; rateMicro: number | null; rateSource: "company" | null };
+async function paidBack(sql: Query, amount: number, currency: string, company: string): Promise<PaidBack> {
+  if (currency === company) return { base: amount, baseCurrency: company, rateMicro: null, rateSource: null };
+  const [known] = await sql<{ rate_micro: string }[]>`select rate_micro from rates where currency = ${currency}`;
+  if (!known) return { base: null, baseCurrency: null, rateMicro: null, rateSource: null };
+  const micro = Number(known.rate_micro);
+  return { base: convert(amount, currency, micro, company), baseCurrency: company, rateMicro: micro, rateSource: "company" };
+}
+
 // A flat rate: a number of days, nights or meals at one of the company's
-// rates (lib/settings.ts, allowances), in the company's currency, paid back
+// rates (lib/settings.ts, allowances), in that rate's currency, paid back
 // to its owner; no receipt.
 export type AllowanceInput = { spentOn?: unknown; allowanceId?: unknown; units?: unknown; note?: unknown };
 
@@ -364,20 +379,22 @@ export async function saveAllowance(sql: Sql, actor: Member | null, expenseId: u
   const { currency } = await settings(sql);
   const eid = await sql.begin(async tx => {
     const existing = expenseId === null || expenseId === undefined ? null : await ownDraft(tx, actor, id(expenseId), "allowance");
-    const [rate] = await tx<{ id: string; amount_cents: string; archived_at: Date | null }[]>`select id, amount_cents, archived_at from allowances where id = ${rateId}`;
+    const [rate] = await tx<{ id: string; amount_cents: string; currency: string; archived_at: Date | null }[]>`select id, amount_cents, currency, archived_at from allowances where id = ${rateId}`;
     if (!rate || (rate.archived_at !== null && String(existing?.allowance_id) !== rateId)) throw new AppError("allowance_invalid");
     const amount = Number(rate.amount_cents) * units;
     if (amount > limits.amount) throw new AppError("amount_invalid");
+    const back = await paidBack(tx, amount, rate.currency, currency);
     const category = await allowanceCategory(tx);
     if (!existing) {
       const [row] = await tx<{ id: string }[]>`
-        insert into expenses (member_id, kind, spent_on, amount_cents, base_cents, currency, base_currency, category_id, note, paid_by, allowance_id, units)
-        values (${actor.id}, 'allowance', ${day}, ${amount}, ${amount}, ${currency}, ${currency}, ${category.id}, ${note}, 'me', ${rateId}, ${units})
+        insert into expenses (member_id, kind, spent_on, amount_cents, base_cents, currency, base_currency, rate_micro, rate_source, category_id, note, paid_by, allowance_id, units)
+        values (${actor.id}, 'allowance', ${day}, ${amount}, ${back.base}, ${rate.currency}, ${back.baseCurrency}, ${back.rateMicro}, ${back.rateSource}, ${category.id}, ${note}, 'me', ${rateId}, ${units})
         returning id`;
       await tx`insert into history (expense_id, actor, kind) values (${row!.id}, ${actor.id}, 'created')`;
       return String(row!.id);
     }
-    await tx`update expenses set spent_on = ${day}, amount_cents = ${amount}, base_cents = ${amount}, currency = ${currency}, base_currency = ${currency}, note = ${note},
+    await tx`update expenses set spent_on = ${day}, amount_cents = ${amount}, base_cents = ${back.base}, currency = ${rate.currency}, base_currency = ${back.baseCurrency},
+      rate_micro = ${back.rateMicro}, rate_source = ${back.rateSource}, note = ${note},
       allowance_id = ${rateId}, units = ${units}, updated_at = now() where id = ${existing.id}`;
     await tx`insert into history (expense_id, actor, kind) values (${existing.id}, ${actor.id}, 'edited')`;
     return String(existing.id);
@@ -403,7 +420,6 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
   const year = Number(day.slice(0, 4));
   const scale = await scaleFor(sql, year);
   if (!scale.data[vehicle.kind].rows.some(r => r.power === vehicle.power)) throw new AppError("no_vehicle");
-  const { currency } = await settings(sql);
   const category = await mileageCategory(sql);
   const eid = await sql.begin(async tx => {
     let target: string;
@@ -412,7 +428,7 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
     if (expenseId === null || expenseId === undefined) {
       const [row] = await tx<{ id: string }[]>`
         insert into expenses (member_id, kind, spent_on, amount_cents, base_cents, currency, base_currency, category_id, merchant, note, paid_by, from_place, to_place, distance_tenths, vehicle, power, electric, scale_year)
-        values (${actor.id}, 'mileage', ${day}, 1, 1, ${currency}, ${currency}, ${category.id}, '', ${note}, 'me', ${from}, ${to}, ${distance}, ${vehicle.kind}, ${vehicle.power}, ${vehicle.electric}, ${scale.year})
+        values (${actor.id}, 'mileage', ${day}, 1, 1, ${scale.currency}, ${scale.currency}, ${category.id}, '', ${note}, 'me', ${from}, ${to}, ${distance}, ${vehicle.kind}, ${vehicle.power}, ${vehicle.electric}, ${scale.year})
         returning id`;
       target = String(row!.id);
       await tx`insert into history (expense_id, actor, kind) values (${target}, ${actor.id}, 'created')`;
@@ -423,7 +439,7 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
       if (existing.vehicle) kinds.add(existing.vehicle);
       await tx`
         update expenses set spent_on = ${day}, note = ${note}, from_place = ${from}, to_place = ${to}, distance_tenths = ${distance},
-          vehicle = ${vehicle.kind}, power = ${vehicle.power}, electric = ${vehicle.electric}, scale_year = ${scale.year}, currency = ${currency}, base_currency = ${currency}, updated_at = now()
+          vehicle = ${vehicle.kind}, power = ${vehicle.power}, electric = ${vehicle.electric}, scale_year = ${scale.year}, updated_at = now()
         where id = ${target}`;
       await tx`insert into history (expense_id, actor, kind) values (${target}, ${actor.id}, 'edited')`;
     }
@@ -438,29 +454,35 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
 // made: a trip added before others moves them along the scale. Approved and
 // paid trips keep their amount, and still count in the year's distance; so
 // do the kilometres driven that year before the tool (prior_distances).
+// A trip is in its scale's currency, paid back as paidBack() says.
 export async function recomputeTrips(tx: Query, member: string, year: number, kind: VehicleKind): Promise<number> {
-  const trips = await tx<{ id: string; status: Status; amount_cents: string; distance_tenths: number; power: string; electric: boolean; scale_year: number }[]>`
-    select id, status, amount_cents, distance_tenths, power, electric, scale_year from expenses
+  const trips = await tx<{ id: string; status: Status; amount_cents: string; currency: string; base_cents: string | null; base_currency: string | null; distance_tenths: number; power: string; electric: boolean; scale_year: number }[]>`
+    select id, status, amount_cents, currency, base_cents, base_currency, distance_tenths, power, electric, scale_year from expenses
     where member_id = ${member} and kind = 'mileage' and vehicle = ${kind} and deleted_at is null
       and spent_on >= ${`${year}-01-01`} and spent_on < ${`${year + 1}-01-01`}
     order by spent_on, id
     for update`;
   if (trips.length === 0) return 0;
   const scale = await scaleFor(tx, year);
+  const company = (await settings(tx)).currency;
   const [prior] = await tx<{ distance_tenths: number }[]>`select distance_tenths from prior_distances where member_id = ${member} and year = ${year} and vehicle = ${kind}`;
   let before = prior?.distance_tenths ?? 0;
   let changed = 0;
   for (const t of trips) {
     if (t.status === "draft" || t.status === "submitted") {
       let amount: number;
+      let currency = scale.currency;
       try {
         amount = Math.max(1, tripCents(scale.data, kind, t.power, t.electric, before, t.distance_tenths));
       } catch {
         // A power the scale no longer lists: the amount stays as it was.
         amount = Number(t.amount_cents);
+        currency = t.currency;
       }
-      if (amount !== Number(t.amount_cents) || scale.year !== t.scale_year) {
-        await tx`update expenses set amount_cents = ${amount}, base_cents = ${amount}, scale_year = ${scale.year} where id = ${t.id}`;
+      const back = await paidBack(tx, amount, currency, company);
+      if (amount !== Number(t.amount_cents) || scale.year !== t.scale_year || currency !== t.currency || back.base !== (t.base_cents === null ? null : Number(t.base_cents)) || back.baseCurrency !== t.base_currency) {
+        await tx`update expenses set amount_cents = ${amount}, currency = ${currency}, base_cents = ${back.base}, base_currency = ${back.baseCurrency},
+          rate_micro = ${back.rateMicro}, rate_source = ${back.rateSource}, scale_year = ${scale.year} where id = ${t.id}`;
         changed++;
       }
     }

@@ -6,12 +6,13 @@ import * as settings from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { tool } from "./support/chest.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  chest = await fakeChest({ ...tool, members: everyone, network: {}, chest: { publicUrl: null } });
 });
 after(async () => {
   await chest.close();

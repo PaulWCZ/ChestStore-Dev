@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "expenses",
   "title": "Expenses",
   "description": "Snap a receipt, get paid back: expense claims, approvals, mileage, and a clean monthly export for the accountant.",
@@ -19,11 +19,36 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime",
+    "sealed"
   ],
   "receives": [
     "member.*"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "mine:{member}"
+      },
+      {
+        "name": "desk",
+        "join": [
+          "accountant",
+          "approver"
+        ]
+      }
+    ],
+    "feeds": [
+      {
+        "table": "expenses",
+        "channel": "desk",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "reminder",

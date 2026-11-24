@@ -33,11 +33,19 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   2026 allowances for staff working away (meal 21,40 €, night 76,60 € in
   Paris and the inner suburbs, 56,80 € elsewhere — to check each January);
   the accountant adds the company's own per diems.
-- **Other currencies.** An expense in pounds or yen takes the rate its
-  owner types (the one on their card statement) or the company's rate for
-  that currency (*Settings → Company*); its amount in euros is shown,
-  counted in totals, paid back and booked. Without any rate it stays apart,
-  with a warning.
+- **Other currencies.** The currency people are paid back in is the
+  tool's own setting (*Settings → Company*, EUR until the accountant picks
+  another; the Chest has no currency). An expense in pounds or yen keeps
+  its own currency and takes the rate its owner types (the one on their
+  card statement) or the company's rate for that currency; its amount in
+  the reimbursement currency is shown, counted in totals, paid back and
+  booked. Without any rate it stays apart, with a warning. Totals are
+  never added across currencies (one total per currency). Every amount the
+  company sets keeps its code too: a category's limit, a flat rate and the
+  mileage scale are in the currency they were entered in, so changing the
+  reimbursement currency never turns €50 into £50 — the settings say "In
+  EUR" next to such an amount until it is entered again; a flat rate or a
+  trip in another currency is paid back through the company's rate.
 - **Car trips (mileage).** From, to, distance (a *return trip* box doubles
   it), date. The amount comes from the French mileage scale (*barème
   kilométrique*) for the vehicle chosen once in *Settings → My vehicle*
@@ -298,17 +306,19 @@ in `src/lib/access.ts` and tested per role.
 | `/chest/api/receipts` | POST: authorise one receipt upload (browser → Chest) |
 | `/chest/receipts/[id]` | Opens a receipt through a fresh 15-minute signed link (`?size=256|1024` thumbnail, `?download`) |
 | `/chest-events` | Members' lifecycle (signed by the Chest) |
-| `/chest-schedules` | Schedules `reminder`, `cleanup` (`chest.json`, contract 0.4; signed `Chest-Schedule`) |
+| `/chest-schedules` | Schedules `reminder`, `cleanup` (`chest.json`; signed `Chest-Schedule`) |
 | `/` | Public host: "this tool lives in your Chest" (no public part) |
 
 ## On a Chest
 
-- `capabilities`: `database`, `files` (receipts: photo or PDF, 10 MB each,
-  uploaded by the browser straight to the Chest), `members` (names; who is
-  accountant or approver), `notifications`; `receives: ["member.*"]`;
-  `schedules` `reminder` (25th, 09:00) and `cleanup` (nightly), contract
-  0.4. No `mail` (the team hears through notifications; nobody outside is
-  mailed).
+- Contract **0.7** (SDK 0.7.0, `chest check` OK). `capabilities`:
+  `database`, `files` (receipts: photo or PDF, 10 MB each, uploaded by the
+  browser straight to the Chest), `members` (names; who is accountant or
+  approver), `notifications`, `realtime` (pages left open), `sealed` (bank
+  details); `receives: ["member.*"]`; `schedules` `reminder` (25th, 09:00,
+  the company's zone) and `cleanup` (nightly). No `mail` (the team hears
+  through notifications; nobody outside is mailed). Proposal left in
+  `chest.proposals.json`: the store's words in French (`translations`).
 - **Receipts are kept as sent**: the tool never changes the file, records
   its SHA-256, and a receipt cannot be replaced once the expense is sent.
   Uploads never used go after a day, deleted drafts after a week (nightly
@@ -322,15 +332,26 @@ in `src/lib/access.ts` and tested per role.
   deleted. Their drafts (never sent: not records of anything) are deleted
   with their receipts, and so are their vehicle and unused uploads. Then the
   erasure is acknowledged.
-- `env`: `BANK_DETAILS_KEY`, **optional**, a secret variable (32 random
-  bytes in base64: `openssl rand -base64 32`), set in the tool's
-  *Variables*. With it, IBANs are sealed at rest (AES-256-GCM, bound to
-  their owner); without it they are kept as typed in the tool's own
-  database (no other tool reaches it) and the company settings say so.
-  Details saved before the key was set stay readable and are sealed when
-  saved again. **Keep the key**: removing or changing it makes the sealed
-  IBANs unreadable (the transfer file then says so, and people enter them
-  again).
+- **Bank details are sealed by the Chest** (`sealed`, SDK 0.5+): the IBAN
+  is stored as `chest:sealed:1:accountant:…` (the Data tab, the agents,
+  logs and backups show *Sealed*), bound to its owner, and **opens only for
+  a member whose role is `accountant`** — the Chest checks the role at
+  every open and journals it — on that member's own request: the transfer
+  file, at the click that downloads it (one call for the whole file). A
+  schedule, an event or a public page never opens one. What lists need
+  stays in clear: the country, the last four characters (the masked
+  "FR•• •••• 0189" every page shows), the BIC, the holder's name and the
+  address. The owner of an account sees it masked and replaces or removes
+  it; nobody but an accountant ever opens it whole (the tool also refuses
+  everyone else first, `src/lib/bank.ts`). "Sealed data is locked" when
+  the Chest waits for its owner's recovery code.
+- `env`: `BANK_DETAILS_KEY`, **only for the move** from Expenses 0.2,
+  which sealed IBANs itself with that key (or kept them as typed without
+  it). The nightly `cleanup` has the Chest seal every such value — in the
+  accounts and in the transfer files kept to be downloaded again — so after
+  one night none is left (until then, a transfer file still opens them).
+  Keep the variable until the first night has passed; the next version
+  drops it.
 - **Reading receipts** needs no network and no service: the phone runs
   tesseract.js on the files `npm run build` copies into `dist/ocr/`
   (`scripts/ocr-assets.mjs`: worker 111 KB, core 3.9 MB, French model
@@ -341,8 +362,13 @@ in `src/lib/access.ts` and tested per role.
   WebAssembly — the pages keep the strict policy (no inline script or
   style, no `'unsafe-eval'`). tesseract.js is a build-time dependency only
   (`devDependencies`: the image holds the copied files, not the package).
-- No WebSocket: *My expenses* and *To approve* re-read themselves every 30 s
-  while visible.
+- **Live without polling** (`realtime`): *My expenses* joins the member's
+  own channel (`mine:<id>`), where the tool publishes "expenses.changed"
+  when someone else changes their expenses (approved, refused, paid, a card
+  payment's draft); *To approve* joins `desk` (accountants and approvers),
+  the feed of the table `expenses` (its ids only: the page reads the rest,
+  checking who may see what). The Chest holds the connections, so the
+  tool sleeps while the pages stay open; no timer anywhere.
 - Memory: the CSV is bounded to 20,000 lines; the ZIP is streamed with one
   receipt in memory at a time (10 MB at most), 5,000 receipts and 1 GB per
   archive at most — well within the 256 MB a tool has. Beyond, export one
@@ -392,36 +418,41 @@ suggestions to confirm with the company's accountant.
 
 ## Needs from the SDK
 
-The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.4.1 +
-studio proposals (0.4.1-studio.4), `@argentic/chest-app` 0.1.0-studio.6, contract 0.4 (`chest check` OK).
+The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.7.0 +
+studio proposals (0.7.0-studio.2), `@argentic/chest-app` 0.1.0-studio.12,
+contract 0.7 (`chest check` OK).
 
 - `member.language` (SDK 0.3.0): interface, bell and export in each
   member's language (English for a language the tool does not speak yet).
-- `chest.language`, `chest.timeZone`, `chest.today()` (SDK 0.3.0): the
+- `chest.language`, `chest.timeZone`, `chest.today()` (SDK 0.3.0; on 0.7.0
+  the zone is the company's, captured once, set on no screen): the
   Chest's language is the default of the bank statements' text until the
-  accountant picks one (`settings.bankLocale`); the Chest's day
+  accountant picks one (`settings.bankLocale`); the company's day
   (`src/lib/today.ts`) is "today" everywhere — a receipt's date that has come,
   a transfer's execution day, the scale's year — the same day as the
   database's `current_date`, which the Chest puts in its zone. The SEPA
   file's creation time is written in the Chest's zone.
-- **Notices with translations** — **Proposal (studio, announced for 0.5)**:
-  one `notifications.notify` per event, English words with their French
-  in `translations`; the Chest shows each member their language
+- **Notices with translations** (official since 0.5): one
+  `notifications.notify` per event, English words with their French in
+  `translations`; the Chest shows each member their language
   (`src/lib/notify.ts`).
+- **`sealed`** (0.5): the IBANs (above); **`realtime`** (0.5): the pages
+  left open (above).
 - `members.leftAt(ids)` — **Proposal (studio)**: the day a former member
   left, in *To approve* and *To pay back* (lookup's `no_access` — someone
   still in the Chest who lost access to Expenses — is no "former": written
   "Name (no access)", their plain name in a transfer file, paid as usual).
-- **Schedules** (contract 0.4, official): `reminder` and `cleanup`, run on
+- **Schedules** (official since contract 0.4): `reminder` and `cleanup`, run on
   `POST /chest-schedules`; the deliveries already handled (events and runs)
   are kept in `chest_events` and forgotten after 30 days by the cleanup.
 - `FileObject.sha256` (0.4.1): a receipt's SHA-256 as the Chest took it;
   the tool never reads a receipt into its memory to hash it.
 - Wished, not built:
-  - **sealed values** (`secrets.seal(value, context)` / `secrets.open(sealed,
-    context)`, a key the Chest keeps per tool and never gives it, rotated by
-    the Chest): bank details sealed without asking an admin to set
-    `BANK_DETAILS_KEY` (today's seam: `src/lib/seal.ts`);
+  - **sealed values for an owner and some roles**: `sealed`'s `roles` name
+    roles, not members, so an IBAN opens for the accountants only — its
+    owner, if no accountant, never sees it whole (they never need to: the
+    page shows it masked). A seal "for these roles and this member" would
+    let a person read their own back;
   - **reading receipts with AI** (SDK 0.3.0's `@argentic/chest-sdk/ai` with
     an image, not used yet, or an `ocr.read(file)` on a receipt the Chest
     holds): reading blurred, crumpled
@@ -433,9 +464,9 @@ studio proposals (0.4.1-studio.4), `@argentic/chest-app` 0.1.0-studio.6, contrac
     knowing a transfer was executed;
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
-  - the **Chest's currency** (`chest.currency`, official since 0.4.0) as the
-    default of the company's currency (the accountant sets it today: not
-    wired yet), and **thumbnails of HEIC photos** (iPhone).
+  - **thumbnails of HEIC photos** (iPhone).
+- **No Chest currency (0.7.0)**: the reimbursement currency is the tool's
+  own setting; every amount keeps its ISO 4217 code (above).
 
 ## Looks
 
@@ -467,7 +498,7 @@ package `@argentic/chest-app` (`node_modules/@argentic/chest-app/AGENTS.md`).
 `/chest-schedules`), `src/actions.ts` every change (typed actions an island
 calls with `call()`), `src/pages/` the pages, `src/islands/` what runs in
 the browser (one view island per page — its lists, dialogs, toasts — beside
-the search box and the 30-second refresh), `src/lib/` the rules and SQL,
+the search box and the realtime `Live` island), `src/lib/` the rules and SQL,
 `src/shared/` the rules the browser runs too (money, scale, IBAN, CSV
 reading), `src/i18n/` every word. Islands and the pages call the same
 services as before; the services lock the rows they read then write (two
@@ -507,6 +538,15 @@ the 512 MiB, one-CPU container (before: killed for memory), build 19.4 →
 machine was loaded; the server's module loads in 100–170 ms alone.
 
 ## What it does not do (yet)
+
+- **On SDK 0.7.0, nothing it did is lost.** What 0.7.0 cannot give, the
+  tool does not pretend to: the store's tile and role names stay in
+  English for a French member (the store has one language for a tool's
+  words: `translations` is a studio proposal); the company's theme
+  (`chest.theme()`, a studio proposal) falls back to Expenses' own look;
+  when a former member left (`members.leftAt`, a proposal) is unknown on a
+  Chest without it ("Name (former member)" without the day); bank details
+  open for accountants only (above).
 
 - **Card feeds**: card payments come from a CSV the accountant imports each
   month, not live from the bank (needs a bank connection: SDK). The CSV

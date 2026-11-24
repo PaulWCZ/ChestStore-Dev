@@ -11,22 +11,22 @@ first. Expenses' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (contract 0.4): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY`; `build.static` `/assets/`. Proposals: `translations` (no `mail`: nobody outside is mailed) |
+| `chest.json`, `chest.proposals.json` | Manifest (contract 0.7): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`, `realtime` (channels `mine:{member}`, `desk`; feed of `expenses` on `desk`), `sealed`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY` (only to move 0.2's IBANs to the Chest's sealing); `build.static` `/assets/`. Proposals: `translations` (no `mail`: nobody outside is mailed) |
 | `src/app.tsx` | **Every route**: the pages (`expenses()` adds the tabs' numbers, `View.layout`), the downloads (receipts, transfer files, CSV, ZIP streamed, journal, certificates), the receipt reader's files `/chest/ocr/` (their own policy: `'wasm-unsafe-eval'`), `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name: thin, the member from the Chest, values passed as sent (amounts as typed) to the services, which check them |
 | `src/pages/` | One module per page: reads, then hands plain data to its island |
-| `src/islands/` | What runs in the browser: one view per page (`HomeView`, `Compose`, `DetailView`, `ApproveView`, `PayView`, `CardsView`, `ExportView`, `MyView`/`CompanyView`), `SetupBanner`, `SearchBox`, `AutoRefresh`; `index.ts` lists them |
+| `src/islands/` | What runs in the browser: one view per page (`HomeView`, `Compose`, `DetailView`, `ApproveView`, `PayView`, `CardsView`, `ExportView`, `MyView`/`CompanyView`), `SetupBanner`, `SearchBox`, `Live` (realtime: `useLive`); `index.ts` lists them |
 | `src/components/` | Shared by islands (the island rules apply): `bits.tsx` (thumbnails, stamps, warnings), `bank-form.tsx`, `import-section.tsx`, `upload.ts` (grant by action, PUT to the Chest), `ocr.ts` (tesseract.js), `date-problems.tsx`, `keep-above-bar.ts`, `settings-calls.ts`, tabs `pay-nav.tsx`, `settings-nav.tsx`, `icons.tsx`, `mark.tsx` |
 | `src/layout.tsx` | The kit's shell: tabs with what waits (`data.counts`), search, Add; the toasts |
 | `src/lib/access.ts` | **Who may do what**: `can(actor, ability)` and `expenseAccess(actor, facts)` (see, own, decide — never one's own) |
 | `src/lib/approvals.ts` | Who approves a member's expenses now (`approversFor`), and the accountants nobody can approve (`alone`) |
 | `src/lib/expenses.ts` | Expenses, trips and flat rates, warnings, send, decide (the refusal fingerprint), pay, badges' and tabs' counts, export rows, kilometres before the tool — every function `(sql, actor, …)`; read-then-write paths lock their rows |
 | `src/lib/settings.ts` | Company settings, categories, flat rates, exchange rates, mileage scales, vehicles and certificates, approvers, journal accounts, card statement words |
-| `src/lib/bank.ts`, `src/lib/seal.ts`, `src/lib/payments.ts`, `src/lib/sepa.ts` | Bank details (own, accountants), sealing with `BANK_DETAILS_KEY`; transfer files and their pain.001.001.03 XML |
+| `src/lib/bank.ts`, `src/lib/seal.ts`, `src/lib/payments.ts`, `src/lib/sepa.ts` | Bank details (own, accountants), sealed by the Chest for the role `accountant` (`sealIban`, `openIbans` on the accountant's request; `resealLegacy` moves 0.2's values); transfer files and their pain.001.001.03 XML |
 | `src/lib/cards.ts`, `src/lib/card-match.ts`, `src/lib/card-guess.ts`, `src/lib/imports.ts` | Card statements (matching, drafts waiting for receipts, Undo), card words, importing past expenses |
 | `src/lib/journal.ts`, `src/lib/export.ts`, `src/lib/csv.ts`, `src/lib/zip.ts` | FEC-layout entries; the CSV and the streamed ZIP |
 | `src/lib/receipts.ts` | Uploads: authorise, inspect (arrived, type, size, the Chest's SHA-256), forget |
-| `src/lib/tell.ts`, `src/lib/notify.ts` | Notifications and the tile's number — one notice per event, English with its French in `translations` |
+| `src/lib/tell.ts`, `src/lib/notify.ts` | Notifications and the tile's number — one notice per event, English with its French in `translations`; `live()` publishes "expenses.changed" to the owners' `mine:<id>` |
 | `src/lib/lifecycle.ts`, `src/lib/jobs.ts` | Leaving and erasure; the 25th's reminder, the nightly cleanup |
 | `src/lib/people.ts`, `src/lib/today.ts` | Names from the Chest (`former`, `no_access`, `erased`, `leftAt`); the Chest's day |
 | `src/lib/rows.ts`, `src/lib/compose.ts`, `src/lib/compose-words.ts` | What pages hand to islands, in the reader's words |
@@ -34,7 +34,7 @@ first. Expenses' own:
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`; `format.ts` — **the only place an `Intl` object is made** (kept, never per row) |
 | `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Receipt" (the kit's) and the company's choice, served as `/chest/look.css`; the tool's tokens; the CSS (contract tokens only) |
 | `scripts/ocr-assets.mjs` | Copies tesseract.js's worker, core and French model into `dist/ocr/` after the build |
-| `migrations/` | `0001`…`0004`. Never edit a shipped file; add `0005_…` |
+| `migrations/` | `0001`…`0007` (`0007`: the code beside every amount the company sets). Never edit a shipped file; add `0008_…` |
 | `seed/sample.sql` | A month of sample expenses (local runs, `test/app.test.ts`) |
 | `test/` | `node:test`: the services with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`); `app.test.ts` and the route tests on the built server (`test/support/server.ts`); `sources.test.ts` (the package's checks, no `new Intl.` outside `src/i18n/format.ts`) |
 
@@ -57,8 +57,8 @@ npm ci && npm test && npm run build   # all three must pass (and NODE_ENV=develo
   is its link variant), `Filters` (Export's month and person, as select
   groups in the address), `Switch` (the month-end reminder), `EmptyState`,
   `Avatar`, `StatusBadge`, `LanguageSwitch` (the re-reading of a page left
-  open is the package's `useAutoRefresh`, with the version of
-  `src/lib/stamp.ts`). Their words
+  open is the package's `useLive` on the Chest's realtime — never a timer —,
+  with the version of `src/lib/stamp.ts`). Their words
   are the catalogues' `toast`, `dialog`, `date`, `files`, `table` sections
   (also inside `kit`, which the package reads).
   The registration certificate's `FilePicker` shows a photo's thumbnail
@@ -108,13 +108,20 @@ npm ci && npm test && npm run build   # all three must pass (and NODE_ENV=develo
 - **A new field of an expense its owner fills** goes into `fingerprint()`
   (src/lib/expenses.ts), or a refusal could be answered by sending the same
   expense again.
-- **Money in two currencies**: `amount` is in the expense's currency,
-  `base` in the company's (null without a rate). Totals, pay-back, the
-  transfer file and the journal use `base`; any new insert of an expense
-  sets it.
+- **Money keeps its currency** (the Chest has none, SDK 0.7.0): `amount`
+  is in the expense's currency, `base` in the reimbursement currency — the
+  tool's setting `currency` — when it was saved (null without a rate).
+  Totals, pay-back, the transfer file and the journal use `base`, never
+  adding two currencies; any new insert of an expense sets it (`paidBack()`
+  for amounts the company sets). Limits (`categories.cap_currency`), flat
+  rates (`allowances.currency`) and scales (`mileage_scales.currency`) keep
+  the code they were entered in; a new column of money gets its own code.
 - **Bank details are never shown whole** in a page, a log or an export
-  other than the transfer file; only the person and the accountants reach
-  them (`src/lib/bank.ts`).
+  other than the transfer file; only the person (masked) and the
+  accountants reach them (`src/lib/bank.ts`). The IBAN is **sealed by the
+  Chest** (`src/lib/seal.ts`, roles `accountant`): open it only on an
+  accountant's request (`openIbans(request, …)`), never in a schedule or
+  an event, and never log, mail or send to AI what was opened.
 - **Card payments** (`card_lines`) are the company's bank records: erasure
   keeps them with `erased`; a draft made for one (`link = 'created'`) is
   counted in the holder's badge and bell (`card:<member>`, withdrawn by
@@ -132,6 +139,9 @@ npm ci && npm test && npm run build   # all three must pass (and NODE_ENV=develo
   member's choice. No digest, no reminder mail, no "email me" setting.
 - Imported expenses (`imported_at`) are history: keep them out of pay,
   exports and the journal (`within()`).
-- **Today** is the Chest's day: `src/lib/today.ts` (`chest.today()`), the same
+- **Pages left open follow realtime**, never a timer: a write others must
+  see either lands in the `expenses` feed (`desk`) or goes through
+  `tell.refresh`/`live()` (the owners' `mine:<id>`).
+- **Today** is the company's day: `src/lib/today.ts` (`chest.today()`), the same
   as the database's `current_date` (the Chest's zone). Never
   `new Date().toISOString().slice(0, 10)` nor a zone written in the code.
