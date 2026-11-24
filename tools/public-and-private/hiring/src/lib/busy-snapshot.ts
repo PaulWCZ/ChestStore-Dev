@@ -9,6 +9,7 @@
 // The event's data, a snapshot — flat fields of declared kinds (contract
 // 0.7 carries no list), the spans as one JSON text:
 //
+//   v:      number   1
 //   member: member   "mbr_…"
 //   at:     time     "2026-09-29T21:04:12.345Z"
 //   from:   time     "2026-09-29T00:00:00.000Z"
@@ -60,11 +61,13 @@ export function busySnapshot(member: string, spans: Span[], now: number): BusySn
 }
 
 // busyData: the snapshot as the event carries it (the spans as JSON text;
-// 300 spans of 36 characters fit the Chest's 16 KiB).
-export function busyData(s: BusySnapshot): Record<string, string> {
+// 300 spans of 36 characters fit the Chest's 16 KiB) — with its version,
+// v: 1, as Booking's booking.busy carries it and Booking requires it of
+// hiring.busy (without it, Booking drops the snapshot).
+export function busyData(s: BusySnapshot): { v: 1; member: string; at: string; from: string; to: string; spans: string } {
   // RFC 3339 instants (with seconds) for the kind "time".
   const instant = (minute: string) => new Date(Date.parse(minute)).toISOString();
-  return { member: s.member, at: s.at, from: instant(s.from), to: instant(s.to), spans: JSON.stringify(s.spans) };
+  return { v: 1, member: s.member, at: s.at, from: instant(s.from), to: instant(s.to), spans: JSON.stringify(s.spans) };
 }
 
 // The snapshot's fingerprint, its time aside: the same busy times told

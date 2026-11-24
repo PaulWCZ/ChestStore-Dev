@@ -50,6 +50,13 @@ async function* read(list: { path: string; file: string }[]): AsyncGenerator<Ent
 export async function* everything(sql: Sql, actor: Member | null, t: Catalogue, open: Opener): AsyncGenerator<Entry> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const h = t.exportAll.headers;
+  const notes = await sql<{ candidate_id: string; author: string; body: string; created_at: Date }[]>`select candidate_id, author, body, created_at from notes order by candidate_id, created_at`;
+  // Sealed texts, opened on the exporting member's request (journaled by
+  // the Chest); one that cannot be opened now refuses the export
+  // ("unavailable"), never a placeholder in the archive.
+  const noteTexts = await openTexts(open, notes.map(n => ({ text: n.body, context: noteContext(String(n.candidate_id)) })), null);
+  const feedback = await sql<{ candidate_id: string; author: string; rating: number; strengths: string; concerns: string; recommendation: string; updated_at: Date }[]>`select * from feedback order by candidate_id, created_at`;
+  const feedbackTexts = await openTexts(open, feedback.flatMap(f => [{ text: f.strengths, context: feedbackContext(String(f.candidate_id), "strengths") }, { text: f.concerns, context: feedbackContext(String(f.candidate_id), "concerns") }]), null);
   const jobs = await sql<{ id: string; slug: string; title: string; team: string; place: string; contract: string; remote: string; state: string; language: string; created_at: Date; opened_at: Date | null; closed_at: Date | null; description: string }[]>`select * from jobs order by id`;
   yield { name: "jobs.csv", data: csvOf([[h.id, h.title, h.team, h.place, h.contract, h.remote, h.state, h.language, h.created, h.opened, h.closed, h.address, h.description],
     ...jobs.map(j => [j.id, j.title, j.team, j.place, t.facts.contract[j.contract as "permanent"], t.facts.remote[j.remote as "onsite"], t.home.states[j.state as "open"], j.language, day(j.created_at), day(j.opened_at), day(j.closed_at), "/" + j.slug, j.description])]) };
@@ -60,12 +67,7 @@ export async function* everything(sql: Sql, actor: Member | null, t: Catalogue, 
   yield { name: "candidates.csv", data: csvOf([[h.id, h.job, t.export.headers.name, t.export.headers.email, t.export.headers.phone, t.export.headers.link, t.export.headers.stage, t.export.headers.status, t.export.headers.reason, t.export.headers.source, h.language, t.export.headers.applied, t.export.headers.activity, h.pool, h.answers, h.coverLetter, h.cv],
     ...people.map(c => [c.id, c.job_id, c.name, c.email, c.phone, c.link, stageName(c.stage_id), t.export.status[c.status as "active"], c.reject_reason ? t.reject.reasons[c.reject_reason as "other"] : "", t.candidate.source[c.source as "careers"] + (c.origin ? ` (${c.origin})` : ""), c.language, day(c.created_at), day(c.last_activity_at), day(c.pool_at),
       (Array.isArray(c.answers) ? c.answers : []).map(a => `${a.label}: ${a.answer}`).join("\n"), c.cover_letter, c.cv_object ? `cv/${c.id}.${extension(c.cv_type)}` : ""])]) };
-  const notes = await sql<{ candidate_id: string; author: string; body: string; created_at: Date }[]>`select candidate_id, author, body, created_at from notes order by candidate_id, created_at`;
-  // Sealed texts, opened on the exporting member's request (journaled by the Chest).
-  const noteTexts = await openTexts(open, notes.map(n => ({ text: n.body, context: noteContext(String(n.candidate_id)) })), t.candidate.sealedText);
   yield { name: "notes.csv", data: csvOf([[h.candidate, h.author, h.text, h.date], ...notes.map((n, i) => [n.candidate_id, n.author, noteTexts[i]!, day(n.created_at)])]) };
-  const feedback = await sql<{ candidate_id: string; author: string; rating: number; strengths: string; concerns: string; recommendation: string; updated_at: Date }[]>`select * from feedback order by candidate_id, created_at`;
-  const feedbackTexts = await openTexts(open, feedback.flatMap(f => [{ text: f.strengths, context: feedbackContext(String(f.candidate_id), "strengths") }, { text: f.concerns, context: feedbackContext(String(f.candidate_id), "concerns") }]), t.candidate.sealedText);
   yield { name: "feedback.csv", data: csvOf([[h.candidate, h.author, t.candidate.rating, t.candidate.strengths, t.candidate.concerns, t.candidate.recommendation, h.date],
     ...feedback.map((f, i) => [f.candidate_id, f.author, f.rating, feedbackTexts[i * 2]!, feedbackTexts[i * 2 + 1]!, t.candidate.recommendations[f.recommendation as "yes"], day(f.updated_at)])]) };
   const mails = await sql<{ id: string; candidate_id: string | null; direction: string; kind: string; author: string | null; from_address: string | null; subject: string; body: string; status: string; created_at: Date; attachments: Attachment[] | null }[]>`select * from messages order by candidate_id, created_at, id`;
@@ -95,7 +97,7 @@ export async function theirData(sql: Sql, actor: Member | null, candidateId: unk
   if (!can(actor, "export")) throw new AppError("forbidden");
   const { cvObject } = await manageable(sql, actor, candidateId);
   // Their notes and the feedback, opened on the exporting member's request.
-  const d = await openDetail(open, await readCandidate(sql, actor, candidateId), t.candidate.sealedText);
+  const d = await openDetail(open, await readCandidate(sql, actor, candidateId), null);
   // Every email about them, received ones an earlier version kept included
   // (their data: the Chest receives no mail now, but what was kept is
   // theirs to have).

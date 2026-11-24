@@ -103,14 +103,23 @@ export type Settings = {
   companyName: string; ownName: string; intro: string; intros: Partial<Record<Locale, string>>; careersOpen: boolean; retentionMonths: number;
   country: string; website: string; accent: Accent; logo: PublicImage | null; photos: PublicImage[];
   // The currency a new job's salary is in (SDK 0.7.0: the Chest has no
-  // currency, a tool keeps its own): chosen in Settings, else the
-  // country's when Hiring offers it, else the euro. Every job keeps its
-  // own code beside its amounts.
+  // currency, a tool keeps its own): chosen in Settings, else the latest
+  // salary's, else the country's when Hiring offers it, else the euro.
+  // Every job keeps its own code beside its amounts.
   currency: Currency;
 };
 const currencyOfCountry: Record<string, Currency> = { GB: "GBP", US: "USD", CH: "CHF", LI: "CHF", CA: "CAD" };
 const defaults = { intro: "", careersOpen: true, retentionMonths: 24, country: "FR", accent: "cobalt" as Accent };
 const isImage = (v: unknown): v is PublicImage => typeof v === "object" && v !== null && typeof (v as PublicImage).object === "string" && (v as PublicImage).object.startsWith("public/") && typeof (v as PublicImage).version === "string";
+
+// Until a currency is chosen, the evidence of the jobs already written:
+// the latest salary's currency (a company that hired in pounds before
+// keeps pounds), never a blind default over what the team typed.
+async function currencyInUse(sql: Query): Promise<Currency | null> {
+  const [row] = await sql<{ salary_currency: string }[]>`
+    select salary_currency from jobs where salary_min is not null or salary_max is not null order by created_at desc, id desc limit 1`;
+  return row && isCurrency(row.salary_currency) ? row.salary_currency : null;
+}
 
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
@@ -131,7 +140,7 @@ export async function settings(sql: Query): Promise<Settings> {
     accent: (accents as readonly unknown[]).includes(found["accent"]) ? found["accent"] as Accent : defaults.accent,
     logo: isImage(found["logo"]) ? found["logo"] : null,
     photos: Array.isArray(found["photos"]) ? found["photos"].filter(isImage).slice(0, limits.photos) : [],
-    currency: isCurrency(found["default_currency"]) ? found["default_currency"] : currencyOfCountry[isCountry(found["country"]) ? found["country"] : defaults.country] ?? "EUR",
+    currency: isCurrency(found["default_currency"]) ? found["default_currency"] : await currencyInUse(sql) ?? currencyOfCountry[isCountry(found["country"]) ? found["country"] : defaults.country] ?? "EUR",
   };
 }
 
