@@ -11,6 +11,7 @@ import { ChestTeam } from "./members.js";
 import { ChestSchedules } from "./schedules.js";
 import { PostgresNotes } from "./notes.js";
 import { PostgresSecrets, Secrets } from "./secrets.js";
+import { wakeDelay } from "./wake.js";
 
 // The entry of the tool (npm start): a node:http server on 127.0.0.1:$PORT,
 // where the Chest's launcher relays its socket, and its database, whose
@@ -19,7 +20,8 @@ import { PostgresSecrets, Secrets } from "./secrets.js";
 // (members.ts), its chat, live through the Chest's realtime (chat.ts),
 // what it is told of its members' lifecycle (lifecycle.ts), what it does by
 // itself (schedules.ts), its AI, through the Chest's gateway (assistant.ts),
-// and its secrets, sealed by the Chest (secrets.ts). SIGTERM
+// and its secrets, sealed by the Chest (secrets.ts). It listens once the
+// laboratory's slow wake, if one was asked, has passed (wake.ts). SIGTERM
 // (the Chest stopping a version) closes the server and exits cleanly once
 // the requests in flight are answered — 10 s at most.
 const port = Number(process.env["PORT"] ?? "3000");
@@ -30,8 +32,9 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) {
 const sql = postgres(databaseUrl(), { max: 5, idle_timeout: 30, connect_timeout: 10, onnotice: () => undefined });
 const notes = new PostgresNotes(sql);
 const chat = new PostgresChat(sql);
-const server = createServer({ headersTimeout: 10000, requestTimeout: 30000 }, createApp(notes, new PostgresDatabase(sql), new ChestFiles(), new ChestTeam(), new ChestLifecycle(notes, chat), new ChestSchedules(), new ChestAssistant(), new Secrets(new PostgresSecrets(sql)), chat));
-server.listen(port, "127.0.0.1", () => console.log(`testweb: listening on 127.0.0.1:${port}`));
+const files = new ChestFiles();
+const server = createServer({ headersTimeout: 10000, requestTimeout: 30000 }, createApp(notes, new PostgresDatabase(sql), files, new ChestTeam(), new ChestLifecycle(notes, chat), new ChestSchedules(), new ChestAssistant(), new Secrets(new PostgresSecrets(sql)), chat));
+void wakeDelay(files).then(delay => setTimeout(() => server.listen(port, "127.0.0.1", () => console.log(`testweb: listening on 127.0.0.1:${port}`)), delay * 1000));
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, () => {
     server.close(() => void sql.end({ timeout: 5 }).then(() => process.exit(0)));
