@@ -6,6 +6,7 @@ import { dayWords, format, plural, when, type Catalogue } from "../i18n/index.ts
 import { anonymousTexts, followStates, listAnswers } from "../lib/answers.ts";
 import { AppError } from "../lib/app-error.ts";
 import { open } from "../lib/forms.ts";
+import { admit } from "../lib/live.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { seen } from "../lib/tell.ts";
 import type { AnswerRow } from "../islands/AnswersTable.tsx";
@@ -39,6 +40,8 @@ export function filterOf(query: (name: string) => string | undefined) {
 // shuffled (src/lib/answers.ts anonymousTexts), and the summary.
 export async function answersPage({ sql, member, t, lang, zone, param, query }: Ctx) {
   const { form, level } = await open(sql, member, param("id"));
+  // open() checked the member opens it: they may follow it live (lib/live.ts).
+  const live = { forms: await admit(sql, [form.id], member.id), lanes: [] };
   await seen(sql, form.id, member.id);
   const base = `/chest/forms/${form.id}`;
   const frame = (body: ReactNode) => ({ title: form.draft.title || t.builder.untitled, body: <FormFrame form={form} level={level} tab="answers" t={t} lang={lang}>{body}</FormFrame> });
@@ -60,7 +63,7 @@ export async function answersPage({ sql, member, t, lang, zone, param, query }: 
     }
     return frame(
       <div className="answers-page">
-        <Island name="LiveForms" props={{}} />
+        <Island name="LiveForms" props={live} />
         <div className="answers-bar">{head}<span className="spacer" />{exports}</div>
         <p className="answers-count" role="status">{plural(t.answers.count, data.total, lang)}</p>
         <p className="notice">{t.answers.anonymousRows}</p>
@@ -128,7 +131,7 @@ export async function answersPage({ sql, member, t, lang, zone, param, query }: 
   }));
   return frame(
     <div className="answers-page">
-      <Island name="LiveForms" props={{}} />
+      <Island name="LiveForms" props={live} />
       <div className="answers-bar">{head}<span className="spacer" />{listed.total > 0 && exports}</div>
       {listed.total > 0 && (
         <div className="answers-filters">

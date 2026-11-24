@@ -3,6 +3,7 @@ import { randomInt } from "node:crypto";
 import { atLeast, can, levelOn, type Level } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { mayCreate } from "./creators.ts";
+import * as live from "./live.ts";
 import type { Query, Sql } from "./db.ts";
 import {
   allQuestions,
@@ -261,6 +262,8 @@ export async function create(sql: Sql, actor: Member | null, start: Start): Prom
       returning ${sql.unsafe(columns)}`;
     if (row) {
       await sql`insert into watchers (form_id, member) values (${row.id}, ${actor.id}) on conflict do nothing`;
+      // A manager's home lists it (lib/live.ts).
+      await live.managersChanged();
       return toForm(row);
     }
   }
@@ -300,7 +303,7 @@ const hasFiles = (def: Definition) => allQuestions(def).some(q => q.kind === "fi
 // publish makes the draft the form respondents see: a new version when it
 // changed (answers already given keep theirs), then open.
 export async function publish(sql: Sql, actor: Member | null, formId: unknown): Promise<{ form: Form; version: number; first: boolean }> {
-  return sql.begin(async tx => {
+  const done = await sql.begin(async tx => {
     const { form } = await open(tx, actor, formId, "editor");
     await tx`select 1 from forms where id = ${form.id} for update`;
     const def = definition(form.draft);
@@ -333,6 +336,9 @@ export async function publish(sql: Sql, actor: Member | null, formId: unknown): 
       returning ${tx.unsafe(columns)}`;
     return { form: toForm(row!), version, first };
   });
+  // A team form opens or changes: every member's home offers it (lib/live.ts).
+  await live.teamChanged(done.form);
+  return done;
 }
 
 // discard brings the draft back to the published version.
@@ -346,6 +352,7 @@ export async function close(sql: Sql, actor: Member | null, formId: unknown): Pr
   const { form } = await open(sql, actor, formId, "editor");
   if (form.status !== "published") throw new AppError("invalid");
   const [row] = await sql<Row[]>`update forms set status = 'closed', closed_at = now(), updated_at = now() where id = ${form.id} returning ${sql.unsafe(columns)}`;
+  await live.teamChanged(form);
   return toForm(row!);
 }
 
@@ -357,6 +364,7 @@ export async function reopen(sql: Sql, actor: Member | null, formId: unknown): P
     update forms set status = 'published', closed_at = null, updated_at = now(),
       closes_at = case when closes_at is not null and closes_at <= now() then null else closes_at end
     where id = ${form.id} returning ${sql.unsafe(columns)}`;
+  await live.teamChanged(form);
   return toForm(row!);
 }
 
@@ -372,8 +380,10 @@ export async function team(sql: Query, formId: string): Promise<{ owner: string;
 // saveSettings: how the form is answered. Anonymity cannot change once
 // someone answered (it would change what they were promised).
 export async function saveSettings(sql: Sql, actor: Member | null, formId: unknown, raw: unknown, closesAt: Date | null): Promise<Form> {
-  return sql.begin(async tx => {
+  let before: Form | undefined;
+  const saved = await sql.begin(async tx => {
     const { form } = await open(tx, actor, formId, "editor");
+    before = form;
     await tx`select 1 from forms where id = ${form.id} for update`;
     const s = readSettings(raw, closesAt ? closesAt.toISOString() : null);
     // Also a contact, a ticket: checked against the form's questions.
@@ -398,6 +408,10 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
     for (const m of wanted) await tx`insert into watchers (form_id, member) values (${form.id}, ${m}) on conflict do nothing`;
     return toForm(row!);
   });
+  // A team form's audience or dates changed, or a form became one: every
+  // member's home reads itself again (lib/live.ts).
+  await live.teamChanged(before, saved);
+  return saved;
 }
 
 // setCover: the picture at the top of the respondent's page (null: none).
@@ -417,14 +431,21 @@ export async function share(sql: Sql, actor: Member | null, formId: unknown, mem
   const { form } = await open(sql, actor, formId, "owner");
   if (!isMemberId(member) || member === form.owner) throw new AppError("invalid");
   if (level === null) {
-    await sql`delete from access where form_id = ${form.id} and member = ${member}`;
-    await sql`delete from watchers where form_id = ${form.id} and member = ${member}`;
+    await sql.begin(async tx => {
+      await tx`delete from access where form_id = ${form.id} and member = ${member}`;
+      await tx`delete from watchers where form_id = ${form.id} and member = ${member}`;
+      // No longer theirs to open: out of its live channel (lib/live.ts).
+      await live.forget(tx, { form: form.id, member });
+    });
+    await live.memberChanged(member);
     return;
   }
   if (level !== "editor" && level !== "viewer") throw new AppError("invalid");
   const { count } = (await sql<{ count: number }[]>`select count(*)::int as count from access where form_id = ${form.id}`)[0]!;
   if (count >= limits.collaborators) throw new AppError("at_most", { max: limits.collaborators });
   await sql`insert into access (form_id, member, level) values (${form.id}, ${member}, ${level}) on conflict (form_id, member) do update set level = excluded.level`;
+  // Their home lists it now (lib/live.ts).
+  await live.memberChanged(member);
 }
 
 // duplicate: a new draft with the same questions (new ids) and settings,
@@ -443,7 +464,13 @@ export async function duplicate(sql: Sql, actor: Member | null, formId: unknown,
 // its answers and files, after 30 days (cleanup).
 export async function remove(sql: Sql, actor: Member | null, formId: unknown): Promise<void> {
   const { form } = await open(sql, actor, formId, "owner");
-  await sql`update forms set deleted_at = now() where id = ${form.id}`;
+  await sql.begin(async tx => {
+    await tx`update forms set deleted_at = now() where id = ${form.id}`;
+    // Put aside, it is nobody's to follow live (lib/live.ts).
+    await live.forget(tx, { form: form.id });
+  });
+  await live.teamChanged(form);
+  await live.managersChanged();
 }
 
 // ownsAny: the actor owns a form (deleted ones aside).
@@ -475,4 +502,6 @@ export async function restore(sql: Sql, actor: Member | null, formId: unknown): 
   if (!row || !actor) throw new AppError("not_found");
   if (levelOn(actor, row, null) !== "owner") throw new AppError("not_found");
   await sql`update forms set deleted_at = null where id = ${id}`;
+  await live.teamChanged(toForm(row));
+  await live.managersChanged();
 }

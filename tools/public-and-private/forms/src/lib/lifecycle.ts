@@ -3,6 +3,7 @@ import { seen } from "@argentic/chest-app/db";
 import type { Sql } from "./db.ts";
 import { remove } from "./uploads.ts";
 import { filesOf } from "./answers.ts";
+import * as live from "./live.ts";
 import type { Answers } from "../shared/logic.ts";
 
 // What the tool does when a member changes, loses access, leaves or is
@@ -17,12 +18,20 @@ import type { Answers } from "../shared/logic.ts";
 //   deleted (with files), their mark in anonymous forms' participants
 //   becomes "erased" (still counted, never named), and forms they owned
 //   are owned by "erased" (managers keep them). Then acknowledged.
-export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
+// - member.updated with their role: the forms they follow live are
+//   checked again (a manager no longer opens every form; lib/live.ts).
+// In each case they follow no form live any more until a page lets them
+// in again.
+export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.revoked" | "member.removed" | "member.erased"> {
   const leave = async (id: string) => {
-    await sql`delete from access where member = ${id}`;
-    await sql`delete from watchers where member = ${id}`;
+    await sql.begin(async tx => {
+      await tx`delete from access where member = ${id}`;
+      await tx`delete from watchers where member = ${id}`;
+      await live.forget(tx, { member: id });
+    });
   };
   return {
+    "member.updated": async event => { if (event.data.changed.includes("role")) await live.forget(sql, { member: event.data.id }); },
     "access.revoked": async event => leave(event.data.id),
     "member.removed": async event => leave(event.data.id),
     "member.erased": async event => {

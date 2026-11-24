@@ -79,20 +79,37 @@
   "realtime": {
     "channels": [
       {
-        "name": "forms"
+        "name": "form:{id}",
+        "join": {
+          "table": "form_live",
+          "key": "form_id",
+          "member": "member_id"
+        }
+      },
+      {
+        "name": "team"
+      },
+      {
+        "name": "managers",
+        "join": [
+          "manager"
+        ]
+      },
+      {
+        "name": "mine:{member}"
       }
     ],
     "feeds": [
       {
         "table": "answers",
-        "channel": "forms",
+        "channel": "form:{form_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "forms",
-        "channel": "forms",
+        "channel": "form:{id}",
         "columns": [
           "id"
         ]

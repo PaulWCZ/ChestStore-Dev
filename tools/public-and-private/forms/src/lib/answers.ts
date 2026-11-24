@@ -9,6 +9,7 @@ import { check, filesIn, type Answers, type FileRef, type StoredFile } from "../
 import type { Stats } from "../shared/summary.ts";
 import { answerStats, shuffledTexts } from "./stats.ts";
 import { forgetHooks } from "./hooks.ts";
+import * as realtime from "./live.ts";
 
 // Answers: taking one (the only door strangers use), reading them, the
 // anonymity of anonymous forms, deleting, erasing, retention.
@@ -91,6 +92,8 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
   }
 
   const email = form.anonymous ? null : firstEmail(def, answers);
+  // A team form this answer fills up leaves every member's home.
+  let filled: Form | null = null;
   try {
     const answer = await sql.begin(async tx => {
       const [row] = await tx`select ${tx.unsafe(columns)} from forms where id = ${form.id} and deleted_at is null for update`;
@@ -109,8 +112,9 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
       const [counted] = await tx`
         update forms set answer_count = answer_count + 1, bell_pending = true
         where id = ${form.id} and answer_count < least(coalesce(max_answers, ${limits.maxAnswers}), ${limits.maxAnswers})
-        returning answer_count`;
+        returning answer_count >= least(coalesce(max_answers, ${limits.maxAnswers}), ${limits.maxAnswers}) as full`;
       if (!counted) throw new AppError("full");
+      if (counted["full"]) filled = now;
       await tx`update watchers set unseen = unseen + 1 where form_id = ${form.id}`;
       const id = newAnswerId();
       if (now.anonymous) {
@@ -126,6 +130,7 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
         returning ${tx.unsafe(answerColumns)}`;
       return toAnswer(kept!);
     });
+    await realtime.teamChanged(filled);
     return { answer, definition: def };
   } catch (error) {
     await s.drop(taken);
@@ -318,6 +323,8 @@ export async function follow(sql: Sql, actor: Member | null, formId: unknown, an
       where form_id = ${form.id} and id = ${answerId} returning ${tx.unsafe(answerColumns)}`;
     return { row, told: (status !== undefined && status !== before.status) || (note !== undefined && note !== before.note && note !== "") };
   });
+  // Who sent it reads where it stands on their home (lib/live.ts).
+  if (row!.respondent) await realtime.memberChanged(row!.respondent);
   return { answer: toAnswer(row!), form, told };
 }
 

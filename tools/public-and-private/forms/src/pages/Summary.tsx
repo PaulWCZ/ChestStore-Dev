@@ -6,6 +6,7 @@ import { dayWords, format, number, plural } from "../i18n/index.ts";
 import { summaryOf } from "../lib/answers.ts";
 import { AppError } from "../lib/app-error.ts";
 import { open } from "../lib/forms.ts";
+import { admit } from "../lib/live.ts";
 import { reachOf } from "../lib/reach.ts";
 import { limits, readIn } from "../shared/model.ts";
 import { summarise, type Bar, type Summary } from "../shared/summary.ts";
@@ -29,6 +30,8 @@ function Track({ share }: { share: number }) {
 // stats.ts): the same page for ten answers or ten thousand.
 export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
   const { form, level } = await open(sql, member, param("id"));
+  // open() checked the member opens it: they may follow it live (lib/live.ts).
+  const live = { forms: await admit(sql, [form.id], member.id), lanes: [] };
   const base = `/chest/forms/${form.id}`;
   const head = <AnswersSwitch base={base} current="summary" t={t} />;
   const frame = (body: ReactNode) => ({ title: form.draft.title || t.builder.untitled, body: <FormFrame form={form} level={level} tab="answers" t={t} lang={lang}>{body}</FormFrame> });
@@ -181,7 +184,7 @@ export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
   const summaries = summarise(new Map([...data.versions].map(([v, d]) => [v, readIn(d, lang)])), data.stats, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
   return frame(
     <div className="summary-page">
-      <Island name="LiveForms" props={{}} />
+      <Island name="LiveForms" props={live} />
       {head}
       <p className="answers-count">{plural(t.answers.count, data.stats.total, lang)}</p>
       {data.versions.size > 1 && <p className="hint">{s.versions}</p>}

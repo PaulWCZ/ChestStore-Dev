@@ -456,14 +456,34 @@ Next.js 16 version): image 469 → 39 MiB, memory at rest (PSS) 137 → 67
 MiB, first page after a cold start 949 → 582 ms, and the build fits the
 Chest's 512 MiB (310 MiB peak).
 
+## Live updates
+
+- **A channel per form**: `form:<id>` carries the feeds of `forms` and
+  `answers`, a row's id alone; the page's read, versioned, decides what
+  its reader sees. **Only who may open the form joins its channel**: the
+  Chest checks the table `form_live` at every join (migration 0007, the
+  channel's `join`), where Forms writes a row once it has checked the
+  member opens the form (its owner, someone it is shared with, a manager)
+  — on the home page for each form listed, on a form's answers and
+  summary. The rows go when the form is unshared with them or put in the
+  trash, their role changes, their access is revoked, they leave or are
+  erased; the Chest takes them out at once, and their page, read again
+  (the marks are part of its version: never a 304), lets them in again if
+  still allowed. A member who cannot open a form never hears its answers
+  come.
+- **What a home shows besides** is told by Forms without an id, as
+  `forms.changed`: on `team` (every member) when a team form — offered to
+  every member — opens, closes, fills up or changes its settings; on
+  `managers` (the role) when a form is made, put aside or brought back; on
+  `mine:<member>` (that member only) when a form is shared with them or
+  taken back, or their answer's follow-up changes.
+
 ## On a Chest
 
 Contract 0.7 (`chest check` says OK). Capabilities: `database`, `files`
 (visitors' uploads included), `members`, `notifications`, `realtime` (a
 page left open — the forms, a form's answers and summary — follows the
-channel `forms`: the feeds of `answers` and `forms` carry a row's id
-only, and the page's read, versioned, decides what its reader sees; no
-timer); receives `member.*`; emits `forms.answered`, `forms.contact`,
+Chest's realtime, never a timer; see *Live updates* below); receives `member.*`; emits `forms.answered`, `forms.contact`,
 `forms.request` with their schemas; `schedules` (`bell`, `cleanup`).
 Proposals (in `chest.proposals.json`): `mail.send`, `files.publicFiles`
 (covers and pictures), `"webhooks": true`, and the tile's French words.

@@ -233,6 +233,11 @@ test("the answers: the table's island, a filter in the address, an answer's page
   // Left open, the page follows the Chest's realtime (feeds of answers and forms), never a timer.
   assert.match(page, /data-island="LiveForms"/u);
   assert.doesNotMatch(page, /AutoRefresh/u);
+  // Only on form 1's own channel, Inès let in first (form_live: src/lib/live.ts).
+  const live = islandProps(page, "LiveForms");
+  assert.deepEqual(live.forms.map(f => f.id), ["1"]);
+  assert.deepEqual(live.lanes, []);
+  assert.equal((await database.sql`select 1 from form_live where form_id = 1 and member_id = ${ines.id}`).length, 1);
   assert.ok(islandProps(page, "AnswersFilters"));
   const one = await get(ines, `/chest/forms/1/answers/${table.rows[0].id}?status=new`);
   assert.equal(one.status, 200);

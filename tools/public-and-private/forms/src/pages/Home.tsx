@@ -7,6 +7,7 @@ import { can } from "../lib/access.ts";
 import { sent } from "../lib/answers.ts";
 import { everyoneCreates, mayCreate } from "../lib/creators.ts";
 import { list, teamForms, trash, type Listed } from "../lib/forms.ts";
+import { admit, lane } from "../lib/live.ts";
 import { templateKeys } from "../lib/templates.ts";
 import type { Ctx } from "./context.ts";
 
@@ -19,6 +20,9 @@ export async function homePage({ sql, member, t, lang, zone, query }: Ctx) {
   const mine = all.filter(f => f.owner === member.id);
   const shared = all.filter(f => f.owner !== member.id && f.level !== "owner");
   const others = all.filter(f => f.owner !== member.id && f.level === "owner");
+  // Followed live: the forms list() checked the member opens, and the
+  // lanes where the tool tells what else their home shows (lib/live.ts).
+  const live = { forms: await admit(sql, all.map(f => f.id), member.id), lanes: ["team", lane(member.id), ...(can(member, "forms.all") ? ["managers"] : [])] };
   const now = new Date();
   const card = (f: Listed) => {
     const status = f.status === "draft" ? "draft" : f.open.open ? "open" : (f.open.reason ?? "closed");
@@ -55,7 +59,7 @@ export async function homePage({ sql, member, t, lang, zone, query }: Ctx) {
     title: t.home.title,
     body: (
       <div>
-        <Island name="LiveForms" props={{}} />
+        <Island name="LiveForms" props={live} />
         {deleted !== undefined && /^[1-9][0-9]{0,17}$/u.test(deleted) && <Island id={`deleted-${deleted}`} name="DeletedToast" props={{ formId: deleted, text: t.builder.deletedForm }} />}
         <div className="home-head">
           <h1>{t.home.title}</h1>
