@@ -38,10 +38,11 @@ test("todayIn is the date in another zone: a member's; one the runtime does not 
   assert.equal(chest.todayIn("../etc/localtime", at), "2027-01-01");
   assert.match(chest.todayIn("Asia/Tokyo"), /^\d{4}-\d{2}-\d{2}$/u);
   assert.throws(() => chest.todayIn("UTC", Number.NaN), RangeError);
-  // Outside a Chest a known zone still answers, an unknown one reads as UTC.
+  // Outside a Chest a known zone still answers; an unknown one is refused
+  // as 0.7.0 refuses chest.today() there — never read silently as UTC.
   delete process.env["CHEST_TIME_ZONE"];
   assert.equal(chest.todayIn("Europe/Paris", at), "2027-01-01");
-  assert.equal(chest.todayIn("Mars/Olympus", at), "2026-12-31");
+  assert.throws(() => chest.todayIn("Mars/Olympus", at), (error: unknown) => error instanceof ChestError && error.code === "not_in_chest");
   process.env["CHEST_TIME_ZONE"] = "Europe/Paris";
   // Taken apart from the object, it still reads the Chest, as today() does.
   const { todayIn } = chest;
