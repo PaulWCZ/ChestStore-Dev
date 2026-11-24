@@ -647,6 +647,10 @@ receives:
   private document — every member with a role reads every quote —, so a
   deal told for some people only makes **no draft**; its owner, when the
   audience names them, is told in the bell to write its quote.
+- **Who tells**: a type names no tool in 0.7.0, so `crm.*` is read only
+  from Clients (source `crm`) and `timesheets.*` only from Timesheets
+  (source `timesheets`); the same type from another tool is accepted and
+  ignored (`src/lib/deliveries.ts`).
 
 **The client**: found by the CRM's reference (`clients.external_ref` =
 `crm:<ref>`), else by SIREN (and then linked), else created from the

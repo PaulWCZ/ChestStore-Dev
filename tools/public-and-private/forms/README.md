@@ -212,6 +212,9 @@ is the answer's page in Forms (`/chest/forms/5/answers/…`), a path, never
 an origin. **No audience**: the form's author chose to send its answers to
 the other tools (the form's Settings), so every member of a receiving tool
 may see them there.
+Each text is told without format characters (an emoji's zero-width
+joiner, a zero-width space: SDK 0.7.0 refuses an event holding one); the
+answer keeps what was typed.
 
 **Clients receives `forms.contact`** (its README, "What Clients receives":
 the contact found by email — or by phone only when the name is the same
