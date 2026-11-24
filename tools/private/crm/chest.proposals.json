@@ -1,1 +1,3 @@
-{"calendar": true, "emits": ["crm.deal.won", "crm.deal.reopened"], "receives": ["forms.contact", "booking.confirmed", "booking.cancelled"]}
+{
+  "calendar": true
+}

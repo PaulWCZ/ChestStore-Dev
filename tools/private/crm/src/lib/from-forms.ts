@@ -8,14 +8,17 @@ import { email as checkEmail } from "./email.ts";
 import { cut as bounded, notify } from "./notify.ts";
 import { managers } from "./team.ts";
 
-// What Forms tells Clients (Proposal (studio): events between tools, once
-// an administrator linked the two): `forms.contact`, someone who filled in
-// a form whose author maps a contact, and left an email or a phone. The
-// contract is Forms' (its README, "With the other tools"; version 1, a
-// later version only adds fields):
+// What Forms tells Clients (SDK 0.7.0 events between tools, once the owner
+// approved the link): `forms.contact`, someone who filled in a form whose
+// author maps a contact, and left an email or a phone. The contract is
+// Forms' (its chest.json "emits" schema; version 1, a later version only
+// adds fields) — flat, as 0.7.0's kinds are:
 //
-//   { v: 1, form: {id, title}, answer: {id, at, language, path},
-//     contact: {name, email, phone, company}, message, member }
+//   { v: 1, form, formTitle, answer, answeredAt, language, path,
+//     contactName, contactEmail, contactPhone, contactCompany, message, member }
+//
+// The nested shape of before ({form: {id, title}, answer: {id, at, path},
+// contact: {name, email, phone, company}}) is read too.
 //
 // Who the person is — a privacy rule (GDPR: one person's words must never
 // sit in another's file, where their right of access cannot find them and
@@ -60,6 +63,10 @@ export type FormContact = {
   phone: string;
   company: string;
   message: string;
+  // Who of Clients may see it (SDK 0.7.0 audience): null for everyone.
+  // Forms tells forms.contact to all; were it told for some people only,
+  // the line would be theirs and no new contact would be made.
+  audience: string[] | null;
 };
 
 export const refPattern = /^[A-Za-z0-9_-]{1,64}$/u;
@@ -79,8 +86,15 @@ export const safe = (read: () => string): string => {
 
 // readFormContact: the event as Clients uses it, or null when it cannot
 // make a contact (another shape, no way to reach the person).
-export function readFormContact(event: Pick<ToolEvent, "id" | "data">, now = new Date()): FormContact | null {
-  const { v, form, answer, contact } = event.data;
+export function readFormContact(event: Pick<ToolEvent, "id" | "data"> & { audience?: ToolEvent["audience"]; source?: string }, now = new Date()): FormContact | null {
+  // Only Forms' word: a forms.* type told by another tool is ignored.
+  if (event.source !== undefined && event.source !== "forms") return null;
+  const d = event.data;
+  const flat = typeof d["form"] === "string";
+  const form = flat ? { id: d["form"], title: d["formTitle"] } : d["form"];
+  const answer = flat ? { id: d["answer"], at: d["answeredAt"], path: d["path"] } : d["answer"];
+  const contact = flat ? { name: d["contactName"], email: d["contactEmail"], phone: d["contactPhone"], company: d["contactCompany"] } : d["contact"];
+  const v = d["v"];
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return null;
   if (!isObject(form) || !isObject(answer) || !isObject(contact)) return null;
   if (typeof form["id"] !== "string" || !refPattern.test(form["id"])) return null;
@@ -100,6 +114,7 @@ export function readFormContact(event: Pick<ToolEvent, "id" | "data">, now = new
     phone,
     company: line(contact["company"], limits.name),
     message: text(event.data["message"], limits.body),
+    audience: event.audience === undefined || event.audience === "all" ? null : event.audience.filter(m => /^mbr_[a-z2-7]{26}$/u.test(m)).slice(0, 5000),
   };
 }
 
@@ -151,7 +166,7 @@ export type Received = { contact: { id: string; name: string; owner: string | nu
 
 // receiveFormContact: the contact found or made, and the line of history;
 // null when the event is not one to act on, or was already handled.
-export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" | "data">): Promise<Received | null> {
+export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" | "data" | "source"> & { audience?: ToolEvent["audience"] }): Promise<Received | null> {
   const c = readFormContact(event);
   if (!c) return null;
   const received = await sql.begin(async (tx): Promise<Received | null> => {
@@ -161,6 +176,8 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
       limit 1`;
     if (done) return null;
     const { found, maybe } = await match(tx, c);
+    // Told for some people only: never a new contact the whole team sees.
+    if (!found && c.audience !== null) return null;
     let contact: Received["contact"];
     let companyId: string | null;
     if (found) {
@@ -194,8 +211,8 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
     // hidden behind the contact it was filed on.
     const who = { name: c.name, email: c.email, phone: c.phone, company: c.company };
     await tx`
-      insert into activities (kind, body, data, contact_id, company_id, author, at)
-      values ('form', ${c.message}, ${tx.json({ event: c.event, formId: c.form.id, form: c.form.title, answer: c.answer.id, path: c.answer.path, who })}, ${contact.id}, ${companyId}, 'chest', ${c.answer.at})`;
+      insert into activities (kind, body, data, contact_id, company_id, author, at, audience)
+      values ('form', ${c.message}, ${tx.json({ event: c.event, formId: c.form.id, form: c.form.title, answer: c.answer.id, path: c.answer.path, who })}, ${contact.id}, ${companyId}, 'chest', ${c.answer.at}, ${c.audience})`;
     return { contact, created: !found, maybe: maybe && !found ? { id: String(maybe.id), name: maybe.name } : null };
   });
   if (received) await tell(received, c);
@@ -206,7 +223,9 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
 // item per answer (its key hashed: a bell key is lower case).
 export const formKey = (formId: string, answerId: string) => "form:" + createHash("sha256").update(formId + ":" + answerId).digest("hex").slice(0, 40);
 async function tell(received: Received, c: FormContact): Promise<void> {
-  const to = received.contact.owner?.startsWith("mbr_") ? [received.contact.owner] : await managers();
+  const all = received.contact.owner?.startsWith("mbr_") ? [received.contact.owner] : await managers();
+  const to = c.audience === null ? all : all.filter(m => c.audience!.includes(m));
+  if (to.length === 0) return;
   await notify(to, t => {
     const body = [received.maybe ? format(t.bell.formMaybe, { other: received.maybe.name }) : "", c.message].filter(Boolean).join(" ");
     return {

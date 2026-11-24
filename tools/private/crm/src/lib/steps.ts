@@ -16,7 +16,7 @@ import { checkAssignable } from "./team.ts";
 // and of the tile's number: the late and today's steps of each person.
 
 export type Step = { id: string; text: string; due: string; time: string | null; owner: string | null; createdBy: string; dealId: string | null; contactId: string | null };
-export type DayStep = Step & { on: { kind: "deal" | "contact"; id: string; title: string; company: string | null; value: number | null; owner: string | null } | null };
+export type DayStep = Step & { on: { kind: "deal" | "contact"; id: string; title: string; company: string | null; value: number | null; currency: string | null; owner: string | null } | null };
 
 type Row = { id: string; text: string; due_on: string; due_time: string | null; owner: string | null; created_by: string; deal_id: string | null; contact_id: string | null };
 export const stepColumns = (sql: Query, alias = "p") => sql`${sql(alias + ".id")}, ${sql(alias + ".text")}, to_char(${sql(alias + ".due_on")}, 'YYYY-MM-DD') as due_on, ${sql(alias + ".due_time")}, ${sql(alias + ".owner")}, ${sql(alias + ".created_by")}, ${sql(alias + ".deal_id")}, ${sql(alias + ".contact_id")}`;
@@ -158,8 +158,8 @@ export async function clearStep(sql: Sql, actor: Member | null, stepId: unknown)
 // My day: my open steps, late and today first, then the next seven days.
 export async function myDay(sql: Sql, actor: Member | null, now = today()): Promise<DayStep[]> {
   if (!can(actor, "read")) throw new AppError("forbidden");
-  const rows = await sql<(Row & { deal_title: string | null; contact_name: string | null; company_name: string | null; value_cents: string | null; deal_owner: string | null })[]>`
-    select ${stepColumns(sql)}, d.title as deal_title, d.value_cents, d.owner as deal_owner, c.name as contact_name, coalesce(o1.name, o2.name) as company_name
+  const rows = await sql<(Row & { deal_title: string | null; contact_name: string | null; company_name: string | null; value_cents: string | null; currency: string | null; deal_owner: string | null })[]>`
+    select ${stepColumns(sql)}, d.title as deal_title, d.value_cents, d.currency, d.owner as deal_owner, c.name as contact_name, coalesce(o1.name, o2.name) as company_name
     from steps p
     left join deals d on d.id = p.deal_id
     left join contacts c on c.id = p.contact_id
@@ -171,8 +171,8 @@ export async function myDay(sql: Sql, actor: Member | null, now = today()): Prom
   return rows.map(r => ({
     ...toStep(r),
     on: r.deal_id
-      ? { kind: "deal" as const, id: String(r.deal_id), title: r.deal_title ?? "", company: r.company_name, value: r.value_cents === null ? null : Number(r.value_cents), owner: r.deal_owner }
-      : r.contact_id ? { kind: "contact" as const, id: String(r.contact_id), title: r.contact_name ?? "", company: r.company_name, value: null, owner: null }
+      ? { kind: "deal" as const, id: String(r.deal_id), title: r.deal_title ?? "", company: r.company_name, value: r.value_cents === null ? null : Number(r.value_cents), currency: r.currency ?? "EUR", owner: r.deal_owner }
+      : r.contact_id ? { kind: "contact" as const, id: String(r.contact_id), title: r.contact_name ?? "", company: r.company_name, value: null, currency: null, owner: null }
       : null,
   }));
 }

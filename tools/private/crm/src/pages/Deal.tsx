@@ -24,7 +24,7 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
   const locale = localeOf(lang);
   const sql = db();
   const d = await readDeal(sql, member, param("id"));
-  const [items, choices, steps, files, inCalendar] = await Promise.all([timeline(sql, { dealId: d.id }), formChoices(sql, member, t), openSteps(sql, { dealId: d.id }), listFiles(sql, member, { deal: d.id }), calendarWorks(sql)]);
+  const [items, choices, steps, files, inCalendar] = await Promise.all([timeline(sql, { dealId: d.id, viewer: member.id }), formChoices(sql, member, t), openSteps(sql, { dealId: d.id }), listFiles(sql, member, { deal: d.id }), calendarWorks(sql)]);
   const people = await directory([d.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
   const editable = canEditDeal(member, d);
   const stage = choices.stages.find(s => s.id === d.stageId)!;
@@ -35,7 +35,7 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
     title: d.title,
     body: (
       <div className="page record">
-        <Island name="AutoRefresh" props={{ seconds: 45 }} />
+        <Island name="Live" props={{ tables: ["deals", "activities", "steps", "attachments"] }} />
         <nav className="crumbs"><a href="/chest/deals"><Back />{t.shell.deals}</a></nav>
         <div className="record-head">
           <p className="label-mono">{choices.stageNames[stage.id]} · {format(t.deal.probability, { percent: stage.probability })}</p>

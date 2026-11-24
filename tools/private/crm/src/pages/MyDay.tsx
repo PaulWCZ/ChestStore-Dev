@@ -32,7 +32,7 @@ export async function myDayPage({ member, locale: lang, t }: PageContext): Promi
   if ((await calendarWorks(sql)) === null) await reconcile(sql);
   const inCalendar = (await calendarWorks(sql)) === true;
   const now = today();
-  const cur = currency();
+  const cur = await currency(sql);
   const [choices, counted] = await Promise.all([
     formChoices(sql, member, t),
     sql<{ n: boolean }[]>`select exists (select 1 from companies) or exists (select 1 from contacts) or exists (select 1 from deals) as n`,
@@ -101,7 +101,7 @@ export async function myDayPage({ member, locale: lang, t }: PageContext): Promi
       title: t.shell.myDay,
       body: (
         <div className="page">
-          <Island name="AutoRefresh" props={{ seconds: 60 }} />
+          <Island name="Live" props={{ tables: ["steps", "deals", "contacts", "activities", "booked_meetings"] }} />
           <div className="page-head">
             <div>
               <p className="label-mono">{day}</p>
@@ -165,7 +165,7 @@ export async function myDayPage({ member, locale: lang, t }: PageContext): Promi
     canPlan: s.on === null ? false : s.on.kind === "deal" ? canEditDeal(member, { owner: s.on.owner }) : can(member, "records.write"),
     state: dueState(s.due, now),
     dueLabel: dueLabel(s, now, locale, t),
-    valueLabel: s.on?.value ? money(s.on.value, locale, { currency: cur }) : null,
+    valueLabel: s.on?.value && s.on.currency ? money(s.on.value, locale, { currency: s.on.currency }) : null,
   }));
   const urgent = rows.filter(r => r.state === "late" || r.state === "today").length;
   const p = pipeline(byStage, id => `/chest/deals?view=list&owner=me&stage=${id}`);
@@ -176,7 +176,7 @@ export async function myDayPage({ member, locale: lang, t }: PageContext): Promi
     title: t.shell.myDay,
     body: (
       <div className="page">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ tables: ["steps", "deals", "contacts", "activities", "booked_meetings"] }} />
         <div className="page-head">
           <div>
             <p className="label-mono">{day}</p>

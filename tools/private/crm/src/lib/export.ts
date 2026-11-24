@@ -18,6 +18,7 @@ import { catalogue, format, localeOf, type Catalogue, type Locale } from "../i18
 import { stageName } from "../shared/model.ts";
 import { nameOf, people } from "./people.ts";
 import { listStages } from "./stages.ts";
+import { defaultCurrency } from "./settings.ts";
 import { toVcard } from "../shared/vcard.ts";
 
 // Everything leaves as easily as it came: each list as a CSV any
@@ -50,7 +51,7 @@ export async function companiesCsv(sql: Sql, actor: Member | null, filter: Compa
   const owner = await owners(ids, locale, t);
   const h = t.export.companies;
   return lines(
-    [h.name, h.website, h.phone, h.email, h.address, h.postcode, h.city, h.country, h.siren, h.vat, h.industry, h.tags, h.owner, h.contacts, h.openDeals, format(h.openValue, { currency: chest.currency }), h.notes, ...fields.map(f => f.label)],
+    [h.name, h.website, h.phone, h.email, h.address, h.postcode, h.city, h.country, h.siren, h.vat, h.industry, h.tags, h.owner, h.contacts, h.openDeals, format(h.openValue, { currency: await defaultCurrency(sql) }), h.notes, ...fields.map(f => f.label)],
     batches,
     r => [r.name, r.website, r.phone, r.email, r.address, r.postcode, r.city, countryName(r.country, locale), r.siren, r.vat, shownName("industries", r.industry, t), r.tags.map(x => shownName("tags", x, t)).join(", "), owner(r.owner), r.contacts, r.openDeals, amountInput(r.openValue), r.notes, ...fields.map(f => cellOf(r.custom[f.id], f))],
   );
@@ -167,7 +168,8 @@ export async function everything(sql: Sql, actor: Member | null, locale: Locale,
     ) };
     yield { name: "activities.csv", data: table(
       ["id", "at", "kind", "text", "deal_id", "contact_id", "company_id", "author", "author_id"],
-      () => sql<Record<string, unknown>[]>`select * from activities where removed_at is null order by at, id`.cursor(batch),
+      // A line told for an audience (a booking) only when the exporter is in it.
+      () => sql<Record<string, unknown>[]>`select * from activities where removed_at is null and (audience is null or ${actor!.id} = any(audience)) order by at, id`.cursor(batch),
       r => [r["id"], day(r["at"]), r["kind"], r["body"], r["deal_id"] ?? "", r["contact_id"] ?? "", r["company_id"] ?? "", who(r["author"]) || ((r["data"] as Record<string, unknown>)["by"] ?? ""), r["author"]],
     ) };
     yield { name: "next-steps.csv", data: table(

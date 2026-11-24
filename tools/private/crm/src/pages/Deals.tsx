@@ -35,7 +35,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
   };
   const sql = db();
   const now = today();
-  const cur = currency();
+  const cur = await currency(sql);
   const choices = await formChoices(sql, member, t);
   const newDeal = { initial: emptyDeal(member.id, choices.openStages[0]?.id ?? ""), ...dealFormProps(choices, member.id, locale), t: words.deal(t) };
   const kept: Record<string, string> = Object.fromEntries(Object.entries({ owner, stage: String(filter.stage ?? ""), closing: filter.closing ?? "", status: one("status"), q: String(filter.q ?? ""), cf: one("cf"), cv: one("cv"), cmin: one("cmin"), cmax: one("cmax") }).filter(([, x]) => x !== ""));
@@ -92,7 +92,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
       title: t.deals.title,
       body: (
         <div className="page wide">
-          <Island name="AutoRefresh" props={{ seconds: 30 }} />
+          <Island name="Live" props={{ tables: ["deals", "stages", "steps"] }} />
           {head}
           {!emptyBoard && <Island name="DealFilters" props={{ address, view: "board", owner, stage: "", closing: "", status: "", team: choices.team, me: member.id, stages: choices.stageChoices, fields: [], today: now, t: words.dealFilters(t) }} />}
           {!can(member, "deals.create") && <p className="notice">{t.deals.readOnly}</p>}
@@ -116,7 +116,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
     };
   }
 
-  const { rows, total, value, page, pageSize } = await listDeals(sql, member, filter, 200, now, one("page"));
+  const { rows, total, value, others, page, pageSize } = await listDeals(sql, member, filter, 200, now, one("page"));
   const people = await directory(rows.map(d => d.owner), locale);
   const probability = new Map(choices.stages.map(s => [s.id, s.probability]));
   const kind = new Map(choices.stages.map(s => [s.id, s.kind]));
@@ -149,7 +149,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
         <Island name="DealList" id="deal-list" props={{
           rows: list, writes, team: choices.team, me: member.id, canAssign: choices.canAssign, locale, labels: t.table, t: words.owner(t),
           words: { caption: t.deals.title, select: t.common.bulk.selectColumn, selectOne: t.common.bulk.select, title: t.deals.listTitle, company: t.deals.listCompany, value: t.deals.listValue, stage: t.deals.listStage, probability: t.deals.listProbability, close: t.deals.listClose, owner: t.deals.listOwner, step: t.deals.listStep },
-          summary: { text: `${plural(t.deals.count, total, locale)} · ${money(value, locale, { currency: cur })}`, exportHref: mayExport(member, await exportSetting(sql)) ? `/chest/export/deals${exportQuery ? "?" + exportQuery : ""}` : null, exportLabel: t.common.exportCsv },
+          summary: { text: `${plural(t.deals.count, total, locale)} · ${money(value, locale, { currency: cur })}${others > 0 ? ` (${plural(t.deals.otherCurrencies, others, locale)})` : ""}`, exportHref: mayExport(member, await exportSetting(sql)) ? `/chest/export/deals${exportQuery ? "?" + exportQuery : ""}` : null, exportLabel: t.common.exportCsv },
         }} />
         {rows.length === 0 && (
           <EmptyState
