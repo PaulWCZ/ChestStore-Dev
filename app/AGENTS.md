@@ -5,7 +5,7 @@ with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
 The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
 Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
-This page is for `@argentic/chest-app` 0.1.0-studio.12, on `@argentic/chest-sdk`
+This page is for `@argentic/chest-app` 0.1.0-studio.13, on `@argentic/chest-sdk`
 0.7.0 (tool contract 0.7: `"chest": "0.7"` in `chest.json`).
 
 ## Where things are in a tool
@@ -82,7 +82,13 @@ This page is for `@argentic/chest-app` 0.1.0-studio.12, on `@argentic/chest-sdk`
   when the Chest says a row of the page changed (realtime — never a timer:
   below, "A page others change"). A navigation is
   never lost to a refresh or an action on its way; an island it brings is
-  live the moment it shows.
+  live the moment it shows. A read never shows an older page than an
+  action: a refresh across an action (started before it, answered after)
+  is dropped and read again once the actions are answered, unless the
+  action's own refresh or redirect read the page; a refresh is never
+  shown (nor reloads on a 404) once a navigation has started; the newest
+  read and the last click win. So `await call(…, { refresh: false })`
+  then `navigate(…)` is safe on a live page.
 - **Links** between pages of the same part go in place too (`start()`
   intercepts a plain click on `<a href>`): no page load, the layout's
   islands kept (a toast's Undo), focus on the new page's `<h1>`, Back and
