@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { solveWork } from "@argentic/chest-app";
+import { settled } from "@argentic/chest-app/testing";
 import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
@@ -15,7 +16,7 @@ import { camille, chestGroups, everyone, hugo, ines, lea, nora, sofia, tom } fro
 // forms without script, files, the Chest's signed calls.
 let chest, database, app;
 before(async () => {
-  chest = await fakeChest({ tool: "polls", network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar", "members.groups"], mail: { domain: "atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
+  chest = await fakeChest({ tool: "polls", network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar", "members.groups", "realtime"], realtime: JSON.parse(readFileSync("chest.json", "utf8")).realtime, mail: { domain: "atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -100,7 +101,8 @@ test("a poll's page: its words, the answer island, the results with bars as clas
   assert.match(html, /data-island="AnswerArea"/u, "Sofia is asked too");
   assert.match(html, /class="bar"[^>]*><i class="pct-\d{1,3}"/u);
   assert.match(html, /data-island="Manage"/u, "her poll: the organiser's panel");
-  assert.match(html, /data-island="AutoRefresh"/u, "open: it re-reads itself");
+  assert.match(html, /data-island="LivePoll"/u, "it reads itself again when the Chest says it changed (realtime, no timer)");
+  assert.doesNotMatch(html, /AutoRefresh/u);
   // A draft goes to the composer; a poll not put to someone does not exist for them.
   const draft = await get(camille, "/chest/polls/5");
   assert.equal(draft.status, 302);
@@ -135,7 +137,12 @@ test("actions from an island: a poll written, sent, answered; refusals are codes
   const option = new RegExp(`&quot;options&quot;:\\[\\{&quot;id&quot;:&quot;(\\d+)&quot;,&quot;label&quot;:&quot;Coffee`, "u").exec(page)[1];
   const answered = await (await call(hugo, "answerPoll", { pollId: value.id, answer: { [question]: { options: [option] } } })).json();
   assert.deepEqual(answered, { ok: true, value: { first: true } });
-  assert.ok(chest.notifications.some(n => n.key === `poll:${value.id}:ask` && n.member === ines.id && /demande/u.test(n.translations?.fr?.title ?? "")), "Inès told in French");
+  // The poll's open pages and Sofia's home hear of the answer (no payload:
+  // they read the poll again).
+  await settled();
+  const told = chest.realtime.published.filter(p => p.event === "poll.answered").map(p => [p.channel, p.payload ?? null]);
+  assert.deepEqual(told, [[`poll:${value.id}`, null], [`mine:${sofia.id}`, null]]);
+  assert.ok(chest.notifications.some(n => n.key === `poll:${value.id}:ask` && n.member === ines.id && /demande/u.test(n.title)), "Inès told in French");
   // Refusals: a code, the reader's words, the right status.
   const empty = await call(ines, "savePoll", { input: { kind: "choice", title: "  ", options: ["A", "B"] } });
   assert.equal(empty.status, 400);
@@ -187,6 +194,8 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   const sent = await form(null, `/p/${link}/actions/answerGuest`, { link, chest_form: token, name: "Jean Martin", email: "", [`d${dates[0]}`]: "2", [`d${dates[1]}`]: "1" }, `/p/${link}`, { "chest-visitor-address": "203.0.113.7" });
   assert.equal(sent.status, 303);
   assert.equal(sent.headers.get("location"), `/p/${link}?sent=1`);
+  await settled();
+  assert.ok(chest.realtime.published.some(p => p.channel === "poll:11" && p.event === "poll.answered"), "the members' pages of the poll hear of a guest's answer");
   const cookie = sent.headers.get("set-cookie");
   assert.match(cookie, /^guest_11=[^;]+; Max-Age=15552000; Path=\/p\/maisonleroykickoffxyzabcde; HttpOnly; Secure; SameSite=Lax$/u);
   const back = await (await get(null, `/p/${link}?sent=1`, { cookie: cookie.split(";")[0] })).text();
@@ -268,8 +277,8 @@ test("the Chest's events and schedule runs, signed, each handled once", async ()
   const to = request => app.fetch(request);
   // A draft of someone who leaves goes; the delivery made again does nothing.
   const left = { type: "member.removed", id: "evt_" + "d".repeat(26), data: { id: camille.id } };
-  assert.equal(await chest.emit(left, to), 204);
-  assert.equal(await chest.emit(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
   assert.equal((await database.sql`select 1 from polls where id = 5`).length, 0);
   // The pass: a poll past its closing time closes.
   await database.sql`update polls set closes_at = now() - interval '1 minute' where id = 4`;

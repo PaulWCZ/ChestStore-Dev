@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { cut, cutLines, notify } from "../src/lib/notify.ts";
-import { camille, everyone } from "./support/members.ts";
+import { camille, everyone, sofia } from "./support/members.ts";
 
 // French typography carries no-break spaces on purpose: U+00A0 before « : »
 // in an amount (« 20,50 € », « 85 % ») and inside guillemets, U+202F (the
@@ -30,9 +30,14 @@ after(async () => {
 });
 
 test("a French notice reaches the Chest with its no-break spaces and its line breaks", async () => {
-  await notify([camille.id], (_t, locale) => (locale === "fr" ? fr : en), { path: "/chest", key: "typography" });
-  const sent = chest.notifications.find(n => n.key === "typography");
-  assert.ok(sent);
-  assert.deepEqual(shownTo(sent, "fr"), { title: `Note «${nb}Déplacement${nb}» : 20,50${nb}€`, body: `Budget${thin}: 85${nb}%\nReste${thin}: 20,50${nb}€\n«${nb}À valider${nb}»` });
-  assert.deepEqual(shownTo(sent, "en"), en);
+  // SDK 0.7.0's fake keeps each item in its member's language: Camille
+  // reads French, Sofia English.
+  await notify([camille.id, sofia.id], (_t, locale) => (locale === "fr" ? fr : en), { path: "/chest", key: "typography" });
+  const shown = (id: string) => {
+    const sent = chest.notifications.find(n => n.key === "typography" && n.member === id);
+    assert.ok(sent);
+    return { title: sent.title, body: sent.body };
+  };
+  assert.deepEqual(shown(camille.id), { title: `Note «${nb}Déplacement${nb}» : 20,50${nb}€`, body: `Budget${thin}: 85${nb}%\nReste${thin}: 20,50${nb}€\n«${nb}À valider${nb}»` });
+  assert.deepEqual(shown(sofia.id), en);
 });
