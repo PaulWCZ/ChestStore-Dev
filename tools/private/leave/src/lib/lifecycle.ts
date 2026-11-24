@@ -59,19 +59,13 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-// What other tools tell Leave (events between tools): People's records and
-// departures (lib/from-people.ts).
-// After each, the calendar feeds and the busy times follow (leave cut or
-// cancelled by a last day, erased).
-export function tools(sql: Sql): events.ToolHandlers {
-  return {
-    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); await keepInLine(sql); },
-    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); await keepInLine(sql); },
-    "people.leaving_cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); await keepInLine(sql); },
-  };
-}
+// Every type Leave receives (chest.json "receives"): the members'
+// lifecycle and People's records and departures (lib/from-people.ts). One
+// map for both (SDK 0.5+). After each, the calendar feeds and the busy
+// times follow (leave cut or cancelled by a last day, erased).
+export type Received = "access.revoked" | "member.removed" | "member.updated" | "member.erased" | "people.record" | "people.leaving" | "people.leaving-cancelled";
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<Received> {
   return {
     "access.revoked": async event => { await leave(sql, event.data.id); await keepInLine(sql); },
     "member.removed": async event => { await leave(sql, event.data.id); await keepInLine(sql); },
@@ -84,6 +78,11 @@ export function handlers(sql: Sql): events.Handlers {
       await keepInLine(sql);
       await events.acknowledgeErasure(event.data.erasure);
     },
+    // People's (any audience: Leave applies a record or a last day to the
+    // person's leave rules, and shows them to no one by themselves).
+    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); await keepInLine(sql); },
+    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); await keepInLine(sql); },
+    "people.leaving-cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); await keepInLine(sql); },
   };
 }
 

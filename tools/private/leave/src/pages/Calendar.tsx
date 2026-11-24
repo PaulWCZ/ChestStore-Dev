@@ -96,7 +96,7 @@ export async function calendarPage({ member, locale, t, query }: PageContext<Mem
     title: t.calendar.title,
     body: (
       <div className="page wide">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{}} />
         <div className="cal-head">
           <h1>{t.calendar.title}</h1>
           <nav className="month-nav" aria-label={monthName}>

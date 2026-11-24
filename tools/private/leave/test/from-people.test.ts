@@ -29,9 +29,9 @@ after(async () => {
   await database.close();
 });
 
-const record = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.record", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
-const leaving = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.leaving", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
-const stays = (member: string, occurredAt?: string) => chest.deliver({ type: "people.leaving_cancelled", data: { member }, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const record = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.record", source: "people", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const leaving = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.leaving", source: "people", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const stays = (member: string, occurredAt?: string) => chest.deliver({ type: "people.leaving-cancelled", source: "people", data: { member }, ...(occurredAt ? { occurredAt } : {}) }, POST);
 const full = (member: string, more: Record<string, unknown> = {}) => ({ member, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null, ...more });
 
 test("People's events are read field by field; another shape changes nothing", () => {

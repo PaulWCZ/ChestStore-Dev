@@ -11,6 +11,7 @@ import { zoned } from "../src/lib/spans.ts";
 import { setApprover } from "../src/lib/staff.ts";
 import { today } from "../src/lib/today.ts";
 import { zonesOf } from "../src/lib/zones.ts";
+import { declaredEmits } from "./support/emits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -31,7 +32,7 @@ before(async () => {
     tool: "leave", chest: { timeZone: zone },
     members: everyone.map(m => (m.id === tom.id ? { ...m, timeZone: montreal } : m)), groups: fakeGroups,
     capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" },
-    emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 1,
+    emits: declaredEmits,
   });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
@@ -44,8 +45,8 @@ after(async () => {
   await chest.close();
   await database.close();
 });
-const utc = (d: Date) => d.toISOString().slice(0, 16) + "Z";
-const busyOf = (member: string) => chest.published.filter(e => e.type === "leave.busy" && e.data["member"] === member);
+const utc = (d: Date) => d.toISOString().slice(0, 16) + ":00Z";
+const busyOf = (member: string) => chest.emitted.filter(e => e.type === "leave.busy" && e.data["member"] === member);
 
 test("today is the Chest's day, and the database's current_date is the same day", async () => {
   const [row] = await database.sql<{ day: string }[]>`select current_date::text as day`;
@@ -63,8 +64,8 @@ test("a week off: the same days for everyone, busy from each person's own midnig
   }
   await keepInLine(sql);
   // Hugo has no zone of his own: the Chest's. Tom's is Montréal's.
-  assert.deepEqual(busyOf(hugo.id).at(-1)!.data["spans"], [[utc(zoned(monday, 0, zone)), utc(zoned(addDays(monday, 5), 0, zone))]]);
-  assert.deepEqual(busyOf(tom.id).at(-1)!.data["spans"], [[utc(zoned(monday, 0, montreal)), utc(zoned(addDays(monday, 5), 0, montreal))]]);
+  assert.deepEqual(JSON.parse(String(busyOf(hugo.id).at(-1)!.data["spans"])), [[utc(zoned(monday, 0, zone)), utc(zoned(addDays(monday, 5), 0, zone))]]);
+  assert.deepEqual(JSON.parse(String(busyOf(tom.id).at(-1)!.data["spans"])), [[utc(zoned(monday, 0, montreal)), utc(zoned(addDays(monday, 5), 0, montreal))]]);
   // Whole days in the feed are days, in no zone.
   const events = [...chest.calendar.values()].filter(e => e.members[0] === tom.id);
   assert.deepEqual(events.map(e => ("days" in e ? e.days : null)), [{ first: monday, last: addDays(monday, 4) }]);

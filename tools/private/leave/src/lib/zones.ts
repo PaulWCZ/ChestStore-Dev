@@ -8,9 +8,12 @@ import * as members from "@argentic/chest-sdk/members";
 // ends at their noon (SDK: "store in UTC, decide in the Chest's zone, show
 // in the member's"). The days themselves stay the company's: a leave is
 // the 12th to the 16th for HR, payroll and the person alike. The zone is
-// the one the Chest answers for them (members API); someone it no longer
-// answers for (former, erased, the Chest unreachable) and a zone this
-// runtime does not know keep the Chest's.
+// the one the Chest answers for them (members API; SDK 0.7.0: where their
+// browser last was — it follows them when they travel, so a leave's hours
+// in their calendar follow them too); someone it no longer answers for
+// (former, erased, the Chest unreachable) and a zone this runtime does not
+// know keep the company's (chest.timeZone). Leave has no zone setting of
+// its own.
 export type ZoneOf = (memberId: string) => string;
 
 // Whether this runtime knows a zone (asked once per zone: an Intl object
