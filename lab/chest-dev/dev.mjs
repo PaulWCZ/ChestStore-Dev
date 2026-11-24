@@ -785,6 +785,7 @@ function realtimePath(request) {
 // the fake Chest's hub as the member signed in. The tool is never asked:
 // the Chest holds the connection while the tool sleeps. Any other Upgrade
 // is refused, as the Chest refuses it (routing.mjs).
+const relayed = new Set();
 function upgrade(host, request, socket, head) {
   const decision = route(host, { method: request.method ?? "GET", url: request.url ?? "/", headers: request.headers }, manifest, { teamOrigin: origin, publicOrigin });
   if (decision.to !== "realtime") {
@@ -793,6 +794,8 @@ function upgrade(host, request, socket, head) {
     return void socket.end(`HTTP/1.1 ${decision.status ?? 501} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   }
   const hub = Number(new URL(apiOrigin).port);
+  relayed.add(socket);
+  socket.on("close", () => relayed.delete(socket));
   const upstream = connectSocket(hub, "127.0.0.1", () => {
     const lines = [`GET ${realtimePath(request)} HTTP/1.1`, `Host: 127.0.0.1:${hub}`];
     // The handshake's own headers only: no cookie, no Chest-* header.
@@ -822,9 +825,17 @@ team.listen(port, "127.0.0.1", () => {
   });
 });
 
+// Stopping: the tool, the pages' realtime connections (a relayed socket
+// keeps the fake's server open), the feeds' listener, the fake Chest — and
+// out after 5 s whatever still hangs.
+let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, async () => {
+  if (stopping) return;
+  stopping = true;
+  setTimeout(() => process.exit(0), 5000).unref();
   await toolProcess.close();
-  await feeds?.close();
-  await chest.close();
+  for (const socket of relayed) socket.destroy();
+  await Promise.race([feeds?.close(), pause(2000)]);
+  await Promise.race([chest.close(), pause(2000)]);
   process.exit(0);
 });
