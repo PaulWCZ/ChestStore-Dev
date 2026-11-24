@@ -349,9 +349,9 @@ closed poll is seen by those asked, its organiser and admins.
   through the table `poll_live` (migration 0007), which the Chest checks
   at every join; Polls writes a row once it has checked the member sees
   the poll (its page), and removes it when that may change (the poll
-  deleted, the member's groups or role changed, they left) — the Chest
-  then takes them out at once, and their page, reading itself again, is
-  let in again if still allowed. A member who is not asked never hears
+  deleted, the member's groups or role changed, they lost access or
+  left) — the Chest then takes them out at once, and their page, reading
+  itself again, is let in again if still allowed. A member who is not asked never hears
   when a poll put to others is answered or commented. The `polls` channel
   (the home page) carries every poll's id alone, to everyone: it says that
   some poll changed, never which one is whose nor what.

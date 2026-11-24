@@ -11,6 +11,7 @@ import { catalogue, format } from "../i18n/index.ts";
 import { withNames, type Version } from "../shared/model.ts";
 import { nameOf, people } from "./people.ts";
 import { seen } from "./posts.ts";
+import { forget } from "./live.ts";
 import { local } from "./time.ts";
 import { readZip, ZipWriter } from "./zip.ts";
 
@@ -280,6 +281,10 @@ export async function importSlack(sql: Sql, actor: Member | null, bytes: Uint8Ar
 export async function undoImport(sql: Sql, actor: Member | null, batch: unknown): Promise<number> {
   if (!actor || !can(actor, "publish")) throw new AppError("forbidden");
   if (typeof batch !== "string" || !/^[a-z0-9]{1,32}$/u.test(batch)) throw new AppError("not_found");
-  const gone = await sql`update posts set deleted_at = now(), origin = null where import_batch = ${batch} and deleted_at is null returning id`;
-  return gone.length;
+  return sql.begin(async tx => {
+    const gone = await tx<{ id: string }[]>`update posts set deleted_at = now(), origin = null where import_batch = ${batch} and deleted_at is null returning id`;
+    // Deleted: nobody follows them live any more (lib/live.ts).
+    await forget(tx, { posts: gone.map(g => String(g.id)) });
+    return gone.length;
+  });
 }

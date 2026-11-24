@@ -102,3 +102,15 @@ test("a desk's channel: only its approver and the accountants join; a role chang
   assert.equal(await exits(sql, camille.id), "0", "their id goes from the count too");
   void lea;
 });
+
+test("an approver's erasure leaves no row of their desk: the expenses it moves are told elsewhere, never under their id", async () => {
+  const { sql } = database;
+  await settings.setApprover(sql, asMember(camille), hugo.id, tom.id, yes);
+  const { expense } = await expenses.saveExpense(sql, asMember(hugo), null, lunch());
+  await expenses.submit(sql, asMember(hugo), [expense.id], yes);
+  assert.ok((await desks(expense.id)).includes(tom.id));
+  await erase(sql, tom.id);
+  const left = await sql<{ n: number }[]>`select count(*)::int as n from desk_events where desk_key = ${tom.id}`;
+  assert.equal(left[0]!.n, 0, "their id goes from desk_events too");
+  assert.ok((await desks(expense.id)).includes("accountants"), "the accountants hear the expense came back to them");
+});

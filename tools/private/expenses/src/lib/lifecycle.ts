@@ -38,7 +38,6 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   const objects = await sql.begin(async tx => {
     await live.forget(tx, memberId);
     await tx`delete from live_out where member_id = ${memberId}`;
-    await tx`delete from desk_events where desk_key = ${memberId}`;
     await tx`delete from approvers where approver_id = ${memberId} or member_id = ${memberId}`;
     await tx`update expenses set approver_id = null where approver_id = ${memberId} and status = 'submitted'`;
     const drafts = await tx<{ receipt_object: string | null }[]>`
@@ -66,6 +65,9 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update card_statements set created_by = 'erased' where created_by = ${memberId}`;
     await forgetInRuns(tx, memberId);
     const uploads = await tx<{ object: string }[]>`delete from uploads where member_id = ${memberId} returning object`;
+    // Last: the writes above told their desk of the expenses that left it
+    // (migration 0008's trigger), which wrote their id there again.
+    await tx`delete from desk_events where desk_key = ${memberId}`;
     return [...[...drafts.map(d => d.receipt_object), ...proofs.map(p => p.proof_object)].filter((o): o is string => o !== null), ...uploads.map(u => u.object)];
   });
   await forget(objects);

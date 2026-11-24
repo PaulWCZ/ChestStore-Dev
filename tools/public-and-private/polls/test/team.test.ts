@@ -360,6 +360,9 @@ test("a poll's live channel: only who sees the poll joins it; deleting it or a c
     assert.notEqual(await live.admit(sql, made.id, lea.id), ticket, "let in again: a new mark, the page's island joins again");
     await polls.deletePoll(sql, asMember(hugo), made.id, now);
     assert.deepEqual(await rows(), [], "deleted: out");
+    await live.admit(sql, made.id, tom.id);
+    await handlers(sql)["access.revoked"]!({ id: "evt_4", type: "access.revoked", occurredAt: now.toISOString(), data: { id: tom.id } });
+    assert.deepEqual(await rows(), [], "access revoked: out");
     await live.admit(sql, made.id, lea.id);
     await leave(sql, lea.id);
     assert.deepEqual(await rows(), [], "gone from the Chest: out");
