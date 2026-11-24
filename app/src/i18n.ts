@@ -61,9 +61,22 @@ export const numberFormat = (tag: string, style: Intl.NumberFormatOptions = {}):
   once(`n|${tag}|${JSON.stringify(style)}`, () => new Intl.NumberFormat(tag, style));
 
 
+// The day ("YYYY-MM-DD") and the hour (0–23) on a zone's clock at an
+// instant. For a member's own clock only: a personal reminder's hour — a
+// schedule run hourly reminds a member when hourIn(member.timeZone) is 9.
+// "Today", "this week", a deadline's day, working days are the company's:
+// chest.today() (SDK), never a member's.
+function clockIn(timeZone: string, at: Date) {
+  const parts = Object.fromEntries(dateFormat("en-US", timeZone, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(at).map(p => [p.type, p.value]));
+  return { day: `${parts["year"]}-${parts["month"]}-${parts["day"]}`, hour: Number(parts["hour"]) };
+}
+export const hourIn = (timeZone: string, at: Date = new Date()): number => clockIn(timeZone, at).hour;
+
 // How a reader writes dates, times, numbers, amounts and plurals: their
 // language and their time zone (a member's own, member.timeZone — where
-// their browser is; the company's, chest.timeZone, for a visitor). Made on
+// their browser is; the company's, chest.timeZone, for a visitor). The zone
+// only shows instants: it never decides which day is "today" (chest.today(),
+// the company's) and never moves a calendar day (f.day). Made on
 // the server for each request: a page is sent already written, never
 // formatted again in the browser. No currency: the Chest has none (SDK
 // 0.7.0) — an amount is written in its own currency, the ISO 4217 code the
@@ -83,12 +96,9 @@ export function currencyDecimals(currency: string): number {
 export function formatter(locale: string, timeZone: string) {
   // English as written in Europe (day month year, 24-hour clock).
   const tag = locale === "en" ? "en-GB" : locale;
-  const today = (at: Date = new Date()) => {
-    const parts = Object.fromEntries(dateFormat("en-US", timeZone, { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(p => [p.type, p.value]));
-    return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
-  };
-  // The year is written when it is not the reader's current one.
-  const otherYear = (year: string) => year !== today().slice(0, 4);
+  // The year is written when it is not the reader's current one (only
+  // whether the year is written: a day stays the day it is).
+  const otherYear = (year: string) => year !== clockIn(timeZone, new Date()).day.slice(0, 4);
   const yearOf = (value: Date) => dateFormat("en-US", timeZone, { year: "numeric" }).format(value);
   // A wall time that happens twice (the hour clocks go back) says its zone.
   const ambiguous = (value: Date) => {
@@ -112,12 +122,9 @@ export function formatter(locale: string, timeZone: string) {
     // "invalid": the page answers as for an address it cannot show), never
     // written as another day.
     day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short", ...(otherYear(iso.slice(0, 4)) ? { year: "numeric" } : {}) }).format(dayOf(iso)),
-    // Today in the reader's zone, "YYYY-MM-DD": a member's own day ("due
-    // today" on their page, their reminder). The company's day — a
-    // document's date, a company-wide deadline — is chest.today(), and SQL's
-    // current_date and now()::date are the company's too (the database
-    // session runs in chest.timeZone).
-    today,
+    // No f.today(): "today" is the company's day for every member —
+    // chest.today() (SDK), SQL's current_date (the database session runs in
+    // chest.timeZone) — never the reader's.
     number: (n: number) => numberFormat(tag).format(n),
     // An amount in its own currency, the ISO 4217 code kept beside it
     // ("EUR", "GBP", "JPY"): in minor units with { cents: true } (what

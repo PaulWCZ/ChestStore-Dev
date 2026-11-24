@@ -25,10 +25,12 @@ rules — is `node_modules/@argentic/chest-app/AGENTS.md`: read it first.
   notes page's `LiveNotes` island (`useLive("notes", ["notes"])`), the
   `"realtime"` key of `chest.json` (the `notes` channel, the `notes`
   feed), so the tool sleeps while the page stays open.
-- Time zones and money (the owner's rule, SDK 0.7.0): what concerns one
-  member is in their zone (`member.timeZone`, what `f` writes in; their
-  day is `f.today()`), what concerns the company in its zone
-  (`chest.timeZone`, `chest.today()`); the Chest has no currency — an
+- Time zones and money (SDK 0.7.0's "Times" table): "today", "this
+  week", a deadline's day, working days are the company's for every member
+  (`chest.today()`, SQL's `current_date`); a deadline's day is shown with
+  `f.day` (the same day everywhere); only an instant shown to a member
+  (`f.date`, `f.time`, `f.dateTime`) and a personal reminder's hour
+  (`hourIn(member.timeZone)`) are in the member's zone; the Chest has no currency — an
   amount keeps its ISO 4217 code beside it, and a default currency is a
   setting of the tool's own (the package's AGENTS.md, "Time zones",
   "Money").
