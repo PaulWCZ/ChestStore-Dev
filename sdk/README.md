@@ -1909,9 +1909,13 @@ The same object as 0.7.0's — `organization`, `timeZone`, `language`,
 `tool`, `today()` are getters of 0.7.0's own, read at each access,
 throwing `not_in_chest` outside a Chest as 0.7.0's do; no `currency`, as
 0.7.0 has none — with the
-studio's members beside them. `todayIn(zone, at?)` is for what concerns
-one person — the whole days of their leave, "today" on their own page; what
-concerns everyone stays `chest.today()`. The helpers a test or the Chest
+studio's members beside them. `todayIn(zone, at?)` is the date on a
+member's own clock — what 0.7.0's table "Times" gives to the member's zone:
+a date shown to them, the day of their personal reminder. Everything 0.7.0
+gives to the company's zone stays `chest.today()`: "today", "this week", a
+deadline's day, working days (and so the days a leave counts). Outside a
+Chest, a zone the runtime does not know throws `not_in_chest`, as
+`chest.today()` does. The helpers a test or the Chest
 needs are named exports: `forgetTheme()`, `readThemeChoice(value)`,
 `readToolUrls(raw)`, `themeIdPattern`, `toolNamePattern`.
 

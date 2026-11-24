@@ -653,8 +653,10 @@ that needs a default currency keeps its own setting.
 - **Zones.** The company's day is `chest.timeZone` / `chest.today()` —
   taken once from the owner's browser, set on no screen. A member's is
   `member.timeZone`, their browser's (it follows them when they travel):
-  show times in it, and `chest.todayIn(who.timeZone)` is "today" on their
-  page. A tool that needs another reference zone (a site in another
+  show times and dates in it (`chest.todayIn(who.timeZone)`: the date on
+  their clock, for their personal reminder). "Today", deadlines and
+  working days stay the company's (`chest.today()`), as 0.7.0's "Times"
+  table says. A tool that needs another reference zone (a site in another
   country) keeps its own setting.
 - **Idempotency keys are whole.** Give `mail.send` and `webhooks.send` the
   whole key (up to 512 characters), with the recipient in it; never cut one
