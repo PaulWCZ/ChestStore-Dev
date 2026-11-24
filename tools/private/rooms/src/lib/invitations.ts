@@ -53,7 +53,7 @@ export async function reach(): Promise<Reach> {
   }
 }
 
-type Row = { id: string; email: string | null; language: string; name: string; day: string; at_minute: number; host: string; mail_sequence: number; office: string | null; address: string | null };
+type Row = { id: string; email: string | null; language: string; name: string; day: string; at_minute: number; host: string; mail_sequence: number; office: string | null; address: string | null; zone: string | null };
 
 // send writes the invitation ("invite") or the cancellation ("cancel") of
 // one visit to its visitor, when an address is kept. Answers what became
@@ -72,7 +72,8 @@ export async function send(sql: Sql, visitId: string, kind: "invite" | "cancel",
         and (select count(*) from visits o where o.id <> visits.id and o.invitation = 'sent' and o.created_at > now() - interval '1 day'
           and o.created_by = visits.created_by) < ${mailBounds.perAnnouncerPerDay}))
     returning id, email, language, name, to_char(day, 'YYYY-MM-DD') as day, at_minute, host, mail_sequence,
-      (select o.name from offices o where o.id = visits.office_id) as office, (select o.address from offices o where o.id = visits.office_id) as address`;
+      (select o.name from offices o where o.id = visits.office_id) as office, (select o.address from offices o where o.id = visits.office_id) as address,
+      (select o.time_zone from offices o where o.id = visits.office_id) as zone`;
   if (!v || !v.email) {
     const [kept] = await sql`select 1 from visits where id = ${visitId} and email is not null`;
     if (!kept) return null;
@@ -84,7 +85,7 @@ export async function send(sql: Sql, visitId: string, kind: "invite" | "cancel",
   const hostPerson = v.host.startsWith("mbr_") ? (await people([v.host])).get(v.host) : undefined;
   const host = hostPerson && hostPerson.status === "member" ? hostPerson.name : null;
   const origin = teamOrigin();
-  const message = compose(v, kind, { company: chest.organization.name, host, zone, domain: origin ? new URL(origin).hostname : "rooms.invalid" });
+  const message = compose(v, kind, { company: chest.organization.name, host, zone: v.zone ?? zone, domain: origin ? new URL(origin).hostname : "rooms.invalid" });
   try {
     await mail.send(message);
   } catch (error) {

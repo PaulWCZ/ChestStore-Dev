@@ -13,7 +13,7 @@ import { urgentCounts } from "./steps.ts";
 // and what people removed more than a day ago is purged. Idempotent: a run
 // delivered twice sends the same item again under the same key.
 export async function morning(sql: Sql, run: Run): Promise<void> {
-  const day = chest.todayIn(chest.timeZone, new Date(run.scheduledAt));
+  const day = chest.today(new Date(run.scheduledAt));
   const rows = await sql<{ owner: string; text: string }[]>`
     select owner, text from steps where done_at is null and owner like 'mbr_%' and due_on <= ${day} order by due_on, id`;
   const byOwner = new Map<string, string[]>();

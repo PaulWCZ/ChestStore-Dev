@@ -1,5 +1,5 @@
 import { chest } from "@argentic/chest-sdk/chest";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, stamp, type Catalogue } from "../i18n/index.ts";
@@ -9,6 +9,7 @@ import type { Subscriber } from "./subscribers.ts";
 import { allComponents, inLocale } from "./components.ts";
 import { chestLanguage } from "./languages.ts";
 import { pick } from "./texts.ts";
+import { pageZone } from "./page-settings.ts";
 
 // Email to subscribers — people outside the company — through the Chest's
 // mail (Proposal (studio): the "mail" capability, chest.proposals.json),
@@ -35,7 +36,7 @@ async function send(sql: Query, message: mail.Message): Promise<Outcome> {
       await setMailState(sql, "none");
       return "none";
     }
-    if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable) return "later";
+    if (error instanceof RateLimited || error instanceof Unavailable) return "later";
     throw error;
   }
 }
@@ -95,9 +96,11 @@ export function updateEmail(q: Pick<Queued, "language" | "token" | "update_id" |
 
 // flush sends what waits in the queue, oldest first, at most `limit`
 // messages: right after an update (a few), then by the schedule. It stops
-// at the Chest's daily quota and goes on at the next pass; a Chest without
-// mail empties nothing — the queue waits a day, then is dropped.
-export async function flush(sql: Sql, options: { limit?: number; now?: Date } = {}): Promise<{ sent: number; stopped: "quota" | "none" | null }> {
+// when the Chest cannot send now (its mail unreachable or not connected:
+// the Chest paces sends itself and never refuses them for their number —
+// studio.2) and goes on at the next pass; a Chest without mail empties
+// nothing — the queue waits a day, then is dropped.
+export async function flush(sql: Sql, options: { limit?: number; now?: Date } = {}): Promise<{ sent: number; stopped: "later" | "none" | null }> {
   const now = options.now ?? new Date();
   await sql`delete from mail_queue where created_at < ${new Date(now.getTime() - 86400000)} or attempts >= 5`;
   const batch = await sql<Queued[]>`
@@ -110,7 +113,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     order by q.id limit ${Math.min(Math.max(options.limit ?? 50, 1), 500)}`;
   if (batch.length === 0) return { sent: 0, stopped: null };
   const origin = await publicOrigin(sql);
-  const zone = chest.timeZone;
+  const zone = await pageZone(sql);
   // Services named in each subscriber's language when written in it.
   const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
   const nameIn = (id: string, language: string) => { const c = services.get(id); return c ? inLocale(c, language).name : undefined; };
@@ -139,7 +142,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     if (outcome === "none") return { sent, stopped: "none" };
     if (outcome === "later") {
       await sql`update mail_queue set attempts = attempts + 1 where id = ${q.id}`;
-      return { sent, stopped: "quota" };
+      return { sent, stopped: "later" };
     }
     await sql`delete from mail_queue where id = ${q.id}`;
     sent++;

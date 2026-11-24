@@ -87,6 +87,13 @@ async function billableEntries(tx: Query, projectId: string, p: { from: string; 
     ${lock ? tx`for update of e` : tx``}`;
 }
 
+// A name as an event's text may carry it: the Chest refuses a text field
+// with a format character (U+200B, U+FEFF, the joiner inside an emoji…,
+// SDK 0.7.0 "Fields"), which a project, client or task name typed or
+// imported may hold. They go from the event only (the names are kept as
+// typed); an emoji joined by one shows as its parts in Quotes.
+export const eventText = (value: string): string => value.replace(/\p{Cf}/gu, "");
+
 export function linesOf(rows: EntryRow[], projectName: string): BillableLine[] {
   const byKey = new Map<string, BillableLine>();
   for (const r of rows) {
@@ -192,10 +199,10 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
         bill_rate_cents = ${billRateOf(tx)}, cost_rate_cents = ${costRateOf(tx)}
       where e.id = any(${rows.map(r => r.id)}::bigint[])`;
     const data: Billable = {
-      handoff: h!.id, project: pid, projectName: project.name,
-      ...(project.client_id && project.client_name ? { client: project.client_id, clientName: project.client_name } : {}),
+      handoff: h!.id, project: pid, projectName: eventText(project.name),
+      ...(project.client_id && project.client_name ? { client: project.client_id, clientName: eventText(project.client_name) } : {}),
       from: p.from, to: p.to, currency: code, minutes, ...(amount !== null ? { amount } : {}), entries: rows.length,
-      lines: JSON.stringify(lines.map(l => ({ label: l.label, minutes: l.minutes, rate: l.rate, amount: l.amount, entries: l.entries }))),
+      lines: JSON.stringify(lines.map(l => ({ label: eventText(l.label), minutes: l.minutes, rate: l.rate, amount: l.amount, entries: l.entries }))),
       path: `/chest/projects/${pid}`,
     };
     return { handoff: h!.id, at: new Date(h!.sent_at), data, entries: rows.length, minutes };

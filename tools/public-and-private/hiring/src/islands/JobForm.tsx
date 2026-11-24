@@ -23,7 +23,7 @@ const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.labe
 // (a real editor: headings, bold, lists as they will look), the salary. A new job is saved
 // as a draft: nothing is public until "Publish" on its board. start: a
 // job to start from (a template's title, team and description).
-export function JobForm({ job, start: from, defaultLanguage, defaultCountry, countryNames, today, t }: { job: Job | null; start?: { title: string; team: string; description: string }; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; today: string; t: Words }) {
+export function JobForm({ job, start: from, defaultLanguage, defaultCountry, defaultCurrency, countryNames, today, t }: { job: Job | null; start?: { title: string; team: string; description: string }; defaultLanguage: string; defaultCountry: string; defaultCurrency: string; countryNames: [string, string][]; today: string; t: Words }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [description, setDescription] = useState(job?.description ?? from?.description ?? "");
@@ -190,7 +190,7 @@ export function JobForm({ job, start: from, defaultLanguage, defaultCountry, cou
           </div>
           <div className="field-block">
             <label className="small-label" htmlFor="salaryCurrency">{w.currency}</label>
-            <select id="salaryCurrency" name="salaryCurrency" className="field" defaultValue={job?.salaryCurrency ?? "EUR"}>
+            <select id="salaryCurrency" name="salaryCurrency" className="field" defaultValue={job?.salaryCurrency ?? defaultCurrency}>
               {currencies.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>

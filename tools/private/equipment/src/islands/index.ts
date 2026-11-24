@@ -18,14 +18,16 @@ import { RemindButton } from "./RemindButton.tsx";
 import { ReportButton } from "./ReportButton.tsx";
 import { RequestsPanel } from "./RequestsPanel.tsx";
 import { RulesView } from "./RulesView.tsx";
+import { CurrencyView } from "./CurrencyView.tsx";
 import { SearchBox } from "./SearchBox.tsx";
+import { Live } from "./Live.tsx";
 import { SolveButton } from "./SolveButton.tsx";
 
 // The components that also run in the browser (islands), by name. A page
 // renders one with <Island name="ItemControls" props={{…}} />; everything
 // else is HTML from the server, with no script. Islands do not nest.
 export const islands = {
-  ToastHost, SearchBox, PrintButton,
+  ToastHost, SearchBox, PrintButton, Live,
   // My equipment, an item's short view
   AskButton, MyRequests, ReceiveButton, ReportButton,
   // The overview
@@ -33,5 +35,5 @@ export const islands = {
   // The list, an item's page and form
   ItemsView, ItemControls, ItemForm, PhotoControl, InvoiceControl, ClaimButton,
   // People, inventory, import, settings
-  PeopleView, PersonView, InventoryView, Importer, CategoriesView, RulesView,
+  PeopleView, PersonView, InventoryView, Importer, CategoriesView, RulesView, CurrencyView,
 };

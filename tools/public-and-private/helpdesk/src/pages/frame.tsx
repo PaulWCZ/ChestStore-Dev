@@ -12,8 +12,8 @@ import { viewHref, type View } from "../lib/views.ts";
 // The team's frame, in the kit's shell: Support's sections as labelled
 // tabs (Inbox, Reports, Settings — a row of their own on a phone), who is
 // signed in at the right, the keyboard shortcuts (an island: ? lists them)
-// and the page reading itself again every 20 seconds while it is seen
-// (the Chest has no WebSocket; refresh() keeps what is typed).
+// and the page read again when the Chest says something it shows changed
+// (realtime: LivePage; refresh() keeps what is typed).
 //
 // Beside the page, the inbox's folders and the team's saved views: a
 // column on a wide screen (as in every shared inbox: they are where the
@@ -66,7 +66,7 @@ export function TeamFrame({ member, t, path, query, logo, notice, desk, children
   return (
     <AppShell brand={brand} nav={nav} path={path} member={person} labels={{ ...t.kit.shell, skip: t.shell.skip, nav: t.shell.nav }} width="full">
       <Island name="Keys" props={{ canCreate: role !== null && can(member, "tickets.answer"), t: { keys: t.shell.keys, keysClose: t.shell.keysClose, keyList: t.shell.keyList, dialog: t.kit.dialog } }} />
-      <Island name="AutoRefresh" props={{ seconds: 20 }} />
+      <Island name="LivePage" props={{ desk: can(member, "tickets.read"), mine: `mine:${member.id}` }} />
       <div className={`desk${inbox ? " on-inbox" : ""}${folders.length === 0 ? " bare" : ""}`}>
         {folders.length > 0 && (
           <nav className="folders" aria-label={t.shell.folders}>

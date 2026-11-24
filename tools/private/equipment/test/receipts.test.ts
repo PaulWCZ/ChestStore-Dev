@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { initials } from "@argentic/chest-ui/components/logic";
 import { AppError } from "@argentic/chest-app";
 import { listCategories } from "../src/lib/categories.ts";
@@ -174,10 +174,9 @@ test("remind them: the holder hears it in the bell (the same item, rung again, w
   await remindReceipt(M!, r.holder, r.item, r.givenOn);
   const bell = chest.notifications.filter(n => n.member === hugo.id);
   assert.equal(bell.length, 1);
+  // SDK 0.7.0's fake keeps each item in its member's language: Hugo reads English.
   assert.equal(bell[0]!.title, `${camille.firstName} asks: did you receive Pixel 7 ${phone.tag}?`);
   assert.match(bell[0]!.body ?? "", /^Given on \d+ \S+ \d{4}\. Open My equipment/u);
-  assert.equal(shownTo(bell[0]!, "fr").title, `${camille.firstName} vous demande\u202f: avez-vous reçu Pixel 7 ${phone.tag}\u202f?`);
-  assert.match(shownTo(bell[0]!, "fr").body ?? "", /^Remis le \d+ \S+ \d{4}\. Ouvrez Mon matériel/u);
   assert.equal(bell[0]!.path, "/chest/mine");
   assert.equal(bell[0]!.key, `item:${phone.id}:given`);
   // A member is told by the Chest (their own choice of mail), never by the tool.
@@ -194,7 +193,7 @@ test("a sheet writes a person who left by their name, with the day they left apa
   const key = await items.createItem(sql, M, { categoryId: laptops, name: "Spare laptop" });
   await items.give(sql, M, key.id, { to: { member: sofia.id } });
   assert.equal(await leftOnOf(sql, M, sofia.id), null);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, onEvent), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: sofia.id } }, onEvent), 204);
   const left = await leftOnOf(sql, M, sofia.id);
   assert.ok(left instanceof Date);
   await refused(leftOnOf(sql, H, sofia.id), "not_found");

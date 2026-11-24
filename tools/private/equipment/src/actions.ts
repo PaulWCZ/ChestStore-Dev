@@ -16,6 +16,7 @@ import { remindReceipt } from "./lib/tell.ts";
 import { rowOf, type Row } from "./lib/view.ts";
 import { localeOf } from "./i18n/index.ts";
 import { chest } from "@argentic/chest-sdk/chest";
+import { setDefaultCurrency } from "./lib/settings.ts";
 import { limits } from "./shared/model.ts";
 
 // Every mutation of Equipment, by name: POST /chest/actions/<name>, called
@@ -156,6 +157,11 @@ export const actions = {
   }),
   saveCharter: act({ body: raw<string>() }, async ({ body }, { member }): Promise<null> => {
     await setCharter(db(), member, body);
+    return null;
+  }),
+  // The tool's default currency (managers).
+  setCurrency: act({ currency: raw<string>() }, async ({ currency }, { member }): Promise<null> => {
+    await setDefaultCurrency(db(), member, currency);
     return null;
   }),
 

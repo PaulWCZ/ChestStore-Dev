@@ -193,34 +193,53 @@ export function tagSeries(first: string, n: number): string[] {
   return Array.from({ length: n }, (_, k) => tag(head + String(start + k).padStart(digits.length, "0")));
 }
 
-// Money as a person writes it ("1 299,90", "1,299.90", "€ 45"), in cents.
-export function money(value: unknown): number | null {
+// Money as a person writes it ("1 299,90", "1,299.90", "€ 45"), in the
+// minor unit of its currency (decimals: 2 for euros and cents, 0 for yen,
+// 3 for Kuwaiti dinars — currencyDecimals(code)).
+export function money(value: unknown, decimals = 2): number | null {
   if (value === null || value === undefined || value === "") return null;
+  const scale = 10 ** decimals;
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 0) throw new AppError("invalid_money");
-    return bound(Math.round(value * 100));
+    return bound(Math.round(value * scale));
   }
   if (typeof value !== "string") throw new AppError("invalid_money");
-  let text = value.replace(/[\s  ']/gu, "").replace(/[€$£]|EUR|USD|GBP|CHF|CAD|HT|TTC/giu, "");
+  let text = value.replace(/[\s  ']/gu, "").replace(/[€$£¥]|EUR|USD|GBP|CHF|CAD|JPY|HT|TTC/giu, "");
   if (text === "") return null;
   if (!/^\d[\d.,]*$/u.test(text)) throw new AppError("invalid_money");
   const lastComma = text.lastIndexOf(","), lastDot = text.lastIndexOf(".");
   const decimal = lastComma > lastDot ? "," : lastDot > lastComma ? "." : null;
   if (decimal) {
     const [whole, fraction = ""] = [text.slice(0, text.lastIndexOf(decimal)), text.slice(text.lastIndexOf(decimal) + 1)];
-    // "1,299" or "1.299": a group of three digits is thousands, not cents.
+    // "1,299" or "1.299": a group of three digits is thousands, not cents
+    // (unless the currency has three decimals).
     const other = decimal === "," ? "." : ",";
-    if (fraction.length === 3 && !text.includes(other)) text = text.split(decimal).join("");
-    else if (fraction.length > 2 || whole.includes(decimal)) throw new AppError("invalid_money");
+    if (fraction.length === 3 && decimals !== 3 && !text.includes(other)) text = text.split(decimal).join("");
+    else if (fraction.length > decimals || whole.includes(decimal)) throw new AppError("invalid_money");
     else text = whole.replace(/[.,]/gu, "") + "." + fraction;
   }
   const amount = Number(text);
   if (!Number.isFinite(amount)) throw new AppError("invalid_money");
-  return bound(Math.round(amount * 100));
+  return bound(Math.round(amount * scale));
 }
 function bound(cents: number): number {
   if (cents < 0 || cents > limits.price) throw new AppError("invalid_money");
   return cents;
+}
+
+// An ISO 4217 code as a form sends it ("eur", " USD "), or null when none
+// is given; one this server's Intl does not know is refused.
+export function currencyCode(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") throw new AppError("invalid_currency");
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/u.test(code) || !knownCurrencies().includes(code)) throw new AppError("invalid_currency");
+  return code;
+}
+let known: string[] | null = null;
+export function knownCurrencies(): string[] {
+  known ??= Intl.supportedValuesOf("currency");
+  return known;
 }
 
 export function seatsCount(value: unknown): number | null {

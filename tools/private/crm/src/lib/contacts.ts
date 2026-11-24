@@ -259,7 +259,7 @@ export async function exportContact(sql: Sql, actor: Member | null, contactId: u
   return {
     contact: c,
     deals: deals.map(d => ({ id: String(d.id), title: d.title, valueCents: Number(d.value_cents), stage: d.stage, createdAt: d.created_at.toISOString() })),
-    activities: await timeline(sql, { contactId: c.id }, 5000),
+    activities: await timeline(sql, { contactId: c.id, ...(actor ? { viewer: actor.id } : {}) }, 5000),
     steps: steps.map(s => ({ ...toStep(s), doneAt: s.done_at?.toISOString() ?? null })),
     files: (await sql<{ file_name: string; type: string; size: string; added_at: Date }[]>`select file_name, type, size, added_at from attachments where contact_id = ${c.id} order by added_at`).map(f => ({ name: f.file_name, type: f.type, size: Number(f.size), addedAt: f.added_at.toISOString() })),
   };

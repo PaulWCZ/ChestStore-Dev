@@ -5,9 +5,11 @@ import { AppError } from "@argentic/chest-app";
 import { category, type Category } from "./categories.ts";
 import type { Query, Sql } from "./db.ts";
 import { fieldsOf, readExtra } from "./fields.ts";
-import { clean, count, day, id, isChosenStatus, limits, makeTag, memberId, money, optional, seatsCount, soonDays, addDays, tag as readTag, tagSeries, type ChosenStatus, type Period, type Status } from "../shared/model.ts";
+import { clean, count, currencyCode, day, id, isChosenStatus, limits, makeTag, memberId, money, optional, seatsCount, soonDays, addDays, tag as readTag, tagSeries, type ChosenStatus, type Period, type Status } from "../shared/model.ts";
 import { namedLike, present } from "./people.ts";
 import * as tell from "./tell.ts";
+import { defaultCurrency } from "./settings.ts";
+import { currencyDecimals } from "../i18n/format.ts";
 
 // Items: what the company owns, who holds it, what happened to it. Every
 // function checks the actor's rights first; the history is written in the
@@ -32,6 +34,8 @@ export type Item = {
   seatsUsed: number;
   renewsOn: string | null;
   costCents: number | null;
+  // The ISO 4217 code of the price and the cost (null: neither is known).
+  currency: string | null;
   period: Period | null;
   holder: string | null;
   place: string | null;
@@ -58,7 +62,7 @@ export type BriefItem = Pick<Item, "id" | "category" | "tag" | "name" | "serial"
 
 export type Seat = { id: string; member: string; since: string };
 export type Problem = { id: string; itemId: string; reportedBy: string; body: string; createdAt: string };
-export type HistoryEntry = { id: string; at: string; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; costCents: number | null; ref: string | null; due: string | null };
+export type HistoryEntry = { id: string; at: string; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; costCents: number | null; currency: string | null; ref: string | null; due: string | null };
 
 // The receipt of the item's current holder: waiting for them to say "I
 // received it", or confirmed.
@@ -86,7 +90,7 @@ type Row = {
   id: string; category_id: string; c_key: Category["key"]; c_name: string | null; c_icon: Category["icon"]; c_kind: Category["kind"]; c_see: boolean;
   tag: string; name: string; serial: string | null; status: Status; purchased_on: string | null; price_cents: string | null; supplier: string | null;
   warranty_until: string | null; notes: string | null; photo: string | null; seats: number | null; seats_used: number; renews_on: string | null;
-  cost_cents: string | null; period: Period | null; holder: string | null; place: string | null; held_since: string | null; created_at: Date; open_problems: number;
+  cost_cents: string | null; currency: string | null; period: Period | null; holder: string | null; place: string | null; held_since: string | null; created_at: Date; open_problems: number;
   extra: Record<string, string> | null; quantity: number | null; min_quantity: number | null; invoice: string | null;
 };
 
@@ -96,7 +100,7 @@ const select = (sql: Query) => sql`
     i.tag, i.name, i.serial, i.status, to_char(i.purchased_on, 'YYYY-MM-DD') as purchased_on, i.price_cents, i.supplier,
     to_char(i.warranty_until, 'YYYY-MM-DD') as warranty_until, i.notes, i.photo, i.seats,
     (select count(*)::int from seats s where s.item_id = i.id) as seats_used,
-    to_char(i.renews_on, 'YYYY-MM-DD') as renews_on, i.cost_cents, i.period, i.holder, i.place,
+    to_char(i.renews_on, 'YYYY-MM-DD') as renews_on, i.cost_cents, i.currency, i.period, i.holder, i.place,
     to_char(i.held_since, 'YYYY-MM-DD') as held_since, i.created_at,
     (select count(*)::int from problems p where p.item_id = i.id and p.solved_at is null) as open_problems,
     i.extra, i.quantity, i.min_quantity, i.invoice
@@ -109,7 +113,7 @@ function shape(r: Row): Item {
     tag: r.tag, name: r.name, serial: r.serial, status: r.status, purchasedOn: r.purchased_on,
     priceCents: r.price_cents === null ? null : Number(r.price_cents), supplier: r.supplier, warrantyUntil: r.warranty_until,
     notes: r.notes, photo: r.photo, seats: r.seats, seatsUsed: r.seats_used, renewsOn: r.renews_on,
-    costCents: r.cost_cents === null ? null : Number(r.cost_cents), period: r.period,
+    costCents: r.cost_cents === null ? null : Number(r.cost_cents), currency: r.currency, period: r.period,
     holder: r.holder, place: r.place, heldSince: r.held_since, createdAt: new Date(r.created_at).toISOString(), openProblems: r.open_problems,
     extra: r.extra ?? {}, quantity: r.quantity, minQuantity: r.min_quantity, invoice: r.invoice, holderHidden: false,
   };
@@ -134,7 +138,7 @@ export function forMember(item: Item, me: string, mySeat = false): Item {
     ...item,
     serial: mine ? item.serial : null,
     holder: hide ? null : item.holder, place: hide ? null : item.place, heldSince: hide ? null : item.heldSince, holderHidden: hide,
-    priceCents: null, supplier: null, notes: null, extra: {}, invoice: null, costCents: null, period: null, purchasedOn: null,
+    priceCents: null, supplier: null, notes: null, extra: {}, invoice: null, costCents: null, currency: null, period: null, purchasedOn: null,
   };
 }
 
@@ -166,12 +170,13 @@ export async function loadMany(sql: Query, ids: string[]): Promise<Map<string, I
 
 export type Entry = {
   item: string; actor: string; kind: string; member?: string | null; place?: string | null; status?: string | null; note?: string | null; day?: string | null;
-  qty?: number | null; costCents?: number | null; ref?: string | null; due?: string | null;
+  qty?: number | null; costCents?: number | null; currency?: string | null; ref?: string | null; due?: string | null;
 };
 export async function record(sql: Query, entry: Entry): Promise<void> {
-  await sql`insert into history (item_id, actor, kind, member, place, status, note, day, qty, cost_cents, ref, due)
+  const cost = entry.costCents ?? null;
+  await sql`insert into history (item_id, actor, kind, member, place, status, note, day, qty, cost_cents, currency, ref, due)
     values (${entry.item}, ${entry.actor}, ${entry.kind}, ${entry.member ?? null}, ${entry.place ?? null}, ${entry.status ?? null}, ${entry.note ?? null}, ${entry.day ?? null},
-      ${entry.qty ?? null}, ${entry.costCents ?? null}, ${entry.ref ?? null}, ${entry.due ?? null})`;
+      ${entry.qty ?? null}, ${cost}, ${cost === null ? null : entry.currency ?? null}, ${entry.ref ?? null}, ${entry.due ?? null})`;
 }
 
 // ---- Receipts (the person says "I received it": lib/receipts.ts) ----------
@@ -304,8 +309,8 @@ export async function itemDetail(sql: Query, actor: Member | null, itemId: unkno
     const mine = item.holder === who.id || mySeat;
     return { full: false, item: brief(forMember(item, who.id, mySeat)), mySeat, mine, myProblems: problems.filter(p => p.reportedBy === who.id), receipt: item.holder === who.id ? receipt : null };
   }
-  const historyRows = await sql<{ id: string; at: Date; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; cost_cents: string | null; ref: string | null; due: string | null }[]>`
-    select id, at, to_char(day, 'YYYY-MM-DD') as day, actor, kind, member, place, status, note, qty, cost_cents, ref, to_char(due, 'YYYY-MM-DD') as due
+  const historyRows = await sql<{ id: string; at: Date; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; cost_cents: string | null; currency: string | null; ref: string | null; due: string | null }[]>`
+    select id, at, to_char(day, 'YYYY-MM-DD') as day, actor, kind, member, place, status, note, qty, cost_cents, currency, ref, to_char(due, 'YYYY-MM-DD') as due
     from history where item_id = ${item.id}
     order by at desc, id desc limit 200`;
   const history = historyRows.map(({ cost_cents, ...h }) => ({ ...h, id: String(h.id), at: new Date(h.at).toISOString(), costCents: cost_cents === null ? null : Number(cost_cents) }));
@@ -325,6 +330,9 @@ export type ItemInput = {
   categoryId?: unknown; name?: unknown; tag?: unknown; serial?: unknown; purchasedOn?: unknown; price?: unknown; supplier?: unknown;
   warrantyUntil?: unknown; notes?: unknown; seats?: unknown; renewsOn?: unknown; cost?: unknown; period?: unknown;
   extra?: unknown; quantity?: unknown; minQuantity?: unknown;
+  // The ISO 4217 code of the price and the cost (the tool's default when
+  // none is given).
+  currency?: unknown;
   // Several identical items at once: how many, and their serial numbers
   // (one per item, in order; fewer is fine).
   count?: unknown; serials?: unknown;
@@ -333,20 +341,28 @@ export type ItemInput = {
 type Fields = {
   name: string; serial: string | null; purchasedOn: string | null; priceCents: number | null; supplier: string | null; warrantyUntil: string | null;
   notes: string | null; seats: number | null; renewsOn: string | null; costCents: number | null; period: Period | null;
-  quantity: number | null; minQuantity: number | null;
+  quantity: number | null; minQuantity: number | null; currency: string | null;
 };
 
 // fields reads a form: an item has a serial and a warranty; a licence has
 // seats, a renewal and a cost per month or year; a thing counted in bulk has
 // a quantity and a minimum.
-function fields(input: ItemInput, kind: Category["kind"]): Fields {
+// Amounts are read in the minor unit of their currency (the one chosen, else
+// the tool's default); without any amount, no currency is kept.
+function fields(input: ItemInput, kind: Category["kind"], fallbackCurrency: string): Fields {
+  const f = fieldsIn(input, kind, currencyCode(input.currency) ?? fallbackCurrency);
+  return { ...f, currency: f.priceCents === null && f.costCents === null ? null : f.currency };
+}
+function fieldsIn(input: ItemInput, kind: Category["kind"], currency: string): Fields {
+  const decimals = currencyDecimals(currency);
   const dateOf = (value: unknown) => {
     try { return day(value); } catch { throw new AppError("invalid_date"); }
   };
   const base = {
     name: clean(input.name, limits.name),
     purchasedOn: dateOf(input.purchasedOn),
-    priceCents: money(input.price),
+    priceCents: money(input.price, decimals),
+    currency,
     supplier: optional(input.supplier, limits.supplier),
     notes: optional(input.notes, limits.notes, { multiline: true }),
     quantity: null, minQuantity: null,
@@ -356,7 +372,7 @@ function fields(input: ItemInput, kind: Category["kind"]): Fields {
     if (seats === null) throw new AppError("invalid_seats");
     const period = input.period === "month" || input.period === "year" ? input.period : input.period === undefined || input.period === null || input.period === "" ? "year" : null;
     if (!period) throw new AppError("invalid");
-    return { ...base, serial: null, warrantyUntil: null, seats, renewsOn: dateOf(input.renewsOn), costCents: money(input.cost), period };
+    return { ...base, serial: null, warrantyUntil: null, seats, renewsOn: dateOf(input.renewsOn), costCents: money(input.cost, decimals), period };
   }
   if (kind === "consumable") {
     const quantity = count(input.quantity ?? 0);
@@ -386,7 +402,7 @@ export async function createItem(sql: Sql, actor: Member | null, input: ItemInpu
 export async function createItems(sql: Sql, actor: Member | null, input: ItemInput): Promise<Item[]> {
   const who = manager(actor);
   const cat = await category(sql, input.categoryId);
-  const f = fields(input, cat.kind);
+  const f = fields(input, cat.kind, await defaultCurrency(sql));
   const extra = readExtra(await fieldsOf(sql, cat.id), input.extra);
   const serials = cat.kind === "asset" ? serialList(input.serials) : [];
   const n = input.count === undefined || input.count === null || input.count === "" ? Math.max(1, serials.length) : count(input.count, 1, limits.bulk);
@@ -407,8 +423,8 @@ export async function createItems(sql: Sql, actor: Member | null, input: ItemInp
       if (!(await tagFree(tx, tag))) throw new AppError("tag_taken", { tag });
       const serial = n > 1 ? serials[k] ?? null : serials[0] ?? f.serial;
       const [row] = await tx<{ id: string }[]>`
-        insert into items (category_id, tag, name, serial, purchased_on, price_cents, supplier, warranty_until, notes, seats, renews_on, cost_cents, period, quantity, min_quantity, extra, created_by)
-        values (${cat.id}, ${tag}, ${f.name}, ${serial}, ${f.purchasedOn}, ${f.priceCents}, ${f.supplier}, ${f.warrantyUntil}, ${f.notes}, ${f.seats}, ${f.renewsOn}, ${f.costCents}, ${f.period},
+        insert into items (category_id, tag, name, serial, purchased_on, price_cents, supplier, warranty_until, notes, seats, renews_on, cost_cents, currency, period, quantity, min_quantity, extra, created_by)
+        values (${cat.id}, ${tag}, ${f.name}, ${serial}, ${f.purchasedOn}, ${f.priceCents}, ${f.supplier}, ${f.warrantyUntil}, ${f.notes}, ${f.seats}, ${f.renewsOn}, ${f.costCents}, ${f.currency}, ${f.period},
           ${f.quantity}, ${f.minQuantity}, ${tx.json(extra)}, ${who.id})
         returning id`;
       await record(tx, { item: row!.id, actor: who.id, kind: "created", status: "in_stock", qty: f.quantity || null });
@@ -419,7 +435,7 @@ export async function createItems(sql: Sql, actor: Member | null, input: ItemInp
 }
 
 // The keys of the fields a change touched, for the history ("name, serial").
-const editable = ["name", "tag", "category", "serial", "purchasedOn", "priceCents", "supplier", "warrantyUntil", "notes", "seats", "renewsOn", "costCents", "period", "quantity", "minQuantity", "extra"] as const;
+const editable = ["name", "tag", "category", "serial", "purchasedOn", "priceCents", "supplier", "warrantyUntil", "notes", "seats", "renewsOn", "costCents", "currency", "period", "quantity", "minQuantity", "extra"] as const;
 
 export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown, input: ItemInput): Promise<Item> {
   const who = manager(actor);
@@ -427,7 +443,8 @@ export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown
     const before = await load(tx, itemId, { lock: true });
     const cat = input.categoryId === undefined ? before.category : await category(tx, input.categoryId);
     if (cat.kind !== before.category.kind) throw new AppError(before.category.kind === "licence" ? "is_licence" : before.category.kind === "consumable" ? "is_consumable" : cat.kind === "licence" ? "not_licence" : "not_consumable");
-    const f = fields(input, cat.kind);
+    // An item keeps its currency when the form names none.
+    const f = fields(input, cat.kind, before.currency ?? await defaultCurrency(tx));
     if (cat.kind === "consumable" && (input.quantity === undefined || input.quantity === "")) f.quantity = before.quantity ?? 0;
     const extra = input.extra === undefined && cat.id === before.category.id ? before.extra : readExtra(await fieldsOf(tx, cat.id), input.extra);
     if (f.seats !== null && f.seats < before.seatsUsed) throw new AppError("seats_below_used", { used: before.seatsUsed });
@@ -438,7 +455,7 @@ export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown
     }
     await tx`update items set category_id = ${cat.id}, tag = ${tag}, name = ${f.name}, serial = ${f.serial}, purchased_on = ${f.purchasedOn},
       price_cents = ${f.priceCents}, supplier = ${f.supplier}, warranty_until = ${f.warrantyUntil}, notes = ${f.notes}, seats = ${f.seats},
-      renews_on = ${f.renewsOn}, cost_cents = ${f.costCents}, period = ${f.period}, quantity = ${f.quantity}, min_quantity = ${f.minQuantity},
+      renews_on = ${f.renewsOn}, cost_cents = ${f.costCents}, currency = ${f.currency}, period = ${f.period}, quantity = ${f.quantity}, min_quantity = ${f.minQuantity},
       extra = ${tx.json(extra)}, updated_at = now() where id = ${before.id}`;
     const after = await load(tx, before.id);
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -572,7 +589,8 @@ export async function takeBack(sql: Sql, actor: Member | null, itemId: unknown, 
 
 // A repair, as the status says it: the repairer's reference and the day it
 // is expected back when it goes; what it cost when it comes back.
-export type Repair = { ref?: unknown; due?: unknown; cost?: unknown };
+// cost: in currency (the item's when none is given, else the tool's default).
+export type Repair = { ref?: unknown; due?: unknown; cost?: unknown; currency?: unknown };
 
 // setStatus: in stock, in repair, lost, retired. An item someone holds is
 // taken back first (a lost laptop is no longer "with Hugo"). A licence, or
@@ -587,9 +605,11 @@ export async function setStatus(sql: Sql, actor: Member | null, itemId: unknown,
   if (value === "in_repair") {
     try { due = day(repair.due); } catch { throw new AppError("invalid_date"); }
   }
-  const costCents = value !== "in_repair" ? money(repair.cost) : null;
+  const askedCurrency = currencyCode(repair.currency);
   const result = await sql.begin(async tx => {
     const before = await load(tx, itemId, { lock: true });
+    const costCurrency = askedCurrency ?? before.currency ?? await defaultCurrency(tx);
+    const costCents = value !== "in_repair" ? money(repair.cost, currencyDecimals(costCurrency)) : null;
     const freed: string[] = [];
     let status: Status = value;
     if (before.category.kind === "licence" || before.category.kind === "consumable") {
@@ -611,7 +631,7 @@ export async function setStatus(sql: Sql, actor: Member | null, itemId: unknown,
     const repairNews = status === "in_repair" && (ref !== null || due !== null);
     if (status === before.status && freed.length === 0 && !repairNews) return { item: before, freed };
     await tx`update items set status = ${status}, updated_at = now() where id = ${before.id}`;
-    await record(tx, { item: before.id, actor: who.id, kind: "status", status, note, ref, due, costCents: before.status === "in_repair" ? costCents : null });
+    await record(tx, { item: before.id, actor: who.id, kind: "status", status, note, ref, due, costCents: before.status === "in_repair" ? costCents : null, currency: costCurrency });
     return { item: await load(tx, before.id), freed };
   });
   for (const m of result.freed) {
@@ -660,11 +680,13 @@ export async function repairsOf(sql: Query, itemIds: string[]): Promise<Map<stri
   return out;
 }
 
-// What repairs cost an item, all told.
-export async function repairCosts(sql: Query, itemId: string): Promise<{ count: number; cents: number }> {
-  const [row] = await sql<{ n: number; cents: string | null }[]>`
-    select count(*)::int as n, sum(cost_cents) as cents from history where item_id = ${itemId} and kind = 'status' and cost_cents is not null`;
-  return { count: row?.n ?? 0, cents: Number(row?.cents ?? 0) };
+// What repairs cost an item, all told: one total per currency (amounts of
+// two currencies are never added; no exchange rate is known).
+export async function repairCosts(sql: Query, itemId: string): Promise<{ count: number; totals: { currency: string; cents: number }[] }> {
+  const rows = await sql<{ n: number; currency: string; cents: string }[]>`
+    select count(*)::int as n, currency, sum(cost_cents)::text as cents from history
+    where item_id = ${itemId} and kind = 'status' and cost_cents is not null group by currency order by currency`;
+  return { count: rows.reduce((n, r) => n + r.n, 0), totals: rows.map(r => ({ currency: r.currency, cents: Number(r.cents) })) };
 }
 
 // ---- Things counted in bulk ---------------------------------------------------

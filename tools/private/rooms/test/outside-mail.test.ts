@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { matchable } from "../src/lib/directory.ts";
 import { weekdayLoad } from "../src/lib/export.ts";
 import { compose, mailBounds, reach, send } from "../src/lib/invitations.ts";
@@ -44,8 +44,10 @@ test("the guests of a room booking are told in their bell, in their language —
   await tell.invited(asMember(hugo), bookings[0]!.attendees, bookings);
   const items = chest.notifications.filter(n => n.key === `room:${bookings[0]!.id}`);
   assert.deepEqual(items.map(n => n.member).sort(), [ines.id, sofia.id].sort());
-  assert.equal(items[0]!.title, "Hugo Bernard invited you: Budget");
-  assert.equal(shownTo(items[0]!, "fr").title, "Hugo Bernard vous invite\u202f: Budget");
+  // SDK 0.7.0's fake keeps each item in its member's language: Inès reads
+  // French, Sofia English.
+  assert.equal(items.find(n => n.member === sofia.id)!.title, "Hugo Bernard invited you: Budget");
+  assert.equal(items.find(n => n.member === ines.id)!.title, "Hugo Bernard vous invite\u202f: Budget");
   const gone = await rooms.cancelRoomBooking(sql, asMember(hugo), bookings[0]!.id, "one", zone);
   await tell.cancelled(asMember(hugo), gone, "none");
   assert.equal(chest.outbox.length, 0, "no mail to a member");

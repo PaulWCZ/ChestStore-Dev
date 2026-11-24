@@ -11,6 +11,7 @@ import { groupsOf } from "./groups.ts";
 import { addDays, id, isStatus, mondayOf, partMinutes, today, weekday, type Status } from "../shared/model.ts";
 import { presenceHorizon } from "./presence.ts";
 import { rules } from "./settings.ts";
+import { deskZone } from "./zone.ts";
 
 // "My usual week": where a member usually is on each working day (office,
 // remote, off — or nothing), and the desk they want on office days. When a
@@ -169,11 +170,13 @@ async function applyWithin(tx: TransactionSql, zone: string, kept: Kept, memberI
     if (prefs?.desk_id && prefs.assigned_to === null && allowed) await tx`select pg_advisory_xact_lock(hashtext('desk-days'), hashtext(${c.member_id}))`;
     if (prefs?.desk_id && prefs.assigned_to === null && allowed && await withinDeskDays(tx, r.maxDeskDays, c.member_id, c.day)) {
       const [start, end] = partMinutes.day;
+      // The desk's day is its office's (lib/zone.ts).
+      const deskClock = await deskZone(tx, prefs.desk_id, zone);
       try {
         await tx.savepoint(async sp => {
           await sp`
             insert into desk_bookings (desk_id, member_id, day, part, during, usual)
-            values (${prefs.desk_id}, ${c.member_id}, ${c.day}, 'day', ${span(sp, c.day, start, end, zone)}, true)`;
+            values (${prefs.desk_id}, ${c.member_id}, ${c.day}, 'day', ${span(sp, c.day, start, end, deskClock)}, true)`;
         });
       } catch (error) {
         // Someone has it that day: the day is said, without a desk.

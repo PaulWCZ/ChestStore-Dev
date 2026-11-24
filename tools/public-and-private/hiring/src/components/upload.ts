@@ -1,8 +1,8 @@
 // The browser's side of an upload: ask the tool for a one-time address
 // (an action), send the file there — to the Chest, never through the
 // tool — and keep what the form sends back with it: a recruiter's file,
-// the ticket the tool signed; a visitor's CV, the claim the Chest gave
-// (Proposal (studio): public uploads, on the host the page is on).
+// the ticket the tool signed; a visitor's CV, the name the Chest gave it
+// (SDK 0.7.0: a visitor's upload, a path of the host the page is on).
 import { call } from "@argentic/chest-app/client";
 
 // What the person reads when it fails: the tool's words (an action's
@@ -35,6 +35,8 @@ export const cvAccept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,application
 // The same, as the kit's file picker takes it (by extension: some systems
 // give Word files no type): a photo of the CV is fine.
 export const cvKinds = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic", ".heif"];
+// A visitor's: no old .doc.
+export const visitorCvKinds = cvKinds.filter(kind => kind !== ".doc");
 export const cvMaxSize = 10 << 20;
 // An image of the careers page (logo, photo): PNG, JPEG or WebP, 2 MB.
 export const imageAccept = "image/png,image/jpeg,image/webp";
@@ -64,17 +66,18 @@ export async function uploadTeamFile(file: File, words: UploadWords): Promise<Up
   return sent.ok ? { ok: true, ref: grant.value.ticket } : sent;
 }
 
-// A visitor's CV, for an open job: the claim the Chest answers.
+// A visitor's CV, for an open job: the name the Chest answers. No old
+// .doc (the Chest tells a visitor's file by its bytes).
 export async function uploadPublicCv(file: File, slug: string, words: UploadWords): Promise<Uploaded> {
   const type = typeOf(file);
-  if (!Object.values(byExtension).includes(type)) return { ok: false, error: words.invalid, code: "cv_invalid" };
+  if (!Object.values(byExtension).includes(type) || type === "application/msword") return { ok: false, error: words.invalid, code: "cv_invalid" };
   if (file.size > cvMaxSize) return { ok: false, error: words.tooLarge, code: "cv_too_large" };
   const grant = await call("publicCvUpload", { slug, type, size: file.size }, { quiet: true, refresh: false });
   if (!grant.ok) return { ok: false, error: grant.message, code: grant.error };
   const sent = await put(grant.value.url, file, type, words);
   if (!sent.ok) return sent;
-  const claim = (sent.answer as { claim?: unknown } | null)?.claim;
-  return typeof claim === "string" ? { ok: true, ref: claim } : { ok: false, error: words.unavailable, code: "unavailable" };
+  const name = (sent.answer as { name?: unknown } | null)?.name;
+  return typeof name === "string" ? { ok: true, ref: name } : { ok: false, error: words.unavailable, code: "unavailable" };
 }
 
 // An image of the careers page.

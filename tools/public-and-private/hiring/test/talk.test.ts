@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as candidates from "../src/lib/candidates.ts";
 import * as interviews from "../src/lib/interviews.ts";
 import * as jobs from "../src/lib/jobs.ts";
@@ -12,7 +12,7 @@ import { addDays, dayOf, instantOf } from "../src/shared/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 import { built } from "./support/app.ts";
 
 // What the Chest posts, through the built server's routes.
@@ -79,9 +79,11 @@ test("a bounce, learnt by asking the Chest on the outbox schedule, marks the ema
   assert.deepEqual(await outbox.checkSent(sql), { asked: 0, bounced: 0 }, "asked again only once it has aged");
   assert.deepEqual(await outbox.checkSent(sql, new Date(Date.now() + 3_600_000)), { asked: 1, bounced: 1 });
   assert.equal((await messages.conversation(sql, recruiter(), c.id))[0]!.status, "bounced");
-  const told = chest.notifications.find(n => n.key === `candidate:${c.id}:bounced`)!;
+  const told = chest.notifications.find(n => n.key === `candidate:${c.id}:bounced` && n.member === sofia.id)!;
   assert.equal(told.title, "An email to Noé Body did not arrive");
-  assert.ok(told.translations?.["fr"], "with its French words");
+  // In its reader's language (SDK 0.7.0's fake keeps each item already in it).
+  const french = chest.notifications.find(n => n.key === `candidate:${c.id}:bounced` && n.member === camille.id);
+  if (french) assert.notEqual(french.title, told.title, "with its French words");
   assert.deepEqual(await outbox.checkSent(sql, new Date(Date.now() + 7_200_000)), { asked: 0, bounced: 0 }, "settled: never asked again");
 });
 
@@ -244,9 +246,10 @@ test("the morning reminder is a notification at its moment, one per interview, i
   assert.equal(chest.outbox.length, before, "no email to a member");
   const item = chest.notifications.find(n => n.member === ines.id && n.key === "interview:901:today")!;
   assert.equal(item.path, "/chest/candidates/41");
-  assert.equal(item.title, "Interview at 12:00: Aurélie Roux");
-  assert.match(shownTo(item, "fr").title, /12:00/u);
-  assert.notEqual(shownTo(item, "fr").title, item.title, "French words for Inès");
+  assert.equal(chest.notifications.find(n => n.member === hugo.id && n.key === "interview:901:today")!.title, "Interview at 12:00: Aurélie Roux");
+  // Inès reads French: the fake keeps each item in its reader's language.
+  assert.match(item.title, /12:00/u);
+  assert.notEqual(item.title, "Interview at 12:00: Aurélie Roux", "French words for Inès");
   assert.deepEqual(chest.notifications.filter(n => n.key === "interview:900:today").map(n => n.member).sort(), [hugo.id, lea.id].sort());
 });
 

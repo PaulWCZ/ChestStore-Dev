@@ -8,11 +8,11 @@ actions, words, the database, tests, recipes, rules — is
 ## Stack
 
 Hono + React rendered on the server + islands + Vite, on the vendored
-`@argentic/chest-app` (0.1.0-studio.8), the SDK `@argentic/chest-sdk`
-0.4.1-studio.5 and the UI kit `@argentic/chest-ui` 0.2.6-studio.1
+`@argentic/chest-app` (0.1.0-studio.12), the SDK `@argentic/chest-sdk`
+0.7.0-studio.2 and the UI kit `@argentic/chest-ui` 0.2.6-studio.1
 (`vendor/`, never edited: `node scripts/add-app.mjs`, `add-sdk.mjs`,
-`add-ui.mjs` from the studio). `chest.json` is contract 0.4 (official keys
-only, the `updates` schedule in it); the studio's proposals are in
+`add-ui.mjs` from the studio). `chest.json` is contract 0.7 (official keys
+only: the `updates` schedule, `realtime`, `emits` with fields); the studio's proposals are in
 `chest.proposals.json`. No `"csp": "tool"`: no inline script, no `<style>`,
 no `style={}` — the look is a stylesheet the tool serves.
 
@@ -24,7 +24,7 @@ no `style={}` — the look is a stylesheet the tool serves.
 | `src/actions.ts` | **Every mutation**: the team's (from islands, `call(name, input)`) and the public forms' (`/actions/subscribe`…, posted without JavaScript). `subscribe` and `subscribeChat` are bounded by the package (`bound`: `<Honeypot />` in the form, single-use token, budgets `formBudgets`/`chatBudgets` spent by `charge()` once the request is good; a refusal comes back to the form with what was typed); the others act on a secret link (`bound: false`) |
 | `src/layout.tsx` | The team's frame (kit `AppShell`, five sections, the public page link, `data-look`), the public error frame, the toasts |
 | `src/pages/` | Pages, rendered on the server (one function each, returning `{ title, body }`); `src/pages/parts/` server-only parts (`PublicShell`, `IncidentCard`, `HistoryBar`, `When`, `meta.tsx`) |
-| `src/islands/` | What runs in the browser: forms and views of the team's part (`IncidentForm`, `IncidentView`, `MaintenanceView`, `ComponentsView`, `ChecksForm`, `HeartbeatsView`, `SettingsView`, `SubscriberList`/`HookList`, `SetupEmpty`), `AutoRefresh`, `LocalTimes` (times in the visitor's zone — the only island of the public pages besides the toasts) |
+| `src/islands/` | What runs in the browser: forms and views of the team's part (`IncidentForm`, `IncidentView`, `MaintenanceView`, `ComponentsView`, `ChecksForm`, `HeartbeatsView`, `SettingsView`, `SubscriberList`/`HookList`, `SetupEmpty`), `LiveTeam` (every team page live through realtime, in the layout), `AutoRefresh` (the public status page only: realtime is for members), `LocalTimes` (times in the visitor's zone — the only island of the public pages besides the toasts) |
 | `src/components/` | Shared by pages and islands, browser-safe: icons, the mark, state labels, the impact picker, second-language fields, date problems, `use-run.ts` (`call()` with pending and Undo), `classes.ts` (classes named by data: `tone()`, `stepClass()`), `wall-time.ts` (days and wall times, pure) |
 | `src/lib/` | Rules and SQL, one file per subject (as before the move: `incidents.ts`, `components.ts`, `timeline.ts`, `status-view.ts`, `subscribers.ts`, `mailer.ts`, `hooks.ts`, `checks.ts`, `heartbeats.ts`, `importer.ts`, `export.ts`, `api.ts`, `badge.ts`, `embed.ts`, `feeds.ts`, `tell.ts`, `tell-tools.ts`, `lifecycle.ts`, `jobs.ts`…) |
 | `src/lib/theme.ts`, `src/lib/states.ts`, `src/tokens.css`, `src/styles.css` | The look: the "Control room" identity, the company's choice (`chest.theme()`), served as `/chest/look.css` and `/look.css` (with the five fixed state colours), cached by its hash |
@@ -47,8 +47,10 @@ npm run dev                            # rebuilds on change
 
 ## Rules
 
-- **`status.incident` is a contract** (README, "With the other tools"):
-  add fields, never rename one; never a member, never an update's text,
+- **`status.incident` is a contract** (README, "With the other tools";
+  its fields in `chest.json`, flat — lists as JSON in a text field): add
+  optional fields, never rename, retype or remove one (a new shape is a
+  new type); never a member, never an update's text,
   never an incident only about services for the team, never a backfill.
 - **A chat subscription is like an email one**: queued in `announce()`
   only, never about services for the team; the address stays with the
@@ -93,3 +95,9 @@ npm run dev                            # rebuilds on change
   never import the SDK or `lib/db.ts`; never hard-code a time zone.
 - **Looks**: CSS names contract tokens only (`test/theme.test.ts` refuses a colour, `in srgb` or `in oklch`); a new colour is a tool token defined from them in `src/tokens.css`. State colours come from `src/lib/states.ts` only, never from the theme (`--ok`, `--danger`…): they must mean the same in every look. The identity's own touches go under `[data-look="own"]`.
 - **Words**: `node scripts/lint-words.mjs` stays at 0 (narrow no-break space before `: ; ? !` in French; Remove/Delete/Erase = Retirer/Supprimer/Effacer; Undo = « Annuler l’action », the kit's). `lib/notify.ts`'s `cut` keeps those spaces.
+- **Times are the page's zone** (`pageZone(sql)`: the editors' choice in
+  Settings, else `chest.timeZone`), never `chest.timeZone` directly.
+- **No timer on a team page**: they follow `LiveTeam` (realtime feeds of
+  ids); only the public page refreshes itself, and only while its
+  visitor is active.
+- **An event's text never carries a format character** (`eventText` in `lib/tell-tools.ts`: the Chest refuses Unicode Cf — an emoji's joiner, a zero-width space, a BOM); stripped in the event only, the incident keeps its words.

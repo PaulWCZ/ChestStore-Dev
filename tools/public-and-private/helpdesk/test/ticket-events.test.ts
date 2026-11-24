@@ -20,13 +20,15 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-const chestWith = (emits: string[]) => fakeChest({ network: {},
+// The types chest.json declares, with their fields (contract 0.7).
+const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { emits: Record<string, { description: string; data: Record<string, string> }> };
+const chestWith = (emits: typeof manifest.emits) => fakeChest({ network: {},
   tool: "helpdesk", members: everyone, emits, capabilities: ["members", "files", "notifications"],
   chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" },
 });
 before(async () => {
   database = await testDatabase();
-  chest = await chestWith([...ticketEventTypes]);
+  chest = await chestWith(manifest.emits);
 });
 after(async () => {
   await chest.close();
@@ -35,13 +37,14 @@ after(async () => {
 
 const answers = async () => true;
 const request = (subject: string) => tickets.fromForm(database.sql, { name: "Jean Petit", email: "jean@example.com", subject, message: "It flickers.", language: "en" });
-const fromNow = () => chest.published.length;
-const since = (start: number) => chest.published.slice(start).map(e => ({ type: e.type, data: e.data }));
+const fromNow = () => chest.emitted.length;
+const since = (start: number) => chest.emitted.slice(start).map(e => ({ type: e.type, data: e.data }));
 const keyPattern = (ticket: number, what: "solved" | "reopened") => new RegExp(`^helpdesk:${ticket}:${what}:\\d{13}$`, "u");
 
-test("the manifest's proposals declare the two events Goals reads", () => {
-  const proposals = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.proposals.json"), "utf8"));
-  assert.deepEqual(proposals.emits, ["helpdesk.ticket.solved", "helpdesk.ticket.reopened"]);
+test("chest.json declares the two events Goals reads, with their fields", () => {
+  assert.deepEqual(Object.keys(manifest.emits), [...ticketEventTypes]);
+  assert.deepEqual(manifest.emits["helpdesk.ticket.solved"]!.data, { ticket: "id", assignee: "member?" });
+  assert.deepEqual(manifest.emits["helpdesk.ticket.reopened"]!.data, { ticket: "id" });
 });
 
 test("a reply that closes solves the ticket, for the agent who answered; the customer writing again reopens it", async () => {
@@ -51,20 +54,23 @@ test("a reply that closes solves the ticket, for the agent who answered; the cus
   await tickets.reply(sql, asMember(hugo), t.number, "A new bulb is on its way.", { close: true });
   assert.equal(await publishTicketEvents(sql), 1);
   assert.deepEqual(since(start), [{ type: "helpdesk.ticket.solved", data: { ticket: String(t.number), assignee: hugo.id } }]);
-  assert.match(chest.published.at(-1)!.key!, keyPattern(t.number, "solved"));
+  assert.match(chest.emitted.at(-1)!.key!, keyPattern(t.number, "solved"));
+  // About the ticket (one ticket's events in order), for the roles that read tickets.
+  assert.equal(chest.emitted.at(-1)!.subject, String(t.number));
+  assert.deepEqual(chest.emitted.at(-1)!.audience, { roles: ["admin", "agent", "viewer"] });
   assert.equal(await publishTicketEvents(sql), 0, "told once");
 
   start = fromNow();
   await tickets.customerReply(sql, t.secret, "Still dark, sorry.");
   assert.equal(await publishTicketEvents(sql), 1);
   assert.deepEqual(since(start), [{ type: "helpdesk.ticket.reopened", data: { ticket: String(t.number) } }]);
-  assert.match(chest.published.at(-1)!.key!, keyPattern(t.number, "reopened"));
+  assert.match(chest.emitted.at(-1)!.key!, keyPattern(t.number, "reopened"));
 
   // Solved again: published again, under a new key (Goals keeps the latest).
-  const keys = new Set(chest.published.map(e => e.key));
+  const keys = new Set(chest.emitted.map(e => e.key));
   await tickets.reply(sql, asMember(ines), t.number, "Fixed on site.", { close: true });
   await publishTicketEvents(sql);
-  const again = chest.published.at(-1)!;
+  const again = chest.emitted.at(-1)!;
   assert.deepEqual({ type: again.type, data: again.data }, { type: "helpdesk.ticket.solved", data: { ticket: String(t.number), assignee: hugo.id } }, "the ticket's agent");
   assert.ok(!keys.has(again.key), "a new key");
 });
@@ -112,18 +118,18 @@ test("a Chest that refuses the events: the action is kept, the events wait, and 
   const { sql } = database;
   const t = await request("No invoice");
   await chest.close();
-  chest = await chestWith([]);
+  chest = await chestWith({});
   await tickets.reply(sql, asMember(hugo), t.number, "Here it is.", { close: true });
   assert.equal(await publishTicketEvents(sql), 0);
-  assert.equal(chest.published.length, 0);
+  assert.equal(chest.emitted.length, 0);
   assert.equal((await tickets.byLink(sql, t.secret))?.status, "closed", "the reply is kept");
 
   await chest.close();
-  chest = await chestWith([...ticketEventTypes]);
+  chest = await chestWith(manifest.emits);
   assert.equal(await chest.run("late", JOB), 204);
-  assert.deepEqual(chest.published.map(e => ({ type: e.type, data: e.data })), [{ type: "helpdesk.ticket.solved", data: { ticket: String(t.number), assignee: hugo.id } }]);
+  assert.deepEqual(chest.emitted.map(e => ({ type: e.type, data: e.data })), [{ type: "helpdesk.ticket.solved", data: { ticket: String(t.number), assignee: hugo.id } }]);
   assert.equal(await chest.run("late", JOB), 204);
-  assert.equal(chest.published.length, 1, "once");
+  assert.equal(chest.emitted.length, 1, "once");
 });
 
 test("erased: the agent's id leaves what waits; what was told a day ago, or refused for a week, is forgotten", async () => {
@@ -134,7 +140,7 @@ test("erased: the agent's id leaves what waits; what was told a day ago, or refu
   const [waiting] = await sql<{ assignee: string | null }[]>`select assignee from ticket_events where published_at is null and ticket = ${t.number}`;
   assert.equal(waiting!.assignee, null);
   await publishTicketEvents(sql);
-  assert.deepEqual(chest.published.at(-1)!.data, { ticket: String(t.number), assignee: null });
+  assert.deepEqual(chest.emitted.at(-1)!.data, { ticket: String(t.number), assignee: null });
 
   await sql`insert into ticket_events (type, ticket, at) values ('helpdesk.ticket.reopened', 1, now() - interval '8 days')`;
   const [stored] = await sql<{ n: number }[]>`select count(*)::int as n from ticket_events`;
@@ -144,35 +150,36 @@ test("erased: the agent's id leaves what waits; what was told a day ago, or refu
   assert.equal(left!.n, 0);
 });
 
-// studio.16: the Chest keeps when it happened (occurredAt), so Goals counts
-// a ticket solved late on a cycle's last day in that cycle even when it is
-// told after midnight. Within 24 hours the true time goes with it; older (a
-// Chest down for a night), it goes without — the Chest refuses older times.
-test("a late event carries when the ticket was solved; one older than a day goes without it", async () => {
+// The Chest keeps when it happened (occurredAt), so Goals counts a ticket
+// solved late on a cycle's last day in that cycle even when it is told
+// after midnight. Within 72 hours the true time goes with it (SDK 0.7.0);
+// older (a Chest down for days), it goes without — the Chest refuses older
+// times.
+test("a late event carries when the ticket was solved; one older than three days goes without it", async () => {
   const { sql } = database;
   const recent = await request("Late by forty minutes");
   const old = await request("Late by a day and more");
   await chest.close();
-  chest = await chestWith([]);
+  chest = await chestWith({});
   await tickets.reply(sql, asMember(hugo), recent.number, "Done.", { close: true });
   await tickets.reply(sql, asMember(hugo), old.number, "Done too.", { close: true });
   assert.equal(await publishTicketEvents(sql), 0);
   const solvedAt = new Date(Date.now() - 40 * 60_000);
   await sql`update ticket_events set at = ${solvedAt} where ticket = ${recent.number} and published_at is null`;
-  await sql`update ticket_events set at = ${new Date(Date.now() - 25 * 3_600_000)} where ticket = ${old.number} and published_at is null`;
+  await sql`update ticket_events set at = ${new Date(Date.now() - 73 * 3_600_000)} where ticket = ${old.number} and published_at is null`;
 
   await chest.close();
-  chest = await chestWith([...ticketEventTypes]);
+  chest = await chestWith(manifest.emits);
   assert.equal(await chest.run("late", JOB), 204);
-  const late = chest.published.find(e => e.data["ticket"] === String(recent.number))!;
+  const late = chest.emitted.find(e => e.data["ticket"] === String(recent.number))!;
   assert.equal(late.occurredAt, solvedAt.toISOString(), "the real time of the change");
   assert.match(late.key!, new RegExp(`:${solvedAt.getTime()}$`, "u"));
-  const older = chest.published.find(e => e.data["ticket"] === String(old.number))!;
-  assert.ok(older, "an event older than a day is still told");
+  const older = chest.emitted.find(e => e.data["ticket"] === String(old.number))!;
+  assert.ok(older, "an event older than three days is still told");
   assert.ok(Date.now() - new Date(older.occurredAt).getTime() < 60_000, "without its time: the Chest's own");
   // The helper, at its edges.
   const now = Date.parse("2026-09-30T12:00:00Z");
-  assert.ok(occurredAtFor(new Date(now - 23 * 3_600_000), now));
-  assert.equal(occurredAtFor(new Date(now - 24 * 3_600_000), now), undefined);
-  assert.equal(occurredAtFor(new Date(now - 23 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
+  assert.ok(occurredAtFor(new Date(now - 71 * 3_600_000), now));
+  assert.equal(occurredAtFor(new Date(now - 72 * 3_600_000), now), undefined);
+  assert.equal(occurredAtFor(new Date(now - 71 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
 });

@@ -1,4 +1,5 @@
 import * as events from "@argentic/chest-sdk/events";
+import type { ToolEvent } from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { NoAccess } from "@argentic/chest-ui/components";
 import { createApp, download, page, publicPage, type PageContext, type View } from "@argentic/chest-app";
@@ -99,11 +100,21 @@ app.post("/chest-events", async c => {
   const sql = db();
   // One map for the members' lifecycle and the other tools' types (SDK
   // 0.7.0); chest.json "receives" names them all.
+  // A type names no tool (another linked tool could emit "crm.deal.won"):
+  // each is read only from the tool its first word names — Clients is
+  // "crm", Tasks "tasks", Support "helpdesk", Hiring "hiring" —, the
+  // `source` the Chest stamps.
+  const own = (handle: (e: ToolEvent) => Promise<void>) => async (e: ToolEvent) => {
+    if (e.source === e.type.split(".")[0]) await handle(e);
+  };
+  const tools = Object.fromEntries(Object.entries({
+    "crm.deal.won": async (e: ToolEvent) => { await dealWon(sql, e); },
+    "crm.deal.reopened": async (e: ToolEvent) => { await dealReopened(sql, e); },
+    ...fed(sql),
+  }).map(([type, handle]) => [type, own(handle)])) as Record<"crm.deal.won" | "crm.deal.reopened" | FedType, (e: ToolEvent) => Promise<void>>;
   const all: events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased" | "crm.deal.won" | "crm.deal.reopened" | FedType> = {
     ...handlers(sql),
-    "crm.deal.won": async e => { await dealWon(sql, e); },
-    "crm.deal.reopened": async e => { await dealReopened(sql, e); },
-    ...fed(sql),
+    ...tools,
   };
   return new Response(null, { status: await events.handle(c.req.raw, all, { seen }) });
 });

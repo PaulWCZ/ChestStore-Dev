@@ -20,7 +20,7 @@ export const isImportKind = (value: unknown): value is ImportKind => typeof valu
 export const fieldsOf = {
   companies: ["name", "website", "phone", "email", "address", "city", "postcode", "country", "siren", "vat", "industry", "tags", "notes", "owner", "createdAt"],
   contacts: ["name", "firstName", "lastName", "email", "phone", "phone2", "url", "title", "company", "tags", "notes", "owner", "createdAt"],
-  deals: ["title", "company", "contact", "contactEmail", "value", "stage", "status", "closeDate", "owner", "reason", "createdAt"],
+  deals: ["title", "company", "contact", "contactEmail", "value", "currency", "stage", "status", "closeDate", "owner", "reason", "createdAt"],
   activities: ["date", "time", "type", "subject", "text", "done", "deal", "contact", "contactEmail", "company", "owner"],
 } as const;
 export type Field = (typeof fieldsOf)[ImportKind][number];
@@ -76,6 +76,7 @@ const headers: Record<ImportKind, Record<string, Field>> = {
     contact: ["contact", "contactperson", "associatedcontact", "person", "personname", "personnenom", "personnecontact", "contactname", "interlocuteur"],
     contactEmail: ["contactemail", "personemail", "emailducontact", "email"],
     value: ["value", "amount", "montant", "valeur", "dealvalue", "montantht", "amountincompanycurrency"],
+    currency: ["currency", "devise", "monnaie", "dealcurrency", "valuecurrency"],
     stage: ["stage", "dealstage", "etape", "etapedelaffaire", "phase", "pipelinestage", "statutdelaffaire"],
     status: ["status", "statut", "etat"],
     closeDate: ["closedate", "expectedclosedate", "datedecloture", "datedeclotureprevue", "closingdate", "datedesignatureprevue", "echeance"],

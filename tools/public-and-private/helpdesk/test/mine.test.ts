@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestEvents as POST } from "../src/lib/deliveries.ts";
 import { AppError } from "../src/lib/app-error.ts";
 import * as attachments from "../src/lib/attachments.ts";
@@ -31,9 +31,9 @@ let n = 0;
 const next = () => String(++n).padStart(8, "0");
 // A team form's answer from a colleague (Forms' "forms.request", version 1).
 async function asks(member: string, subject: string): Promise<number> {
-  const status = await chest.deliver({ type: "forms.request", data: {
-    v: 1, form: { id: "9", title: "IT request" }, answer: { id: "itreq" + next(), at: "2026-09-29T10:00:00.000Z", language: "en", path: null },
-    subject, details: "My screen stays black.", requester: { name: null, email: null, member }, fields: [],
+  const status = await chest.deliver({ type: "forms.request", source: "forms", data: {
+    form: "9", formTitle: "IT request", answer: "itreq" + next(), language: "en", path: null,
+    subject, details: "My screen stays black.", requester: member, requesterName: null, requesterEmail: null, fields: null,
   } }, POST);
   assert.equal(status, 204);
   return (await database.sql<{ number: number }[]>`select number from tickets order by id desc limit 1`)[0]!.number;
@@ -78,7 +78,7 @@ test("she reads the answers (never the notes), writes again, rates; the team hea
   const again = await tickets.writeMine(sql, asMember(nora), number, "Thank you, I will be in from 9.");
   await tell.customerWrote(again, "Thank you, I will be in from 9.");
   assert.equal((await tickets.ticket(sql, asMember(ines), number)).status, "open");
-  assert.equal(shownTo(chest.notifications.find(x => x.member === ines.id && x.key?.endsWith(":reply"))!, "fr").title, `Nora Petit a écrit à nouveau sur la ${number}`);
+  assert.equal(chest.notifications.find(x => x.member === ines.id && x.key?.endsWith(":reply"))!.title, `Nora Petit a écrit à nouveau sur la ${number}`);
   const team = await tickets.ticket(sql, asMember(ines), number);
   assert.equal(team.messages.at(-1)!.kind, "customer");
   assert.equal(team.messages.at(-1)!.author, null, "her own words, not typed by someone");

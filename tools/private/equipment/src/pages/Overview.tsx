@@ -58,6 +58,7 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
   const kindName = new Map(counts.map(c => [c.id, categoryName(c, t)]));
   return { title: t.overview.title, body: (
     <div className="wide">
+      <Island name="Live" props={{ channel: "managers", tables: ["items", "requests", "problems"] }} />
       <PageHeader
         size="m"
         title={t.overview.title}

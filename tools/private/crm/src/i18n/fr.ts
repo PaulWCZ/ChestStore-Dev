@@ -220,6 +220,7 @@ export const fr: Catalogue = {
     log: "Noter un appel",
   },
   deals: {
+    otherCurrencies: { one: "{count} dans une autre devise, non additionnée", other: "{count} dans d’autres devises, non additionnées" },
     legend: { late: "En retard", today: "Aujourd’hui", planned: "Prévue", none: "Aucune étape" },
     legendLabel: "Prochaines étapes",
     emptyBoardAction: "Ajoutez votre première affaire : ce que vous voulez vendre, à qui, pour combien.",
@@ -653,6 +654,7 @@ export const fr: Catalogue = {
       stage: "Étape",
       status: "Statut (gagnée, perdue)",
       closeDate: "Signature prévue",
+      currency: "Devise",
       reason: "Raison du gain ou de la perte",
       dealTitle: "Intitulé",
     },
@@ -665,6 +667,11 @@ export const fr: Catalogue = {
       choices: { managers: "Les responsables seulement", sales: "Les responsables et les commerciaux", everyone: "Tous ceux qui ont un rôle, lecteurs compris" },
       save: "Enregistrer",
       readOnly: "Seuls les responsables choisissent.",
+    },
+    currency: {
+      title: "Devise des nouvelles affaires",
+      body: "Chaque affaire garde sa devise. Les totaux sont dans celle-ci : les affaires dans une autre sont comptées, pas additionnées.",
+      save: "Enregistrer",
     },
     tabs: "Réglages",
     stagesTab: "Étapes",

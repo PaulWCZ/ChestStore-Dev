@@ -13,11 +13,11 @@ import { camille, everyone, groups, hugo, lea } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 // Rooms open to everyone, as on most Chests: no group gives the tool, so
-// without "members.groups" a member's groups read [] (SDK 0.4.1). A room
-// or an area kept for Sales still follows who is in Sales: with
-// "members.groups" (studio.5, announced for 0.5), the members API says
-// every group of the Chest a member is in (members.get, members.list({
-// group })) — even when the request's own assertion carried none.
+// without "members.groups" a member's groups read []. A room or an area
+// kept for Sales still follows who is in Sales: with "members.groups" (SDK
+// 0.7.0), the members API says every group of the Chest a member is in
+// (members.get, members.list({ group })) — even when the request's own
+// assertion carried none, or null (past about 150 groups).
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -28,8 +28,8 @@ before(async () => {
     members: everyone,
     capabilities: ["members", "notifications", "files", "members.groups"],
     groups: [
-      { id: groups.sales, name: "Sales", members: everyone.filter(p => p.groups.includes(groups.sales)).map(p => p.id), grants: false },
-      { id: groups.office, name: "Office", members: everyone.filter(p => p.groups.includes(groups.office)).map(p => p.id), grants: false },
+      { id: groups.sales, name: "Sales", members: everyone.filter(p => (p.groups ?? []).includes(groups.sales)).map(p => p.id), grants: false },
+      { id: groups.office, name: "Office", members: everyone.filter(p => (p.groups ?? []).includes(groups.office)).map(p => p.id), grants: false },
     ],
     chest: { timeZone: zone },
   });
@@ -49,6 +49,11 @@ test("a member's every group, though none gives Rooms", async () => {
   assert.deepEqual(await groupsOf(openMember(hugo)), [groups.sales]);
   assert.deepEqual((await membership()).get(lea.id), [groups.office]);
   assert.deepEqual((await people([hugo.id])).get(hugo.id)?.groups, [groups.sales]);
+});
+
+test("a member in more groups than an assertion carries (groups: null, SDK 0.7.0): read from the Chest", async () => {
+  forgetGroups();
+  assert.deepEqual(await groupsOf({ id: hugo.id, groups: null }), [groups.sales]);
 });
 
 test("a place kept for a group that does not give Rooms: its members book there, nobody else", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { toApp as events, toApp as jobs } from "./support/app.ts";
 import { addComponent } from "../src/lib/components.ts";
 import * as incidents from "../src/lib/incidents.ts";
@@ -29,8 +29,8 @@ test("an erasure writes 'erased' wherever the person is named, keeps the texts, 
   await incidents.removeUpdate(sql, asMember(tom), second);
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "b".repeat(26), data: { id: tom.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, events), 204);
-  assert.equal(await chest.emit(event, events), 204);
+  assert.equal(await chest.deliver(event, events), 204);
+  assert.equal(await chest.deliver(event, events), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const i = await incidents.incidentFor(sql, asMember(camille), incidentId);
   assert.equal(i.createdBy, "erased");
@@ -44,8 +44,8 @@ test("an erasure writes 'erased' wherever the person is named, keeps the texts, 
 });
 
 test("leaving or losing access changes nothing: the page stays true", async () => {
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: lea.id } }, events), 204);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, events), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: lea.id } }, events), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: lea.id } }, events), 204);
 });
 
 test("a delivery not signed by the Chest is refused, events and schedules alike", async () => {
@@ -73,7 +73,7 @@ test("the team hears of an incident in their language (one notice, its translati
   await incidentOpened({ id: "41", title: "Payments fail" }, "major", ["Payments"]);
   const items = chest.notifications.filter(n => n.key === "incident:41");
   assert.deepEqual(items.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort());
-  assert.equal(shownTo(items.find(n => n.member === camille.id)!, "fr").title, "Incident : Payments fail");
+  assert.equal(items.find(n => n.member === camille.id)!.title, "Incident : Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.title, "Incident: Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.body, "Major outage — Payments");
   assert.equal(items[0]!.path, "/chest/incidents/41");
@@ -82,10 +82,13 @@ test("the team hears of an incident in their language (one notice, its translati
   const after = chest.notifications.filter(n => n.key === "incident:41");
   assert.equal(after.length, 3);
   assert.equal(after.find(n => n.member === tom.id)!.title, "Resolved: Payments fail");
-  // Beyond the Chest's 30 broadcasts an hour, the tool notifies its team itself.
+  // No quota (SDK 0.7.0): thirty incidents at once are never refused; the
+  // Chest folds what goes past its pace into one grouped item a member.
   for (let i = 0; i < 30; i++) await incidentOpened({ id: String(100 + i), title: "Again" }, "degraded", []);
-  const fallback = chest.notifications.filter(n => n.key === "incident:129");
-  assert.deepEqual(fallback.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort());
+  for (const who of [camille, lea, tom]) {
+    const theirs = chest.notifications.filter(n => n.member === who.id);
+    assert.ok(theirs.some(n => n.grouped !== undefined), "a burst is folded, never lost");
+  }
   await refreshBadges(sql);
   const open = (await sql`select count(*)::int as count from incidents where kind = 'incident' and status <> 'resolved' and removed_at is null`)[0]!["count"];
   assert.equal(chest.badges.get(tom.id) ?? 0, open);

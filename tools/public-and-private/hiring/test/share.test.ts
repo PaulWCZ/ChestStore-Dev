@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fakeChest, type FakeChest, type FakeEmits } from "@argentic/chest-sdk/testing";
 import * as candidates from "../src/lib/candidates.ts";
 import * as jobs from "../src/lib/jobs.ts";
 import * as share from "../src/lib/share.ts";
@@ -9,13 +11,14 @@ import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone } from "./support/members.ts";
 
-// What Hiring tells People (Proposal (studio): events between tools).
+// What Hiring tells People (SDK 0.7.0's events between tools).
+const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { emits: Record<string, FakeEmits> };
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
   process.env["CHEST_TOOL"] = "hiring";
-  chest = await fakeChest({ members: everyone, emits: ["hiring.hired", "hiring.hire_cancelled"], receivers: 1 });
+  chest = await fakeChest({ members: everyone, emits: manifest.emits });
 });
 after(async () => {
   await chest.close();
@@ -39,15 +42,28 @@ test("a move into hired keeps the first day; out of it, the day goes", async () 
 test("a hire is told with who, where and when — nothing of the application; then taken back", async () => {
   const hire = { candidate: "42", name: "Lucie Garnier", email: "lucie@example.com", job: "Senior furniture designer", team: "", place: "Lyon", startDate: "2026-11-02", hiredBy: camille.id };
   assert.equal(await share.hired(hire, "2026-10-01T09:00:00.000Z"), true);
-  const [e] = chest.published;
+  const [e] = chest.emitted;
   assert.equal(e!.type, "hiring.hired");
   assert.deepEqual(e!.data, { candidate: "42", name: "Lucie Garnier", email: "lucie@example.com", job: "Senior furniture designer", team: null, place: "Lyon", startDate: "2026-11-02", hiredBy: camille.id });
   assert.equal(e!.key, `hiring:42:hired:${Date.parse("2026-10-01T09:00:00.000Z")}`);
+  // About the candidate; for the recruiters only (an interviewer sees only
+  // the jobs they are on): a receiver shows it to those of its members.
+  assert.equal(e!.subject, "42");
+  assert.deepEqual(e!.audience, { roles: ["recruiter"] });
   // The same move told twice is one event.
   await share.hired(hire, "2026-10-01T09:00:00.000Z");
-  assert.equal(chest.published.filter(p => p.type === "hiring.hired").length, 1);
+  assert.equal(chest.emitted.filter(p => p.type === "hiring.hired").length, 1);
   assert.equal(await share.hireCancelled("42", new Date("2026-10-02T09:00:00Z")), true);
-  assert.deepEqual([chest.published.at(-1)!.type, chest.published.at(-1)!.data, chest.published.at(-1)!.key], ["hiring.hire_cancelled", { candidate: "42" }, `hiring:42:cancelled:${Date.parse("2026-10-02T09:00:00Z")}`]);
+  // Renamed for 0.7.0 (no underscore in a type): People hears hiring.hire-cancelled.
+  assert.deepEqual([chest.emitted.at(-1)!.type, chest.emitted.at(-1)!.data, chest.emitted.at(-1)!.key], ["hiring.hire-cancelled", { candidate: "42" }, `hiring:42:cancelled:${Date.parse("2026-10-02T09:00:00Z")}`]);
+  assert.deepEqual(Object.keys(manifest.emits).sort(), ["hiring.busy", "hiring.hire-cancelled", "hiring.hired"]);
+});
+
+test("a format character typed in a name is left out of the event only", async () => {
+  const at = new Date().toISOString();
+  assert.equal(await share.hired({ candidate: "43", name: "Zo\u200be 👩\u200d🎨", email: null, job: "Designer\ufeff", team: "\u200b", place: null, startDate: null, hiredBy: camille.id }, at), true);
+  const d = chest.emitted.at(-1)!.data;
+  assert.deepEqual([d["name"], d["job"], d["team"]], ["Zoe 👩🎨", "Designer", null]);
 });
 
 test("without events between tools, nothing breaks", async () => {

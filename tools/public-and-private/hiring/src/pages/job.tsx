@@ -109,7 +109,7 @@ export async function newJobPage(ctx: PageContext<MemberContext>): Promise<View>
         <PageHeader title={t.jobForm.newTitle} />
         <Island name="JobForm" props={{
           job: null, ...(start ? { start: { title: start.title, team: start.team, description: start.description } } : {}),
-          defaultLanguage: locale, defaultCountry: (await settings(db())).country, countryNames: countryNames(locale), today: dayOf(new Date(), chest.timeZone),
+          defaultLanguage: locale, defaultCountry: (await settings(db())).country, defaultCurrency: (await settings(db())).currency, countryNames: countryNames(locale), today: dayOf(new Date(), chest.timeZone),
           t: { jobForm: t.jobForm, facts: t.facts, tooLong: t.errors.too_long, date: t.kit.date },
         }} />
       </div>
@@ -127,7 +127,7 @@ export async function editJobPage(ctx: PageContext<MemberContext>): Promise<View
       <div className="narrow">
         <PageHeader title={t.jobForm.editTitle} />
         <Island id={`job-form-${job.id}`} name="JobForm" props={{
-          job, defaultLanguage: locale, defaultCountry: (await settings(db())).country, countryNames: countryNames(locale), today: dayOf(new Date(), chest.timeZone),
+          job, defaultLanguage: locale, defaultCountry: (await settings(db())).country, defaultCurrency: (await settings(db())).currency, countryNames: countryNames(locale), today: dayOf(new Date(), chest.timeZone),
           t: { jobForm: t.jobForm, facts: t.facts, tooLong: t.errors.too_long, date: t.kit.date },
         }} />
       </div>

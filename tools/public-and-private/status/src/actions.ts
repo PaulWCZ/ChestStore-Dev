@@ -14,7 +14,7 @@ import * as incidents from "./lib/incidents.ts";
 import { otherLanguage, writerLanguage } from "./lib/languages.ts";
 import { flush, welcome } from "./lib/mailer.ts";
 import { moment, worst, type Impact } from "./lib/model.ts";
-import { savePageSettings } from "./lib/page-settings.ts";
+import { pageZone, savePageSettings } from "./lib/page-settings.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
 import { rememberPublicOrigin, setChecksState } from "./lib/settings.ts";
 import * as subscribers from "./lib/subscribers.ts";
@@ -43,7 +43,9 @@ type When = { day: string; minutes: number };
 type Second = { title?: string; body?: string; resolution?: string } | null;
 type Window = { title: string; body?: string; start: When; end: When; components: string[]; autoPosts: boolean; second?: Second; language?: string };
 
-const zone = () => chest.timeZone;
+// The page's zone (Settings; the company's by default): times typed in the
+// team's forms are read in it, as the forms say.
+const zone = () => pageZone(db());
 
 // After an update is posted, the first emails and chat deliveries go at
 // once (a few, so the editor never waits); the "updates" schedule sends
@@ -102,9 +104,10 @@ function failed(error: unknown): ErrorCode {
   return "unavailable";
 }
 
-function windowOf(input: Window | null | undefined): { start: Date; end: Date } {
+async function windowOf(input: Window | null | undefined): Promise<{ start: Date; end: Date }> {
   if (!input || typeof input !== "object") throw new AppError("invalid");
-  return { start: moment(input.start?.day, input.start?.minutes, zone()), end: moment(input.end?.day, input.end?.minutes, zone()) };
+  const z = await zone();
+  return { start: moment(input.start?.day, input.start?.minutes, z), end: moment(input.end?.day, input.end?.minutes, z) };
 }
 
 async function addExample(member: Member): Promise<void> {
@@ -134,8 +137,9 @@ export const actions = {
   }),
 
   backfillIncident: action({ title: checked<string>(), body: checked<string>(), resolution: checked<string>(), states: checked<Record<string, string>>(), started: checked<When>(), resolved: checked<When>(), second: field.optional(checked<Second>()), language: field.optional(checked<string>()) }, async (input, { member }) => {
-    const startedAt = moment(input.started?.day, input.started?.minutes, zone());
-    const resolvedAt = moment(input.resolved?.day, input.resolved?.minutes, zone());
+    const z = await zone();
+    const startedAt = moment(input.started?.day, input.started?.minutes, z);
+    const resolvedAt = moment(input.resolved?.day, input.resolved?.minutes, z);
     const { incidentId } = await incidents.backfill(db(), member, { title: input.title, body: input.body, resolution: input.resolution, states: input.states, startedAt, resolvedAt, second: input.second ?? null, language: input.language });
     return { id: incidentId };
   }),
@@ -206,14 +210,14 @@ export const actions = {
   // ---- Maintenance ----------------------------------------------------------
 
   planMaintenance: action({ window: checked<Window>() }, async ({ window: input }, { member }) => {
-    const { start, end } = windowOf(input);
+    const { start, end } = await windowOf(input);
     const { incidentId } = await incidents.planMaintenance(db(), member, { title: input.title, body: input.body, start, end, components: input.components, autoPosts: input.autoPosts, second: input.second ?? null, language: input.language });
     sendSoon();
     return { id: incidentId };
   }),
 
   changeMaintenance: action({ incidentId: id(), window: checked<Window>() }, async ({ incidentId, window: input }, { member }) => {
-    const { start, end } = windowOf(input);
+    const { start, end } = await windowOf(input);
     await incidents.editMaintenance(db(), member, incidentId, { title: input.title, start, end, components: input.components, autoPosts: input.autoPosts });
   }),
 
@@ -285,7 +289,7 @@ export const actions = {
 
   // ---- The public page's settings -------------------------------------------
 
-  savePage: action({ website: checked<string>(), support: checked<string>(), embedSites: checked<string>() }, async (input, { member }) => {
+  savePage: action({ website: checked<string>(), support: checked<string>(), embedSites: checked<string>(), timeZone: field.nullable(checked<string>()) }, async (input, { member }) => {
     await savePageSettings(db(), member, input);
   }),
 

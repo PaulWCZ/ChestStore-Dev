@@ -8,10 +8,10 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines, nora } from "./support/members.ts";
 
-// Incidents from Status (Proposal (studio): events between tools): the
-// event "status.incident", version 1 (Status' README, "With the other
-// tools"). While one is open, the inbox says so and a saved reply links
-// its public page; resolved or removed, both go.
+// Incidents from Status (events between tools, SDK 0.7.0): the event
+// "status.incident" — flat fields, the texts per language as JSON (Status'
+// README, "With the other tools"). While one is open, the inbox says so
+// and a saved reply links its public page; resolved or removed, both go.
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
@@ -23,20 +23,27 @@ after(async () => {
   await database.close();
 });
 
-const incident = (action: string, over: Record<string, unknown> = {}, at = "2026-09-29T14:05:00.000Z") => ({
-  v: 1,
-  action,
-  incident: {
-    id: "42", title: "Payments unavailable", language: "en", titles: { en: "Payments unavailable", fr: "Paiement indisponible" },
+// Yesterday: within the Chest's 72 hours, and newer than the 30 days after
+// which a resolved incident is forgotten.
+const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+// As Status emits it (its src/lib/tell-tools.ts): titles and services as
+// JSON texts; `over` changes the incident as Status keeps it.
+const incident = (action: string, over: Record<string, unknown> = {}, at = `${day}T14:05:00.000Z`): Record<string, unknown> => {
+  const i = {
+    id: "42", title: "Payments unavailable", language: "en", titles: { en: "Payments unavailable", fr: "Paiement indisponible" } as unknown,
     status: action === "resolved" ? "resolved" : "investigating", impact: action === "resolved" ? "operational" : "major",
-    started_at: "2026-09-29T14:00:00.000Z", resolved_at: null, url: "https://status.atelier.test/incidents/42",
-    services: [{ id: "3", names: { en: "Payments", fr: "Paiement" }, state: "major" }],
+    startedAt: `${day}T14:00:00.000Z`, resolvedAt: null, url: "https://status.atelier.test/incidents/42" as unknown,
+    services: [{ id: "3", names: { en: "Payments", fr: "Paiement" }, state: "major" }] as unknown,
     ...over,
-  },
-  update: { id: "311", status: "investigating", at },
-});
-// Published when its update was posted (the Chest stamps occurredAt).
-const deliver = (data: Record<string, unknown>) => chest.deliver({ type: "status.incident", source: "status", data, occurredAt: (data["update"] as { at: string }).at }, POST);
+  };
+  return {
+    incident: i.id, action, status: i.status, impact: i.impact, language: i.language, title: i.title,
+    titles: JSON.stringify(i.titles), services: JSON.stringify(i.services),
+    startedAt: i.startedAt, resolvedAt: i.resolvedAt, url: i.url, update: "311", updatedAt: at,
+  };
+};
+// Emitted when its update was posted (occurredAt), about the incident (its subject).
+const deliver = (data: Record<string, unknown>, audience: "all" | string[] = "all") => chest.deliver({ type: "status.incident", source: "status", subject: String(data["incident"]), audience, data, occurredAt: data["updatedAt"] as string }, POST);
 
 test("an incident opened in Status shows in the inbox in the reader's language, with a saved reply in the customer's", async () => {
   const { sql } = database;
@@ -60,25 +67,38 @@ test("an incident opened in Status shows in the inbox in the reader's language, 
 
 test("resolved or removed: gone; an event published earlier, arriving late, never brings it back", async () => {
   const { sql } = database;
-  assert.equal(await deliver(incident("resolved", {}, "2026-09-29T15:00:00.000Z")), 204);
+  assert.equal(await deliver(incident("resolved", {}, `${day}T15:00:00.000Z`)), 204);
   assert.deepEqual(await openIncidents(sql, asMember(hugo), "en"), []);
   // The "updated" published at 14:30, delivered after the resolution of 15:00.
-  assert.equal(await deliver(incident("updated", {}, "2026-09-29T14:30:00.000Z")), 204);
+  assert.equal(await deliver(incident("updated", {}, `${day}T14:30:00.000Z`)), 204);
   assert.deepEqual(await openIncidents(sql, asMember(hugo), "en"), [], "out of order: ignored");
   assert.deepEqual(await incidentReplies(sql, asMember(hugo), "en", { customer: "Nina", agent: "Hugo" }, "en"), []);
   // Reopened later, then removed as a mistake.
-  await deliver(incident("updated", { id: "43" }, "2026-09-29T16:00:00.000Z"));
+  await deliver(incident("updated", { id: "43" }, `${day}T16:00:00.000Z`));
   assert.equal((await openIncidents(sql, asMember(hugo), "en")).length, 1);
-  await deliver(incident("removed", { id: "43" }, "2026-09-29T16:05:00.000Z"));
+  await deliver(incident("removed", { id: "43" }, `${day}T16:05:00.000Z`));
   assert.deepEqual(await openIncidents(sql, asMember(hugo), "en"), []);
+});
+
+test("a status.incident from any tool but Status is ignored", async () => {
+  const { sql } = database;
+  assert.equal(await chest.deliver({ type: "status.incident", source: "crm", subject: "78", data: incident("opened", { id: "78" }) }, POST), 204);
+  assert.ok(!(await openIncidents(sql, asMember(hugo), "en")).some(i => i.id === "78"));
+});
+
+test("an incident only some people may see is not shown to every agent", async () => {
+  const { sql } = database;
+  assert.equal(await deliver(incident("opened", { id: "77" }), [hugo.id]), 204);
+  assert.ok(!(await openIncidents(sql, asMember(hugo), "en")).some(i => i.id === "77"));
 });
 
 test("untrusted: another shape is ignored; texts are bounded, links only https", () => {
   const read = (data: Record<string, unknown>) => readIncident({ data });
-  assert.equal(read({ v: 1, action: "exploded", incident: incident("opened").incident }), null);
-  assert.equal(read({ v: 0, action: "opened", incident: incident("opened").incident }), null);
-  assert.equal(read({ v: 1, action: "opened", incident: { ...incident("opened").incident, id: "../1" } }), null);
-  assert.equal(read({ v: 1, action: "opened", incident: { ...incident("opened").incident, titles: {}, title: "" } }), null);
+  assert.equal(read({ ...incident("opened"), action: "exploded" }), null);
+  assert.equal(read({ ...incident("opened"), startedAt: "yesterday" }), null);
+  assert.equal(read(incident("opened", { id: "../1" })), null);
+  assert.equal(read(incident("opened", { titles: {}, title: "" })), null);
+  assert.equal(read({ ...incident("opened"), titles: "not json", title: "" }), null);
   const odd = read(incident("opened", { url: "javascript:alert(1)", title: "A‮B " + "x".repeat(400), titles: { de: "Zahlung" }, services: [{ names: { en: "Pay" }, state: "melted" }] }))!;
   assert.equal(odd.url, null);
   assert.equal(odd.titles.en!.length, 160);

@@ -129,7 +129,9 @@ the hour and wants to know where its time goes.
   amount, and they are always the same one, so no total ever adds two
   currencies. Changing it **relabels** (80 EUR becomes 80 GBP — a
   correction, never a conversion), which the page says; once time was
-  invoiced or handed to Quotes, it stays.
+  invoiced or handed to Quotes, it stays. Moving from an older Timesheets,
+  the currency is the one its hand-offs to Quotes were told in (the
+  Chest's then, `migrations/0008`), else EUR.
 - **Friday reminder** (optional, the schedule `friday` of `chest.json`): on Friday at 15:30,
   whoever is short of their usual week and has not sent it gets one bell
   item in their language — "Your week has 22 h — fill in the rest?". It can
@@ -341,7 +343,11 @@ same subject, key `<that key>:cancelled`. `data`:
 ```
 
 People are never named (no member id either: an invoice line is per task
-and rate). **What Quotes does** (its side changes with this shape; the
+and rate). No `version` field: the Chest refuses a field not declared, and
+a new shape would be a new type. Names travel without format characters
+(a zero-width space, a byte-order mark, the joiner inside an emoji): the
+Chest refuses them in a `text` field, so they are left out of the event
+only. **What Quotes does** (its side changes with this shape; the
 studio's agent that moves Quotes to 0.7.0 does it): it receives
 `timesheets.billable` and `timesheets.billable-cancelled` (in its
 `chest.json` `"receives"`), makes one **draft invoice** per `handoff` (a
@@ -355,7 +361,9 @@ quantity `minutes / 60` hours, unit price `rate`); on
 (`src/calls.ts`, `/chest-events`): the hand-off's entries become invoiced,
 their rates written on them, the report shows "Invoiced: F2026-014" with a
 link — to the members of the event's audience only (all, or the list Quotes
-named: kept on the hand-off); delivered twice, nothing more.
+named: kept on the hand-off); delivered twice, nothing more. Only from
+Quotes: a type names no tool, so the same type told by another linked
+tool (its `source`, stamped by the Chest) is ignored.
 
 ## How it is made
 

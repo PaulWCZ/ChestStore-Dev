@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as chestFiles from "@argentic/chest-sdk/files";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
+import { openerOf } from "../src/lib/sealing.ts";
 import * as candidates from "../src/lib/candidates.ts";
 import { parseCsv } from "../src/shared/csv.ts";
 import { emailFiles, everything, theirData } from "../src/lib/export-all.ts";
@@ -29,7 +30,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", language: "fr" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "sealed"], chest: { organization: "Atelier Martin", language: "fr" } });
 });
 after(async () => {
   await chest.close();
@@ -37,6 +38,9 @@ after(async () => {
 });
 
 const recruiter = () => asMember(camille);
+// The exporting recruiter's request, as the Chest gives it (its opener
+// ticket): what opens the sealed notes and feedback.
+const exporter = () => openerOf(withMember(new Request("https://hiring-chest.chest.test/chest/export"), camille));
 const hasTool = async (id: string) => everyone.some(m => m.id === id);
 
 test("default stages read in the reader's language until renamed; the history too", () => {
@@ -229,15 +233,21 @@ test("a ZIP the tool writes opens; everything exports; a candidate's own data", 
   assert.deepEqual([...files.get("evil/b.bin")!], [1, 2, 3]);
   const job = await openJob(sql, recruiter(), "Export test");
   const c = (await candidates.apply(sql, application(job.slug, { email: "export@example.com", name: "Eve Export" }))).candidate;
-  const all = new Uint8Array(await new Response(zipStream(everything(sql, recruiter(), en))).arrayBuffer());
+  // A note is sealed in the database, and opened in the recruiter's export.
+  await candidates.addNote(sql, recruiter(), c.id, "Strong portfolio, call back.");
+  const [stored] = await sql<{ body: string }[]>`select body from notes where candidate_id = ${c.id}`;
+  assert.match(stored!.body, /^chest:sealed:/u, "never in clear in the database");
+  const all = new Uint8Array(await new Response(zipStream(everything(sql, recruiter(), en, exporter()))).arrayBuffer());
   const inside = await readZip(all);
   for (const name of ["jobs.csv", "candidates.csv", "notes.csv", "feedback.csv", "emails.csv", "interviews.csv", "history.csv", "README.txt"]) assert.ok(inside.has(name), name);
   assert.match(new TextDecoder().decode(inside.get("candidates.csv")), /Eve Export/u);
-  await assert.rejects(everything(sql, asMember(hugo), en).next(), { code: "forbidden" });
-  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en));
+  assert.match(new TextDecoder().decode(inside.get("notes.csv")), /Strong portfolio, call back\./u);
+  await assert.rejects(everything(sql, asMember(hugo), en, exporter()).next(), { code: "forbidden" });
+  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en, exporter()));
   const data = JSON.parse(new TextDecoder().decode(theirs.entries[0]!.data));
   assert.equal(data.candidate.email, "export@example.com");
-  await assert.rejects(theirData(sql, asMember(hugo), c.id, en), { code: "forbidden" });
+  assert.deepEqual(data.notes.map((n: { text: string }) => n.text), ["Strong portfolio, call back."]);
+  await assert.rejects(theirData(sql, asMember(hugo), c.id, en, exporter()), { code: "forbidden" });
 });
 
 test("the files of a candidate's emails, sent and received, are in their data and in the full export (round 3 limit)", async () => {
@@ -254,7 +264,7 @@ test("the files of a candidate's emails, sent and received, are in their data an
   const sent = `emails/${out!.id}/Offer.pdf`, second = `emails/${out!.id}/2-Offer.pdf`, signed = `emails/${back!.id}/__.._signed_offer.pdf`;
   assert.deepEqual(emailFiles({ id: back!.id, attachments: [{ file: "x", name: "../../signed/offer.pdf", type: "", size: 0 }] }).map(f => f.path), [signed], "one path segment per name");
   // The candidate's own archive: the files beside data.json, named in it.
-  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en));
+  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en, exporter()));
   const names = theirs.entries.map(e => e.name);
   for (const name of [sent, second, signed]) assert.ok(names.includes(name), name);
   assert.ok(!names.some(n => n.includes("gone")), "a file the Chest no longer has is left out");
@@ -262,7 +272,7 @@ test("the files of a candidate's emails, sent and received, are in their data an
   const data = JSON.parse(new TextDecoder().decode(theirs.entries[0]!.data));
   assert.deepEqual(data.emails.map((m: { files: string[] }) => m.files), [[sent, second], [signed, `emails/${back!.id}/gone.pdf`]]);
   // The full export: the same files, named in emails.csv.
-  const inside = await readZip(new Uint8Array(await new Response(zipStream(everything(sql, recruiter(), en))).arrayBuffer()));
+  const inside = await readZip(new Uint8Array(await new Response(zipStream(everything(sql, recruiter(), en, exporter()))).arrayBuffer()));
   assert.equal(new TextDecoder().decode(inside.get(signed)), "%PDF signed");
   assert.ok(inside.has(sent) && inside.has(second));
   const rows = parseCsv(new TextDecoder().decode(inside.get("emails.csv")));

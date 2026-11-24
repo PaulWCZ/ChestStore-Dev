@@ -17,7 +17,7 @@ export async function teamPage({ member, locale: lang, t, query }: PageContext):
   const locale = localeOf(lang);
   const sql = db();
   const now = today();
-  const cur = currency();
+  const cur = await currency(sql);
   const m = (cents: number, compact = false) => money(cents, locale, { currency: cur, ...(compact ? { compact } : {}) });
   // The Monday numbers: what each person logged in a week (this one or one
   // of the three before), and how deals go from stage to stage.
@@ -54,6 +54,7 @@ export async function teamPage({ member, locale: lang, t, query }: PageContext):
           <div>
             <h1>{w.title}</h1>
             <p className="lede">{w.lede}</p>
+            {r.others > 0 && <p className="small-text muted">{plural(t.deals.otherCurrencies, r.others, locale)}</p>}
           </div>
         </div>
         {empty ? <div className="empty-box"><EmptyState title={w.empty} /></div> : (

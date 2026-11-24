@@ -4,7 +4,8 @@ import { can, canRemoveFile } from "./access.ts";
 import type { Attachment } from "./attachments.ts";
 import type { Activity } from "./activities.ts";
 import type { Custom, FieldDef, FieldObject } from "../shared/custom.ts";
-import type { Sql } from "./db.ts";
+import type { Query, Sql } from "./db.ts";
+import { defaultCurrency } from "./settings.ts";
 import { fieldsByObject, optionLabel } from "./fields.ts";
 import { bookingLink, meetingTime, typeName } from "./from-booking.ts";
 import { collator, formatDate, formatDay, numberFormat, plural, relative, type Catalogue, type Locale } from "../i18n/index.ts";
@@ -24,8 +25,9 @@ export async function stageWords(sql: Sql, t: Catalogue): Promise<{ stages: Stag
 }
 
 export async function formChoices(sql: Sql, actor: Member, t: Catalogue) {
-  const [people, { stages, names }, fields] = await Promise.all([team(), stageWords(sql, t), fieldsByObject(sql, t)]);
+  const [people, { stages, names }, fields, currency] = await Promise.all([team(), stageWords(sql, t), fieldsByObject(sql, t), defaultCurrency(sql)]);
   return {
+    currency,
     team: people.map(p => ({ id: p.id, name: p.name, photo: p.photo })),
     stageChoices: stages.map(s => ({ id: s.id, name: names[s.id]! })),
     openStages: stages.filter(s => s.kind === "open").map(s => ({ id: s.id, name: names[s.id]! })),
@@ -40,13 +42,14 @@ export async function formChoices(sql: Sql, actor: Member, t: Catalogue) {
 // The props of "New deal" (DealDialog), from formChoices — its words
 // apart (src/pages/words.ts); `today` in the Chest's time zone, for its
 // date field.
+// currency: the team's default (a new deal's), choices.currency.
 export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, me: string, locale: Locale) {
-  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today(), currency: currencySymbol(locale) };
+  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today(), currency: currencySymbol(locale, choices.currency) };
 }
 
-// The company's currency as the reader writes it ("€", "$", "CHF").
-export function currencySymbol(locale: Locale): string {
-  return numberFormat(locale, { style: "currency", currency: chest.currency }).formatToParts(0).find(p => p.type === "currency")?.value ?? chest.currency;
+// A currency as the reader writes it ("€", "$", "CHF").
+export function currencySymbol(locale: Locale, code: string): string {
+  return numberFormat(locale, { style: "currency", currency: code }).formatToParts(0).find(p => p.type === "currency")?.value ?? code;
 }
 
 // A timeline as its view shows it: each item's time in words, written here,
@@ -108,8 +111,9 @@ export function countryChoices(locale: Locale): { code: string; name: string }[]
   return countryCodes.map(code => ({ code, name: countryName(code, locale) })).sort((a, b) => order.compare(a.name, b.name));
 }
 
-// The company's currency (chest.currency, ISO 4217): totals across deals.
-export const currency = (): string => chest.currency;
+// The team's default currency (SDK 0.7.0: no Chest currency): a new deal's,
+// and the totals' (lib/settings.ts).
+export const currency = (sql: Query): Promise<string> => defaultCurrency(sql);
 
 // A file's size in the reader's conventions ("240 kB", "1,2 Mo").
 export function fileSize(bytes: number, locale: Locale): string {

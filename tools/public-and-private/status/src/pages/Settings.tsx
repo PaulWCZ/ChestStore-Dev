@@ -2,7 +2,8 @@ import { Island, type MemberContext, type View } from "@argentic/chest-app";
 import { PageHeader } from "@argentic/chest-ui/components";
 import { localeOf, plural } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
-import { pageSettings } from "../lib/page-settings.ts";
+import { chest } from "@argentic/chest-sdk/chest";
+import { pageSettings, zoneNames } from "../lib/page-settings.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { listSubscribers } from "../lib/subscribers.ts";
 import { listTemplates } from "../lib/templates.ts";
@@ -21,7 +22,9 @@ export async function settingsPage({ member, locale: language, t, request }: Mem
       <PageHeader size="m" title={t.settings.title} />
       <Island name="SettingsView" props={{
         origin,
-        settings: { website: settings.website ?? "", support: (settings.support ?? "").replace(/^mailto:/u, ""), embedSites: settings.embedSites.join("\n") },
+        settings: { website: settings.website ?? "", support: (settings.support ?? "").replace(/^mailto:/u, ""), embedSites: settings.embedSites.join("\n"), timeZone: settings.timeZone ?? "" },
+        // The zones this runtime knows, and the company's (the default).
+        zones: { company: chest.timeZone, all: zoneNames() },
         look: look.source,
         subscribers: plural(t.subscribers.count, subscribers.filter(s => s.confirmedAt).length, locale),
         templates: templates.map(x => ({ id: x.id, name: x.name, title: x.title })),

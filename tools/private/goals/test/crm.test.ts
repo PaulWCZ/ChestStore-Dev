@@ -47,6 +47,9 @@ test("amount and number of deals won in the cycle follow what Clients tells", as
   assert.equal(await won("D-2", 400000), 204);
   assert.equal(await w.chest.deliver({ type: "crm.deal.reopened", source: "crm", data: { deal: "D-1" } } as never, POST), 204);
   assert.deepEqual(await read(), [["money", "crm.won_amount", 4000], ["number", "crm.won_count", 2]]);
+  // The same type told by another tool (a type names no tool): ignored.
+  assert.equal(await w.chest.deliver({ type: "crm.deal.won", source: "quotes", data: { deal: "D-9", amount: 100000, currency: "EUR" } } as never, POST), 204);
+  assert.deepEqual(await read(), [["money", "crm.won_amount", 4000], ["number", "crm.won_count", 2]]);
   // Nonsense is accepted and ignored.
   assert.equal(await w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal: "bad ref!", amount: "lots" } } as never, POST), 204);
   // The owner's check-in keeps the CRM's value, whatever is typed, and says how sure they are.

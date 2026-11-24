@@ -11,15 +11,24 @@ import { email as checkEmail } from "./email.ts";
 import { cut as bounded, notify } from "./notify.ts";
 import { managers } from "./team.ts";
 
-// What Booking tells Clients (Proposal (studio): events between tools, once
-// an administrator linked the two): `booking.confirmed` — a meeting booked
-// with a member, or moved — and `booking.cancelled`. The contract is
-// Booking's (its README, "With the other tools"; version 1):
+// What Booking tells Clients (SDK 0.7.0 events between tools, once the
+// owner approved the link): `booking.confirmed` — a meeting booked with a
+// member, or moved — and `booking.cancelled`. The contract is Booking's
+// (its chest.json "emits" schema; version 1), flat as 0.7.0's kinds are:
 //
 //   { v: 1, booking: "42", status: "confirmed" | "cancelled", at,
-//     host: "mbr_…" | null, start, end, type: {id, name: {en, fr}},
-//     kind, contact: {name, email, phone, company, language}, source,
+//     host: "mbr_…" | null, start, end, type, typeName, typeNameFr, kind,
+//     contactName, contactEmail, contactPhone, contactLanguage, source,
 //     moves, cancelledBy?, path: "/chest/bookings/42" }
+//
+// (the nested shape of before — type: {id, name: {en, fr}}, contact: {…} —
+// is read too). Each comes with its audience: Booking tells a booking to
+// its host and its admins. Clients keeps it (activities.audience,
+// booked_meetings.audience): the line, the meeting on My day and the bell
+// are for those of the audience who have Clients only; a guest who is not
+// a contact yet becomes one only when the host is in the audience and works
+// on clients here (then the contact is theirs) — otherwise nobody else in
+// the team learns of the booking.
 //
 // A version other than 1 is ignored (a later one may mean other things).
 //
@@ -69,6 +78,8 @@ export type BookingEvent = {
   email: string;
   phone: string;
   company: string;
+  // Who of Clients may see it: null for everyone, else these members.
+  audience: string[] | null;
 };
 
 const kinds = new Set(["place", "phone", "video", "ask"]);
@@ -82,7 +93,9 @@ const instant = (value: unknown): Date | null => {
 
 // readBooking: the event as Clients uses it, or null when it is not one to
 // act on (another version, another shape, no way to know who booked).
-export function readBooking(event: Pick<ToolEvent, "id" | "type" | "data">, now = new Date()): BookingEvent | null {
+export function readBooking(event: Pick<ToolEvent, "id" | "type" | "data"> & { audience?: ToolEvent["audience"]; source?: string }, now = new Date()): BookingEvent | null {
+  // Only Booking's word: a booking.* type told by another tool is ignored.
+  if (event.source !== undefined && event.source !== "booking") return null;
   const d = event.data;
   if (d["v"] !== 1) return null;
   const status = event.type === "booking.confirmed" ? "confirmed" : event.type === "booking.cancelled" ? "cancelled" : null;
@@ -96,12 +109,11 @@ export function readBooking(event: Pick<ToolEvent, "id" | "type" | "data">, now 
   if (typeof moves !== "number" || !Number.isInteger(moves) || moves < 0 || moves > 1_000_000) return null;
   const host = d["host"];
   if (host !== null && host !== undefined && (typeof host !== "string" || !memberPattern.test(host))) return null;
-  const contact = d["contact"];
-  if (!isObject(contact)) return null;
+  const contact = isObject(d["contact"]) ? d["contact"] : { name: d["contactName"], email: d["contactEmail"], phone: d["contactPhone"], company: d["contactCompany"] };
   const email = safe(() => checkEmail(line(contact["email"], limits.email)));
   const phone = safe(() => checkPhone(line(contact["phone"], limits.phone)));
   if (!email && !phone) return null;
-  const type = isObject(d["type"]) && isObject(d["type"]["name"]) ? d["type"]["name"] : {};
+  const type = isObject(d["type"]) && isObject(d["type"]["name"]) ? d["type"]["name"] : { en: d["typeName"], fr: d["typeNameFr"] };
   const en = line(type["en"], limits.title), fr = line(type["fr"], limits.title);
   const at = instant(d["at"]);
   const path = typeof d["path"] === "string" && pathPattern.test(d["path"]) ? d["path"] : "";
@@ -124,6 +136,7 @@ export function readBooking(event: Pick<ToolEvent, "id" | "type" | "data">, now 
     email,
     phone,
     company: line(contact["company"], limits.name),
+    audience: event.audience === undefined || event.audience === "all" ? null : event.audience.filter(m => memberPattern.test(m)).slice(0, 5000),
   };
 }
 
@@ -154,14 +167,14 @@ const lineData = (b: BookingEvent) => ({
 // history; null when there is nothing to do (another shape, a repeat, an
 // older move, a confirmation after a cancellation, a contact since
 // deleted).
-export async function receiveBooking(sql: Sql, event: Pick<ToolEvent, "id" | "type" | "data">): Promise<BookingReceived | null> {
+export async function receiveBooking(sql: Sql, event: Pick<ToolEvent, "id" | "type" | "data" | "source"> & { audience?: ToolEvent["audience"] }): Promise<BookingReceived | null> {
   const b = readBooking(event);
   if (!b) return null;
   const hostOwns = await hostWorksHere(b.host);
   const received = await sql.begin(async (tx): Promise<BookingReceived | null> => {
     // One row per booking, taken first: two deliveries at once wait for
     // each other here.
-    const made = await tx`insert into booked_meetings (booking, status, moves, starts_at, ends_at, host) values (${b.booking}, ${b.status}, ${b.moves}, ${b.start}, ${b.end}, ${b.host})
+    const made = await tx`insert into booked_meetings (booking, status, moves, starts_at, ends_at, host, audience) values (${b.booking}, ${b.status}, ${b.moves}, ${b.start}, ${b.end}, ${b.host}, ${b.audience})
       on conflict (booking) do nothing returning booking`;
     // New: a confirmation makes the line (and the contact). A cancellation
     // of a booking never heard of is only remembered — so that a
@@ -187,17 +200,21 @@ async function change(tx: Query, b: BookingEvent, known: Meeting): Promise<Booki
   const [a] = await tx<{ contact_id: string; name: string; owner: string | null }[]>`
     select a.contact_id::text as contact_id, c.name, c.owner from activities a join contacts c on c.id = a.contact_id where a.id = ${known.activity_id}`;
   await tx`update booked_meetings set status = ${b.status}, moves = ${Math.max(b.moves, known.moves)}, updated_at = now(),
-    ${b.status === "confirmed" ? tx`starts_at = ${b.start}, ends_at = ${b.end}, host = ${b.host}` : tx`host = host`}
+    ${b.status === "confirmed" ? tx`starts_at = ${b.start}, ends_at = ${b.end}, host = ${b.host}, audience = ${b.audience}` : tx`host = host`}
     where booking = ${b.booking}`;
   const [line] = await tx<{ data: Record<string, unknown> }[]>`select data from activities where id = ${known.activity_id}`;
   const data = b.status === "confirmed" ? lineData(b) : { ...line!.data, event: b.event, status: "cancelled", cancelledBy: b.cancelledBy };
-  await tx`update activities set data = ${tx.json(data as never)} where id = ${known.activity_id}`;
+  await tx`update activities set data = ${tx.json(data as never)}${b.status === "confirmed" ? tx`, audience = ${b.audience}` : tx``} where id = ${known.activity_id}`;
   if (!a) return null;
   return { change: b.status === "cancelled" ? "cancelled" : "moved", contact: { id: a.contact_id, name: a.name, owner: a.owner }, created: false, maybe: null };
 }
 
-async function create(tx: Query, b: BookingEvent, hostOwns: boolean): Promise<BookingReceived> {
+async function create(tx: Query, b: BookingEvent, hostOwns: boolean): Promise<BookingReceived | null> {
   const { found, maybe } = await match(tx, b);
+  // A booking told for some people only: a guest who is not a contact yet
+  // becomes one only when the host may see it and works on clients here
+  // (the contact is then theirs); otherwise the team learns nothing.
+  if (!found && b.audience !== null && !(hostOwns && b.host !== null && b.audience.includes(b.host))) return null;
   let contact: BookingReceived["contact"];
   let companyId: string | null;
   const from = { booking: b.booking };
@@ -224,8 +241,8 @@ async function create(tx: Query, b: BookingEvent, hostOwns: boolean): Promise<Bo
     contact = { id: String(row!.id), name, owner };
   }
   const [line] = await tx<{ id: string }[]>`
-    insert into activities (kind, data, contact_id, company_id, author, at)
-    values ('booking', ${tx.json(lineData(b) as never)}, ${contact.id}, ${companyId}, 'chest', ${b.at})
+    insert into activities (kind, data, contact_id, company_id, author, at, audience)
+    values ('booking', ${tx.json(lineData(b) as never)}, ${contact.id}, ${companyId}, 'chest', ${b.at}, ${b.audience})
     returning id`;
   await tx`update booked_meetings set activity_id = ${line!.id}, updated_at = now() where booking = ${b.booking}`;
   return { change: b.status === "cancelled" ? "cancelled" : "new", contact, created: !found, maybe: maybe && !found ? { id: String(maybe.id), name: maybe.name } : null };
@@ -245,7 +262,9 @@ export const meetingTime = (start: Date | string, locale: Locale): string =>
 export const bookingKey = (booking: string) => "booking:" + createHash("sha256").update(booking).digest("hex").slice(0, 40);
 async function tell(received: BookingReceived, b: BookingEvent): Promise<void> {
   const owner = received.contact.owner?.startsWith("mbr_") ? received.contact.owner : null;
-  const to = owner ? (owner === b.host ? [] : [owner]) : received.created ? await managers() : [];
+  const all = owner ? (owner === b.host ? [] : [owner]) : received.created ? await managers() : [];
+  // Only those the booking's audience allows.
+  const to = b.audience === null ? all : all.filter(m => b.audience!.includes(m));
   if (to.length === 0) return;
   await notify(to, (t: Catalogue, locale: Locale) => {
     const words = { name: received.contact.name, type: typeName(b.type, locale) || t.booking.meeting, when: meetingTime(b.start, locale) };
@@ -270,6 +289,7 @@ export async function upcoming(sql: Query, memberId: string, now = new Date(), d
     where m.status = 'confirmed' and m.activity_id is not null
       and m.ends_at > ${now} and m.starts_at < ${new Date(now.getTime() + days * day)}
       and (m.host = ${memberId} or c.owner = ${memberId})
+      and (m.audience is null or ${memberId} = any(m.audience))
     order by m.starts_at, m.booking
     limit ${limit}`;
   return rows.map(r => ({

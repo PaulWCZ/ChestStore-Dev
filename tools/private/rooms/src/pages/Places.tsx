@@ -7,6 +7,8 @@ import { context, type Context } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
 import { weekdayLoad } from "../lib/export.ts";
 import { chestGroups } from "../lib/groups.ts";
+import { zoneNames } from "../lib/places.ts";
+import { zone } from "../lib/zone.ts";
 import { addDays } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { format, formatDay, plural, type Catalogue } from "../i18n/index.ts";
@@ -51,6 +53,8 @@ export async function placesPage(p: PageContext): Promise<View> {
       <Island name="PlacesView" id={"places-" + (office?.id ?? "none")} props={{
         offices: c.offices.map(o => ({ id: o.id, name: o.name, address: o.address })),
         office,
+        zones: zoneNames(),
+        companyZone: zone(),
         people: everyone.map(x => ({ id: x.id, name: x.name, photo: x.photo })),
         groups,
         names,

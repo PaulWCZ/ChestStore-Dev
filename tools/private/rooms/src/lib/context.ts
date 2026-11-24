@@ -17,7 +17,7 @@ import { zone } from "./zone.ts";
 export type Viewer = { member: Member; locale: Locale; t: Catalogue };
 
 // What every page of /chest starts from: who is looking (in their
-// language), the Chest's time zone and today there, the rules, the
+// language), the zone of the office shown and today there, the rules, the
 // offices and the one shown (?office=, else the member's, else the first).
 // null for a member whose role gives nothing (the layout says why).
 export type Context = Viewer & { sql: Sql; zone: string; today: string; rules: Rules; offices: OfficeView[]; office: OfficeView | null };
@@ -26,10 +26,12 @@ export async function context(p: { member: Member; locale: string; t: Catalogue 
   if (roleOf(p.member) === null) return null;
   const v: Viewer = { member: p.member, locale: localeOf(p.locale), t: p.t };
   const sql = db();
-  const z = zone();
-  await catchUp(sql, z);
+  await catchUp(sql, zone());
   const [all, r] = await Promise.all([offices(sql, v.member, v.t.presets), rules(sql)]);
   const shown = await chooseOffice(sql, v.member, all, office ?? null);
+  // The page's clock is the office's it shows (its own zone, else the
+  // Chest's: lib/zone.ts).
+  const z = shown?.timeZone ?? zone();
   return { ...v, sql, zone: z, today: today(z), rules: r, offices: all, office: shown };
 }
 

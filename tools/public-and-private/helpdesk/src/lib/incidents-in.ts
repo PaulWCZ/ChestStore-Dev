@@ -7,16 +7,18 @@ import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, locales, type Locale } from "../i18n/index.ts";
 import { fillReply } from "./model.ts";
 
-// What Status tells Support (Proposal (studio): events between tools, once
-// an administrator linked the two): an incident customers can see on the
-// public status page was opened, updated, resolved or removed —
-// "status.incident", version 1 (Status' README, "With the other tools"):
+// What Status tells Support (an event between tools, SDK 0.7.0, once the
+// owner approved the link): an incident customers can see on the public
+// status page was opened, updated, resolved or removed — "status.incident"
+// (Status' README, "With the other tools"). Contract 0.7 carries flat
+// fields of declared kinds only, so the texts per language come as JSON in
+// a text field:
 //
-//   { v: 1, action: "opened" | "updated" | "resolved" | "removed",
-//     incident: { id, title, language, titles: {en?, fr?}, status, impact,
-//                 started_at, resolved_at, url,
-//                 services: [{ id, names: {en?, fr?}, state }] },
-//     update: { id, status, at } }
+//   incident: id, action: text (opened | updated | resolved | removed),
+//   status: text, impact: text, language: text, title: text,
+//   titles: text — JSON {"en"?: "…", "fr"?: "…"},
+//   services: text — JSON [{"id", "names": {"en"?, "fr"?}, "state"}],
+//   startedAt: time, resolvedAt: time?, url: text?, update: id?, updatedAt: time
 //
 // While an incident is open, the inbox says so ("Incident in progress:
 // Payments unavailable", with its public page) and the answer box offers a
@@ -26,8 +28,8 @@ import { fillReply } from "./model.ts";
 //
 // The data comes from another tool: read as untrusted — texts bounded and
 // cleaned, the link https (or a local harness), the states from a closed
-// list. Events arrive at least once and may arrive out of order: one
-// published earlier (the Chest's occurredAt) never replaces a later one.
+// list. Events of one incident (its subject) arrive in order, at least
+// once: one about an earlier update never replaces a later one.
 
 export const incidentLimits = { title: 160, service: 80, services: 30 } as const;
 
@@ -60,6 +62,15 @@ function date(value: unknown): Date | null {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+// A JSON text's value (null for anything else).
+function json(value: unknown): unknown {
+  if (typeof value !== "string" || value.length > 16 * 1024) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
 // A text per language, only the tool's languages.
 function perLanguage(value: unknown, max: number): Partial<Record<Locale, string>> {
   const o = object(value);
@@ -89,33 +100,37 @@ function publicLink(value: unknown): string | null {
 // one this version understands.
 export function readIncident(event: Pick<ToolEvent, "data"> & { occurredAt?: string }): IncidentNews | null {
   const d = event.data;
-  if (typeof d["v"] !== "number" || !Number.isInteger(d["v"]) || d["v"] < 1) return null;
   const action = oneOf(actions, d["action"]);
-  const i = object(d["incident"]), u = object(d["update"]);
-  if (!action || !i) return null;
-  const id = typeof i["id"] === "string" && /^[0-9]{1,18}$/u.test(i["id"]) ? i["id"] : null;
-  const language = isLocale(i["language"]) ? i["language"] : null;
-  const status = oneOf(statuses, i["status"]);
-  const impact = oneOf(impacts, i["impact"]) ?? "operational";
-  const startedAt = date(i["started_at"]);
+  if (!action) return null;
+  const id = typeof d["incident"] === "string" && /^[0-9]{1,18}$/u.test(d["incident"]) ? d["incident"] : null;
+  const language = isLocale(d["language"]) ? d["language"] : null;
+  const status = oneOf(statuses, d["status"]);
+  const impact = oneOf(impacts, d["impact"]) ?? "operational";
+  const startedAt = date(d["startedAt"]);
   if (!id || !language || !status || !startedAt) return null;
-  const titles = perLanguage(i["titles"], incidentLimits.title);
-  const title = line(i["title"], incidentLimits.title);
+  const titles = perLanguage(json(d["titles"]), incidentLimits.title);
+  const title = line(d["title"], incidentLimits.title);
   if (title && !titles[language]) titles[language] = title;
   if (Object.keys(titles).length === 0) return null;
-  const services = (Array.isArray(i["services"]) ? i["services"].slice(0, incidentLimits.services) : []).flatMap(raw => {
+  const listed = json(d["services"]);
+  const services = (Array.isArray(listed) ? listed.slice(0, incidentLimits.services) : []).flatMap(raw => {
     const s = object(raw);
     const names = s ? perLanguage(s["names"], incidentLimits.service) : {};
     return s && Object.keys(names).length > 0 ? [{ names, state: oneOf(impacts, s["state"]) ?? "operational" }] : [];
   });
-  // Ordered by when Status published it (the Chest's stamp), else by
-  // the update it tells.
-  return { id, action, titles, language, status, impact, url: publicLink(i["url"]), services, startedAt, at: date(event.occurredAt) ?? date(u?.["at"]) ?? startedAt };
+  // Ordered by the update it tells, else by when Status told it.
+  return { id, action, titles, language, status, impact, url: publicLink(d["url"]), services, startedAt, at: date(d["updatedAt"]) ?? date(event.occurredAt) ?? startedAt };
 }
 
 // received keeps what an event says of an incident, unless a newer update
 // of it is already known.
-export async function received(sql: Sql, event: Pick<ToolEvent, "data" | "occurredAt">): Promise<void> {
+export async function received(sql: Sql, event: Pick<ToolEvent, "data" | "occurredAt" | "audience">): Promise<void> {
+  // Shown to every agent: only news everyone may see (SDK 0.7.0's audience,
+  // honoured by the receiver; Status tells its incidents to everyone).
+  if (event.audience !== "all") {
+    log.warn("status.incident ignored: its audience is not everyone");
+    return;
+  }
   const news = readIncident(event);
   if (!news) {
     log.warn("status.incident ignored: not an incident of version 1");

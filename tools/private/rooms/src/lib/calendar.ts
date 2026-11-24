@@ -67,7 +67,7 @@ export type Event = {
   busy: boolean;
   stamp: Date;
   sequence: number;
-  // The last day it covers (in the Chest's time zone).
+  // The last day it covers (in the company's time zone).
   lastDay: string;
 } & ({ start: Date; end: Date } | { days: { first: string; last: string } });
 

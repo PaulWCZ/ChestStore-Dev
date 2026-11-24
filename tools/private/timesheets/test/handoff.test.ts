@@ -88,6 +88,9 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   assert.equal(again.minutes, 210);
   // Quotes answers: the time is invoiced (rates written on it), once.
   const answer = { type: "quotes.invoiced" as const, source: "quotes", data: { handoff: again.handoff, invoice: "F2026-014", path: "/chest/invoices/14" } };
+  // The same type told by another tool (types name no tool): nothing.
+  assert.equal(await chest.deliver({ ...answer, source: "crm" }, POST), 204);
+  assert.equal((await sql<{ n: number }[]>`select count(*)::int as n from entries where handoff_id = ${again.handoff} and invoiced_at is not null`)[0]!.n, 0);
   assert.equal(await chest.deliver(answer, POST), 204);
   assert.equal(await chest.deliver(answer, POST), 204);
   const rows = await sql<{ n: number }[]>`select count(*)::int as n from entries where handoff_id = ${again.handoff} and invoiced_at is not null and rates_fixed and bill_rate_cents = 9000`;
@@ -162,6 +165,20 @@ test("Quotes not there, or the link not approved: a hand-off that reaches no too
   } finally {
     process.env["CHEST_TOOL_URLS"] = urls;
   }
+});
+
+test("names with a format character (a joiner inside an emoji, a byte-order mark from an import) still reach Quotes: the Chest refuses those in a text field", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { newClient: "\u{FEFF}Café Lumière", name: "Équipe 👩\u{200D}💻", rateCents: 6000, tasks: ["Réunions\u{200B}"] });
+  await entries.addEntry(sql, asMember(hugo), { projectId: p.id, taskId: p.tasks[0]!.id, day: from, minutes: 60 });
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  assert.equal(sent.entries, 1);
+  const data = emitted().at(-1)!.data as unknown as handoff.Billable;
+  assert.deepEqual([data.projectName, data.clientName, (JSON.parse(data.lines) as { label: string }[])[0]!.label], ["Équipe 👩💻", "Café Lumière", "Réunions"]);
+  assert.ok(!/\p{Cf}/u.test(JSON.stringify(data)));
+  const [kept] = await sql<{ name: string }[]>`select name from projects where id = ${p.id}`;
+  assert.equal(kept!.name, "Équipe 👩\u{200D}💻", "the name itself is kept as typed");
 });
 
 test("an invoice Quotes shows to some members only: its number and link are shown to them alone", async () => {

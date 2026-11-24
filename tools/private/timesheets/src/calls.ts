@@ -21,7 +21,9 @@ export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
   const all: events.Handlers<"access.revoked" | "member.removed" | "member.erased" | "quotes.invoiced"> = {
     ...handlers(sql),
-    "quotes.invoiced": async event => { await invoiced(sql, event); },
+    // Only Quotes says its invoices are issued: a type names no tool, so
+    // another linked tool could emit one; `source` is stamped by the Chest.
+    "quotes.invoiced": async event => { if (event.source === "quotes") await invoiced(sql, event); },
   };
   return new Response(null, { status: await events.handle(request, all, { seen: seen(sql) }) });
 }

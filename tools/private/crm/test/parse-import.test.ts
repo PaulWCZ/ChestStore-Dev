@@ -14,7 +14,7 @@ test("HubSpot's exports: their headers find their fields", () => {
 
 test("Pipedrive's exports (English and French) and French spreadsheets", () => {
   assert.deepEqual(guessMapping("deals", ["Deal - Title", "Deal - Value", "Deal - Currency", "Deal - Organization", "Deal - Contact person", "Deal - Stage", "Deal - Status", "Deal - Owner", "Deal - Expected close date", "Deal - Lost reason"]),
-    ["title", "value", "keep", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
+    ["title", "value", "currency", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
   assert.deepEqual(guessMapping("contacts", ["Person - Name", "Person - Organization", "Person - Email - Work", "Person - Email - Home", "Person - Phone - Work", "Person - Labels", "Person - Owner"]),
     ["name", "company", "email", "keep", "phone", "tags", "owner"]);
   assert.deepEqual(guessMapping("companies", ["Organisation - Nom", "Organization - Address", "Organization - Owner", "Organization - Labels"]),

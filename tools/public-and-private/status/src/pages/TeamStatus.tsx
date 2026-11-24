@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import type { MemberContext, View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { StateLabel } from "../components/state.tsx";
@@ -7,6 +6,7 @@ import { db } from "../lib/db.ts";
 import { impactOf, statusView, touchedNames } from "../lib/status-view.ts";
 import { IncidentCard } from "./parts/incident-card.tsx";
 import { tone } from "../components/classes.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // The team's own status page: what a member without a role sees in the
 // tool — every service, those for the team only included (the office
@@ -18,7 +18,7 @@ import { tone } from "../components/classes.ts";
 export async function teamStatus({ locale: language, t }: MemberContext): Promise<View> {
   const locale = localeOf(language);
   const now = new Date();
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const view = await statusView(db(), zone, now, { team: true, locale });
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow, ...view.maintenanceAhead];

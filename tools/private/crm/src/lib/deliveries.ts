@@ -4,7 +4,7 @@ import { log } from "@argentic/chest-app";
 import { db } from "./db.ts";
 import { receiveBooking } from "./from-booking.ts";
 import { receiveFormContact } from "./from-forms.ts";
-import { forgetSeen, handlers, seen } from "./lifecycle.ts";
+import { forgetSeen, handlers, seen, type LifecycleType } from "./lifecycle.ts";
 import { morning } from "./morning.ts";
 
 // What the Chest posts by itself, signed, at least once (src/app.tsx routes
@@ -14,21 +14,18 @@ import { morning } from "./morning.ts";
 // database (seen), not in memory — the tool sleeps.
 
 // The members' lifecycle ("receives": ["member.*"]), and what Forms and
-// Booking tell (Proposal (studio): events between tools —
+// Booking tell (SDK 0.7.0 events between tools, chest.json "receives" —
 // `forms.contact`, lib/from-forms.ts; `booking.confirmed` and
-// `booking.cancelled`, lib/from-booking.ts).
+// `booking.cancelled`, lib/from-booking.ts — each with its audience).
 export async function onEvent(request: Request): Promise<Response> {
   const sql = db();
-  return new Response(null, {
-    status: await events.handle(request, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "forms.contact": async e => { await receiveFormContact(sql, e); },
-        "booking.confirmed": async e => { await receiveBooking(sql, e); },
-        "booking.cancelled": async e => { await receiveBooking(sql, e); },
-      },
-    }),
-  });
+  const all: events.Handlers<LifecycleType | "forms.contact" | "booking.confirmed" | "booking.cancelled"> = {
+    ...handlers(sql),
+    "forms.contact": async e => { await receiveFormContact(sql, e); },
+    "booking.confirmed": async e => { await receiveBooking(sql, e); },
+    "booking.cancelled": async e => { await receiveBooking(sql, e); },
+  };
+  return new Response(null, { status: await events.handle(request, all, { seen: seen(sql) }) });
 }
 
 // The runs of chest.json's "schedules", read on the Chest's clock:

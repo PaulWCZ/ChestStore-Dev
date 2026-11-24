@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "sealed"] });
 });
 after(async () => {
   await chest.close();
@@ -37,8 +37,8 @@ test("an interviewer who leaves is taken off the job; their feedback stays", asy
   const c = (await candidates.apply(sql, application(job.slug))).candidate;
   await candidates.giveFeedback(sql, asMember(hugo), c.id, { rating: 3, recommendation: "yes" });
   await candidates.askFeedback(sql, asMember(camille), c.id, [ines.id], isRecruiter);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, events), 204);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, events), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, events), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: ines.id } }, events), 204);
   const d = await jobs.job(sql, asMember(camille), job.id);
   assert.deepEqual(d.interviewers, []);
   const detail = await candidates.candidate(sql, asMember(camille), c.id);
@@ -61,10 +61,10 @@ test("an erasure removes the member's id everywhere, keeps what they wrote, and 
   await interviews.schedule(sql, asMember(camille), c.id, { day, time: "10:00", minutes: 30, people: [camille.id, ines.id], tell: false }, async () => true);
   const erasure = "era_" + "e".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "f".repeat(26), data: { id: camille.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, events), 204);
-  assert.equal(await chest.emit(event, events), 204);
+  assert.equal(await chest.deliver(event, events), 204);
+  assert.equal(await chest.deliver(event, events), 204);
   const second = { type: "member.erased" as const, id: "evt_" + "g".repeat(26), data: { id: ines.id, erasure: "era_" + "h".repeat(26), deadline: event.data.deadline } };
-  assert.equal(await chest.emit(second, events), 204);
+  assert.equal(await chest.deliver(second, events), 204);
   const [left] = await sql<{ n: number }[]>`
     select (select count(*) from notes where author in (${camille.id}, ${ines.id}))::int + (select count(*) from feedback where author in (${camille.id}, ${ines.id}))::int
       + (select count(*) from activity where actor in (${camille.id}, ${ines.id}) or data::text like ${"%" + ines.id + "%"})::int

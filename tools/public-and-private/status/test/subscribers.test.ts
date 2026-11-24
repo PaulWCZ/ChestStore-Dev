@@ -18,7 +18,7 @@ let website = "", checkout = "", secret = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();
@@ -159,16 +159,19 @@ test("subscribers' emails go to the address they gave, replies to the company's 
   assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "never sent twice");
 });
 
-test("the Chest's daily quota stops the queue, which goes on later; a Chest without mail hides the form", async () => {
+test("a Chest that cannot send now (its mail not connected) stops the queue, which goes on later; a Chest without mail hides the form", async () => {
   const { sql } = database;
   for (let i = 0; i < 8; i++) await sql`insert into subscribers (email, token, confirmed_at) values (${`p${i}@example.com`}, ${String(i).repeat(32)}, now())`;
   chest.outbox.length = 0;
   await incidents.openIncident(sql, editor, { title: "Down", status: "investigating", body: "x", states: { [website]: "major" } });
+  chest.delivery.mail = "not_connected";
   const first = await flush(sql);
-  assert.equal(first.stopped, "quota");
-  assert.ok(first.sent <= 6);
+  chest.delivery.mail = "ready";
+  assert.deepEqual(first, { sent: 0, stopped: "later" });
   const [{ count }] = (await sql`select count(*)::int as count from mail_queue`) as unknown as [{ count: number }];
-  assert.equal(count, 8 - first.sent);
+  assert.equal(count, 8, "every message still waits");
+  const next = await flush(sql);
+  assert.deepEqual(next, { sent: 8, stopped: null }, "sent at the next pass");
   // Without mail on the Chest.
   const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
@@ -184,8 +187,8 @@ test("the Chest's daily quota stops the queue, which goes on later; a Chest with
 
 test("studio.16: whether the Chest sends email is asked of it (mail.available) — spent for today, not connected, paused, or none at all", async () => {
   const { sql } = database;
-  // The previous test used the day's six messages.
-  assert.deepEqual(await mailDelivery(sql), { state: "paused", reason: "quota" });
+  // No daily number (studio.2: the Chest paces): ready.
+  assert.deepEqual(await mailDelivery(sql), { state: "ok", reason: null });
   chest.delivery.mail = "not_connected";
   try {
     assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_connected" });

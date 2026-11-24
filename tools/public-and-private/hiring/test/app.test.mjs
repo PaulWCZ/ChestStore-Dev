@@ -26,9 +26,9 @@ let chest, database, app;
 before(async () => {
   chest = await fakeChest({
     tool: "hiring", network: {}, members: [camille, sofia, ines, hugo, lea, nora],
-    capabilities: ["members", "files", "notifications", "mail", "calendar"],
+    capabilities: ["members", "files", "notifications", "mail", "calendar", "sealed", "realtime"],
     mail: { domain: "atelier.test" },
-    storage: { publicUploads: true, publicFiles: true },
+    storage: { publicFiles: true },
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://careers.atelier-martin.fr" },
   });
   database = await testDatabase({ extensions: ["pg_trgm", "unaccent", "btree_gist"] });
@@ -154,18 +154,19 @@ test("a stranger's applications never flood an inbox: three confirmations an hou
   assert.deepEqual(answers.map(a => a.redirect.endsWith("?mailed=1")), [true, true, true, false, false], "past them, no email is promised");
 });
 
-test("a visitor's CV: a path on the page's own host, a claim, checked and kept with the application", async () => {
+test("a visitor's CV: a path on the page's own host, named by the Chest, checked and kept with the application", async () => {
   const grant = await call(null, "publicCvUpload", { slug: "senior-furniture-designer", type: "application/pdf", size: 15, chest_form: token("publicCvUpload") });
   const { value } = await grant.json();
-  assert.match(value.url, /^\/_chest\/upload\/[^/]+$/u, "a path: the company's own domain works too");
+  assert.match(value.url, /^\/_chest\/files\/upload\/[^/]+$/u, "a path: the company's own domain and a framing site work too");
   const put = await chest.upload(value.url, "%PDF-1.4\n%%EOF\n", "application/pdf");
-  const { claim } = await put.json();
+  const { name: claim } = await put.json();
+  assert.match(claim, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
   const done = await (await call(null, "apply", applying({ email: "cv@example.com", cv: claim, cvName: "My CV.pdf", chest_form: token("apply") }))).json();
   assert.equal(done.ok, true);
   const [row] = await database.sql`select cv_object, cv_name from candidates where email = 'cv@example.com'`;
   assert.match(row.cv_object, /^cv\/[0-9a-f]{20}\.pdf$/u);
   assert.equal(row.cv_name, "My CV.pdf");
-  // The claim served once.
+  // A name is taken once.
   const again = await (await call(null, "apply", applying({ email: "cv2@example.com", cv: claim, chest_form: token("apply") }))).json();
   assert.equal(again.error, "cv_missing");
   // A closed job takes no CV.
@@ -385,8 +386,8 @@ test("the Chest's deliveries: schedules, events — each at least once", async (
   for (const name of ["cleanup", "outbox", "morning"]) assert.equal(await chest.run(name, to), 204, name);
   assert.equal(await chest.run("nothing", to), 404);
   const erased = { type: "member.erased", id: "evt_" + "c".repeat(26), data: { id: lea.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(erased, to), 204);
-  assert.equal(await chest.emit(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
+  assert.equal(await chest.deliver(erased, to), 204);
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
   assert.equal((await database.sql`select 1 from job_interviewers where member_id = ${lea.id}`).length, 0);
 });

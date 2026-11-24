@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "equipment",
   "title": "Equipment",
   "description": "Know who has which laptop, phone, screen, licence, badge or key — give, take back, print labels, see what ends soon.",
@@ -17,11 +17,22 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "people.leaving",
+    "people.leaving-cancelled"
   ],
+  "emits": {
+    "equipment.returned": {
+      "description": "Everything a leaving person held is back",
+      "data": {
+        "member": "member"
+      }
+    }
+  },
   "schedules": [
     {
       "name": "weekly",
@@ -36,6 +47,57 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "managers",
+        "join": [
+          "manager"
+        ]
+      },
+      {
+        "name": "mine:{member}"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "items",
+        "channel": "managers",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "requests",
+        "channel": "managers",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "problems",
+        "channel": "managers",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "inventories",
+        "channel": "managers",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "sightings",
+        "channel": "managers",
+        "columns": [
+          "inventory_id",
+          "item_id"
+        ]
+      }
+    ]
+  },
   "network": [
     "login.microsoftonline.com",
     "graph.microsoft.com"

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { after, before, beforeEach, mock, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
 import * as files from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
@@ -12,13 +12,14 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, lea } from "./support/members.ts";
 
-// Files on messages: a visitor's (public uploads, claimed once), a
-// member's (private uploads), what each may open.
+// Files on messages: a visitor's (SDK 0.7.0's uploads of the public part,
+// into a folder the Chest names the file in, taken once), a member's
+// (private uploads), what each may open.
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, storage: { publicUploads: true } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -30,14 +31,16 @@ const refused = (code: string) => (error: unknown) => error instanceof AppError 
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const pdf = "%PDF-1.7\nhello";
 
-// What a visitor's browser does: ask, send, keep the claim.
+// What a visitor's browser does: ask, send to a path of the page's own
+// address, keep the name the Chest gave the file.
 async function visitorSends(where: { secret?: string }, data: Uint8Array | string, type: string): Promise<string> {
   const up = await attachments.visitorGrant(database.sql, where, type, typeof data === "string" ? data.length : data.length);
+  assert.match(up.url, /^\/_chest\/files\/upload\//u, "a path: the page works on any address, framed too");
   const sent = await chest.upload(up.url, data, type);
   assert.equal(sent.status, 201);
-  const answer = (await sent.json()) as { claim?: string; name?: string };
-  assert.equal(answer.name, undefined, "a visitor never learns the object's name");
-  return answer.claim!;
+  const answer = (await sent.json()) as { name: string };
+  assert.match(answer.name, /^uploads\/public\/[0-9a-f]{20}\.[a-z]+$/u, "named by the Chest, in the visitors' folder");
+  return answer.name;
 }
 const visitorFiles = (list: unknown): tickets.Files => ({ take: () => attachments.take("public", list), drop: attachments.remove });
 const memberFiles = (list: unknown): tickets.Files => ({ take: () => attachments.take("team", list), drop: attachments.remove });
@@ -61,11 +64,11 @@ test("a visitor adds files to the form: kept on the ticket, the team sees them, 
   assert.match(answer.headers.get("content-disposition")!, /^attachment; filename="lamp\.png"/u);
   assert.equal(answer.headers.get("x-content-type-options"), "nosniff");
   assert.match(answer.headers.get("content-security-policy")!, /sandbox/u);
-  // The claim served once.
+  // A name taken once: gone from the uploads.
   await assert.rejects(tickets.fromForm(sql, form("again@example.com"), visitorFiles([{ ref: photo, name: "x.png" }])), refused("file_missing"));
 });
 
-test("a visitor can never reach another's file: not by claim, not by name, not by link", async () => {
+test("a visitor can never reach another's file: not by name, not by link", async () => {
   const { sql } = database;
   const mine = await tickets.fromForm(sql, form("anna@example.com"));
   const theirs = await tickets.fromForm(sql, form("bob@example.com"), visitorFiles([{ ref: await visitorSends({}, png, "image/png"), name: "bob.png" }]));
@@ -75,10 +78,10 @@ test("a visitor can never reach another's file: not by claim, not by name, not b
   assert.equal(through.status, 404);
   assert.equal(await tickets.linkFile(sql, "x".repeat(32), bobFile.id), null);
   assert.equal(await tickets.linkFile(sql, mine.secret, "abc"), null);
-  // Naming an object the tool holds, a member's upload, or a forged claim.
+  // Naming an object the tool holds, a member's upload, a name never uploaded, or one of another shape.
   const count = (await sql<{ n: number }[]>`select count(*)::int as n from attachments`)[0]!.n;
   const held = (await sql<{ object: string }[]>`select object from attachments where id = ${bobFile.id}`)[0]!.object;
-  for (const ref of [held, "uploads/team/0123456789abcdef0123.png", "A".repeat(32) + ".claim", ""]) {
+  for (const ref of [held, "uploads/team/0123456789abcdef0123.png", "uploads/public/0123456789abcdef0123.png", "uploads/public/../files/x.png", "A".repeat(32) + ".claim", ""]) {
     await assert.rejects(tickets.customerReply(sql, mine.secret, "Mine now", visitorFiles([{ ref, name: "x.png" }])), (e: unknown) => e instanceof AppError && ["file_missing", "invalid"].includes(e.code), ref);
   }
   assert.equal((await sql<{ n: number }[]>`select count(*)::int as n from attachments`)[0]!.n, count);
@@ -93,9 +96,14 @@ test("a visitor can never reach another's file: not by claim, not by name, not b
   assert.deepEqual((await tickets.byLink(sql, theirs.secret))!.messages.flatMap(m => m.attachments.map(a => a.fileName)), ["bob.png"]);
 });
 
-test("limits: types, size, five files a message, a few uploads an hour on a link; a refused message keeps its claims", async () => {
+test("limits: types, size, five files a message, a few uploads an hour on a link; a refused message keeps its files", async () => {
   const { sql } = database;
   assert.equal(checkFile("image/png", 10), null);
+  // Plain text: a member's, never a visitor's (the Chest tells a visitor's
+  // file by its bytes, and text has none to tell).
+  assert.equal(checkFile("text/plain", 10), null);
+  assert.equal(checkFile("text/plain", 10, "public"), "file_type");
+  await assert.rejects(attachments.visitorGrant(sql, {}, "text/plain", 100), refused("file_type"));
   assert.equal(checkFile("text/html", 10), "file_type");
   assert.equal(checkFile("application/x-msdownload", 10), "file_type");
   assert.equal(checkFile("image/png", 0), "file_type");
@@ -110,12 +118,12 @@ test("limits: types, size, five files a message, a few uploads an hour on a link
   assert.equal((await chest.upload(up.url, new Uint8Array((10 << 20) + 1), "image/png")).status, 413);
   const up2 = await attachments.visitorGrant(sql, {}, "image/png", 10);
   assert.equal((await chest.upload(up2.url, "<script>", "text/html")).status, 415);
-  // Six files: the message is refused, before any claim is spent.
+  // Six files: the message is refused, before any file is taken.
   const claims: string[] = [];
   for (let i = 0; i < 6; i++) claims.push(await visitorSends({}, png, "image/png"));
   const six = claims.map((ref, i) => ({ ref, name: `p${i}.png` }));
   await assert.rejects(tickets.fromForm(sql, form("six@example.com"), visitorFiles(six)), refused("too_many_files"));
-  // A message refused for its words spends no claim: sent again, it works.
+  // A message refused for its words takes no file: sent again, it works.
   await assert.rejects(tickets.fromForm(sql, { ...form("not-an-email"), email: "nope" }, visitorFiles(six.slice(0, 5))), refused("invalid_email"));
   const ok = await tickets.fromForm(sql, form("five@example.com"), visitorFiles(six.slice(0, 5)));
   assert.equal(ok.files, 5);
@@ -136,17 +144,14 @@ test("a Chest that takes visitors' files: the public pages offer them", async ()
   assert.equal(await attachments.publicUploadsOn(), true);
 });
 
-test("an upload nobody claims is deleted by the Chest after a day", async () => {
-  const claim = await visitorSends({}, png, "image/png");
-  const before = objects().filter(o => o.startsWith("uploads/public/")).length;
-  assert.ok(before >= 1);
-  mock.timers.enable({ apis: ["Date"], now: Date.now() + 86400 * 1000 + 5000 });
-  try {
-    await assert.rejects(attachments.take("public", [{ ref: claim, name: "late.png" }]), refused("file_missing"));
-    assert.equal(objects().filter(o => o.startsWith("uploads/public/")).length, 0);
-  } finally {
-    mock.timers.reset();
-  }
+test("a visitor's upload no message took is deleted by the nightly sweep after a day (the Chest keeps it until then)", async () => {
+  const name = await visitorSends({}, png, "image/png");
+  assert.ok(objects().includes(name));
+  assert.equal(await attachments.sweep(new Date()), 0, "not before a day");
+  assert.ok(objects().includes(name));
+  assert.ok(await attachments.sweep(new Date(Date.now() + 86400 * 1000 + 5000)) >= 1);
+  assert.equal(objects().filter(o => o.startsWith("uploads/public/")).length, 0);
+  await assert.rejects(attachments.take("public", [{ ref: name, name: "late.png" }]), refused("file_missing"));
 });
 
 test("a member adds files to a reply (emailed with it) or a note (never on the customer's page)", async () => {
