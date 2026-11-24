@@ -61,66 +61,67 @@
   "realtime": {
     "channels": [
       {
-        "name": "team",
-        "join": [
-          "recruiter",
-          "interviewer"
-        ]
+        "name": "job:{id}",
+        "join": {
+          "table": "job_live",
+          "key": "job_id",
+          "member": "member_id"
+        }
       }
     ],
     "feeds": [
       {
         "table": "jobs",
-        "channel": "team",
+        "channel": "job:{id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "stages",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "candidates",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "notes",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "feedback",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "messages",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "interviews",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]
       },
       {
         "table": "interview_requests",
-        "channel": "team",
+        "channel": "job:{job_id}",
         "columns": [
           "id"
         ]

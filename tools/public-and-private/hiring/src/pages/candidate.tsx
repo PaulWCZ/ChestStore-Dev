@@ -5,6 +5,7 @@ import { Back, Download, External, Link as LinkIcon, Mail, Phone, Star } from ".
 import { catalogue, localeOf, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 import { candidate as readCandidate, type Activity, type Feedback } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { openDetail, openerOf } from "../lib/sealing.ts";
 import { ofCandidate } from "../lib/interviews.ts";
 import { interviewersOf, settings } from "../lib/jobs.ts";
@@ -35,7 +36,8 @@ export async function candidateVersion(ctx: PageContext<MemberContext>): Promise
       (select string_agg(id || status || coalesce(sent_at::text, ''), ',' order by id) from messages where candidate_id = ${id}),
       (select string_agg(id || updated_at::text, ',' order by id) from interviews where candidate_id = ${id}),
       (select string_agg(id || coalesce(booked_at::text, '') || coalesce(cancelled_at::text, ''), ',' order by id) from interview_requests where candidate_id = ${id}),
-      (select count(*)::text from activity where candidate_id = ${id}))) as v`;
+      (select count(*)::text from activity where candidate_id = ${id}),
+      (select 'live:' || l.since::text from job_live l join candidates c on c.job_id = l.job_id where c.id = ${id} and l.member_id = ${ctx.member.id}))) as v`;
   return row?.v ?? null;
 }
 
@@ -60,6 +62,9 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
     await tell.opened(member, c.id);
     await tell.refreshBadges(db());
   });
+  // readCandidate checked the member sees the candidate's job: they may
+  // follow it live.
+  const live = await admit(sql, [c.jobId], member.id);
   const s = await settings(sql);
   const onJob = await interviewersOf(sql, c.jobId);
   // Whether an email to the candidate would leave: the forms say so
@@ -118,6 +123,7 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
     title: c.name,
     body: (
       <div className="candidate-page">
+        <Island name="LiveTeam" props={{ jobs: live }} />
         <a className="back-link" href={`/chest/jobs/${c.jobId}`}><Back />{format(tc.back, { job: d.job.title })}</a>
         <header className="cand-head">
           <div className="cand-title">

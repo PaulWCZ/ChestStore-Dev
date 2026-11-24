@@ -283,14 +283,31 @@ a token bound to its action, and for `apply` a proof of work:
 | `POST /chest-events` | the Chest | Members' lifecycle; `booking.busy`, `leave.busy` |
 | `POST /chest-schedules` | the Chest | `cleanup` (nightly retention), `outbox` (due emails, their bounces asked, calendars, every 15 min), `morning` (the interviewers' bell items of the day) |
 
+## Live updates
+
+The jobs, a job's board, a candidate, the search, the pool and the
+reports follow the Chest's realtime, never a timer, so Hiring sleeps while
+pages stay open. Each job has its channel, `job:<id>`, where the Chest
+feeds the ids of its rows: the job, its stages, its candidates, their
+notes, feedback, emails, interviews and time links (each of those rows
+carries its candidate's `job_id`, set by a trigger: migration 0010). What
+a member may see is still the page's read. **Only who sees a job joins
+its channel**: the Chest checks the table `job_live` at every join (the
+channel's `join`), where Hiring writes a row once it has checked the
+member sees the job — a recruiter every job, an interviewer the jobs they
+are on. The rows go when an interviewer is taken off the job, a member's
+role changes, their access is revoked, they leave or are erased; the
+Chest takes them out at once, and their page, read again (the marks are
+part of its version: never a 304), lets them in again if still allowed.
+An interviewer never hears when candidates of another job apply, move or
+are written about. Pages that are only forms (a job's settings, editing,
+adding, importing, the settings) are not live.
+
 ## On a Chest
 
 Contract 0.7 (`chest.json`, SDK 0.7.0): capabilities `database`, `files`,
-`members`, `notifications`, `realtime` (the team's pages are live: channel
-`team` for recruiters and interviewers, feeds of ids on jobs, stages,
-candidates, notes, feedback, emails, interviews and time links — what a
-member may see is still the page's read; no timer, so Hiring sleeps while
-pages stay open) and `sealed` (below); receives `member.*`, `booking.busy`,
+`members`, `notifications`, `realtime` (the team's pages are live, no timer: see *Live updates*
+below) and `sealed` (below); receives `member.*`, `booking.busy`,
 `leave.busy`; emits `hiring.hired`, `hiring.hire-cancelled`, `hiring.busy`
 with their fields; schedules `cleanup` (03:25), `outbox` (every 15
 minutes) and `morning` (07:40 on weekdays), in the company's zone.

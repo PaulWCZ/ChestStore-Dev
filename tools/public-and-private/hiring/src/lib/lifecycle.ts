@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import * as live from "./live.ts";
 import { forget } from "./share.ts";
 
 // When a member loses access or leaves the Chest, they are taken off the
@@ -16,6 +17,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from job_interviewers where member_id = ${memberId}`;
     await tx`delete from feedback_requests where member_id = ${memberId}`;
     await tx`delete from candidate_seen where member_id = ${memberId}`;
+    // They follow no job live any more (lib/live.ts).
+    await live.forget(tx, { member: memberId });
     // A link a candidate has not used yet no longer offers them.
     await tx`delete from interview_request_people p using interview_requests r where r.id = p.request_id and p.member_id = ${memberId} and r.booked_at is null`;
   });
@@ -28,6 +31,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from job_interviewers where member_id = ${memberId}`;
     await tx`delete from feedback_requests where member_id = ${memberId}`;
     await tx`delete from candidate_seen where member_id = ${memberId}`;
+    await live.forget(tx, { member: memberId });
     await tx`update job_interviewers set added_by = 'erased' where added_by = ${memberId}`;
     await tx`update feedback_requests set requested_by = 'erased' where requested_by = ${memberId}`;
     await tx`update notes set author = 'erased' where author = ${memberId}`;
@@ -57,8 +61,11 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await forget(sql, memberId);
 }
 
-export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
+export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.revoked" | "member.removed" | "member.erased"> {
   return {
+    // Their role changed (a recruiter sees every job, an interviewer only
+    // theirs): the jobs they follow live are checked again (lib/live.ts).
+    "member.updated": async event => { if (event.data.changed.includes("role")) await live.forget(sql, { member: event.data.id }); },
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": event => leave(sql, event.data.id),
     "member.erased": async event => {

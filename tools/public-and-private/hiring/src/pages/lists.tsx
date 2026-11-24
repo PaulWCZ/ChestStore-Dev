@@ -1,9 +1,10 @@
-import { notFound, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
+import { Island, notFound, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader, SearchBox, StatusBadge } from "@argentic/chest-ui/components";
 import { localeOf, type Catalogue, type Locale } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { pool, search, type Found } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
+import { visibleJobs } from "../lib/live.ts";
 import { report } from "../lib/reports.ts";
 import { dayLabel, format, formatDate, plural } from "../shared/format.ts";
 import { stageLabel } from "../shared/stages.ts";
@@ -38,10 +39,12 @@ export async function searchPage({ member, t, locale: tag, f, query }: PageConte
   const locale = localeOf(tag);
   const q = (query("q") ?? "").slice(0, 100);
   const found = q.trim().length >= 2 ? await search(db(), member, q) : [];
+  const live = await visibleJobs(db(), member);
   return {
     title: t.search.title,
     body: (
       <div className="narrow">
+        <Island name="LiveTeam" props={{ jobs: live }} />
         <PageHeader title={t.search.title} />
         <div className="search-form">
           <SearchBox action="/chest/search" value={q} id="q" shortcut={false} labels={{ label: t.search.label, placeholder: t.search.placeholder, shortcut: t.search.shortcut, submit: t.search.go }} />
@@ -66,10 +69,12 @@ export async function poolPage({ member, t, locale: tag, f, query }: PageContext
   const locale = localeOf(tag);
   const q = (query("q") ?? "").slice(0, 100);
   const list = await pool(db(), member, q);
+  const live = await visibleJobs(db(), member);
   return {
     title: t.pool.title,
     body: (
       <div className="narrow">
+        <Island name="LiveTeam" props={{ jobs: live }} />
         <PageHeader title={t.pool.title} intro={t.pool.intro} />
         <div className="search-form">
           <SearchBox action="/chest/pool" value={q} id="pool-q" shortcut={false} labels={searchWords(t, t.pool.filter)} />
@@ -99,10 +104,12 @@ export async function reportsPage({ member, t, locale: tag, query }: PageContext
   const w = t.reports;
   const current = jobs.find(j => String(j.id) === job);
   const max = (list: { count?: number; reached?: number }[]) => Math.max(1, ...list.map(x => x.count ?? x.reached ?? 0));
+  const live = await visibleJobs(sql, member);
   return {
     title: current ? format(w.titleJob, { job: current.title }) : w.title,
     body: (
       <div>
+        <Island name="LiveTeam" props={{ jobs: live }} />
         <PageHeader title={current ? format(w.titleJob, { job: current.title }) : w.title} />
         <nav className="report-jobs" aria-label={w.pick}>
           <a href="/chest/reports" aria-current={!current ? "page" : undefined}>{w.all}</a>

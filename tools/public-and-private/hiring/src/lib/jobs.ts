@@ -33,6 +33,7 @@ import {
   type StagePreset,
 } from "../shared/model.ts";
 import { locales, type Locale } from "../i18n/index.ts";
+import * as live from "./live.ts";
 
 // Jobs, their stages and their interviewers; the careers page's settings.
 // Team functions take (sql, actor, …) and check the rights first; the
@@ -534,6 +535,9 @@ export async function removeInterviewer(sql: Sql, actor: Member | null, jobId: u
   await sql.begin(async tx => {
     await tx`delete from job_interviewers where job_id = ${key} and member_id = ${memberId}`;
     await tx`delete from feedback_requests r using candidates c where c.id = r.candidate_id and c.job_id = ${key} and r.member_id = ${memberId}`;
+    // No longer theirs to see: out of its live channel (lib/live.ts). A
+    // recruiter on it as well is let in again at their next read.
+    await live.forget(tx, { job: key, member: memberId });
   });
 }
 

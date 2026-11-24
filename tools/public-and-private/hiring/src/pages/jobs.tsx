@@ -1,10 +1,11 @@
-import type { MemberContext, PageContext, View } from "@argentic/chest-app";
+import { Island, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { Arrow, Calendar, External, Inbox, Plus, Star } from "../components/icons.tsx";
 import { localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { waitingOn } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { upcoming } from "../lib/interviews.ts";
 import { jobTemplateKeys, listJobs, type JobRow } from "../lib/jobs.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -24,7 +25,10 @@ export async function jobsVersion({ member }: PageContext<MemberContext>): Promi
       (select string_agg(candidate_id::text, ',' order by candidate_id) from feedback_requests where member_id = ${member.id}),
       (select max(updated_at)::text from interviews),
       (select count(*)::text from messages where candidate_id is null),
-      (select string_agg(stage_id || ':' || position, ',' order by stage_id) from (select id as stage_id, position from stages) s))) as v`;
+      (select string_agg(stage_id || ':' || position, ',' order by stage_id) from (select id as stage_id, position from stages) s),
+      -- The marks that let the reader follow the jobs live (lib/live.ts):
+      -- one gone, the page is read again (never a 304) and lets them in.
+      (select string_agg(job_id || ':' || since::text, ',' order by job_id) from job_live where member_id = ${member.id}))) as v`;
   return row?.v ?? null;
 }
 
@@ -38,6 +42,8 @@ export async function jobsPage({ member, t, locale: tag, f }: PageContext<Member
   const who = await people(waiting.map(w => w.requestedBy));
   const recruiter = can(member, "jobs.manage");
   const careers = (publicOrigin() ?? "") + "/";
+  // Followed live: the jobs listJobs showed (lib/live.ts lets the member in).
+  const live = await admit(sql, list.map(j => j.id), member.id);
   const groups: [string, JobRow[]][] = [
     [t.home.open, list.filter(j => j.state === "open")],
     [t.home.drafts, list.filter(j => j.state === "draft")],
@@ -47,6 +53,7 @@ export async function jobsPage({ member, t, locale: tag, f }: PageContext<Member
     title: t.home.title,
     body: (
       <>
+        <Island name="LiveTeam" props={{ jobs: live }} />
         {/* One primary action: "New job" — in the empty state when there is
             none yet (with a few jobs to start from), in the header after.
             The careers page is a quiet link, never a button above it. */}

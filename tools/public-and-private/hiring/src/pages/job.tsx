@@ -7,6 +7,7 @@ import { can } from "../lib/access.ts";
 import { board as readBoard, boardLimits } from "../lib/candidates.ts";
 import { countryNames } from "../lib/countries.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { isJobTemplate, job as readJob, settings, type JobDetail } from "../lib/jobs.ts";
 import { mailState } from "../lib/mail-state.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -40,7 +41,8 @@ export async function boardVersion(ctx: PageContext<MemberContext>): Promise<str
       (select string_agg(c.id || ':' || c.stage_id || ':' || c.status || ':' || c.last_activity_at::text, ',' order by c.id) from candidates c where c.job_id = ${id}),
       (select count(*)::text from candidate_seen s join candidates c on c.id = s.candidate_id where c.job_id = ${id} and s.member_id = ${ctx.member.id}),
       (select count(*)::text from feedback_requests r join candidates c on c.id = r.candidate_id where c.job_id = ${id} and r.member_id = ${ctx.member.id}),
-      ${ctx.url.search}::text)) as v`;
+      ${ctx.url.search}::text,
+      (select 'live:' || since::text from job_live where job_id = ${id} and member_id = ${ctx.member.id}))) as v`;
   return row?.v ?? null;
 }
 
@@ -56,10 +58,13 @@ export async function boardPage(ctx: PageContext<MemberContext>): Promise<View> 
   const shown = await readBoard(db(), member, job.id, { open, rejected: showRejected });
   const link = `${publicOrigin() ?? ""}/${job.slug}`;
   const manage = access === "manage";
+  // readJob checked the member sees the job: they may follow it live.
+  const live = await admit(db(), [job.id], member.id);
   return {
     title: job.title,
     body: (
       <div className="board-page">
+        <Island name="LiveTeam" props={{ jobs: live }} />
         <div className="board-head">
           <a className="back-link" href="/chest"><Back />{t.board.back}</a>
           <div className="board-title">

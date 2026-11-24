@@ -243,6 +243,11 @@ test("the team's pages: the member's language, the policy, the look; no role, no
     assert.equal((await get(sofia, path)).status, 200, path);
   }
   assert.equal((await get(ines, "/chest/candidates/7")).status, 200);
+  // Each page follows only the jobs its reader sees, let in first (job_live: src/lib/live.ts).
+  const live = async (who, path) => [...(await (await get(who, path)).text()).matchAll(/data-island="LiveTeam"[^>]*?data-props="([^"]*)"/gu)].map(m => JSON.parse(m[1].replaceAll("&quot;", '"')).jobs.map(j => j.id));
+  assert.deepEqual(await live(lea, "/chest"), [["2"]], "Léa is on job 2 only");
+  assert.deepEqual(await live(ines, "/chest/jobs/1"), [["1"]]);
+  assert.deepEqual((await database.sql`select job_id::text from job_live where member_id = ${lea.id}`).map(r => r.job_id), ["2"]);
 });
 
 test("a board shows each stage's first cards and how many there are: two thousand candidates, a bounded page", async () => {
