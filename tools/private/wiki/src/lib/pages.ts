@@ -3,6 +3,7 @@ import { json, type Query, type Sql } from "./db.ts";
 import { emptyDoc, normalize, plainText, references, type Doc } from "./doc.ts";
 import { AppError } from "./errors.ts";
 import { clean, id, isId, limits } from "./model.ts";
+import { admit, forget } from "./live.ts";
 import { between } from "./position.ts";
 import { listSpaces, space, type Space } from "./spaces.ts";
 
@@ -72,10 +73,14 @@ export async function branchOf(sql: Query, actor: Member | null, pageId: unknown
 // pageStamp: a short mark of what a reader of the page sees changing — its
 // version, title, pins and flags, its comments, its lock, the reader's own
 // draft and confirmation: the page re-reads itself only when it changed.
+// The reader is let in the page's realtime channel again when their row
+// went (lib/live.ts: admit): its mark is part of the stamp, so that read is
+// never a 304 and the page's live island joins again.
 export async function pageStamp(sql: Query, actor: Member | null, pageId: unknown): Promise<string> {
   const p = await page(sql, actor, pageId);
+  const ticket = await admit(sql, p.id, actor!.id);
   const [row] = await sql<{ stamp: string }[]>`
-    select md5(concat_ws('|', p.version, p.title, p.updated_at, p.pinned_at, p.template, p.reviewed_at, p.review_months, p.read_asked_at, p.parent_id, p.space_id,
+    select md5(concat_ws('|', ${ticket}::text, p.version, p.title, p.updated_at, p.pinned_at, p.template, p.reviewed_at, p.review_months, p.read_asked_at, p.parent_id, p.space_id,
       (select concat(count(*), ':', max(greatest(created_at, edited_at, removed_at, resolved_at))) from page_comments where page_id = p.id),
       (select concat(member_id, ':', since) from page_locks where page_id = p.id),
       (select updated_at from drafts where page_id = p.id and member_id = ${actor!.id}),
@@ -230,9 +235,12 @@ export async function movePage(sql: Sql, actor: Member | null, pageId: unknown, 
     const position = await place(tx, target.id, parentId, index, p.id);
     await tx`update pages set parent_id = ${parentId}, space_id = ${target.id}, position = ${position} where id = ${p.id}`;
     if (target.id !== p.spaceId) {
-      await tx`
+      const moved = await tx<{ id: string }[]>`
         with recursive down (id) as (select id from pages where parent_id = ${p.id} union all select c.id from pages c join down d on c.parent_id = d.id)
-        update pages set space_id = ${target.id} where id in (select id from down)`;
+        update pages set space_id = ${target.id} where id in (select id from down) returning id`;
+      // Another space, other readers: who follows these pages live is
+      // checked again (lib/live.ts).
+      await forget(tx, { pages: [p.id, ...moved.map(m => String(m.id))] });
     }
   });
 }
@@ -247,7 +255,11 @@ export async function deletePage(sql: Sql, actor: Member | null, pageId: unknown
     with recursive down (id) as (select ${p.id}::bigint union all select c.id from pages c join down d on c.parent_id = d.id where c.deleted_at is null)
     update pages set deleted_at = now() where id in (select id from down) and deleted_at is null returning id`;
   const ids = done.map(r => String(r["id"]));
-  await sql`delete from page_locks where page_id in ${sql(ids)}`;
+  if (ids.length > 0) {
+    await sql`delete from page_locks where page_id in ${sql(ids)}`;
+    // In the trash, its readers no longer follow it live.
+    await forget(sql, { pages: ids });
+  }
   return { pages: done.length, ids };
 }
 

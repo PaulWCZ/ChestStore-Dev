@@ -39,10 +39,12 @@ export async function companyGroups(): Promise<Group[]> {
   return groups;
 }
 
-// Someone moved between groups (member.updated): read them again. A
+// Someone moved between groups (member.updated): read them again — the
+// company's, and theirs when the Chest could not carry them (overage). A
 // renamed group is read again within the minute (no group events).
-export function forgetGroups(): void {
+export function forgetGroups(memberId?: string): void {
   cached = null;
+  if (memberId) overage.delete(memberId);
 }
 
 // A member's groups. The request's assertion carries them, except for a

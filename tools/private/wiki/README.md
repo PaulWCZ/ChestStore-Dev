@@ -288,8 +288,17 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
   `read:<page>`, `mention:<page>`); `members.groups` (every group of the
   Chest); `realtime` (live pages, below). No network. Schedule (`chest.json`): `reviews`,
   `40 7 * * 1-5`, on the Chest's clock.
-- **Live pages, never a timer** (`realtime`, channel `page:*` with
-  presence): a page's own rows are the Chest's feeds — `pages` and
+- **Live pages, never a timer** (`realtime`, channel `page:{id}` with
+  presence). **Only a page's readers join its channel**: the Chest checks
+  the table `page_live` at every join (migration 0007, the channel's
+  `join`), where the wiki writes a row once it has checked the member reads
+  the page (reading or editing it). The rows go wherever that may have
+  changed — the space's audience, the page moved or put in the trash, the
+  member's groups or role changed, they left — and the Chest takes them
+  out of the channel at once; their page reads itself again and is let in
+  again if still allowed (a new mark: never a 304). Nobody can join the
+  channel of a page kept to HR or of someone's "My pages" to see who edits
+  it or when it changes. A page's own rows are the Chest's feeds — `pages` and
   `page_comments`, each with the row's id alone — and the lock's changes
   (taken, given back, taken over) are published once written
   (`page.lock`, no payload; the lock itself is not fed: an open editor
