@@ -229,9 +229,9 @@ uses it.
   names some members only (HR and the person's manager, say), only the
   equipment managers among them are told and see the departure in their
   lists and on the person's page; the others see nothing of it.
-- Every field is checked; an event of another shape, or about someone who
-  is not a member, is ignored (types, never tools: whichever tool the
-  owner linked to say `people.leaving` is heard). Events come at least once
+- Every field is checked; an event of another shape, from another tool
+  than People (its `source`), or about someone who is not a member is
+  ignored. Events come at least once
   and not always in order: each departure keeps when People said so, and
   an older word delivered late changes nothing (a cancelled departure keeps
   only that time, for a week). A departure is forgotten 30 days after the

@@ -349,7 +349,8 @@ again by itself; the days leave the person's calendar feed; a given desk
 is lent to others on those days (`src/lib/away.ts`). Leave says who may
 see a leave (the event's `audience`): the "Off" is shown only to them and
 to the person — for the others the day reads as nothing said — while the
-freed desk is free for everyone (`leave_words.audience`, `presenceOf`).
+freed desk is free for everyone (`leave_words.audience`, `presenceOf`). A `leave.*` type told by
+another tool than Leave (the event's `source`) is ignored.
 
 Leave shortens a leave by telling `leave.cancelled`, then `leave.approved`
 for the days that remain (the same request, the same moment). Events come

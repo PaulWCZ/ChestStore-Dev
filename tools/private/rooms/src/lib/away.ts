@@ -72,7 +72,9 @@ async function takeBack(tx: Query, member: string, request: string, keep: readon
 // approval wins over a cancellation: that pair is a leave shortened (Leave
 // tells leave.cancelled, then leave.approved for the days that remain), and
 // the remaining days must stay whichever of the two arrives last.
+// Only Leave's word counts: a leave.* type from another tool is ignored.
 export async function leaveApproved(sql: Sql, event: ToolEvent, zone: string): Promise<number> {
+  if (event.source !== "leave") return 0;
   const t = read(event.data);
   if (!t || daysBetween(t.from, t.to) > 400) return 0;
   const at = toldAt(event.occurredAt);
@@ -102,6 +104,7 @@ export async function leaveApproved(sql: Sql, event: ToolEvent, zone: string): P
 }
 
 export async function leaveCancelled(sql: Sql, event: ToolEvent): Promise<number> {
+  if (event.source !== "leave") return 0;
   const request = event.data["request"];
   const member = event.data["member"];
   if (typeof request !== "string" || !/^[A-Za-z0-9._:-]{1,60}$/u.test(request) || typeof member !== "string" || !/^mbr_[a-z2-7]{26}$/u.test(member)) return 0;

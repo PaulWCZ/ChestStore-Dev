@@ -70,6 +70,8 @@ export async function heldCount(sql: Query, memberId: string): Promise<number> {
 // the managers, or null when nothing changed. When the Chest cannot be
 // asked who is a member, this throws: the Chest delivers it again later.
 export async function leaving(sql: Sql, event: ToolEvent, now: string): Promise<(Departure & { count: number; audience: Audience }) | null> {
+  // Only People's word: a people.* type is read from People alone.
+  if (event.source !== "people") return null;
   const d = readLeaving(event.data);
   if (!d || d.lastDay < addDays(now, -keepPastDays)) return null;
   if (!(await present([d.memberId])).has(d.memberId)) return null;
@@ -86,6 +88,7 @@ export async function leaving(sql: Sql, event: ToolEvent, now: string): Promise<
 // A departure taken back in People: forgotten (its time kept a week).
 // Answers the member whose notice goes, or null.
 export async function leavingCancelled(sql: Sql, event: ToolEvent): Promise<string | null> {
+  if (event.source !== "people") return null;
   const member = event.data["member"];
   if (typeof member !== "string" || !memberPattern.test(member)) return null;
   const at = toldAt(event.occurredAt);

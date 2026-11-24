@@ -87,10 +87,7 @@ test("someone leaving: the managers hear it once, in their language, with what t
   assert.equal(await lastDayOf(sql, M, hugo.id), last, "still leaving, nothing left to take back");
 });
 
-// SDK 0.7.0: types, never tools — whichever tool the owner linked to tell
-// people.leaving is heard (the Chest stamps its source; Equipment does not
-// pick its publishers).
-test("leaving then gone: the departure gives way to “left and holds”; other shapes and strangers change nothing; old ones are forgotten", async () => {
+test("leaving then gone: the departure gives way to “left and holds”; other shapes, other tools and strangers change nothing; old ones are forgotten", async () => {
   const { sql } = database;
   const now = chestSettings.today();
   await equip(ines.id);
@@ -110,6 +107,8 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   assert.equal(await told("people.leaving", { member: "mbr_" + "z".repeat(26), lastDay: now }), 204);
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: "soon" }), 204);
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: addDays(now, -40) }), 204);
+  // A people.* type told by another tool (the Chest's source) is ignored.
+  assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }, { source: "hiring" }), 204);
   assert.equal(await count(), before);
   // Forgotten 30 days after the last day; a cancelled one after a week.
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }), 204);
