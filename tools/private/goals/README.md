@@ -264,7 +264,11 @@ Goals hears from then on). **Who may see each**: an event carries its
 audience — "all", or the members the sender allowed; Goals shows a key
 result's value to everyone who reads its objective, so **an item for some
 members only is kept (with its audience) but never counted** — a
-confidential deal never moves a number everyone sees. Goals reads the fields below
+confidential deal never moves a number everyone sees. **Who told it**: a
+type names no tool, so each is read only from the tool its first word
+names — `crm.*` from Clients (`crm`), `tasks.*` from Tasks, `helpdesk.*`
+from Support, `hiring.*` from Hiring — by the `source` the Chest stamps;
+the same type from another tool is ignored. Goals reads the fields below
 and ignores any other; an event of another shape is accepted and ignored,
 never half-kept. References are 1–64 of `A-Z a-z 0-9 . _ : -`; people are
 member ids (`mbr_…`). Goals keeps only what a count needs — a reference,
