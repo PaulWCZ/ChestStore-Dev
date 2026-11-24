@@ -3,6 +3,7 @@ import { asked, can, companySurvey, edits, surveys, manages, resultsState, sees,
 import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec, type Repeat } from "./model.ts";
+import { forget } from "./live.ts";
 import { fromAnswers, results, type AnswerRow, type Counts, type QuestionResult, type QuestionRow, type TextRow } from "./results.ts";
 import { startSeries } from "./series.ts";
 import { day as readDay, time as readTime, today as localToday, zoned } from "./time.ts";
@@ -311,6 +312,8 @@ export async function deletePoll(sql: Sql, actor: Member | null, pollId: unknown
     if (!manages(actor, rights(poll))) throw new AppError("forbidden");
     await tx`update polls set deleted_at = ${now}, updated_at = ${now} where id = ${poll.id}`;
     await tx`delete from tellings where poll_id = ${poll.id}`;
+    // Deleted: nobody follows it live any more (lib/live.ts).
+    await forget(tx, { poll: poll.id });
     return { ...poll, deleted: true };
   });
 }

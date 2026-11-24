@@ -2,6 +2,7 @@ import * as events from "@argentic/chest-sdk/events";
 import * as files from "@argentic/chest-sdk/files";
 import type { Sql } from "./db.ts";
 import { forgetGroups } from "./groups.ts";
+import { forget } from "./live.ts";
 import { reconcileReads } from "./tell.ts";
 
 // What the wiki does when a member loses access, leaves or is erased (the
@@ -28,6 +29,7 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from page_watchers where member_id = ${memberId}`;
     await tx`delete from space_editors where who = ${memberId}`;
     await tx`update pages set review_owner = null where review_owner = ${memberId}`;
+    await forget(tx, { member: memberId });
   });
 }
 
@@ -61,6 +63,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update spaces set created_by = 'erased' where created_by = ${memberId}`;
     await tx`delete from page_reads where member_id = ${memberId}`;
     await tx`update pages set read_asked_by = 'erased' where read_asked_by = ${memberId}`;
+    await forget(tx, { member: memberId });
   });
 }
 
@@ -72,12 +75,14 @@ export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.r
       await dropPrivate(sql, event.data.id);
     },
     // Someone moved between groups (a group removed too: SDK 0.7.0 tells
-    // it member by member, with no group events): the groups are read
-    // again, and the pages to confirm that no longer concern them leave
-    // their bell.
+    // it member by member, with no group events), or their role changed:
+    // the pages they follow live are checked again (lib/live.ts). Groups:
+    // they are read again, and the pages to confirm that no longer concern
+    // them leave their bell.
     "member.updated": async event => {
+      if (event.data.changed.includes("groups") || event.data.changed.includes("role")) await forget(sql, { member: event.data.id });
       if (!event.data.changed.includes("groups")) return;
-      forgetGroups();
+      forgetGroups(event.data.id);
       await reconcileReads(sql, { member: event.data.id });
     },
     "member.erased": async event => {

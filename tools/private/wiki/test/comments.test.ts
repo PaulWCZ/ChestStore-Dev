@@ -8,7 +8,7 @@ import { chestEvents as POST } from "../src/calls.ts";
 import * as comments from "../src/lib/comments.ts";
 import { normalize } from "../src/lib/doc.ts";
 import * as editing from "../src/lib/editing.ts";
-import { lockChanged, onScreen } from "../src/lib/live.ts";
+import { admit, lockChanged, onScreen } from "../src/lib/live.ts";
 import { fromMarkdown } from "../src/lib/markdown.ts";
 import { linkParts } from "../src/lib/model.ts";
 import * as pages from "../src/lib/pages.ts";
@@ -314,15 +314,25 @@ test("a page's stamp changes with what its reader sees, not otherwise; the tree'
   assert.deepEqual((await pages.branchOf(sql, asMember(hugo), p.id)).map(n => [n.id, n.more]), [[child.id, false]]);
 });
 
+// Who is in page_live, as the Chest reads it at each join (a snapshot the
+// tests take after the wiki wrote it: the fake's check is synchronous).
+let tickets = new Set<string>();
+const snapshot = async () => {
+  tickets = new Set((await database.sql<{ page_id: string; member_id: string }[]>`select page_id, member_id from page_live`).map(r => `${r.page_id}|${r.member_id}`));
+};
+const membership = (table: string, key: string, member: string) => table === "page_live" && tickets.has(`${key}|${member}`);
+
 test("a comment: who has the page on screen (realtime's watching) is not told again; a mention always is", async () => {
   const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
-  const live = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "realtime"], realtime });
+  const live = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "realtime"], realtime: { ...realtime, membership } });
   const screen = connect({ url: live.realtime.url(ines.id) });
   try {
     const { sql } = database;
     const s = await openSpace("Live " + Math.random());
     const p = await newPage(s.id, ines, "Parking");
-    // Inès, the page's author, has it open (LivePage: joined, focused).
+    // Inès, the page's author, has it open (LivePage: let in, joined, focused).
+    await admit(sql, p.id, ines.id);
+    await snapshot();
     let joined = false;
     screen.channel(`page:${p.id}`).onJoined(() => { joined = true; });
     screen.focus(`page:${p.id}`);
@@ -342,4 +352,70 @@ test("a comment: who has the page on screen (realtime's watching) is not told ag
   // Without realtime: nothing thrown, nobody on screen.
   await lockChanged("1");
   assert.equal((await onScreen([ines.id], "1")).size, 0);
+});
+
+// The page's channel is the Chest's to open, from page_live (chest.json's
+// "join"): only who the wiki checked reads the page; their row goes when
+// that may have changed, and the Chest takes them out at once.
+test("a page's live channel: only its readers join it; a change of audience, groups, place or the trash takes them out", async () => {
+  const { sql } = database;
+  const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
+  assert.deepEqual(realtime.channels, [{ name: "page:{id}", join: { table: "page_live", key: "page_id", member: "member_id" }, presence: true }]);
+  const live = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "realtime"], realtime: { ...realtime, membership } });
+  const pages_ = { hr: "" };
+  const screens = [hugo, tom].map(m => connect({ url: live.realtime.url(m.id) }));
+  try {
+    // A space kept to Sales (Hugo, Inès): Tom (Tech) never reads its pages.
+    const hr = await spaces.createSpace(sql, asMember(ines), { name: "Sales only " + Math.random(), visibility: "groups", groups: [groups.sales] });
+    const p = await newPage(hr.id, ines, "Commissions");
+    pages_.hr = p.id;
+    const hugoTicket = await admit(sql, p.id, hugo.id);
+    assert.equal(await admit(sql, p.id, hugo.id), hugoTicket, "let in once: the same mark");
+    // Tom cannot even be let in: the page is not his to read.
+    await assert.rejects(pages.pageStamp(sql, asMember(tom), p.id), /not_found/u);
+    await snapshot();
+    const outcome = (screen: ReturnType<typeof connect>) => new Promise<string>(resolve => {
+      const ch = screen.channel(`page:${p.id}`);
+      ch.onJoined(() => resolve("joined"));
+      ch.onRefused(code => resolve(code));
+    });
+    assert.equal(await outcome(screens[1]!), "forbidden", "Tom is refused: no presence, no lock, no rows of that page");
+    assert.equal(await outcome(screens[0]!), "joined", "Hugo reads it: he joins");
+    const rows = async () => (await sql<{ member_id: string }[]>`select member_id from page_live where page_id = ${p.id} order by member_id`).map(r => r.member_id);
+    // The space's audience changes: everyone in it is checked again.
+    await spaces.updateSpace(sql, asMember(ines), hr.id, { name: "Renamed " + Math.random() });
+    assert.deepEqual(await rows(), [hugo.id], "a new name changes nobody's access");
+    await spaces.updateSpace(sql, asMember(ines), hr.id, { groups: [groups.sales, groups.tech] });
+    assert.deepEqual(await rows(), [], "other groups: let in again at the next read");
+    // pageStamp lets the reader in again, with a new mark (never a 304).
+    const stamp = await pages.pageStamp(sql, asMember(hugo), p.id);
+    assert.deepEqual(await rows(), [hugo.id]);
+    assert.notEqual(await admit(sql, p.id, hugo.id), hugoTicket, "a new mark: the page's island joins again");
+    assert.equal(await pages.pageStamp(sql, asMember(hugo), p.id), stamp);
+    // Their groups or role change (member.updated): their rows go; a name does not.
+    await admit(sql, p.id, tom.id);
+    const deliver = async (changed: ("name" | "groups" | "role")[], who = hugo) => {
+      const status = await live.deliver({ type: "member.updated", data: { id: who.id, changed } }, request => POST(request));
+      assert.equal(status, 204);
+    };
+    await deliver(["name"]);
+    assert.deepEqual(await rows(), [hugo.id, tom.id].sort());
+    await deliver(["groups"]);
+    assert.deepEqual(await rows(), [tom.id]);
+    await deliver(["role"], tom);
+    assert.deepEqual(await rows(), []);
+    // Moved to another space; put in the trash: out.
+    await admit(sql, p.id, hugo.id);
+    const other = await openSpace("Elsewhere " + Math.random());
+    const child = await pages.createPage(sql, asMember(ines), { spaceId: hr.id, parentId: p.id, title: "Rates" });
+    await admit(sql, child.id, hugo.id);
+    await pages.movePage(sql, asMember(ines), p.id, { spaceId: other.id, parentId: null });
+    assert.equal((await sql`select 1 from page_live where page_id in (${p.id}, ${child.id})`).length, 0, "the page and its subpages");
+    await admit(sql, p.id, hugo.id);
+    await pages.deletePage(sql, asMember(ines), p.id);
+    assert.deepEqual(await rows(), []);
+  } finally {
+    for (const screen of screens) screen.close();
+    await live.close();
+  }
 });

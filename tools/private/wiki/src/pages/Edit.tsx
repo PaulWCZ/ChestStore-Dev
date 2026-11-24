@@ -3,6 +3,7 @@ import { Lock } from "../components/icons.tsx";
 import { format } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
 import { AppError } from "../lib/errors.ts";
+import { admit } from "../lib/live.ts";
 import { page, tree, type Page } from "../lib/pages.ts";
 import { listSpaces } from "../lib/spaces.ts";
 
@@ -29,6 +30,9 @@ export async function editPage({ member, locale, t, param, query }: PageContext<
       </div>
     ) };
   }
+  // Let in the page's realtime channel (the lock's news, the editors'
+  // presence): the wiki just checked they write it.
+  await admit(sql, p.id, member.id);
   const spaces = await listSpaces(sql, member);
   const names = new Map(spaces.map(s => [s.id, s.name]));
   const pages = (await tree(sql, member, spaces.map(s => s.id))).map(n => ({ id: n.id, title: n.title, space: names.get(n.spaceId) ?? "" }));

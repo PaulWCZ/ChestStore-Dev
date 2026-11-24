@@ -16,7 +16,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Contract 0.7: roles `organiser`, `member`; `public: true`; `database`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `polls`, `poll:*`, `mine:{member}`; feeds `polls`, `comments`, `replies`); schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
+| `chest.json` | Contract 0.7: roles `organiser`, `member`; `public: true`; `database`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `polls`, `poll:{id}` joined only through a row of `poll_live` — `live.admit()` after `view()`, `live.forget()` wherever who sees a poll may change —, `mine:{member}`; feeds `polls`, `comments`, `replies`); schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
 | `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): `mail: {send}`, `calendar: true`, `translations` |
 | `src/app.tsx` | **Every route**: home, composer, poll, export, .ics, the looks, the guest page, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name (members' `action`, the guest's `publicAction`) |

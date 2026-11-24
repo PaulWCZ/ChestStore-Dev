@@ -30,7 +30,15 @@ export function Ready() {
 // stays open. The page's version (src/app.tsx: pageStamp) makes a read
 // with nothing new a 304. focus: the reader has it on screen — the
 // people watching it are not notified of a comment they see arrive.
-export function LivePage({ id }: { id: string }) {
+// ticket: the mark of the reader's row in page_live (lib/live.ts), which
+// lets them join the channel. When it went (the space's audience or their
+// groups changed), the Chest took them out of the channel and the page
+// read itself again: still allowed, a new mark — and the channel is
+// joined again.
+export function LivePage({ id, ticket }: { id: string; ticket: string }) {
+  return <Follow key={ticket} id={id} />;
+}
+function Follow({ id }: { id: string }) {
   useLive(`page:${id}`, ["pages", "page_comments", "page.lock"], { focus: true });
   return null;
 }

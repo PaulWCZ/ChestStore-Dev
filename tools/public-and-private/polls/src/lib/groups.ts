@@ -40,9 +40,11 @@ export async function chestGroups(options: { fresh?: boolean } = {}): Promise<Gr
 }
 
 // forgetGroups: someone moved between groups (member.updated): names and
-// sizes are read again. A renamed group is read at the next minute.
-export function forgetGroups(): void {
+// sizes are read again, and theirs when the Chest could not carry them
+// (overage). A renamed group is read at the next minute.
+export function forgetGroups(memberId?: string): void {
   cached = null;
+  if (memberId) overage.delete(memberId);
 }
 
 // groupMembers: who is in each of these groups now (among those who have

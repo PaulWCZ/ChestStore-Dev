@@ -300,7 +300,16 @@ Wiki's spaces kept to groups).
   has the post's page on screen (`realtime.online`'s `watching`) is not
   notified of a new comment: they see it arrive. A view writes the post's
   row once (its view key), never at each view: every write of a post is an
-  event to every open page.
+  event to every open page. **Only a post's readers join its channel**:
+  `post:{id}` is joined through the table `post_live` (migration 0008),
+  which the Chest checks at every join; News writes a row once it has
+  checked the member reads the post (its page), and removes it when that
+  may change (a new audience, the post deleted, the member's groups or
+  role changed, they left) — the Chest then takes them out at once, and
+  their page, reading itself again, is let in again if still allowed. A
+  member outside a post's groups never hears when it is commented, reacted
+  to or answered. The `news` channel (the front page) carries every post's
+  id alone, to everyone: it says that some post changed, never what.
 - **Time zones**: instants (published at, an event's hours, a comment's
   time) are shown on each member's own clock (`member.timeZone`); the
   front page's date and the days a schedule counts are the company's
@@ -322,7 +331,7 @@ contract 0.7 (`"chest": "0.7"`).
   times and schedules are typed on the company's clock, and the database's
   sessions are in it (`current_date`). `member.timeZone`: instants shown
   to a member.
-- **`members.groups`**, **`realtime`** (channels `news`, `post:*`,
+- **`members.groups`**, **`realtime`** (channels `news`, `post:{id}` joined through `post_live`,
   `mine:{member}`; feeds `posts`, `comments`, `reactions`) — SDK 0.7.0.
 - Studio proposals, in `chest.proposals.json`: the **calendar** and the
   store's words in French (`translations`). SDK 0.7.0 has neither: on a

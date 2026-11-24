@@ -30,7 +30,12 @@
         "name": "news"
       },
       {
-        "name": "post:*"
+        "name": "post:{id}",
+        "join": {
+          "table": "post_live",
+          "key": "post_id",
+          "member": "member_id"
+        }
       },
       {
         "name": "mine:{member}"

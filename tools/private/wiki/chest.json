@@ -27,7 +27,12 @@
   "realtime": {
     "channels": [
       {
-        "name": "page:*",
+        "name": "page:{id}",
+        "join": {
+          "table": "page_live",
+          "key": "page_id",
+          "member": "member_id"
+        },
         "presence": true
       }
     ],

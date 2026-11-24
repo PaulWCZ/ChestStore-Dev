@@ -345,6 +345,16 @@ closed poll is seen by those asked, its organiser and admins.
   at its closing time (the browser's clock). An organiser who has the
   poll's page on screen (`realtime.online`'s `watching`) is not notified
   of a new comment: they see it arrive.
+  **Only who sees a poll joins its channel**: `poll:{id}` is joined
+  through the table `poll_live` (migration 0007), which the Chest checks
+  at every join; Polls writes a row once it has checked the member sees
+  the poll (its page), and removes it when that may change (the poll
+  deleted, the member's groups or role changed, they left) — the Chest
+  then takes them out at once, and their page, reading itself again, is
+  let in again if still allowed. A member who is not asked never hears
+  when a poll put to others is answered or commented. The `polls` channel
+  (the home page) carries every poll's id alone, to everyone: it says that
+  some poll changed, never which one is whose nor what.
 - **The guest page is public**: realtime is for members' pages only (the
   member's session is its identity). It shows the guest's own answer and
   never changes under them, so it needs no refresh at all.
@@ -395,7 +405,7 @@ Built on SDK 0.7.0 + studio proposals (`0.7.0-studio.2`), in `vendor/`, and `@ar
 - `chest.timeZone` / `chest.today()` — the company's day: closing days,
   pulse rounds; the Chest puts the database's sessions in that zone too
   (`current_date`). `member.timeZone` — the instants a member reads.
-- `realtime` — SDK 0.7.0: channels `polls`, `poll:*`, `mine:{member}`;
+- `realtime` — SDK 0.7.0: channels `polls`, `poll:{id}` (joined through `poll_live`), `mine:{member}`;
   feeds `polls`, `comments`, `replies` (each table one feed, its id only);
   `realtime.publish` for answers, `realtime.online` before telling an
   organiser of a comment (`src/lib/live.ts`, `src/islands/Live.tsx`).

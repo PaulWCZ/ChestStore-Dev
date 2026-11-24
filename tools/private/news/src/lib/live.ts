@@ -1,6 +1,7 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as realtime from "@argentic/chest-sdk/realtime";
 import { log } from "@argentic/chest-app";
+import type { Query } from "./db.ts";
 
 // What News tells the members' open pages through the Chest's realtime
 // (SDK 0.7.0, chest.json's "realtime"). Most changes are rows the Chest's
@@ -17,6 +18,27 @@ import { log } from "@argentic/chest-app";
 // stays, and the page shows it at its next read.
 export const postChannel = (postId: string) => `post:${postId}`;
 export const mineChannel = (memberId: string) => `mine:${memberId}`;
+
+// Who may join "post:<id>" is the Chest's to check, at every join, in the
+// table post_live (chest.json: the channel's "join"; migration 0008): a
+// post kept to some groups is never heard of — its comments, reactions,
+// answers — by a member it is not for. admit writes the row once News has
+// checked the member reads the post (posts.post), and answers its mark: a
+// page let in again after its row went (below) gets a new one, and its
+// live island joins again (islands/Live.tsx).
+export async function admit(sql: Query, postId: string, memberId: string): Promise<string> {
+  const [row] = await sql<{ since: Date }[]>`
+    with added as (insert into post_live (post_id, member_id) values (${postId}, ${memberId}) on conflict do nothing returning since)
+    select since from added union all select since from post_live where post_id = ${postId} and member_id = ${memberId} limit 1`;
+  return row ? String(row.since.getTime()) : "";
+}
+
+// forget takes the rows out wherever who reads a post may have changed:
+// the Chest then takes those members out of the channels at once.
+export async function forget(sql: Query, which: { post: string } | { member: string }): Promise<void> {
+  if ("post" in which) await sql`delete from post_live where post_id = ${which.post}`;
+  else await sql`delete from post_live where member_id = ${which.member}`;
+}
 
 async function publish(channel: string, event: string): Promise<void> {
   try {

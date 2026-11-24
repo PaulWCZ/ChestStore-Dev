@@ -20,9 +20,16 @@ export function LiveFront() {
 // by News, lib/live.ts); for its author, the readers who confirm it (on
 // their own channel). focus: the reader has it on screen — someone
 // watching is not notified of a comment they see arrive.
-export function LivePost({ id, mine }: { id: string; mine: string | null }) {
+// ticket: the mark of the reader's row in post_live (lib/live.ts), which
+// lets them join "post:<id>". When it went (the post's audience or their
+// groups changed), the Chest took them out and the page read itself again:
+// still allowed, a new mark — and the channel is joined again.
+export function LivePost({ id, ticket, mine }: { id: string; ticket: string; mine: string | null }) {
   useLive("news", ["posts"]);
-  useLive(`post:${id}`, ["comments", "reactions", "post.answered"], { focus: true });
   useLive(mine ? `mine:${mine}` : "news", mine ? ["post.confirmed"] : []);
+  return <FollowPost key={ticket} id={id} />;
+}
+function FollowPost({ id }: { id: string }) {
+  useLive(`post:${id}`, ["comments", "reactions", "post.answered"], { focus: true });
   return null;
 }

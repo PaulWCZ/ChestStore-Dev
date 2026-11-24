@@ -13,6 +13,7 @@ import { db } from "../lib/db.ts";
 import { audienceLabel, groupNames } from "../lib/groups.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { confirmations, post as readPost, revisions, type PostDetail } from "../lib/posts.ts";
+import { admit } from "../lib/live.ts";
 import { learned } from "../lib/state.ts";
 import { floor, recordView, views } from "../lib/views.ts";
 import { chestZone } from "../lib/zone.ts";
@@ -36,6 +37,8 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
     throw error;
   }
   await recordView(sql, member, p);
+  // Let in the post's realtime channel: News just checked they read it.
+  const ticket = await admit(sql, p.id, member.id);
   const now = new Date();
   // Instants on the reader's own clock; the company's day on the Chest's.
   const d = dates(locale, member.timeZone, now, zone);
@@ -79,7 +82,7 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
 
   return { title: shown.title, body: (
     <div className="article-page">
-      <Island name="LivePost" props={{ id: p.id, mine: p.author === member.id ? member.id : null }} />
+      <Island name="LivePost" props={{ id: p.id, ticket, mine: p.author === member.id ? member.id : null }} />
       <a className="back" href="/chest"><Back />{t.post.back}</a>
       <article className="article" aria-labelledby="headline" lang={shown.locale}>
         <header className="article-head">

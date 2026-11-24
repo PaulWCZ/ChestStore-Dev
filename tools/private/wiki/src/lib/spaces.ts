@@ -3,6 +3,7 @@ import { can, roleOf, spaceAccess, type SpaceAccess, type SpaceAudience } from "
 import type { Fragment, Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, colors, editorIds, groupIds, id, isColor, limits, type Color } from "./model.ts";
+import { forget } from "./live.ts";
 import { between } from "./position.ts";
 
 // Spaces: the shelves of the wiki ("Handbook", "Sales", "Tech"), each with
@@ -119,6 +120,9 @@ export async function updateSpace(sql: Sql, actor: Member | null, spaceId: unkno
     for (const g of groups) await tx`insert into space_groups (space_id, group_id) values (${s.id}, ${g})`;
     await tx`delete from space_editors where space_id = ${s.id}`;
     for (const e of editors) await tx`insert into space_editors (space_id, who) values (${s.id}, ${e})`;
+    // Who reads its pages may have changed: who follows them live is
+    // checked again (lib/live.ts).
+    if (visibility !== s.visibility || [...groups].sort().join() !== [...s.groups].sort().join()) await forget(tx, { space: s.id });
   });
   return space(sql, actor, s.id);
 }

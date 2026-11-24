@@ -14,7 +14,7 @@ the studio's `app/`.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.7): roles `publisher`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `news`, `post:*`, `mine:{member}`; feeds `posts`, `comments`, `reactions`); the `publish` schedule; `build.static: ["/assets/"]` |
+| `chest.json` | Manifest (contract 0.7): roles `publisher`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `news`, `post:{id}` joined only through a row of `post_live` — `live.admit()` after `post()`, `live.forget()` wherever who reads a post may change —, `mine:{member}`; feeds `posts`, `comments`, `reactions`); the `publish` schedule; `build.static: ["/assets/"]` |
 | `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): `calendar`, the French tile (no `mail`: News writes to nobody outside) |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the Slack import, `/chest-events`, `/chest-schedules` |
 | `src/calls.ts` | What the Chest calls by itself (`chestEvents`, `chestSchedules`): plain functions of a Request, tested directly |

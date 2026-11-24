@@ -8,6 +8,7 @@ import { can, spaceAccess } from "../lib/access.ts";
 import { comments as commentsOf } from "../lib/comments.ts";
 import { db } from "../lib/db.ts";
 import { lockOf } from "../lib/editing.ts";
+import { admit } from "../lib/live.ts";
 import { AppError } from "../lib/errors.ts";
 import { companyGroups, membersOfTool } from "../lib/groups.ts";
 import { ancestors, backlinks, page, titles, tree, type Page } from "../lib/pages.ts";
@@ -32,6 +33,8 @@ export async function readPage({ member, locale: language, t, param, query: q }:
     if (error instanceof AppError) return notFound();
     throw error;
   }
+  // Let in the page's realtime channel: the wiki just checked they read it.
+  const ticket = await admit(sql, p.id, member.id);
   const [path, known, linked, lock, nodes, draft, thread, watching, read, pin] = await Promise.all([
     ancestors(sql, p.id),
     titles(sql, member, p.doc),
@@ -68,7 +71,7 @@ export async function readPage({ member, locale: language, t, param, query: q }:
   return { title: p.title, body: (
     <div className={`page reading color-${p.space.color}`}>
       <Island name="Flash" props={{ text: flash }} />
-      <Island id={`live-${p.id}`} name="LivePage" props={{ id: p.id }} />
+      <Island id={`live-${p.id}`} name="LivePage" props={{ id: p.id, ticket }} />
       <nav className="crumbs" aria-label={t.page.breadcrumb}>
         <a href={`/chest/spaces/${p.spaceId}`} className="kicker">{p.space.name}</a>
         {path.map(a => <span key={a.id}><span aria-hidden="true">/</span><a href={`/chest/pages/${a.id}`}>{a.title}</a></span>)}

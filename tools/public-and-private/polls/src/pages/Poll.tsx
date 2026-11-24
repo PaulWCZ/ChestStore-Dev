@@ -12,6 +12,7 @@ import { canComment, list as listComments } from "../lib/comments.ts";
 import { dates, optionText } from "../lib/dates.ts";
 import type { Sql } from "../lib/db.ts";
 import { guestLink, guests as listGuests } from "../lib/guests.ts";
+import { admit } from "../lib/live.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { guestNames, view, type PollView } from "../lib/polls.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
@@ -46,6 +47,8 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
   }
   const { poll } = pv;
   if (poll.status === "draft") redirect(`/chest/polls/${poll.id}/edit`);
+  // Let in the poll's realtime channel: Polls just checked they see it.
+  const ticket = await admit(sql, poll.id, member.id);
 
   // Instants (closing, comments) on the reader's own clock; the company's
   // days (a round's opening) and a date option's hours (the office's) on
@@ -137,7 +140,7 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
 
   return { title: poll.title, body: (
     <>
-      <Island name="LivePoll" props={{ id: poll.id, closesAt: poll.status === "open" ? poll.closesAt : null }} />
+      <Island name="LivePoll" props={{ id: poll.id, ticket, closesAt: poll.status === "open" ? poll.closesAt : null }} />
       <a className="back" href="/chest"><Back />{t.shell.home}</a>
       <header className="poll-head">
         <div className="row">

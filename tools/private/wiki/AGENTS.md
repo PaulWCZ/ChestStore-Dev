@@ -14,7 +14,7 @@ the studio's `app/`.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.7): roles `editor`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channel `page:*` with presence; feeds `pages`, `page_comments`); the `reviews` schedule (weekdays 07:40); `build.static: ["/assets/"]` |
+| `chest.json` | Manifest (contract 0.7): roles `editor`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channel `page:{id}` with presence, joined only by a row of `page_live`; feeds `pages`, `page_comments`); the `reviews` schedule (weekdays 07:40); `build.static: ["/assets/"]` |
 | `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): the French tile (no `mail`: the wiki writes to nobody outside) |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the import's upload, the editor's beacon, `/chest-events`, `/chest-schedules` |
 | `src/calls.ts` | What is not a page nor an action, as plain functions of a Request: `chestEvents`, `chestSchedules` (`reviews`), `leaveEditor` (the beacon), `importUpload`, `openFile`, the exports, `readsCsv` |
@@ -38,12 +38,12 @@ the studio's `app/`.
 | `src/lib/export.ts`, `origin.ts` | Markdown, HTML and zip exports; the team host's address (`chest.tool.teamUrl`) |
 | `src/lib/comments.ts`, `watching.ts`, `templates.ts`, `reviews.ts`, `reads.ts`, `pins.ts` | Comments, watching, templates, review reminders, read and acknowledged, pins |
 | `src/lib/groups.ts` | Every group of the Chest (paged, kept a minute, forgotten on `member.updated`); a member's groups come with the member (`members.groups`); `completeGroups` when they are `null` |
-| `src/lib/live.ts` | Realtime: `page.lock` published when a lock changes; who has a page on screen (not told of a comment there) |
+| `src/lib/live.ts` | Realtime: who may join a page's channel (`admit` after a read checked by `page()`, `forget` wherever that may change); `page.lock` published when a lock changes; who has a page on screen (not told of a comment there) |
 | `src/lib/tell.ts`, `notify.ts` | **Everything the bell says**, each recipient checked against the space's access at that moment; the `reviews` schedule's work |
 | `src/lib/starter.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | The example handbook; leaving and erasure; names (former, no access, erased); the package's `db()` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `index.ts` (`catalogue`, `format`, `plural`, `formatDate`, `relative`, `moment`, `orList` — Intl objects made once per language and zone) |
 | `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Library" (`defineTheme`), the look of a request as a stylesheet (`lookFor`: `/chest/look.css`); the wiki's own tokens; its CSS (`.island` is `display: contents`, from the package: select an island's insides by class, never with `>` from outside) |
-| `migrations/` | Schema. Never edit a shipped file; add `0007_…` |
+| `migrations/` | Schema (0007: `page_live`, who may join a page's channel). Never edit a shipped file; add `0008_…` |
 | `seed/` | `pages/*.md` + `spaces.json` → `build.ts` → `sample.sql` |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (`support/db.ts`: the package's `testDatabase`, TEST_DATABASE_URL else PGlite with `unaccent` and `pg_trgm`); `app.test.mjs` asks the built server (`dist/test`); `stack.test.ts` the package's `checkSources({ requireTests: true })`; `i18n.test.ts` its `checkWords()`; `test/fixtures/` files shaped as Confluence, Google Docs and Word export them |
 
@@ -89,6 +89,10 @@ NODE_ENV=development npm test              # as Perseus's workbench runs it
   draft and heartbeat: every reader would read again every few seconds),
   `drafts` or `page_reads`; a change of lock is `live.lockChanged()` in
   `after()`. A page others change follows it (`useLive`), never a timer.
+- **A page's channel is joined only through `page_live`**: a view that
+  joins it calls `live.admit()` after `page()`; anything that changes who
+  reads a page (a space's audience, a move, the trash, a member's groups,
+  role or departure) calls `live.forget()` in the same transaction.
 - **Content only through `normalize()`**, HTML only from `render()`. A new
   node or mark means: `src/lib/doc.ts` (schema + bounds), `src/lib/render.ts`,
   `src/lib/markdown.ts` (both ways), `src/islands/editor/extensions.ts` (editor), CSS, and tests
