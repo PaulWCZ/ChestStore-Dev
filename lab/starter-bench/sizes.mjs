@@ -25,11 +25,12 @@ const figures = {
   "app/AGENTS.md: lines": lines(["app/AGENTS.md"]),
   "reference/perseus-starter: files": tracked("reference/perseus-starter").length,
   "reference/perseus-starter: lines": lines(tracked("reference/perseus-starter")),
-  "app: tests": tests(["app/test/units.test.ts", "app/test/server.test.mjs", "app/test/zones.test.mjs", "app/test/changes.test.mjs"]),
+  "app: tests": tests(["app/test/units.test.ts", "app/test/server.test.mjs", "app/test/zones.test.mjs", "app/test/changes.test.mjs", "app/test/race.test.mjs"]),
   "app: unit tests": tests(["app/test/units.test.ts"]),
   "app: server tests": tests(["app/test/server.test.mjs"]),
   "app: zone tests": tests(["app/test/zones.test.mjs"]),
   "app: change-log tests": tests(["app/test/changes.test.mjs"]),
+  "app: race tests": tests(["app/test/race.test.mjs"]),
   "Chromium tests": tests(["lab/starter-bench/browser.test.mjs"]),
   "starter: tests": tests(tracked("starter/test").filter(f => /\.test\./u.test(f))),
 };
@@ -62,7 +63,8 @@ const said = {
   "app: unit tests": /package's tests: [\d,]+ \(([\d,]+) units/u,
   "app: server tests": /units, ([\d,]+) server/u,
   "app: zone tests": /server, ([\d,]+) time zones/u,
-  "app: change-log tests": /time zones, ([\d,]+) change log\)/u,
+  "app: change-log tests": /time zones, ([\d,]+) change log,/u,
+  "app: race tests": /change log, ([\d,]+) read order\)/u,
   "Chromium tests": /Chromium: ([\d,]+) tests/u,
   "starter: tests": /starter's: ([\d,]+) tests/u,
 };
