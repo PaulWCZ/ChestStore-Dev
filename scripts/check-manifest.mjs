@@ -1,18 +1,20 @@
 // The studio's own checks of a tool folder, beside the Chest's: run
-// `node scripts/chest-check.mjs <tool>` (0.4.1's `chest check`, the Chest's
+// `node scripts/chest-check.mjs <tool>` (0.7.0's `chest check`, the Chest's
 // own code) for chest.json, the repository, the migrations — this script
 // does not judge them again. It checks what chest check cannot know:
 //
 // - chest.proposals.json: the manifest keys of the SDK working copy's
-//   proposals (sdk/, "Studio proposals"), which a Chest of contract 0.4
+//   proposals (sdk/, "Studio proposals"), which a Chest of contract 0.7
 //   would refuse in chest.json (it refuses any key it does not know): mail
-//   (to people outside, {"send": true} only), calendar, capabilities
-//   (["members.groups"], announced for 0.5), emits, receives (events of
-//   other tools, group.*), files (publicUploads, publicFiles), checks,
-//   webhooks, translations —
-//   their grammar, and how they fit the chest.json beside them;
-// - that chest.json holds none of them (and no "version", the key of the
-//   contract before 0.4), with the move to make;
+//   (to people outside, {"send": true} only), calendar, files
+//   ({"publicFiles": true}), checks, webhooks, translations — their
+//   grammar, and how they fit the chest.json beside them;
+// - that chest.proposals.json no longer holds what 0.7.0 made official
+//   (emits, receives, the capability "members.groups", files.publicUploads),
+//   with the move to make;
+// - that chest.json holds none of the proposals, is written for the
+//   contract the studio builds on ("chest": "0.7"), and holds nothing the
+//   studio dropped ("version", "group.*", files.quota);
 // - the studio's rules beyond the contract: the package's scripts, no
 //   dependency outside the folder, the docs every tool carries, no import
 //   that leaves the folder.
@@ -26,20 +28,22 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// The tool contract the studio's tools are written for: the SDK working
+// copy's (sdk/contract, 0.7.0's bytes), which chest check applies.
+const contract = JSON.parse(readFileSync(join(root, "sdk", "contract", "contract.json"), "utf8"));
+const contractVersion = contract.contract.version ?? contract.contract;
 // The keys the SDK working copy proposes for the manifest, and those of the
-// tool contract 0.4 (reference/sdk/contract/contract.json), which belong in
-// chest.json.
-const proposalKeys = new Set(["mail", "files", "emits", "receives", "translations", "checks", "calendar", "capabilities", "webhooks"]);
-// The capabilities the SDK working copy proposes (chest.proposals.json
-// "capabilities"), each with the official one it needs in chest.json. They
-// move to chest.json's "capabilities" when the Chest knows them (0.5).
-const proposedCapabilities = { "members.groups": "members" };
+// tool contract 0.7, which belong in chest.json.
+const proposalKeys = new Set(["mail", "files", "translations", "checks", "calendar", "webhooks"]);
 // Keys the working copy proposed once and dropped, with the move to make.
 const droppedKeys = {
-  groups: '"groups": "read" became the capability "members.groups" (the name announced for 0.5): write "capabilities": ["members.groups"] in chest.proposals.json',
+  groups: '"groups": "read" is the capability "members.groups" of contract 0.7: write it in chest.json\'s "capabilities" (with "members")',
   mailboxes: 'mailboxes are gone: the Chest receives no mail (owner\'s decision, 2026-10-06) — replies from the public go to the company\'s address (Reply-To)',
+  emits: '"emits" is official in contract 0.7: move it to chest.json as {"<type>": {"description", "data": {field: kind}}} — two to four dotted words of a-z, 0-9 and dashes (no underscore), each field typed (id, text, number, boolean, time, date, member, members, "?" for optional)',
+  receives: '"receives" is official in contract 0.7: move the types to chest.json\'s "receives" (beside "member.*"); "group.*" is gone (joining or leaving a group is member.updated naming "groups")',
+  capabilities: 'the capability "members.groups" is official in contract 0.7: move it to chest.json\'s "capabilities" (with "members")',
 };
-const officialKeys = new Set(JSON.parse(readFileSync(join(root, "reference", "sdk", "contract", "contract.json"), "utf8")).manifest.keys.map(k => k.key).filter(k => !k.includes(".")));
+const officialKeys = new Set(contract.manifest.keys.map(k => k.key).filter(k => !k.includes(".")));
 const studioDist = join(root, "sdk", "dist", "studio");
 const load = async name => existsSync(join(studioDist, name)) ? import(pathToFileURL(join(studioDist, name)).href) : null;
 const checksApi = await load("checks-rules.js");
@@ -78,15 +82,19 @@ export function checkTool(folder) {
     return { errors, warnings };
   }
   // What only the studio knows about chest.json: where a proposal's key
-  // goes, and the key of the contract before 0.4.
+  // goes, the contract the studio builds on, and what it dropped.
   for (const key of Object.keys(manifest)) {
-    if (key === "version") error('chest.json: "version" is the contract before 0.4 — write "chest": "0.4" instead');
+    if (key === "version") error(`chest.json: "version" is the contract before 0.4 — write "chest": "${contractVersion}" instead`);
     else if (key === "groups") error(`chest.json: ${droppedKeys.groups}`);
-    else if (proposalKeys.has(key) && !officialKeys.has(key)) error(`chest.json: "${key}" is a proposal of the SDK working copy — move it to chest.proposals.json (a 0.4 Chest refuses a key it does not know)`);
+    else if (proposalKeys.has(key) && !officialKeys.has(key)) error(`chest.json: "${key}" is a proposal of the SDK working copy — move it to chest.proposals.json (a ${contractVersion} Chest refuses a key it does not know)`);
   }
-  for (const c of Array.isArray(manifest.capabilities) ? manifest.capabilities : []) if (Object.hasOwn(proposedCapabilities, c)) error(`chest.json: the capability "${c}" is a proposal of the SDK working copy (announced for 0.5) — move it to chest.proposals.json ("capabilities": ["${c}"]); a 0.4 Chest refuses it`);
-  if (Array.isArray(manifest.receives) && manifest.receives.some(e => e !== "member.*")) error('chest.json: receives is ["member.*"] in 0.4 — events of other tools and "group.*" go in chest.proposals.json');
-  if (manifest.files !== undefined && manifest.files !== null && typeof manifest.files === "object" && ("publicUploads" in manifest.files || "publicFiles" in manifest.files)) error('chest.json: files.publicUploads and files.publicFiles are proposals — move them to chest.proposals.json ("files": {...}); 0.4\'s "files" is {"quota", "maxObject"}');
+  if (manifest.chest !== undefined && manifest.chest !== contractVersion) error(`chest.json: "chest" is "${manifest.chest}" — the studio's tools are written for the contract of the SDK working copy: "chest": "${contractVersion}" (SDK ${contractVersion}.x)`);
+  if (Array.isArray(manifest.receives) && manifest.receives.some(e => typeof e === "string" && e.startsWith("group."))) error('chest.json: receives "group.*" is no event of contract 0.7 — joining or leaving a group is member.updated naming "groups"');
+  if (manifest.files !== undefined && manifest.files !== null && typeof manifest.files === "object") {
+    if ("publicFiles" in manifest.files) error('chest.json: files.publicFiles is a proposal — move it to chest.proposals.json ("files": {"publicFiles": true}); 0.7\'s "files" is {"maxObject"}');
+    if ("publicUploads" in manifest.files) error('chest.json: files.publicUploads is gone — a visitor\'s upload is 0.7.0\'s files.uploadUrl("folder/", {public: true, types}) with "public": true, no key');
+    if ("quota" in manifest.files) error('chest.json: files.quota is gone in contract 0.7 (no quota: the tools share the server\'s volume) — keep "maxObject" only');
+  }
   const roles = manifest.roles;
 
   if (existsSync(at("chest.proposals.json"))) {
@@ -98,38 +106,21 @@ export function checkTool(folder) {
     }
     if (proposals) {
       for (const key of Object.keys(proposals)) {
-        // receives and files are both: 0.4's (member.*; quota, maxObject) in
-        // chest.json, the proposals' (other tools' events, group.*; public
-        // uploads and files) here.
+        // files is both: 0.7's (maxObject) in chest.json, the proposal's
+        // (public files) here.
         if (proposalKeys.has(key)) continue;
         if (Object.hasOwn(droppedKeys, key)) error(`chest.proposals.json: ${droppedKeys[key]}`);
-        else if (officialKeys.has(key)) error(`chest.proposals.json: "${key}" is a key of the tool contract 0.4 — move it to chest.json`);
+        else if (officialKeys.has(key)) error(`chest.proposals.json: "${key}" is a key of the tool contract ${contractVersion} — move it to chest.json`);
         else error(`chest.proposals.json: unknown proposal key "${key}"`);
       }
-      const eventName = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
-      if (proposals.emits !== undefined && (!Array.isArray(proposals.emits) || proposals.emits.length > 32 || !proposals.emits.every(e => typeof e === "string" && eventName.test(e) && e.startsWith(manifest.name + ".")))) error(`chest.proposals.json: emits is up to 32 event names "${manifest.name}.<name>"`);
-      // "group.*": the Chest's group events, with the capability "members.groups".
-      const toolEvents = Array.isArray(proposals.receives) ? proposals.receives.filter(e => e !== "group.*") : [];
-      if (proposals.receives !== undefined && (!Array.isArray(proposals.receives) || proposals.receives.length > 32 || !toolEvents.every(e => typeof e === "string" && eventName.test(e) && !e.startsWith(manifest.name + ".") && !e.startsWith("group.") && !e.startsWith("member.")))) error("chest.proposals.json: receives is up to 32 event names of other tools (<tool>.<name>), and \"group.*\" (\"member.*\" stays in chest.json)");
-      // Proposed capabilities: "members.groups" — “Sees your Chest's groups
-      // and who is in them” (member.groups and members.list({group}) of
-      // every group, members.groups.all()).
-      const proposedCaps = proposals.capabilities;
-      if (proposedCaps !== undefined) {
-        if (!Array.isArray(proposedCaps) || !proposedCaps.every(c => typeof c === "string") || new Set(proposedCaps).size !== proposedCaps.length) error(`chest.proposals.json: capabilities is a list of distinct proposed capabilities (${Object.keys(proposedCapabilities).join(", ")})`);
-        else for (const c of proposedCaps) {
-          if (!Object.hasOwn(proposedCapabilities, c)) error(`chest.proposals.json: capabilities: "${c}" is not a proposed capability (${Object.keys(proposedCapabilities).join(", ")}); official ones go in chest.json`);
-          else if (!(manifest.capabilities ?? []).includes(proposedCapabilities[c])) error(`chest.proposals.json: the capability ${c} needs the capability ${proposedCapabilities[c]} in chest.json`);
-        }
-      }
-      if (Array.isArray(proposals.receives) && proposals.receives.includes("group.*") && !(Array.isArray(proposedCaps) && proposedCaps.includes("members.groups"))) error('chest.proposals.json: receives "group.*" needs "capabilities": ["members.groups"]');
       // The calendar bridge: "calendar": true — “Adds events to the calendar of the members concerned”.
       if (proposals.calendar !== undefined && proposals.calendar !== true) error('chest.proposals.json: calendar is true');
       if (proposals.files !== undefined) {
         const f = proposals.files;
-        if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicUploads" && k !== "publicFiles") || Object.values(f).some(v => typeof v !== "boolean")) error('chest.proposals.json: files is {"publicUploads": true, "publicFiles": true}');
+        if (f !== null && typeof f === "object" && !Array.isArray(f) && "publicUploads" in f) error('chest.proposals.json: files.publicUploads is gone — a visitor\'s upload is 0.7.0\'s files.uploadUrl("folder/", {public: true, types}); keep {"publicFiles": true} for files served on the public host');
+        else if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicFiles") || f.publicFiles !== true) error('chest.proposals.json: files is {"publicFiles": true}');
         else if (!(manifest.capabilities ?? []).includes("files")) error("chest.proposals.json: files needs the capability files");
-        else if (f.publicUploads && manifest.public !== true) error("chest.proposals.json: public uploads need a public part");
+        else if (manifest.public !== true) error("chest.proposals.json: public files need a public part");
       }
       // Mail to people outside the company: "mail": {"send": true} —
       // “Sends emails to people outside your company (customers,

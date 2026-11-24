@@ -136,7 +136,6 @@
   "files": [
     "dist/src",
     "dist/studio",
-    "client/index.ts",
     "client/src/api.ts",
     "client/src/signed.ts",
     "client/src/errors.ts",

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // chest check for a tool of this monorepo, as the Chest would receive it.
 //
-// The official checker (`@argentic/chest-check`, reference/sdk/check) reads
+// The official checker (`@argentic/chest-check`, sdk/check: 0.7.0's, Chest-SDK
+// PR #38 at 1a825a6, byte for byte) reads
 // the Git repository a folder belongs to — here the whole studio. A tool is
 // meant to become its own repository, so this script copies the files Git
 // tracks or would add under the tool's folder into a fresh repository and
@@ -10,8 +11,10 @@
 //   node scripts/chest-check.mjs tools/private/tasks [--json]
 //   node scripts/chest-check.mjs --all [--json]
 //
-// The checker is built once from a copy of reference/sdk (read-only) in
-// ~/.cache/chest-sdk-<version>: `npm ci` there builds check/.
+// The checker is built once from a copy of the SDK working copy (sdk/, whose
+// check/ is the official one) in ~/.cache/chest-check-<version>-<wasm digest>:
+// `npm ci` there builds check/. A new check.wasm.gz (a new digest) builds
+// again; sdk/ itself is left as it is.
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -19,16 +22,17 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const reference = join(root, "reference", "sdk");
-const version = JSON.parse(readFileSync(join(reference, "package.json"), "utf8")).version;
-const cache = join(homedir(), ".cache", `chest-sdk-${version}`);
+const source = join(root, "sdk");
+const version = JSON.parse(readFileSync(join(source, "check", "package.json"), "utf8")).version;
+const digest = readFileSync(join(source, "check", "check.wasm.sha256"), "utf8").trim().split(/\s+/u)[0].slice(0, 12);
+const cache = join(homedir(), ".cache", `chest-check-${version}-${digest}`);
 const cli = join(cache, "check", "dist", "cli.js");
 
 function ensureChecker() {
   if (existsSync(cli)) return;
   rmSync(cache, { recursive: true, force: true });
   mkdirSync(dirname(cache), { recursive: true });
-  cpSync(reference, cache, { recursive: true, filter: (path) => !path.includes("node_modules") });
+  cpSync(source, cache, { recursive: true, filter: (path) => !/[\\/](node_modules|dist|build)([\\/]|$)/u.test(path.slice(source.length)) });
   execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: cache, stdio: ["ignore", "ignore", "inherit"] });
   if (!existsSync(cli)) throw new Error(`chest check was not built in ${cache}`);
 }

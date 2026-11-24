@@ -1,8 +1,10 @@
 // Gives a tool the studio's working copy of the Chest SDK (sdk/, the official
-// 0.4.1 with the studio's proposals on top: 0.4.1-studio.N).
+// 0.7.0 — Chest-SDK PR #38, not on npm yet — with the studio's proposals on
+// top: 0.7.0-studio.N), and writes the contract it is built for in the
+// tool's chest.json ("chest": "0.7", the SDK's MAJOR.MINOR).
 //
 // A tool that uses only what the published SDK offers depends on npm
-// ("@argentic/chest-sdk": "0.4.1") and never needs this script. A tool that
+// ("@argentic/chest-sdk": "0.7.0", once published) and never needs this script. A tool that
 // uses a proposal of sdk/ gets a packed copy of it in its own vendor/
 // (vendor/argentic-chest-sdk-<version>.tgz; a tool stays self-contained: it
 // will become its own repository). Run it again after every change to sdk/.
@@ -62,6 +64,23 @@ try {
   rmSync(lock, { recursive: true, force: true });
 }
 const tarball = readdirSync(vendor).find((name) => name.startsWith("argentic-chest-sdk-") && name.endsWith(".tgz"));
+
+// The tool contract is the SDK's MAJOR.MINOR (contract/README.md,
+// "Versions"): a tool built on 0.7.0-studio.N says "chest": "0.7". Only that
+// one value of chest.json is rewritten, its formatting kept; a chest.json
+// without "chest" is left for chest check to refuse.
+const sdkVersion = JSON.parse(readFileSync(join(sdk, "package.json"), "utf8")).version;
+const contractVersion = sdkVersion.split(".").slice(0, 2).join(".");
+const chestJsonPath = join(tool, "chest.json");
+if (existsSync(chestJsonPath)) {
+  const text = readFileSync(chestJsonPath, "utf8");
+  const pattern = /("chest"\s*:\s*)"([^"]*)"/u;
+  const found = pattern.exec(text);
+  if (found && found[2] !== contractVersion) {
+    writeFileSync(chestJsonPath, text.replace(pattern, `$1"${contractVersion}"`));
+    console.log(`${basename(tool)}: chest.json "chest": "${found[2]}" → "${contractVersion}" (SDK ${sdkVersion}); check what the contract ${contractVersion} changed (sdk/README.md, "Studio proposals")`);
+  }
+}
 
 const manifestPath = join(tool, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
