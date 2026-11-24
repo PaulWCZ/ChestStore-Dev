@@ -247,7 +247,7 @@ test("what the Chest posts: the quarter's run (204, once per run), lifecycle eve
   assert.equal(await chest.run("nothing", request => app.fetch(request)), 404);
   const unsigned = await app.fetch(new Request(team + "/chest-schedules", { method: "POST", body: "{}", headers: { "content-type": "application/json" } }));
   assert.equal(unsigned.status, 401);
-  assert.equal(await chest.emit({ type: "member.updated", data: { id: lea.id, changed: ["groups"] } }, request => app.fetch(request)), 204);
+  assert.equal(await chest.deliver({ type: "member.updated", data: { id: lea.id, changed: ["groups"] } }, request => app.fetch(request)), 204);
 });
 
 test("the host's root says where Rooms lives, in the visitor's language; no other public page", async () => {

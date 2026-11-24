@@ -10,7 +10,7 @@ import { purge } from "../src/lib/settings.ts";
 import { addDays, today } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, ines } from "./support/members.ts";
+import { camille, everyone, hugo, ines } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 let database: TestDatabase;
@@ -28,8 +28,8 @@ after(async () => {
   await database.close();
 });
 
-const told = (type: "leave.approved" | "leave.cancelled", data: Record<string, unknown>, occurredAt?: Date) =>
-  chest.deliver({ type, source: "leave", data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}) }, POST);
+const told = (type: "leave.approved" | "leave.cancelled", data: Record<string, unknown>, occurredAt?: Date, audience?: string[]) =>
+  chest.deliver({ type, source: "leave", data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}), ...(audience ? { audience } : {}) }, POST);
 
 test("half days are left alone: a leave from the afternoon, or to noon, marks only its whole days", () => {
   assert.deepEqual(wholeDays({ from: "2026-10-05", to: "2026-10-07", fromHalf: "pm", toHalf: "am" }, "2026-10-01"), ["2026-10-06"]);
@@ -55,6 +55,25 @@ test("a leave approved in Leave: those days read Off, the desk is freed; cancell
   const after = (await presenceOf(sql, [hugo.id], a, b)).get(hugo.id);
   assert.equal(after?.get(a), undefined);
   assert.equal(after?.get(b)?.status, "office");
+});
+
+// SDK 0.7.0: an event carries who in Leave may see it. Rooms shows the
+// "Off" only to them and to the person; for the others the day reads as
+// nothing said — the desk is freed all the same.
+test("a leave told for an audience: Off for those it names and the person, nothing said for the others; the desk is freed for all", async () => {
+  const { sql } = database;
+  const a = workday(9);
+  const desk = await desks.bookDesk(sql, asMember(ines), { deskId: o.desks[1], day: a }, zone);
+  assert.equal(await told("leave.approved", { member: ines.id, from: a, to: a, fromHalf: "day", toHalf: "day", request: "audience-1" }, undefined, [camille.id]), 204);
+  const as = async (viewer: string) => (await presenceOf(sql, [ines.id], a, a, viewer)).get(ines.id)?.get(a)?.status;
+  assert.equal(await as(camille.id), "off", "in the audience");
+  assert.equal(await as(ines.id), "off", "the person themself");
+  assert.equal(await as(hugo.id), undefined, "outside the audience: nothing said");
+  const [kept] = await sql`select cancelled_at from desk_bookings where id = ${desk.id}`;
+  assert.ok(kept!["cancelled_at"], "desk freed");
+  // Told again for everyone: everyone sees it.
+  assert.equal(await told("leave.approved", { member: ines.id, from: a, to: a, fromHalf: "day", toHalf: "day", request: "audience-1" }), 204);
+  assert.equal(await as(hugo.id), "off");
 });
 
 test("an event of another shape is accepted and changes nothing", async () => {

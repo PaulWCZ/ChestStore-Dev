@@ -74,9 +74,10 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   `DataTable` (in an island: its columns are functions),
   `SearchBox`, `Segmented` and `Tabs` (the link variant, rendered on the
   server: the package follows the links in place), `Menu`, `FilePicker`, `StatusBadge`,
-  `Avatar`, `EmptyState`, `AppShell`, `NoAccess`; the package's
-  `useAutoRefresh` (never a timer of one's own: the tool must be able to
-  sleep). The
+  `Avatar`, `EmptyState`, `AppShell`, `NoAccess`; realtime for pages
+  others change (`<Island name="Live" props={{ tables }} />`, the `team`
+  channel's feeds in `chest.json`, keys only — never a timer: the tool must
+  be able to sleep). The
   record pickers (`combobox.tsx`) stay the tool's: they create records.
 - Kit 0.2.2 (re-vendored 2026-09-29): nothing of the tool works around the
   kit any more. Kept on purpose: the square-cut badges (`.ck-badge {
@@ -105,8 +106,15 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   Dates with month names are written on the server (a browser's calendar
   data differs from Node's); no `style={}` (the policy refuses it).
 - Money stays integer cents, read at the boundary by `field.money` (send
-  what the person typed), in the deal's currency (new deals:
+  what the person typed), in the deal's currency (new deals: the team's
+  default, `defaultCurrency(sql)` in `lib/settings.ts` — SDK 0.7.0 has no
   `chest.currency`); format with `money(cents, locale, { currency })`.
+  A total adds the default currency's deals only (`filter (where
+  d.currency = (select value from settings where key = 'currency'))`) and
+  counts the others; never add two currencies.
+- **Audience**: a line another tool told for some people
+  (`activities.audience`) is read with `timeline(sql, { …, viewer })`; any
+  new reader of activities or booked meetings keeps to it.
 - Never `new Intl.…` outside `src/i18n/format.ts` (kept objects; a test
   refuses it).
 - Lists and exports never load a whole table: pages of 100, cursors for

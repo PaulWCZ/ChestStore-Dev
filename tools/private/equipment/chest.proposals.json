@@ -1,11 +1,4 @@
 {
-  "emits": [
-    "equipment.returned"
-  ],
-  "receives": [
-    "people.leaving",
-    "people.leaving_cancelled"
-  ],
   "translations": {
     "fr": {
       "title": "Matériel",

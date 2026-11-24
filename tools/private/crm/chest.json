@@ -1,16 +1,141 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "crm",
   "title": "Clients",
   "description": "Companies, contacts and deals in one place, and never forget to call back.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["manager", "sales", "viewer"],
-  "role_labels": {"manager": "Manager", "sales": "Sales", "viewer": "Viewer"},
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
-  "schedules": [
-    {"name": "morning", "cron": "30 7 * * 1-5"}
+  "roles": [
+    "manager",
+    "sales",
+    "viewer"
   ],
-  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
+  "role_labels": {
+    "manager": "Manager",
+    "sales": "Sales",
+    "viewer": "Viewer"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications",
+    "realtime"
+  ],
+  "receives": [
+    "member.*",
+    "forms.contact",
+    "booking.confirmed",
+    "booking.cancelled"
+  ],
+  "emits": {
+    "crm.deal.won": {
+      "description": "A deal is won: its title, amount and currency, client and contact",
+      "data": {
+        "deal": "id",
+        "title": "text",
+        "amount": "number?",
+        "currency": "text",
+        "owner": "member?",
+        "companyRef": "id?",
+        "companyName": "text?",
+        "companyAddress": "text?",
+        "companyPostcode": "text?",
+        "companyCity": "text?",
+        "companyCountry": "text?",
+        "companySiren": "text?",
+        "companyVat": "text?",
+        "companyEmail": "text?",
+        "contactName": "text?",
+        "contactEmail": "text?"
+      }
+    },
+    "crm.deal.reopened": {
+      "description": "A won deal is reopened",
+      "data": {
+        "deal": "id"
+      }
+    }
+  },
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 7 * * 1-5"
+    }
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "team"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "stages",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "companies",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "contacts",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "deals",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "activities",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "steps",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "attachments",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "booked_meetings",
+        "channel": "team",
+        "columns": [
+          "booking"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/assets/"
+    ]
+  }
 }

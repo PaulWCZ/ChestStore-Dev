@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fakeChest, shownTo } from "@argentic/chest-sdk/testing";
+import { fakeChest } from "@argentic/chest-sdk/testing";
 import { atLeast } from "@argentic/chest-app/testing";
 import { conflict } from "../src/lib/booking-rules.ts";
 import { bookableDays, formDays, lockOf, shownDay } from "../src/lib/context.ts";

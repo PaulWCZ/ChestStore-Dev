@@ -16,6 +16,7 @@ import { teamOrigin } from "../lib/origin.ts";
 import { everyone, nameOf, people, type Person } from "../lib/people.ts";
 import { currentCharter } from "../lib/receipts.ts";
 import { endingOf, holderOf } from "../lib/view.ts";
+import { defaultCurrency } from "../lib/settings.ts";
 import { categoryName, charterText, fieldName, moneyText } from "../shared/words.ts";
 
 type Names = Map<string, Person>;
@@ -43,11 +44,11 @@ function historyText(h: HistoryEntry, names: Names, t: Catalogue, locale: Locale
 
 // What a history line carries besides: a repair's ticket, its return day,
 // its cost.
-function historyExtra(h: HistoryEntry, t: Catalogue, locale: Locale, currency: string): string {
+function historyExtra(h: HistoryEntry, t: Catalogue, locale: Locale): string {
   return [
     h.ref && !h.ref.startsWith("charter:") ? format(t.history.ref, { ref: h.ref }) : "",
     h.due ? format(t.history.due, { date: formatDay(h.due, locale) }) : "",
-    h.costCents !== null ? format(t.history.cost, { amount: moneyText(h.costCents, currency, locale) }) : "",
+    h.costCents !== null && h.currency ? format(t.history.cost, { amount: moneyText(h.costCents, h.currency, locale) }) : "",
   ].filter(Boolean).join(" · ");
 }
 
@@ -70,7 +71,9 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
   const item = detail.item;
   const zone = f.timeZone;
   const today = chest.today();
-  const currency = chest.currency;
+  // Each amount in its own currency (SDK 0.7.0: the Chest has none); an
+  // item without an amount yet takes the tool's default.
+  const currency = ("currency" in item ? item.currency : null) ?? await defaultCurrency(sql);
   const now = new Date();
   const ids = [
     item.holder ?? "",
@@ -202,7 +205,7 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
       [t.item.price, full.priceCents !== null ? moneyText(full.priceCents, currency, locale) : null],
       [t.item.supplier, full.supplier],
       [t.item.warranty, day(full.warrantyUntil)],
-      ...(costs.count > 0 ? [[t.item.repairs, plural(t.item.repairsTotal, costs.count, locale, { amount: moneyText(costs.cents, currency, locale) })] as [string, string]] : []),
+      ...(costs.count > 0 ? [[t.item.repairs, plural(t.item.repairsTotal, costs.count, locale, { amount: costs.totals.map(c => moneyText(c.cents, c.currency, locale)).join(" + ") })] as [string, string]] : []),
       ...(full.category.kind === "asset" && (seenText || inventory) ? [[t.item.lastSeen, seenText ?? t.item.neverSeen] as [string, string]] : []),
     ];
   for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([fieldName(field, t), field.type === "date" ? day(value) : value]);
@@ -229,12 +232,13 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
 
   return { title: item.name, body: (
     <div className="wide">
+      <Island name="Live" props={{ channel: "managers", tables: ["items", "problems"] }} />
       <a className="back" href="/chest/items"><Back />{t.list.title}</a>
       <div className="item-grid">
         <div className="item-main">
           {head}
           <Island id={`item-${item.id}`} name="ItemControls" props={{
-            item: { id: item.id, name: item.name, tag: item.tag, status: item.status, kind: full.category.kind, seats: full.seats ?? 0, heldSince: day(item.heldSince), placeName: item.place, quantity: full.quantity, minQuantity: full.minQuantity },
+            item: { id: item.id, name: item.name, tag: item.tag, status: item.status, kind: full.category.kind, seats: full.seats ?? 0, heldSince: day(item.heldSince), placeName: item.place, quantity: full.quantity, minQuantity: full.minQuantity, currency },
             holder,
             holderText,
             seatHolders: seats,
@@ -306,7 +310,7 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
                     {h.day && h.day !== localDay(h.at) && <> · {format(t.history.on, { date: formatDay(h.day, locale) })}</>}
                   </span>
                   {h.note && h.kind !== "edited" && h.kind !== "photo" && h.kind !== "invoice" && <span className="tl-note">{h.note}</span>}
-                  {historyExtra(h, t, locale, currency) && <span className="tl-note">{historyExtra(h, t, locale, currency)}</span>}
+                  {historyExtra(h, t, locale) && <span className="tl-note">{historyExtra(h, t, locale)}</span>}
                 </li>
               ))}
             </ol>

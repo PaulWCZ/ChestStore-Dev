@@ -48,15 +48,15 @@ export async function myCsv(sql: Sql, actor: Member | null, t: Catalogue, locale
   const presets = JSON.stringify(t.presets);
   const rows = await sql<{ day: string; kind: "desk" | "room" | "presence" | "visit"; office: string; place: string; start: number | null; end: number | null; title: string; organiser: string; status: string }[]>`
     select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, d.name || ' · ' || coalesce(${presets}::text::jsonb ->> a.preset, a.name) as place,
-      (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
-      (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
+      (extract(epoch from (lower(b.during) at time zone coalesce(o.time_zone, ${zone})) - b.day::timestamp) / 60)::int as start,
+      (extract(epoch from (upper(b.during) at time zone coalesce(o.time_zone, ${zone})) - b.day::timestamp) / 60)::int as "end",
       '' as title, b.member_id as organiser, case when b.cancelled_at is null then 'booked' else 'cancelled' end as status
     from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id join offices o on o.id = f.office_id
     where b.member_id = ${actor.id}
     union all
     select to_char(b.day, 'YYYY-MM-DD'), 'room', o.name, r.name,
-      (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
-      (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
+      (extract(epoch from (lower(b.during) at time zone coalesce(o.time_zone, ${zone})) - b.day::timestamp) / 60)::int,
+      (extract(epoch from (upper(b.during) at time zone coalesce(o.time_zone, ${zone})) - b.day::timestamp) / 60)::int,
       b.title, b.member_id, case when b.cancelled_at is null then 'booked' else 'cancelled' end
     from room_bookings b join rooms r on r.id = b.room_id join floors f on f.id = r.floor_id join offices o on o.id = f.office_id
     where b.member_id = ${actor.id} or exists (select 1 from room_attendees x where x.booking_id = b.id and x.member_id = ${actor.id})

@@ -6,8 +6,8 @@ import type { Query, Sql } from "./db.ts";
 import { addDays, memberPattern } from "../shared/model.ts";
 import { present } from "./people.ts";
 
-// Departures told by People (Proposal (studio): events between tools, once
-// an admin linked the two): HR set someone's last day there, so what they
+// Departures told by People (SDK 0.7.0 events between tools, once the owner
+// approved the link): HR set someone's last day there, so what they
 // hold is to be taken back before it. The managers hear it once in the bell
 // ("Marc Lefort leaves on 12 Oct — 3 items to take back"), find them under
 // "To take back" on the overview and a word on the person's page. Nothing
@@ -15,7 +15,10 @@ import { present } from "./people.ts";
 //
 // Data, as People publishes it:
 //   people.leaving           { member, lastDay }   — "YYYY-MM-DD"
-//   people.leaving_cancelled { member }
+//   people.leaving-cancelled { member }   (people.leaving_cancelled before 0.7.0)
+// Each comes with its audience: "all", or the members of Equipment People
+// allows to see it. A departure for an audience is told to the managers in
+// it only, and only they see it in their lists and on the person's page.
 // Anything of another shape is accepted and ignored. Events come at least
 // once, not always in order: each departure keeps when People said so, and
 // an older word is ignored (a cancelled one keeps its time for a week).
@@ -29,6 +32,9 @@ export const keepPastDays = 30;
 export const keepCancelledDays = 7;
 
 export type Departure = { memberId: string; lastDay: string };
+// Who may see a departure: null for everyone, else these members.
+export type Audience = string[] | null;
+export const audienceOf = (event: Pick<ToolEvent, "audience">): Audience => event.audience === "all" ? null : event.audience.filter(id => memberPattern.test(id)).slice(0, 5000);
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/u;
 
@@ -63,18 +69,20 @@ export async function heldCount(sql: Query, memberId: string): Promise<number> {
 // tool, unless People already said something newer. Answers what to tell
 // the managers, or null when nothing changed. When the Chest cannot be
 // asked who is a member, this throws: the Chest delivers it again later.
-export async function leaving(sql: Sql, event: ToolEvent, now: string): Promise<(Departure & { count: number }) | null> {
+export async function leaving(sql: Sql, event: ToolEvent, now: string): Promise<(Departure & { count: number; audience: Audience }) | null> {
+  // Only People's word: a people.* type is read from People alone.
   if (event.source !== "people") return null;
   const d = readLeaving(event.data);
   if (!d || d.lastDay < addDays(now, -keepPastDays)) return null;
   if (!(await present([d.memberId])).has(d.memberId)) return null;
   const at = toldAt(event.occurredAt);
+  const audience = audienceOf(event);
   const done = await sql`
-    insert into departures (member_id, last_day, told_at) values (${d.memberId}, ${d.lastDay}, ${at})
-    on conflict (member_id) do update set last_day = excluded.last_day, told_at = excluded.told_at, left_at = null
+    insert into departures (member_id, last_day, told_at, audience) values (${d.memberId}, ${d.lastDay}, ${at}, ${audience})
+    on conflict (member_id) do update set last_day = excluded.last_day, told_at = excluded.told_at, left_at = null, audience = excluded.audience
     where departures.told_at <= excluded.told_at`;
   if (done.count === 0) return null;
-  return { ...d, count: await heldCount(sql, d.memberId) };
+  return { ...d, count: await heldCount(sql, d.memberId), audience };
 }
 
 // A departure taken back in People: forgotten (its time kept a week).
@@ -101,7 +109,8 @@ export async function leavingList(sql: Query, actor: Member | null): Promise<Lea
     select d.member_id, to_char(d.last_day, 'YYYY-MM-DD') as last_day,
       (select count(*)::int from items i where i.holder = d.member_id and i.deleted_at is null) as items,
       (select count(*)::int from seats s join items i on i.id = s.item_id where s.member_id = d.member_id and i.deleted_at is null) as seats
-    from departures d where d.last_day is not null and d.left_at is null order by d.last_day, d.member_id limit 200`;
+    from departures d where d.last_day is not null and d.left_at is null and (d.audience is null or ${actor!.id} = any(d.audience))
+    order by d.last_day, d.member_id limit 200`;
   return rows.filter(r => r.items + r.seats > 0).map(r => ({ memberId: r.member_id, lastDay: r.last_day, items: r.items, seats: r.seats }));
 }
 
@@ -109,7 +118,9 @@ export async function leavingList(sql: Query, actor: Member | null): Promise<Lea
 export async function lastDayOf(sql: Query, actor: Member | null, memberId: string): Promise<string | null> {
   if (!can(actor, "items.manage")) throw new AppError("forbidden");
   if (!memberPattern.test(memberId)) return null;
-  const [row] = await sql<{ last_day: string | null }[]>`select to_char(last_day, 'YYYY-MM-DD') as last_day from departures where member_id = ${memberId} and left_at is null`;
+  const [row] = await sql<{ last_day: string | null }[]>`
+    select to_char(last_day, 'YYYY-MM-DD') as last_day from departures
+    where member_id = ${memberId} and left_at is null and (audience is null or ${actor!.id} = any(audience))`;
   return row?.last_day ?? null;
 }
 

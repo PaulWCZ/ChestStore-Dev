@@ -9,6 +9,7 @@ import { matcher, type Matchable } from "./match.ts";
 import { addDays, id, limits, minutesNow, step, today, weekday } from "../shared/model.ts";
 import { rules } from "./settings.ts";
 import { wall } from "./wall-clock.ts";
+import { roomZone } from "./zone.ts";
 
 // Switching day: the bookings a room already has in Google Calendar or
 // Outlook, brought into Rooms from the room calendar's .ics export — so
@@ -38,7 +39,7 @@ export type ImportSkip = "taken" | "exists" | "all_day" | "outside_hours" | "clo
 export type ImportItem = {
   line: number;
   title: string;
-  // First day and times, in the Chest's zone.
+  // First day and times, in the room's office's zone.
   day: string;
   start: number;
   end: number;
@@ -85,11 +86,13 @@ export async function importRoomCalendar(
   actor: Member | null,
   input: { roomId: unknown; text: unknown; commit: boolean },
   people: readonly Matchable[],
-  zone: string,
+  companyZone: string,
   at = new Date(),
 ): Promise<CalendarImport> {
   if (!actor || !can(actor, "places.manage")) throw new AppError("forbidden");
   const roomId = id(input.roomId);
+  // Floating times and the room's hours are its office's (lib/zone.ts).
+  const zone = await roomZone(sql, roomId, companyZone);
   if (typeof input.text !== "string" || input.text.trim() === "") throw new AppError("empty");
   if (input.text.length > importLimits.fileBytes) throw new AppError("file_too_large");
   const who = matcher(people);

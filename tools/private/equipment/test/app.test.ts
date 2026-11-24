@@ -251,7 +251,7 @@ test("the inventory: started, items seen by tag, closed with what was missed", a
 
 test("the Chest's own deliveries reach the server: events and schedules, signed", async () => {
   const to = (request: Request) => app.fetch(request);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, to), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, to), 204);
   assert.equal(await chest.run("weekly", to), 204);
   assert.equal(await chest.run("returns", to), 204);
   assert.equal(await chest.run("intune", to), 204);

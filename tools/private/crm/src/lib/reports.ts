@@ -15,7 +15,11 @@ export type OwnerLine = { owner: string | null; open: number; value: number; wei
 export type MonthLine = { owner: string | null; month: string; won: number; wonValue: number; lost: number; lostValue: number };
 export type CloseLine = { month: string | "late" | "none"; count: number; value: number; weighted: number };
 export type ReasonLine = { reason: string; count: number; value: number };
-export type Report = { months: string[]; owners: OwnerLine[]; results: MonthLine[]; closing: CloseLine[]; reasons: ReasonLine[] };
+// Amounts are in the team's default currency (currency); the deals in
+// another (others: how many, open or closed in the months shown) are
+// counted, never added — no exchange rate is known (SDK 0.7.0: the Chest
+// has no currency).
+export type Report = { months: string[]; owners: OwnerLine[]; results: MonthLine[]; closing: CloseLine[]; reasons: ReasonLine[]; currency: string; others: number };
 
 // The first days of the n months ending with this one, oldest first.
 export function lastMonths(now: string, n: number): string[] {
@@ -39,15 +43,15 @@ export async function teamReport(sql: Sql, actor: Member | null, now = today(), 
   const zone = chestZone();
   const since = shown[0] + "-01";
   const owners = await sql<{ owner: string | null; open: number; value: string | null; weighted: string | null; no_step: number; late: number }[]>`
-    select d.owner, count(*)::int as open, sum(d.value_cents) as value, sum(round(d.value_cents * s.probability / 100.0)) as weighted,
+    select d.owner, count(*)::int as open, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value, sum(round(d.value_cents * s.probability / 100.0)) filter (where d.currency = (select value from settings where key = 'currency')) as weighted,
       count(*) filter (where not exists (select 1 from steps p where p.deal_id = d.id and p.done_at is null))::int as no_step,
       count(*) filter (where exists (select 1 from steps p where p.deal_id = d.id and p.done_at is null and p.due_on < ${now}))::int as late
     from deals d join stages s on s.id = d.stage_id
     where s.kind = 'open'
     group by d.owner
-    order by sum(d.value_cents) desc nulls last`;
+    order by sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) desc nulls last`;
   const results = await sql<{ owner: string | null; month: string; kind: "won" | "lost"; n: number; value: string | null }[]>`
-    select d.owner, to_char((d.closed_at at time zone ${zone})::date, 'YYYY-MM') as month, s.kind, count(*)::int as n, sum(d.value_cents) as value
+    select d.owner, to_char((d.closed_at at time zone ${zone})::date, 'YYYY-MM') as month, s.kind, count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value
     from deals d join stages s on s.id = d.stage_id
     where s.kind in ('won', 'lost') and d.closed_at is not null and (d.closed_at at time zone ${zone})::date >= ${since}
     group by d.owner, month, s.kind`;
@@ -64,7 +68,7 @@ export async function teamReport(sql: Sql, actor: Member | null, now = today(), 
                 when d.expected_close < ${monthOf(now).first} then 'late'
                 when to_char(d.expected_close, 'YYYY-MM') > ${ahead[ahead.length - 1]!} then 'later'
                 else to_char(d.expected_close, 'YYYY-MM') end as bucket,
-      count(*)::int as n, sum(d.value_cents) as value, sum(round(d.value_cents * s.probability / 100.0)) as weighted
+      count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value, sum(round(d.value_cents * s.probability / 100.0)) filter (where d.currency = (select value from settings where key = 'currency')) as weighted
     from deals d join stages s on s.id = d.stage_id
     where s.kind = 'open'
     group by bucket`;
@@ -74,13 +78,18 @@ export async function teamReport(sql: Sql, actor: Member | null, now = today(), 
   };
   const closing = [bucket("late"), ...ahead.map(bucket), bucket("later"), bucket("none")];
   const reasons = await sql<{ reason: string; n: number; value: string | null }[]>`
-    select min(trim(d.reason)) as reason, count(*)::int as n, sum(d.value_cents) as value
+    select min(trim(d.reason)) as reason, count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value
     from deals d join stages s on s.id = d.stage_id
     where s.kind = 'lost' and d.closed_at > now() - interval '12 months'
     group by crm_fold(trim(d.reason))
-    order by count(*) desc, sum(d.value_cents) desc nulls last
+    order by count(*) desc, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) desc nulls last
     limit 10`;
+  const [mixed] = await sql<{ currency: string; others: number }[]>`
+    select (select value from settings where key = 'currency') as currency, count(*)::int as others from deals d join stages s on s.id = d.stage_id
+    where d.currency <> (select value from settings where key = 'currency') and (s.kind = 'open' or (d.closed_at is not null and (d.closed_at at time zone ${zone})::date >= ${since}))`;
   return {
+    currency: mixed?.currency ?? "EUR",
+    others: mixed?.others ?? 0,
     months: shown,
     owners: owners.map(o => ({ owner: o.owner, open: o.open, value: Number(o.value ?? 0), weighted: Number(o.weighted ?? 0), noStep: o.no_step, late: o.late })),
     results: [...byKey.values()],
@@ -94,7 +103,7 @@ export async function teamReport(sql: Sql, actor: Member | null, now = today(), 
 export async function teamPipeline(sql: Sql, actor: Member | null): Promise<{ stages: { stageId: string; count: number; value: number }[]; recentWins: { id: string; title: string; company: string | null; value: number; currency: string; owner: string | null; closedAt: string }[] }> {
   if (!can(actor, "read")) throw new AppError("forbidden");
   const stages = await sql<{ stage_id: string; n: number; value: string | null }[]>`
-    select d.stage_id, count(*)::int as n, sum(d.value_cents) as value from deals d join stages s on s.id = d.stage_id where s.kind = 'open' group by d.stage_id`;
+    select d.stage_id, count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value from deals d join stages s on s.id = d.stage_id where s.kind = 'open' group by d.stage_id`;
   const wins = await sql<{ id: string; title: string; company: string | null; value_cents: string; currency: string; owner: string | null; closed_at: Date }[]>`
     select d.id, d.title, o.name as company, d.value_cents, d.currency, d.owner, d.closed_at from deals d join stages s on s.id = d.stage_id left join companies o on o.id = d.company_id
     where s.kind = 'won' and d.closed_at is not null order by d.closed_at desc limit 5`;

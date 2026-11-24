@@ -51,7 +51,7 @@ async function context(): Promise<Context> {
     people: everyone.map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, photo: null, role: p.role, locale: "en" as const })),
     tags: new Set(), serials: new Set(),
     categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })),
-    fields: [],
+    fields: [], currency: "EUR",
   };
 }
 
@@ -151,7 +151,7 @@ test("this tool's own export reads back, in English and in French", async () => 
   const all = await items.listItems(sql, M);
   for (const locale of ["en", "fr"] as const) {
     const t = catalogue(locale);
-    const text = toCsv(exportRows(all, t, "EUR", id => (id === hugo.id ? "Hugo Bernard" : id === ines.id ? "Inès Moreau" : "")));
+    const text = toCsv(exportRows(all, t, id => (id === hugo.id ? "Hugo Bernard" : id === ines.id ? "Inès Moreau" : "")));
     assert.equal(parseCsv(text)[0]![0], t.export.headers.tag);
     const c = await context();
     c.tags = new Set();

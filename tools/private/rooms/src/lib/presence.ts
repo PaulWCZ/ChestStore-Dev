@@ -5,6 +5,7 @@ import type { Query, Sql } from "./db.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { day, daysBetween, id, isStatus, today, type Status } from "../shared/model.ts";
+import { officeZone } from "./zone.ts";
 
 // Where each member works on a day: at the office, remote, or off. Said by
 // the member, for themselves, from today on. Saying "remote" or "off" frees
@@ -24,7 +25,10 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
   const d = day(input.day);
   if (input.status !== null && !isStatus(input.status)) throw new AppError("invalid");
   const status: Status | null = isStatus(input.status) ? input.status : null;
-  const now = today(zone);
+  // The day of the office named (its own clock, lib/zone.ts), else the
+  // company's.
+  const officeId = typeof input.officeId === "string" && /^\d{1,18}$/u.test(input.officeId) ? input.officeId : null;
+  const now = today(await officeZone(sql, officeId, zone));
   if (d < now) throw new AppError("past");
   if (daysBetween(now, d) > presenceHorizon) throw new AppError("too_far", { max: presenceHorizon });
   return sql.begin(async tx => {
@@ -66,13 +70,17 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
   });
 }
 
-// What some people said for some days: member → day → said.
-export async function presenceOf(sql: Query, people: readonly string[], from: string, to: string): Promise<Map<string, Map<string, Said>>> {
+// What some people said for some days: member → day → said. viewer: who
+// reads it — a day off told by Leave for an audience (SDK 0.7.0, lib/away.ts)
+// is left out for a viewer outside it (but the person themself).
+export async function presenceOf(sql: Query, people: readonly string[], from: string, to: string, viewer?: string): Promise<Map<string, Map<string, Said>>> {
   const found = new Map<string, Map<string, Said>>();
   if (people.length === 0) return found;
   const rows = await sql<{ member_id: string; day: string; status: Status; office_id: string | null }[]>`
-    select member_id, to_char(day, 'YYYY-MM-DD') as day, status, office_id from presence
-    where member_id = any(${people as string[]}::text[]) and day between ${from} and ${to}`;
+    select p.member_id, to_char(p.day, 'YYYY-MM-DD') as day, p.status, p.office_id from presence p
+    where p.member_id = any(${people as string[]}::text[]) and p.day between ${from} and ${to}
+      ${viewer === undefined ? sql`` : sql`and (p.leave_ref is null or p.member_id = ${viewer} or not exists (
+        select 1 from leave_words w where p.leave_ref = 'leave:' || w.request and w.audience is not null and not (${viewer} = any(w.audience))))`}`;
   for (const r of rows) {
     const days = found.get(r.member_id) ?? new Map<string, Said>();
     days.set(r.day, { status: r.status, officeId: r.office_id === null ? null : String(r.office_id) });

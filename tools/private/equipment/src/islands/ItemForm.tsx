@@ -12,6 +12,8 @@ export type FormValues = {
   categoryId: string; name: string; tag: string; serial: string; purchasedOn: string; price: string; supplier: string;
   warrantyUntil: string; notes: string; seats: string; renewsOn: string; cost: string; period: "month" | "year";
   quantity: string; minQuantity: string; extra: Record<string, string>; count: string; serials: string;
+  // The ISO 4217 code of the price and the cost.
+  currency: string;
 };
 type Words = { form: Catalogue["form"]; item: Catalogue["item"]; periods: Catalogue["periods"]; common: Catalogue["common"]; date: Catalogue["date"] };
 
@@ -25,8 +27,11 @@ type Words = { form: Catalogue["form"]; item: Catalogue["item"]; periods: Catalo
 // day in monospace.
 const fieldClass = (type: FieldType) => (type === "text" ? "field" : "field mono");
 
-export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppliers, currency, today, t }: {
-  mode: "new" | "edit"; id: string | null; initial: FormValues; categories: CategoryOption[]; fields: FieldOption[]; nextTag: string; suppliers: string[]; currency: string;
+export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppliers, currencies, today, t }: {
+  mode: "new" | "edit"; id: string | null; initial: FormValues; categories: CategoryOption[]; fields: FieldOption[]; nextTag: string; suppliers: string[];
+  // The currencies an amount may be in (ISO 4217 codes); initial.currency
+  // is the item's, or the tool's default for a new one.
+  currencies: string[];
   // The Chest's today (its time zone), for the date fields.
   today: string; t: Words;
 }) {
@@ -46,6 +51,13 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
   const serialLines = v.serials.split(/\r?\n/u).map(x => x.trim()).filter(Boolean);
   const many = mode === "new" && kind === "asset" ? Math.max(Number(v.count) || 1, serialLines.length) : 1;
 
+  // The amount's currency, beside it (SDK 0.7.0: no Chest currency).
+  const currencySelect = (
+    <select className="field currency" aria-label={t.form.currency} value={v.currency} onChange={e => set("currency", e.target.value)}>
+      {(currencies.includes(v.currency) ? currencies : [v.currency, ...currencies]).map(c => <option key={c} value={c}>{c}</option>)}
+    </select>
+  );
+
   function submit(andGive: boolean) {
     if (dates.problem) return;
     setError(null);
@@ -53,10 +65,10 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
       const extra = Object.fromEntries(own.map(f => [f.id, v.extra[f.id] ?? ""]));
       const common = { categoryId: v.categoryId, name: v.name, tag: v.tag, supplier: v.supplier, notes: v.notes, extra };
       const input = kind === "licence"
-        ? { ...common, seats: v.seats, renewsOn: v.renewsOn, cost: v.cost, period: v.period }
+        ? { ...common, seats: v.seats, renewsOn: v.renewsOn, cost: v.cost, period: v.period, currency: v.currency }
         : kind === "consumable"
           ? { ...common, purchasedOn: v.purchasedOn, quantity: v.quantity, minQuantity: v.minQuantity }
-          : { ...common, serial: many > 1 ? "" : v.serial, purchasedOn: v.purchasedOn, price: v.price, warrantyUntil: v.warrantyUntil, ...(many > 1 ? { count: String(many), serials: serialLines } : {}) };
+          : { ...common, serial: many > 1 ? "" : v.serial, purchasedOn: v.purchasedOn, price: v.price, currency: v.currency, warrantyUntil: v.warrantyUntil, ...(many > 1 ? { count: String(many), serials: serialLines } : {}) };
       if (mode === "new") {
         const r = await call("createItem", { input }, { quiet: true, refresh: false });
         if (!r.ok) return setError(r.message);
@@ -119,10 +131,11 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
           <>
             {field("seats", t.item.seats, { type: "number", min: 1, max: limits.seats, inputMode: "numeric", required: true }, t.form.seatsHint)}
             {day("renewsOn", t.item.renews)}
-            <div className="form-field">
-              <label className="label" htmlFor="f-cost">{t.item.cost} <span className="muted">({currency})</span></label>
+            <div className="form-field wide">
+              <label className="label" htmlFor="f-cost">{t.item.cost}</label>
               <div className="joined">
                 <input id="f-cost" className="field" value={v.cost} onChange={e => set("cost", e.target.value)} inputMode="decimal" placeholder={t.form.pricePlaceholder} maxLength={20} />
+                {currencySelect}
                 <select className="field" aria-label={t.item.cost} value={v.period} onChange={e => set("period", e.target.value as "month" | "year")}>
                   <option value="month">{t.periods.month}</option>
                   <option value="year">{t.periods.year}</option>
@@ -147,8 +160,11 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
             ) : field("serial", t.item.serial, { maxLength: limits.serial, placeholder: t.form.serialPlaceholder, autoComplete: "off", spellCheck: false })}
             {day("purchasedOn", t.item.bought)}
             <div className="form-field">
-              <label className="label" htmlFor="f-price">{t.item.price} <span className="muted">({currency})</span></label>
-              <input id="f-price" className="field" value={v.price} onChange={e => set("price", e.target.value)} inputMode="decimal" placeholder={t.form.pricePlaceholder} maxLength={20} />
+              <label className="label" htmlFor="f-price">{t.item.price}</label>
+              <div className="joined">
+                <input id="f-price" className="field" value={v.price} onChange={e => set("price", e.target.value)} inputMode="decimal" placeholder={t.form.pricePlaceholder} maxLength={20} />
+                {currencySelect}
+              </div>
             </div>
             {day("warrantyUntil", t.item.warranty)}
           </>

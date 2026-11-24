@@ -446,8 +446,9 @@ await step("a booking goes into the organiser's and the guest's calendars, and d
   expect(feed, "Hugo's feed address");
   const hugoFeed = await (await page.request.get(feed)).text();
   expect(hugoFeed.includes("SUMMARY:Calendar check"), "in Hugo's feed");
-  // Léa hears it in her bell: one notice, its French beside it; Rooms mails no member.
-  expect(/invited you: Calendar check<br>.*?<small lang="fr">fr: Hugo Bernard vous invite\u202f: Calendar check/su.test(dev), "Léa's bell, English and French");
+  // Léa hears it in her bell, in her language (SDK 0.7.0: the Chest keeps
+  // each item in its member's language); Rooms mails no member.
+  expect(/Hugo Bernard vous invite\u202f: Calendar check/u.test(dev), "Léa's bell, in French");
   expect(!dev.includes("Mail to people outside") || !/<b>[^<]*Calendar check[^<]*<\/b>/u.test(dev.slice(dev.indexOf("Mail to people outside"))), "no email to a member");
 });
 
@@ -468,7 +469,7 @@ await step("a meeting with four guests: each guest finds it in their bell; none 
   await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const told = [...dev.matchAll(/<li><b>([^<]+)<\/b> · Hugo Bernard invited you: Four guests/gu)].map(m => m[1].trim());
+  const told = [...dev.matchAll(/<li><b>([^<]+)<\/b> · Hugo Bernard (?:invited you|vous invite\u202f): Four guests/gu)].map(m => m[1].trim());
   expect(told.length === 4 && new Set(told).size === 4, "four bell items, one per guest: " + told.join(" | "));
   const outbox = dev.includes("Mail to people outside") ? dev.slice(dev.indexOf("Mail to people outside")) : "";
   expect(!outbox.includes("Four guests"), "no email to the guests");
@@ -855,6 +856,28 @@ await step("a phone says to tap, not to drag", async () => {
   await page.goto(origin + `/chest/rooms?day=${friday}`);
   expect(await page.locator(".on-phone").isVisible() && !(await page.locator(".on-desktop").isVisible()), "phone hint");
   expect((await page.locator(".on-phone").innerText()).startsWith("Tap"), "tap");
+});
+
+await step("an office keeps its own clock: the admin gives it a time zone; the rooms' hours are then said in it, and it goes back to the company's", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/places");
+  const zone = page.getByLabel("Time zone");
+  expect((await zone.locator("option").first().innerText()).startsWith("The company’s ("), "the company's zone first");
+  await zone.selectOption("America/New_York");
+  await page.getByRole("button", { name: "Save", exact: true }).first().click();
+  await page.waitForSelector(".ck-toast >> text=Saved");
+  await page.reload();
+  expect(await page.getByLabel("Time zone").inputValue() === "America/New_York", "kept");
+  await page.goto(origin + `/chest/rooms?day=${friday}`);
+  expect((await page.locator("main").innerText()).includes("New York"), "the rooms' hours said in New York");
+  await page.goto(origin + "/chest/places");
+  await page.getByLabel("Time zone").selectOption("");
+  await page.getByRole("button", { name: "Save", exact: true }).first().click();
+  await page.waitForSelector(".ck-toast >> text=Saved");
+  await page.reload();
+  expect(await page.getByLabel("Time zone").inputValue() === "", "back to the company's");
 });
 
 await browser.close();

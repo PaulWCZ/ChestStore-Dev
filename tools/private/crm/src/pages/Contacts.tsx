@@ -108,7 +108,7 @@ export async function contactPage({ member, locale: lang, t, param }: PageContex
   const sql = db();
   const c = await readContact(sql, member, param("id"));
   const [items, deals, choices, steps, files, maybe, inCalendar] = await Promise.all([
-    timeline(sql, { contactId: c.id }),
+    timeline(sql, { contactId: c.id, viewer: member.id }),
     listDeals(sql, member, { contact: c.id, status: "" }, 200),
     formChoices(sql, member, t),
     openSteps(sql, { contactId: c.id }),
@@ -127,7 +127,7 @@ export async function contactPage({ member, locale: lang, t, param }: PageContex
     title: c.name,
     body: (
       <div className="page record">
-        <Island name="AutoRefresh" props={{ seconds: 45 }} />
+        <Island name="Live" props={{ tables: ["contacts", "activities", "steps", "deals"] }} />
         <nav className="crumbs"><a href="/chest/contacts"><Back />{t.shell.contacts}</a></nav>
         <div className="record-head">
           <p className="label-mono">{c.lastContact ? format(t.contact.lastContact, { when: relative(c.lastContact, locale) }) : t.contact.neverContacted}</p>

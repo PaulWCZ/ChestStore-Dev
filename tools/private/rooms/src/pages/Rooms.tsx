@@ -11,6 +11,7 @@ import { nameOf, people } from "../lib/people.ts";
 import { roomDay } from "../lib/room-bookings.ts";
 import { format, formatDay, formatTime } from "../i18n/index.ts";
 import type { GridRoom, SentBooking, Who } from "../islands/RoomsView.tsx";
+import { zone } from "../lib/zone.ts";
 
 // Book a room: find a free one by size, time and equipment, or use the
 // day's grid of rooms and hours (on a phone, each room with its free
@@ -34,7 +35,7 @@ export async function roomsPage(p: PageContext): Promise<View> {
   })));
   // How guests hear of a booking: their bell (which the Chest mails them
   // if they chose so), and their calendar when the Chest has one.
-  const [bookings, everyone, calendarState] = office ? await Promise.all([roomDay(sql, member, office.id, day, c.zone), directory(), state(sql)]) : [[], [], await state(sql)];
+  const [bookings, everyone, calendarState] = office ? await Promise.all([roomDay(sql, member, office.id, day, zone()), directory(), state(sql)]) : [[], [], await state(sql)];
   const calendarOn = calendarState === "on";
   const who = await people(bookings.flatMap(b => [b.memberId, ...b.attendees]));
   // Each person once (who), the bookings naming them by their place in
@@ -71,7 +72,7 @@ export async function roomsPage(p: PageContext): Promise<View> {
     title: t.rooms.title,
     body: (
       <div className="wide">
-        <Island name="AutoRefresh" props={{ seconds: 20 }} />
+        <Island name="Live" props={{ tables: ["room_bookings", "room_attendees", "rooms", "floors", "offices", "settings"] }} />
         {rooms.length === 0 ? (
           <>
             <PageHeader title={t.rooms.title} intro={<span className="place-line">{intro}</span>} secondary={offices ? <Island name="OfficePicker" props={offices} /> : undefined} />
@@ -111,7 +112,7 @@ export async function roomsPage(p: PageContext): Promise<View> {
   };
 }
 
-// The rooms' hours are the office's (the Chest's time zone): a reader
+// The rooms' hours are the office's (its own zone, else the Chest's): a reader
 // whose own zone is another one reads which, after the day.
 function zoneNote(office: string, reader: string | null | undefined, words: string): string {
   return reader && reader !== office ? " · " + format(words, { zone: (office.split("/").at(-1) ?? office).replaceAll("_", " ") }) : "";

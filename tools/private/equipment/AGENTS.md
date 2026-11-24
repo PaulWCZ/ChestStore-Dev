@@ -12,7 +12,7 @@ own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest (contract 0.4: roles, capabilities, the three schedules, Microsoft's two hosts, Intune's settings); the SDK proposals it uses (events between tools, the French tile); no mail: members hear everything in the bell |
+| `chest.json`, `chest.proposals.json` | The manifest (contract 0.7, SDK 0.7.0: roles, capabilities with `realtime`, `emits` `equipment.returned` with its schema, `receives` `member.*`, `people.leaving`, `people.leaving-cancelled`, the three schedules, the `managers` and `mine:{member}` channels and the feeds, Microsoft's two hosts, Intune's settings); the studio proposals it still uses (the French tile); no mail: members hear everything in the bell |
 | `src/app.tsx` | Every route: pages (`equipment()`: a role is needed; `managers()`: 403 with the kit's NoAccess otherwise), the photo and invoice links, the streamed CSV export, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | Every change, by name (`call("giveItem", …)` from an island); after each, `equipment.returned` is told (`lib/returned.ts`) |
 | `src/pages/` | The pages, rendered on the server (`Overview`, `Mine`, `Items`, `Item`, `NewItem`/`EditItem`, `People`, `Person`, `Handover`/`ReturnSheet` with `sheet.tsx`, `Inventory`, `InventoryReport`, `Labels`, `Import`, `Settings`) |
@@ -114,3 +114,22 @@ own:
   subject (`i-item-<id>`) so its state never moves to another item.
 - Verify with `npm test` (PGlite and `TEST_DATABASE_URL`), `npm run build`,
   the flows, the screenshots and the audit (README, "Develop").
+
+## SDK 0.7.0
+
+- **Money**: every amount keeps its ISO 4217 code (`items.currency` for the
+  price and the cost, `history.currency` for a repair's cost); a new one
+  takes the tool's default (`lib/settings.ts`, a manager's choice in
+  *Categories*). Read with `money(text, currencyDecimals(code))`, write with
+  `moneyText(minor, code, locale)`; never add two currencies (one total per
+  code: `repairCosts`). There is no `chest.currency`.
+- **Audience**: People's departures carry who may see them
+  (`departures.audience`, null: all); `leavingList`, `lastDayOf` and
+  `tell.leaving` keep to it. A new reader of departures does too.
+- **Realtime**: a managers' page shows `<Island name="Live" props={{
+  channel: "managers", tables }} />` with the fed tables it reads (each
+  table feeds one channel; keys only: `test/live.test.ts`); *My equipment*
+  listens to `mine.changed` on `mine:<id>`, published by
+  `tell.refreshBadges`/`mineChanged` — call it with the members whose
+  holdings changed.
+- Event types take no underscore: `people.leaving-cancelled`.

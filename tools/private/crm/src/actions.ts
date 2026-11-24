@@ -16,7 +16,7 @@ import * as leads from "./lib/leads.ts";
 import { mergeCompanies, mergeContacts } from "./lib/merge.ts";
 import { lookalikes, type Lookalike } from "./lib/search.ts";
 import * as share from "./lib/share.ts";
-import { exportChoices, setExport } from "./lib/settings.ts";
+import { exportChoices, setDefaultCurrency, setExport } from "./lib/settings.ts";
 import * as stages from "./lib/stages.ts";
 import { publishStep, reconcile } from "./lib/step-calendar.ts";
 import * as steps from "./lib/steps.ts";
@@ -291,6 +291,8 @@ export const actions = {
   // ---- Who may download the lists (managers): a plain form of the
   // settings page.
   setExport: action({ who: field.choice(exportChoices) }, async ({ who }, { member }): Promise<null> => { await setExport(db(), member, who); return null; }),
+  // The team's default currency (SDK 0.7.0: no Chest currency).
+  setCurrency: action({ currency: field.currency() }, async ({ currency }, { member }): Promise<null> => { await setDefaultCurrency(db(), member, currency); return null; }),
 
   // ---- The team's own fields (managers).
   addField: action({ object: field.choice(["companies", "contacts", "deals"]), label: text(60), kind: field.choice(["text", "number", "date", "choice"]), options: optionalText(4000) },

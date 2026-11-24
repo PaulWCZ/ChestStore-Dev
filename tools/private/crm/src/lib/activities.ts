@@ -99,8 +99,11 @@ export async function restore(sql: Sql, actor: Member | null, activityId: unknow
 
 type Row = { id: string; kind: ActivityKind; body: string; data: Record<string, string | number | null>; author: string; at: Date; deal_id: string | null; deal_title: string | null; contact_id: string | null; contact_name: string | null; company_id: string | null; company_name: string | null };
 
-// timeline: the newest first, of one record (or one activity).
-export async function timeline(sql: Query, of: { dealId?: string; contactId?: string; companyId?: string; activityId?: string }, limit = 100): Promise<Activity[]> {
+// timeline: the newest first, of one record (or one activity). viewer: who
+// reads it — a line another tool told for an audience (SDK 0.7.0: a
+// booking, for its host and Booking's admins) is left out for anyone
+// outside it.
+export async function timeline(sql: Query, of: { dealId?: string; contactId?: string; companyId?: string; activityId?: string; viewer?: string }, limit = 100): Promise<Activity[]> {
   const where = of.activityId ? sql`a.id = ${of.activityId}`
     : of.dealId ? sql`a.deal_id = ${of.dealId}`
     : of.contactId ? sql`a.contact_id = ${of.contactId}`
@@ -113,6 +116,7 @@ export async function timeline(sql: Query, of: { dealId?: string; contactId?: st
     left join contacts c on c.id = a.contact_id
     left join companies o on o.id = a.company_id
     where ${where} and a.removed_at is null
+      ${of.viewer === undefined ? sql`` : sql`and (a.audience is null or ${of.viewer} = any(a.audience))`}
     order by a.at desc, a.id desc
     limit ${limit}`;
   return rows.map(r => ({

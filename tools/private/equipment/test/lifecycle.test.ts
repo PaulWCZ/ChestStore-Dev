@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
 import { listCategories } from "../src/lib/categories.ts";
 import * as items from "../src/lib/items.ts";
@@ -36,14 +36,14 @@ test("someone who leaves keeps what they hold (nothing comes back by itself); th
   // server, whose own copy of the SDK keeps its own answers).
   chest.clearCaches();
   const event = { type: "member.removed" as const, id: "evt_" + "l".repeat(26), data: { id: lea.id } };
-  assert.equal(await chest.emit(event, onEvent), 204);
-  assert.equal(await chest.emit({ ...event, id: "evt_" + "m".repeat(26) }, onEvent), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
+  assert.equal(await chest.deliver({ ...event, id: "evt_" + "m".repeat(26) }, onEvent), 204);
   const held = await items.holdings(sql, M, lea.id);
   assert.equal(held.items.length, 2);
   assert.equal(held.seats.length, 1);
   const toCamille = chest.notifications.filter(n => n.member === camille.id && n.key === `left:${lea.id}`);
   assert.equal(toCamille.length, 1);
-  assert.equal(shownTo(toCamille[0]!, "fr").title, "Léa Dubois est parti avec encore 3 objets");
+  assert.equal((toCamille[0]!).title, "Léa Dubois est parti avec encore 3 objets");
   assert.equal(chest.notifications.find(n => n.member === sofia.id && n.key === `left:${lea.id}`)?.title, "Léa Dubois left and holds 3 items");
   const detail = await items.itemDetail(sql, M, laptop.id);
   assert.ok(detail.full);
@@ -70,8 +70,8 @@ test("an erasure leaves the items with “Former member” until taken back, ano
   await items.report(sql, asMember(hugo), phone.id, "Cracked screen");
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, onEvent), 204);
-  assert.equal(await chest.emit(event, onEvent), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const after1 = await items.itemDetail(sql, M, phone.id);
   assert.ok(after1.full);

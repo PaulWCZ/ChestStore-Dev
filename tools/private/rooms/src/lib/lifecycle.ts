@@ -86,14 +86,14 @@ export async function erase(sql: Sql, memberId: string, tz = zone()): Promise<vo
   await flush(sql, tz);
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export type LifecycleType = "member.updated" | "access.revoked" | "member.removed" | "member.erased";
+
+export function handlers(sql: Sql): events.Handlers<LifecycleType> {
   return {
-    // Someone moved in or out of a group, or a group changed or went
-    // (Proposal (studio): "members.groups", "receives": ["group.*"]): what
-    // is kept of the groups goes.
-    "member.updated": async () => { forgetGroups(); },
-    "group.changed": async () => { forgetGroups(); },
-    "group.removed": async () => { forgetGroups(); },
+    // Someone moved in or out of a group (SDK 0.7.0: member.updated with
+    // changed: ["groups"]; there are no group events): what is kept of the
+    // groups goes. A renamed group is read again within a minute.
+    "member.updated": async event => { if (event.data.changed.includes("groups")) forgetGroups(); },
     "access.revoked": async event => { await leave(sql, event.data.id); },
     "member.removed": async event => { await leave(sql, event.data.id); },
     "member.erased": async event => {

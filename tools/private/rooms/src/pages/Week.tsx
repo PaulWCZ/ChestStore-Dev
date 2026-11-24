@@ -15,6 +15,7 @@ import { usualWeek } from "../lib/usual.ts";
 import { myVisitors } from "../lib/visits.ts";
 import { formatDay, formatSpan, formatTime } from "../i18n/index.ts";
 import type { WeekDay } from "../islands/WeekView.tsx";
+import { zone } from "../lib/zone.ts";
 
 // The faces a day shows (the island's stack shows four, "+n" included).
 const faces = 4;
@@ -34,7 +35,7 @@ export async function weekPage(p: PageContext): Promise<View> {
     presenceOf(sql, [member.id], from, to),
     atOffice(sql, office?.id ?? null, from, to),
     deskBookingsOf(sql, [member.id], from, to),
-    myRoomBookings(sql, member, from, to, c.zone),
+    myRoomBookings(sql, member, from, to, zone()),
     office ? usualDesk(sql, member, office.id) : null,
     usualWeek(sql, member),
     state(sql),
@@ -101,7 +102,7 @@ export async function weekPage(p: PageContext): Promise<View> {
     title: t.week.title,
     body: (
       <div className="narrow">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ tables: ["presence", "desk_bookings", "room_bookings", "room_attendees", "visits", "desks", "rooms", "offices", "settings"] }} />
         <PageHeader title={t.week.title} intro={office ? <span className="place-line">{office.name}{office.address ? " · " + office.address : ""}</span> : undefined}
           secondary={office && c.offices.length > 1 ? <Island name="OfficePicker" props={{ offices: c.offices.map(o => ({ id: o.id, name: o.name })), current: office.id, label: t.shell.office, path: "/chest" }} /> : undefined} />
         {/* Before any office exists, people still say where they work

@@ -12,6 +12,7 @@ import { chestZone, today } from "./zone.ts";
 import { between, isPosition, sequence } from "../shared/position.ts";
 import { listStages, stage as stageOf } from "./stages.ts";
 import { stepColumns, toStep, type Step } from "./steps.ts";
+import { currencyCode, defaultCurrency } from "./settings.ts";
 import { checkAssignable } from "./team.ts";
 
 // Deals: what the team hopes to sell, to a company (and a person there),
@@ -142,13 +143,14 @@ function dealWhere(sql: Query, actor: Member, fields: Awaited<ReturnType<typeof 
 }
 const listOrder = (sql: Query) => sql`case s.kind when 'open' then 0 else 1 end, d.expected_close nulls last, d.value_cents desc, d.id`;
 
-export async function listDeals(sql: Sql, actor: Member | null, filter: DealFilter = {}, limit = 500, now = today(), page: unknown = 1): Promise<{ rows: Deal[]; total: number; value: number; page: number; pageSize: number }> {
+export async function listDeals(sql: Sql, actor: Member | null, filter: DealFilter = {}, limit = 500, now = today(), page: unknown = 1): Promise<{ rows: Deal[]; total: number; value: number; others: number; page: number; pageSize: number }> {
   reader(actor);
   const at = pageOf(page);
   const where = dealWhere(sql, actor!, filter.field ? await listFields(sql, "deals") : [], filter, now);
-  const [sum] = await sql<{ n: number; value: string | null }[]>`select count(*)::int as n, sum(d.value_cents) as value from ${from(sql)} where ${where}`;
+  // The total in the team's default currency only; others: how many deals are in another.
+  const [sum] = await sql<{ n: number; value: string | null; others: number }[]>`select count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value, count(*) filter (where d.currency <> (select value from settings where key = 'currency'))::int as others from ${from(sql)} where ${where}`;
   const rows = await sql<Row[]>`select ${columns(sql)} from ${from(sql)} where ${where} order by ${listOrder(sql)} limit ${limit} offset ${(at - 1) * limit}`;
-  return { rows: rows.map(toDeal), total: sum?.n ?? 0, value: Number(sum?.value ?? 0), page: at, pageSize: limit };
+  return { rows: rows.map(toDeal), total: sum?.n ?? 0, value: Number(sum?.value ?? 0), others: sum?.others ?? 0, page: at, pageSize: limit };
 }
 
 // Every deal a filter gives, in the list's order, a batch at a time (a
@@ -225,7 +227,7 @@ async function top(sql: Query, stageId: string): Promise<string> {
   return key;
 }
 
-export async function addDeal(sql: Sql, actor: Member | null, input: { title: unknown; company?: unknown; contact?: unknown; value?: unknown; stage?: unknown; expectedClose?: unknown; owner?: unknown; custom?: unknown }): Promise<Deal> {
+export async function addDeal(sql: Sql, actor: Member | null, input: { title: unknown; company?: unknown; contact?: unknown; value?: unknown; stage?: unknown; expectedClose?: unknown; owner?: unknown; custom?: unknown; currency?: unknown }): Promise<Deal> {
   if (!can(actor, "deals.create")) throw new AppError("forbidden");
   const title = clean(input.title, limits.dealTitle);
   const custom = customValues(await listFields(sql, "deals"), {}, input.custom);
@@ -237,8 +239,9 @@ export async function addDeal(sql: Sql, actor: Member | null, input: { title: un
   if (owner !== actor!.id && !can(actor, "assign")) throw new AppError("forbidden");
   await checkAssignable(owner, actor!.id);
   const l = await links(sql, input, { companyId: null, contactId: null });
-  // A new deal is in the company's currency (chest.currency, ISO 4217).
-  const currency = chest.currency;
+  // A new deal is in the currency asked, else the team's default (SDK
+  // 0.7.0: no Chest currency); it keeps it.
+  const currency = input.currency === undefined || input.currency === null || input.currency === "" ? await defaultCurrency(sql) : currencyCode(input.currency);
   const created = await sql.begin(async tx => {
     await lockStage(tx, s.id);
     const position = await top(tx, s.id);
@@ -375,7 +378,7 @@ export async function deleteDeal(sql: Sql, actor: Member | null, dealId: unknown
 export async function openByStage(sql: Sql, actor: Member | null, owner: string): Promise<{ stageId: string; count: number; value: number }[]> {
   reader(actor);
   const rows = await sql<{ stage_id: string; n: number; value: string | null }[]>`
-    select d.stage_id, count(*)::int as n, sum(d.value_cents) as value from deals d join stages s on s.id = d.stage_id
+    select d.stage_id, count(*)::int as n, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as value from deals d join stages s on s.id = d.stage_id
     where d.owner = ${owner} and s.kind = 'open' group by d.stage_id`;
   return rows.map(r => ({ stageId: String(r.stage_id), count: r.n, value: Number(r.value ?? 0) }));
 }
@@ -386,7 +389,7 @@ export async function wonThisMonth(sql: Sql, actor: Member | null, now = today()
   const month = monthOf(now);
   const zone = chestZone();
   const [row] = await sql<{ mine: string | null; team: string | null }[]>`
-    select sum(d.value_cents) filter (where d.owner = ${actor!.id}) as mine, sum(d.value_cents) as team
+    select sum(d.value_cents) filter (where d.owner = ${actor!.id} and d.currency = (select value from settings where key = 'currency')) as mine, sum(d.value_cents) filter (where d.currency = (select value from settings where key = 'currency')) as team
     from deals d join stages s on s.id = d.stage_id
     where s.kind = 'won' and (d.closed_at at time zone ${zone})::date between ${month.first} and ${month.last}`;
   return { mine: Number(row?.mine ?? 0), team: Number(row?.team ?? 0) };

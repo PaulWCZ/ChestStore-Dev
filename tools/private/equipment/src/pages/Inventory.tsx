@@ -20,6 +20,7 @@ export async function inventoryPage({ member, locale: language, t, f, query }: P
   const date = (d: string) => formatDate(d, locale, { day: "numeric", month: "long", year: "numeric" }, zone);
   return { title: t.inventory.title, body: (
     <div className="wide">
+      <Island name="Live" props={{ channel: "managers", tables: ["sightings", "inventories", "items"] }} />
       <PageHeader size="m" title={t.inventory.title} intro={now ? format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) }) : undefined} />
       <Island id="inventory" name="InventoryView" props={{
         open: now !== null,

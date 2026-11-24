@@ -8,6 +8,7 @@ import { localeOf } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, day, daysBetween, id, int, memberId, step, today } from "../shared/model.ts";
+import { officeZone } from "./zone.ts";
 import { presenceHorizon } from "./presence.ts";
 
 // Visitors: someone without a Chest account — a client, a candidate, a
@@ -98,14 +99,15 @@ async function notColleague(email: string): Promise<void> {
 export async function announce(sql: Sql, actor: Member | null, input: VisitInput, zone: string): Promise<Visit> {
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   const d = day(input.day);
-  const now = today(zone);
+  const office = id(input.officeId);
+  // The visit's day and time are its office's (lib/zone.ts).
+  const now = today(await officeZone(sql, office, zone));
   if (d < now) throw new AppError("past");
   if (daysBetween(now, d) > presenceHorizon) throw new AppError("too_far", { max: presenceHorizon });
   const at = int(input.at, 0, 1440 - step);
   if (at % step !== 0) throw new AppError("invalid");
   const name = clean(input.name, visitLimits.name);
   const company = clean(input.company ?? "", visitLimits.company, { optional: true });
-  const office = id(input.officeId);
   const host = await hostOf(actor, input.host);
   const email = visitorEmail(input.email);
   if (email) await notColleague(email);
@@ -150,7 +152,7 @@ export async function arrive(sql: Sql, actor: Member | null, visitId: unknown, z
     if (!row || !sees(actor, toVisit(row))) throw new AppError("not_found");
     const v = toVisit(row);
     if (!can(actor, "visitors.all") && v.host !== actor.id) throw new AppError("forbidden");
-    if (v.day !== today(zone)) throw new AppError("not_today");
+    if (v.day !== today(await officeZone(tx, v.officeId, zone))) throw new AppError("not_today");
     if (v.arrivedAt) return { visit: v, first: false };
     const [after] = await tx<Row[]>`update visits set arrived_at = now(), arrived_by = ${actor.id} where id = ${vid} returning ${columns(tx)}`;
     return { visit: toVisit(after!), first: true };
@@ -176,7 +178,7 @@ export async function cancelVisit(sql: Sql, actor: Member | null, visitId: unkno
   return sql.begin(async tx => {
     const [row] = await tx<Row[]>`select ${columns(tx)} from visits where id = ${vid} and cancelled_at is null for update`;
     if (!row || !sees(actor, toVisit(row))) throw new AppError("not_found");
-    if (row.day < today(zone)) throw new AppError("past");
+    if (row.day < today(await officeZone(tx, toVisit(row).officeId, zone))) throw new AppError("past");
     await tx`update visits set cancelled_at = now() where id = ${vid}`;
     return toVisit(row);
   });

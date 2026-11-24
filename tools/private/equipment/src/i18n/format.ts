@@ -78,11 +78,19 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
   return rtf.format(Math.round(amount), "year");
 }
 
-// An amount of money in the Chest's currency, in cents: whole amounts
-// without decimals ("€1,299"), others with two.
-export function moneyText(cents: number, currency: string, locale: Locale): string {
-  const digits = cents % 100 === 0 ? 0 : 2;
-  return numberFormat(locale, { style: "currency", currency, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(cents / 100);
+// An amount of money in its own currency (the code kept beside it), in
+// that currency's minor unit: whole amounts without decimals ("€1,299"),
+// others with the currency's own ("€1,299.90", "¥1,299", "KWD 1.250").
+export function moneyText(minor: number, currency: string, locale: Locale): string {
+  const decimals = currencyDecimals(currency);
+  const scale = 10 ** decimals;
+  const digits = minor % scale === 0 ? 0 : decimals;
+  return numberFormat(locale, { style: "currency", currency, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(minor / scale);
+}
+
+// A currency's minor unit (2 for EUR, 0 for JPY, 3 for KWD), from Intl.
+export function currencyDecimals(currency: string): number {
+  return numberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
 }
 
 // Each language named in itself, never translated (a switch, a picker).

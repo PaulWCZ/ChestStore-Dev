@@ -2,9 +2,12 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
+import type { TransactionSql } from "postgres";
 import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, placeName, type Equipment, type Feature } from "../shared/model.ts";
-import { dayKeys, enqueue } from "./calendar.ts";
+import { conflict } from "./booking-rules.ts";
+import { dayKey, dayKeys, enqueue, roomKey } from "./calendar.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
+import { zone } from "./zone.ts";
 
 // The places of the company: offices, their floors, the areas of a floor
 // where desks are, meeting rooms and desks. Everyone with a role reads them;
@@ -18,7 +21,8 @@ export type AreaView = { id: string; name: string; groupId: string | null; desks
 export type RoomView = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; groupId: string | null };
 export type FloorView = { id: string; name: string; rooms: RoomView[]; areas: AreaView[] };
 // example: made by "Start with an example" (lib/example.ts).
-export type OfficeView = { id: string; name: string; address: string; example: boolean; floors: FloorView[] };
+// timeZone: the office's own zone, null when it keeps the Chest's (lib/zone.ts).
+export type OfficeView = { id: string; name: string; address: string; timeZone: string | null; example: boolean; floors: FloorView[] };
 
 function reader(actor: Member | null): void {
   if (!can(actor, "book")) throw new AppError("forbidden");
@@ -33,7 +37,7 @@ function admin(actor: Member | null): void {
 export async function offices(sql: Query, actor: Member | null, presets?: Readonly<Record<string, string>>): Promise<OfficeView[]> {
   reader(actor);
   const [os, fs, as, rs, ds] = await Promise.all([
-    sql<{ id: string; name: string; address: string; example: boolean }[]>`select id, name, address, example from offices order by position, id`,
+    sql<{ id: string; name: string; address: string; time_zone: string | null; example: boolean }[]>`select id, name, address, time_zone, example from offices order by position, id`,
     sql<{ id: string; office_id: string; name: string; preset: string | null }[]>`select id, office_id, name, preset from floors order by position, id`,
     sql<{ id: string; floor_id: string; name: string; preset: string | null; group_id: string | null }[]>`select id, floor_id, name, preset, group_id from areas order by position, id`,
     sql<{ id: string; floor_id: string; name: string; capacity: number; equipment: string[]; note: string; photo: string | null; group_id: string | null }[]>`
@@ -49,7 +53,7 @@ export async function offices(sql: Query, actor: Member | null, presets?: Readon
   for (const r of rs) roomsOf.set(String(r.floor_id), [...(roomsOf.get(String(r.floor_id)) ?? []), { id: String(r.id), name: r.name, capacity: r.capacity, equipment: r.equipment.filter((e): e is Equipment => (equipmentKeys as readonly string[]).includes(e)), note: r.note, photo: r.photo !== null, groupId: r.group_id }]);
   const floorsOf = new Map<string, FloorView[]>();
   for (const f of fs) floorsOf.set(String(f.office_id), [...(floorsOf.get(String(f.office_id)) ?? []), { id: String(f.id), name: placeName(f.name, f.preset, presets), rooms: roomsOf.get(String(f.id)) ?? [], areas: areasOf.get(String(f.id)) ?? [] }]);
-  return os.map(o => ({ id: String(o.id), name: o.name, address: o.address, example: o.example === true, floors: floorsOf.get(String(o.id)) ?? [] }));
+  return os.map(o => ({ id: String(o.id), name: o.name, address: o.address, timeZone: o.time_zone, example: o.example === true, floors: floorsOf.get(String(o.id)) ?? [] }));
 }
 
 // The office a page shows: the one asked for, else the member's own, else
@@ -84,13 +88,82 @@ export async function addOffice(sql: Sql, actor: Member | null, input: { name?: 
   return { id: String(row!.id) };
 }
 
-export async function updateOffice(sql: Sql, actor: Member | null, officeId: unknown, input: { name?: unknown; address?: unknown }): Promise<void> {
+export async function updateOffice(sql: Sql, actor: Member | null, officeId: unknown, input: { name?: unknown; address?: unknown; timeZone?: unknown }): Promise<{ moved: { rooms: string[]; days: string[] } }> {
   admin(actor);
   const oid = id(officeId);
   const name = clean(input.name, limits.officeName);
   const address = clean(input.address, limits.address, { optional: true });
-  const done = await sql`update offices set name = ${name}, address = ${address} where id = ${oid}`;
-  if (done.count === 0) throw new AppError("not_found");
+  // Left out: the zone stays; null or "": the Chest's.
+  const asked = input.timeZone === undefined ? undefined : input.timeZone === null || input.timeZone === "" ? null : officeZoneValue(input.timeZone);
+  return sql.begin(async tx => {
+    const [before] = await tx<{ time_zone: string | null }[]>`select time_zone from offices where id = ${oid} for update`;
+    if (!before) throw new AppError("not_found");
+    await tx`update offices set name = ${name}, address = ${address} where id = ${oid}`;
+    if (asked === undefined || asked === before.time_zone) return { moved: { rooms: [], days: [] } };
+    const moved = await moveClock(tx, oid, before.time_zone, asked);
+    await tx`update offices set time_zone = ${asked} where id = ${oid}`;
+    return { moved };
+  });
+}
+
+// A zone an admin may give an office: one this server knows (Intl), as
+// the Chest writes zones.
+export function officeZoneValue(value: unknown): string {
+  if (typeof value !== "string" || !/^(UTC|[A-Z][A-Za-z_]{1,31}(\/[A-Za-z0-9_+-]{1,31}){1,2})$/u.test(value) || !zoneNames().includes(value)) throw new AppError("invalid");
+  return value;
+}
+
+// Every zone an office may take, by name (Intl's list, UTC first).
+let names: string[] | null = null;
+export function zoneNames(): string[] {
+  names ??= ["UTC", ...Intl.supportedValuesOf("timeZone").filter(z => z !== "UTC" && /^[A-Z][A-Za-z_]{1,31}(\/[A-Za-z0-9_+-]{1,31}){1,2}$/u.test(z))];
+  return names;
+}
+
+// An office that changes its zone keeps its coming bookings at the same
+// time on its clock (a 9:00 meeting stays at 9:00 there): their instants
+// are read in the old zone and written again in the new one, under the
+// same constraints (a clash with a booking elsewhere refuses the change:
+// zone_clash). PostgreSQL checks the exclusion constraints row by row, so
+// a morning moved onto its own afternoon (not moved yet) would clash with
+// itself: the coming bookings are first set aside a thousand years ahead
+// (all by the same amount: they keep apart from each other, and nothing
+// else is there), then each is written at its new place. Answers what
+// moved, for the calendars.
+const aside = "1000 years";
+async function moveClock(tx: TransactionSql, officeId: string, from: string | null, to: string | null): Promise<{ rooms: string[]; days: string[] }> {
+  const chestZone = zone();
+  const old = from ?? chestZone, next = to ?? chestZone;
+  if (old === next) return { rooms: [], days: [] };
+  try {
+    return await tx.savepoint(async sp => {
+      const rooms = (await sp<{ id: string }[]>`
+        update room_bookings b set during = tstzrange(lower(b.during) + ${aside}::interval, upper(b.during) + ${aside}::interval, '[)')
+        from rooms r join floors f on f.id = r.floor_id
+        where r.id = b.room_id and f.office_id = ${officeId} and b.cancelled_at is null and upper(b.during) > now()
+        returning b.id`).map(r => String(r.id));
+      const desks = await sp<{ id: string; key: string }[]>`
+        update desk_bookings b set during = tstzrange(lower(b.during) + ${aside}::interval, upper(b.during) + ${aside}::interval, '[)')
+        from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+        where d.id = b.desk_id and f.office_id = ${officeId} and b.cancelled_at is null and upper(b.during) > now()
+        returning b.id, b.member_id || ':' || to_char(b.day, 'YYYY-MM-DD') as key`;
+      const back = (column: string) => sp`(((${sp(column)} - ${aside}::interval) at time zone ${old}) at time zone ${next})`;
+      if (rooms.length > 0) await sp`
+        update room_bookings set during = tstzrange(${back("lower_at")}, ${back("upper_at")}, '[)'), revision = revision + 1, changed_at = now()
+        from (select id as moved, lower(during) as lower_at, upper(during) as upper_at from room_bookings where id = any(${rooms}::bigint[])) x
+        where id = x.moved`;
+      if (desks.length > 0) await sp`
+        update desk_bookings set during = tstzrange(${back("lower_at")}, ${back("upper_at")}, '[)')
+        from (select id as moved, lower(during) as lower_at, upper(during) as upper_at from desk_bookings where id = any(${desks.map(d => String(d.id))}::bigint[])) x
+        where id = x.moved`;
+      const days = desks.map(d => d.key).filter(k => !k.startsWith("erased:"));
+      await enqueue(sp, [...rooms.map(roomKey), ...days.map(k => { const [m, d] = k.split(":"); return dayKey(m!, d!); })]);
+      return { rooms, days };
+    });
+  } catch (error) {
+    if (conflict(error)) throw new AppError("zone_clash");
+    throw error;
+  }
 }
 
 // An office, a floor or an area goes only once it holds no room or desk

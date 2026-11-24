@@ -35,7 +35,7 @@ export function conflict(error: unknown): AppError | null {
   return new AppError(e.constraint_name === "desk_already" ? "already_booked" : "taken");
 }
 
-// The instants of a day's minutes in the Chest's time zone, as PostgreSQL
+// The instants of a day's minutes in a zone (the place's office's), as PostgreSQL
 // computes them (daylight saving included): tstzrange [start, end).
 export function span(sql: Query, d: string, start: number, end: number, zone: string) {
   return sql`tstzrange((${d}::date + make_interval(mins => ${start}))::timestamp at time zone ${zone}, (${d}::date + make_interval(mins => ${end}))::timestamp at time zone ${zone}, '[)')`;

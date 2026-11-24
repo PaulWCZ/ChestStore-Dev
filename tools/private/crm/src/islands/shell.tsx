@@ -1,4 +1,4 @@
-import { useAutoRefresh } from "@argentic/chest-app/client";
+import { useLive } from "@argentic/chest-app/client";
 import { Menu, SearchBox, type MenuItem } from "@argentic/chest-ui/components";
 import type { SearchWords } from "@argentic/chest-ui/components/logic";
 import { Download, Gear, Upload } from "../components/icons.tsx";
@@ -25,12 +25,14 @@ export function SearchField({ q, labels }: { q: string; labels: SearchWords }) {
   return <SearchBox id="search-q" action="/chest/search" value={q} shortcut={false} autoFocus={!q} maxLength={100} labels={labels} />;
 }
 
-// The Chest has no WebSocket: a page others change reads itself again —
-// the package's useAutoRefresh: when the reader comes back to it, and on
-// a timer only while they were active lately (backing off when nothing
-// changed, stopping when idle, so a tab left open lets the Chest put the
-// tool to sleep).
-export function AutoRefresh({ seconds }: { seconds: number }) {
-  useAutoRefresh(seconds);
+// A page others change, left open, follows them (SDK 0.7.0 realtime, never
+// a timer): the Chest tells the page each row written to the tables it
+// shows (chest.json "realtime": the "team" channel, every member who has
+// Clients; its feeds carry the rows' keys only), and the page is read
+// again from the server, which decides what its reader may see (a booking
+// told for some people only). The tool sleeps meanwhile; a read with
+// nothing new is a 304.
+export function Live({ tables }: { tables: string[] }) {
+  useLive("team", tables);
   return null;
 }

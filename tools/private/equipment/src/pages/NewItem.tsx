@@ -5,11 +5,13 @@ import { db } from "../lib/db.ts";
 import { allFields } from "../lib/fields.ts";
 import { formHints } from "../lib/items.ts";
 import { categoryName, fieldName } from "../shared/words.ts";
+import { defaultCurrency } from "../lib/settings.ts";
+import { knownCurrencies } from "../shared/model.ts";
 
 // Add equipment (managers). ?category= preselects one.
 export async function newItemPage({ member, t, query }: PageContext): Promise<View> {
   const sql = db();
-  const [categories, hints, fields] = await Promise.all([listCategories(sql, member), formHints(sql, member), allFields(sql)]);
+  const [categories, hints, fields, currency] = await Promise.all([listCategories(sql, member), formHints(sql, member), allFields(sql), defaultCurrency(sql)]);
   const wanted = query("category");
   const first = categories.find(c => c.id === wanted) ?? categories[0];
   return { title: t.form.newTitle, body: (
@@ -18,12 +20,12 @@ export async function newItemPage({ member, t, query }: PageContext): Promise<Vi
       <Island id="item-new" name="ItemForm" props={{
         mode: "new",
         id: null,
-        initial: { categoryId: first?.id ?? "", name: "", tag: "", serial: "", purchasedOn: "", price: "", supplier: "", warrantyUntil: "", notes: "", seats: "1", renewsOn: "", cost: "", period: "year", quantity: "0", minQuantity: "", extra: {}, count: "1", serials: "" },
+        initial: { categoryId: first?.id ?? "", name: "", tag: "", serial: "", purchasedOn: "", price: "", supplier: "", warrantyUntil: "", notes: "", seats: "1", renewsOn: "", cost: "", period: "year", quantity: "0", minQuantity: "", extra: {}, count: "1", serials: "", currency },
         categories: categories.map(c => ({ id: c.id, name: categoryName(c, t), icon: c.icon, kind: c.kind })),
         fields: fields.map(f => ({ id: f.id, categoryId: f.categoryId, type: f.type, name: fieldName(f, t) })),
         nextTag: hints.nextTag,
         suppliers: hints.suppliers,
-        currency: chest.currency,
+        currencies: knownCurrencies(),
         today: chest.today(),
         t: { form: t.form, item: t.item, periods: t.periods, common: t.common, date: t.date },
       }} />
