@@ -44,6 +44,11 @@ const app = createServer(async (req, res) => {
     const answer = await fetch(process.env.CHEST_API + "/mail/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: [to.startsWith("mbr_") ? { member: to } : to], cc: [], subject: "Your booking", text: "See you on Monday." }) });
     return json(res, answer.status, await answer.json());
   }
+  // Realtime (0.7.0): the tool publishes to the Chest, which holds the pages.
+  if (url.pathname === "/chest/publish") {
+    const answer = await fetch(process.env.CHEST_API + "/realtime/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "everyone", event: "board.changed", payload: { id: 7 } }) });
+    return json(res, answer.status, await answer.json());
+  }
   if (url.pathname === "/chest/env") return json(res, 200, { member: Boolean(req.headers["chest-member"]), env: process.env });
   if (url.pathname === "/chest/runs") return json(res, 200, runs);
   if (url.pathname === "/chest/cookies") return json(res, 200, {}, { "Set-Cookie": ["good=1; Path=/; HttpOnly", "wide=1; Domain=localhost; Path=/", "__Host-chest=stolen; Path=/; Secure"] });
@@ -68,7 +73,7 @@ before(async () => {
   writeFileSync(join(folder, "package.json"), JSON.stringify({ name: "fixture", private: true, type: "module", scripts: { start: "node server.mjs" } }));
   writeFileSync(join(folder, "package-lock.json"), JSON.stringify({ name: "fixture", lockfileVersion: 3, requires: true, packages: { "": { name: "fixture" } } }));
   writeFileSync(join(folder, "chest.proposals.json"), JSON.stringify({ mail: { send: true } }));
-  writeFileSync(join(folder, "chest.json"), JSON.stringify({ chest: "0.4", name: "fixture", title: "Fixture", description: "A tool of the harness's test.", public: true, env: ["SLOW_START_MS"], schedules: [{ name: "nightly", cron: "0 3 * * *" }], build: { runtime: "node", install: "npm ci", start: "npm start", port: 3000, static: ["/assets/"] } }));
+  writeFileSync(join(folder, "chest.json"), JSON.stringify({ chest: "0.7", name: "fixture", title: "Fixture", description: "A tool of the harness's test.", public: true, capabilities: ["realtime"], realtime: { channels: [{ name: "everyone" }] }, env: ["SLOW_START_MS"], schedules: [{ name: "nightly", cron: "0 3 * * *" }], build: { runtime: "node", install: "npm ci", start: "npm start", port: 3000, static: ["/assets/"] } }));
   mkdirSync(join(folder, "node_modules"));
   harness = spawn(process.execPath, [join(root, "lab", "chest-dev", "dev.mjs"), folder, "--prod", "--port", String(port), "--sleep-after", "2", "--no-mail-connector"], { env: { ...process.env, SLOW_START_MS: "2600", NODE_OPTIONS: "--max-old-space-size=64" }, stdio: ["ignore", "pipe", "pipe"] });
   harness.stdout.on("data", (c) => { output += c; });
@@ -90,7 +95,7 @@ test("the Chest's environment, and nothing of the shell's", async () => {
   assert.equal(env.PORT, String(port + 1));
   assert.equal(env.CHEST_TEAM_URL, team);
   assert.equal(env.CHEST_PUBLIC_URL, publicHost);
-  assert.equal(env.CHEST_CURRENCY, "EUR");
+  assert.equal(env.CHEST_CURRENCY, undefined, "the Chest has no currency (0.7.0)");
   assert.equal(env.CHEST_ORGANIZATION, "Atelier Martin");
   assert.equal(env.NODE_ENV, "production");
   assert.equal(env.SLOW_START_MS, "2600", "a variable the tool declares (env) comes from the shell");
@@ -98,6 +103,33 @@ test("the Chest's environment, and nothing of the shell's", async () => {
   assert.match(env.CHEST_API, /^http:\/\/127\.0\.0\.1:\d+$/u);
   assert.notEqual(env.CHEST_API, team, "the API is the fake's own address");
   assert.ok(env.CHEST_TOKEN && env.CHEST_TOOL === "fixture");
+});
+
+test("realtime: a page's WebSocket on /_chest/realtime reaches the fake's hub as the member signed in, and hears what the tool publishes", async () => {
+  // The question before connecting: the member signed in may.
+  assert.equal((await get(`${team}/_chest/realtime?member=mbr_somebodyelseaaaaaaaaaaaaa`)).status, 204);
+  const socket = new WebSocket(`wss://127.0.0.1:${port}/_chest/realtime?member=mbr_somebodyelseaaaaaaaaaaaaa`, { protocols: ["chest-realtime.v1"], headers: { cookie: "dev_member=mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", origin: team } });
+  const frames = [];
+  const next = op => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no ${op} frame: ${JSON.stringify(frames)}`)), 5000);
+    const look = () => { const f = frames.find(x => x.op === op); if (f) { clearTimeout(timer); frames.splice(frames.indexOf(f), 1); resolve(f); } else setTimeout(look, 20); };
+    look();
+  });
+  socket.onmessage = event => frames.push(JSON.parse(String(event.data)));
+  const hello = await next("hello");
+  assert.equal(hello.member, "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", "the member is the harness's, never the query's");
+  socket.send(JSON.stringify({ op: "join", ch: "everyone", ref: 1 }));
+  assert.equal((await next("ok")).ref, 1);
+  // The tool may be asleep: the publish wakes it, the page stays connected.
+  assert.equal((await get(`${team}/chest/publish`)).status, 200);
+  const msg = await next("msg");
+  assert.deepEqual([msg.ch, msg.event, msg.payload], ["everyone", "board.changed", { id: 7 }]);
+  socket.close();
+  // Another origin, the public host, any other Upgrade: refused.
+  const refused = url => new Promise(resolve => { const s = new WebSocket(url, { protocols: ["chest-realtime.v1"], headers: url.includes("evil") ? { origin: "https://evil.test" } : {} }); s.onopen = () => { s.close(); resolve(false); }; s.onerror = () => resolve(true); });
+  assert.ok(await refused(`wss://127.0.0.1:${port}/_chest/realtime?evil`), "another origin");
+  assert.ok(await refused(`wss://localhost:${port + 2}/_chest/realtime`), "the public host");
+  assert.ok(await refused(`wss://127.0.0.1:${port}/chest`), "the tool never gets an Upgrade");
 });
 
 test("mail to people outside: the connector absent, then connected; Reply-To the company's; no member, no mailbox", async () => {

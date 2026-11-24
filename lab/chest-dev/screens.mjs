@@ -20,6 +20,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright-core";
+import { executablePath } from "./browser.mjs";
 
 const args = process.argv.slice(2);
 const folder = args.find(a => !a.startsWith("--"));
@@ -35,7 +36,6 @@ const shots = JSON.parse(readFileSync(join(tool, "docs", "screens.json"), "utf8"
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const origin = `https://127.0.0.1:${port}`;
 const publicOrigin = `https://localhost:${port + 2}`;
-const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
 mkdirSync(join(tool, "docs", "screens"), { recursive: true });
 const id = key => "mbr_" + key + "a".repeat(26 - key.length);

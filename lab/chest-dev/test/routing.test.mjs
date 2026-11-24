@@ -66,6 +66,28 @@ test("a path not in its simple form is 400 on both hosts; Upgrade is 501", () =>
   assert.equal(route("team", get("/chest", { upgrade: "websocket" }), publicTool, origins).status, 501);
 });
 
+test("realtime (SDK 0.7.0): the one Upgrade the Chest takes, on the team host's /_chest/realtime", () => {
+  const live = { ...publicTool, capabilities: ["realtime"] };
+  const ws = (host, url, headers = {}, tool = live) => route(host, get(url, { upgrade: "websocket", ...headers }), tool, origins);
+  assert.deepEqual(ws("team", "/_chest/realtime", { origin: origins.teamOrigin }), { to: "realtime" });
+  assert.deepEqual(ws("team", "/_chest/realtime?member=mbr_x"), { to: "realtime" });
+  assert.equal(ws("team", "/_chest/realtime", { origin: origins.publicOrigin }).status, 403);
+  assert.equal(ws("team", "/_chest/realtime", {}, publicTool).status, 404);
+  assert.equal(ws("public", "/_chest/realtime").status, 501);
+  assert.equal(ws("team", "/_chest/files/x").status, 501);
+  assert.equal(route("team", { method: "POST", url: "/_chest/realtime", headers: { upgrade: "websocket" } }, live, origins).status, 501);
+  // Its question before connecting: a plain GET, the Chest's own.
+  assert.deepEqual(route("team", get("/_chest/realtime"), live, origins), { to: "chest" });
+});
+
+test("public host: a visitor's upload (0.7.0: /_chest/files/upload/) is the Chest's", () => {
+  const put = url => route("public", { method: "PUT", url, headers: {} }, publicTool, origins);
+  assert.deepEqual(put("/_chest/files/upload/tok_abc"), { to: "chest" });
+  assert.deepEqual(put("/_chest/upload/tok_abc"), { to: "chest" });
+  assert.deepEqual(route("public", { method: "PUT", url: "/_chest/files/upload/tok", headers: {} }, { ...publicTool, public: false }, origins), { to: "chest" });
+  assert.deepEqual(route("public", get("/_chest/files/x"), publicTool, origins), { to: "tool", member: false });
+});
+
 test("the CSP the Chest adds", () => {
   assert.deepEqual(addedPolicies("team", privateTool, undefined), [TeamCSP]);
   assert.deepEqual(addedPolicies("team", privateTool, "default-src 'self'"), []);

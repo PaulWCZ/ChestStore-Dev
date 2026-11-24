@@ -1,9 +1,8 @@
 // Helpers for the studio's browser flows: a real Chromium against a tool
 // running in the harness (dev.mjs), signed in as one of the cast.
-import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
+import { executablePath } from "../browser.mjs";
 
-const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 // The tool's database as dev.mjs names it on that port (t_<tool> on 4000,
 // t_<tool>_<port> elsewhere): a flow never touches another harness's data.
 export const toolDatabase = (tool, port) => {

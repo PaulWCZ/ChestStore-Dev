@@ -1,11 +1,15 @@
-// The Chest's routing in front of a tool, as contract 0.4 states it
+// The Chest's routing in front of a tool, as contract 0.4 states it (0.7
+// adds the realtime connection and a visitor's upload under /_chest/files/)
 // (reference/contract/application-contract.md, "Front", "Public host",
 // "Team host"; reference/sdk/contract/README.md, `build.static` and the CSP
 // table). Pure functions: dev.mjs applies them, test/routing.test.mjs
 // checks them.
 //
 // Team host (the members' origin):
-//   /_chest/…                 the Chest's own (the fake Chest's front)
+//   /_chest/…                 the Chest's own (the fake Chest's front);
+//                             an Upgrade on /_chest/realtime is a page's
+//                             realtime connection (SDK 0.7.0), the only
+//                             WebSocket the Chest accepts
 //   /chest, /chest/…          to the tool, with the Chest-Member assertion;
 //                             a method other than GET/HEAD needs
 //                             Sec-Fetch-Site: same-origin and the host's
@@ -14,12 +18,14 @@
 //   of build.static
 //   anything else             302 to the public host, same path and query
 // Public host:
+//   /_chest/files/upload/…    a visitor's upload (0.7.0's
+//                             files.uploadUrl(folder, {public: true}))
 //   /chest…                   302 to the team host, same path and query
 //   GET/HEAD under a prefix   to the tool (static files: both hosts)
 //   of build.static
 //   no public part            404 "Page not found"
 //   anything else             to the tool, without identity
-// Both: a path not in its simple form → 400; Upgrade → 501.
+// Both: a path not in its simple form → 400; any other Upgrade → 501.
 
 export const defaultStatic = ["/_next/static/"];
 
@@ -53,9 +59,20 @@ const reading = (method) => method === "GET" || method === "HEAD";
 // /_chest/) | {status, location?, reason}.
 export function route(host, request, manifest, { teamOrigin, publicOrigin }) {
   const { method, url, headers = {} } = request;
-  if (headers.upgrade) return { status: 501, reason: "the Chest refuses Upgrade (no WebSocket)" };
-  if (!simplePath(url)) return { status: 400, reason: "a path not in its simple form (//, . or .., \\, %2F, %5C, %2E, %00)" };
   const path = url.split("?")[0];
+  if (headers.upgrade) {
+    // SDK 0.7.0's realtime: a page of /chest connects to the Chest on its
+    // own team host (realtime/client: wss://<host>/_chest/realtime); the
+    // Chest holds the connection, never the tool. Its question before
+    // connecting is a plain GET of the same path (below, /_chest/).
+    if (host === "team" && path === "/_chest/realtime" && method === "GET" && String(headers.upgrade).toLowerCase() === "websocket") {
+      if (!(manifest.capabilities ?? []).includes("realtime")) return { status: 404, reason: "the tool does not hold the capability realtime (chest.json)" };
+      if (headers.origin !== undefined && headers.origin !== teamOrigin) return { status: 403, reason: `a realtime connection from another origin (${headers.origin})` };
+      return { to: "realtime" };
+    }
+    return { status: 501, reason: host === "team" && path === "/_chest/realtime" ? "a realtime connection is a GET with Upgrade: websocket" : "the Chest refuses Upgrade (no WebSocket) but its own realtime, on the team host's /_chest/realtime" };
+  }
+  if (!simplePath(url)) return { status: 400, reason: "a path not in its simple form (//, . or .., \\, %2F, %5C, %2E, %00)" };
   if (host === "team") {
     if (path.startsWith("/_chest/")) return { to: "chest" };
     if (isChest(url)) {
@@ -70,9 +87,11 @@ export function route(host, request, manifest, { teamOrigin, publicOrigin }) {
     if (reading(method) && underStatic(manifest, path)) return { to: "tool", member: false, static: true };
     return { status: 302, location: publicOrigin + url, reason: `outside /chest and build.static ${JSON.stringify(staticPrefixes(manifest))}: sent to the public host` };
   }
-  // A visitor's upload (Proposal (studio): files.publicUploadUrl) is the
-  // public host's own route of the Chest.
-  if (path.startsWith("/_chest/upload/")) return { to: "chest" };
+  // A visitor's upload is the public host's own route of the Chest: 0.7.0's
+  // files.uploadUrl(folder, {public: true}) answers /_chest/files/upload/…
+  // (a path, sent to the page's own host); /_chest/upload/… is the
+  // studio's former proposal (files.publicUploadUrl, 0.4.1-studio).
+  if (path.startsWith("/_chest/files/upload/") || path.startsWith("/_chest/upload/")) return { to: "chest" };
   // The look's files — a brand's logo and fonts (Proposal (studio):
   // chest.theme()) — are served on every host of the tool, so a public
   // page in the company's brand gets them too.
