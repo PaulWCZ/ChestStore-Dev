@@ -7,25 +7,27 @@ import { isMemberId } from "../shared/model.ts";
 
 // What Hiring tells the other tools of the Chest (events between tools,
 // SDK 0.7.0; chest.json's "emits", each type with its fields), once the
-// owner approved the link: a hire becomes a newcomer in People. It carries
-// the person's name and address — they are about to join the company —
-// and nothing of the application (no CV, no notes, no feedback, no
-// rating). A courtesy: when the Chest cannot take it, the move in Hiring
-// still stands.
+// owner approved the link: a hire becomes a newcomer in People and counts
+// in Goals' "People hired". It carries what the company will announce
+// anyway — who joins, as what, where, from when, hired by whom — and
+// nothing else: no address (the candidate's email is theirs, not company
+// news; People asks for the work address itself), nothing of the
+// application (no CV, no notes, no feedback, no rating, no reason), no
+// salary (not even the job's advertised range). A courtesy: when the Chest
+// cannot take it, the move in Hiring still stands.
 //
-// hiring.hired:          candidate: id, name: text, email: text?, job: text,
-//                        team: text?, place: text?, startDate: date?, hiredBy: member
+// hiring.hired:          candidate: id, name: text, job: text, team: text?,
+//                        place: text?, startDate: date?, hiredBy: member
 // hiring.hire-cancelled: candidate: id   (was hiring.hire_cancelled: 0.7.0
 //                        refuses an underscore in a type; People hears the new name)
 //
 // Their subject is the candidate (a receiver gets one candidate's events in
-// order: hired, then cancelled); their audience the recruiters — who in
-// Hiring sees every hire (an interviewer sees only the jobs they are on):
-// a receiver shows them to those of its members only.
+// order: hired, then cancelled). They carry no audience (lead's decision,
+// November 2026): an arrival is company news, for every member — People's
+// HR and Goals both see it. Never add a field to them that is not.
 export type Hire = {
   candidate: string;
   name: string;
-  email: string | null;
   job: string;
   team: string | null;
   place: string | null;
@@ -33,7 +35,6 @@ export type Hire = {
   hiredBy: string;
 };
 
-export const hireAudience = { roles: ["recruiter"] };
 // A member's busy times: times only, for everyone in Hiring with a role
 // (the receiver only takes them out of what it offers).
 export const busyAudience = { roles: ["recruiter", "interviewer"] };
@@ -57,12 +58,14 @@ export const eventText = (text: string): string => text.replace(/\p{Cf}/gu, "");
 const optionalText = (text: string | null): string | null => (text ? eventText(text) || null : null);
 
 export async function hired(h: Hire, at: string): Promise<boolean> {
-  return publish("hiring.hired", { ...h, name: eventText(h.name), job: eventText(h.job), email: optionalText(h.email), team: optionalText(h.team), place: optionalText(h.place) }, `hiring:${h.candidate}:hired:${Date.parse(at)}`, { subject: h.candidate, audience: hireAudience });
+  // Field by field, never a spread: nothing reaches the event by accident.
+  const data = { candidate: h.candidate, name: eventText(h.name), job: eventText(h.job), team: optionalText(h.team), place: optionalText(h.place), startDate: h.startDate, hiredBy: h.hiredBy };
+  return publish("hiring.hired", data, `hiring:${h.candidate}:hired:${Date.parse(at)}`, { subject: h.candidate });
 }
 
 // hireCancelled: moved out of "hired", rejected after it, or erased.
 export async function hireCancelled(candidate: string, at = new Date()): Promise<boolean> {
-  return publish("hiring.hire-cancelled", { candidate }, `hiring:${candidate}:cancelled:${at.getTime()}`, { subject: candidate, audience: hireAudience });
+  return publish("hiring.hire-cancelled", { candidate }, `hiring:${candidate}:cancelled:${at.getTime()}`, { subject: candidate });
 }
 
 // ---- Busy times, with Booking --------------------------------------------

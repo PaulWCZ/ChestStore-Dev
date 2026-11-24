@@ -341,15 +341,17 @@ kinds only:
 
 | Event | When | Data |
 |---|---|---|
-| `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `candidate` (id), `name`, `email?`, `job`, `team?`, `place?` (text), `startDate` (date?), `hiredBy` (member) — key `hiring:<candidate>:hired:<time of the move>` |
+| `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `candidate` (id), `name`, `job`, `team?`, `place?` (text), `startDate` (date?), `hiredBy` (member) — never the candidate's address, the application, its notes or a salary — key `hiring:<candidate>:hired:<time of the move>` |
 | `hiring.hire-cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `candidate` (id) — key `hiring:<candidate>:cancelled:<time>`. **Renamed** from `hiring.hire_cancelled`: 0.7.0 refuses an underscore in a type; People and Goals must hear the new name |
 | `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `v` (number, 1 — Booking reads no other), `member` (member), `at`, `from`, `to` (time), `spans` (text: JSON `[[start, end], …]`, UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
 
 Each event's subject is its candidate or member (a receiver gets them in
-order). Audience: `hiring.hired` and `hiring.hire-cancelled` are for the
-recruiters (an interviewer sees only the jobs they are on), so People shows
-a hire only to those of its members who are Hiring's recruiters;
-`hiring.busy` is for everyone with a role in Hiring.
+order). Audience: `hiring.hired` and `hiring.hire-cancelled` carry
+**none** — an arrival is company news, for every member, so People's HR
+lists the newcomer and Goals counts "People hired". That is why they hold
+only what the company would announce anyway (who, as what, where, from
+when, hired by whom): no email address, nothing of the application, no
+salary. `hiring.busy` is for everyone with a role in Hiring.
 
 **What Hiring hears** (`"receives": ["booking.busy", "leave.busy"]`):
 Booking's snapshot of a host's busy times, and Leave's of the days a

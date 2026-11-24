@@ -106,7 +106,7 @@ export const publicBounds = {
 // between tools; nothing is told when the Chest cannot take it.
 async function tellHired(sql: Sql, actor: Member, c: candidates.Candidate): Promise<void> {
   const [job] = await sql<{ title: string; team: string; place: string }[]>`select title, team, place from jobs where id = ${c.jobId}`;
-  await share.hired({ candidate: c.id, name: c.name, email: c.email, job: job!.title, team: job!.team, place: job!.place, startDate: c.startDate, hiredBy: actor.id }, c.stageEnteredAt);
+  await share.hired({ candidate: c.id, name: c.name, job: job!.title, team: job!.team, place: job!.place, startDate: c.startDate, hiredBy: actor.id }, c.stageEnteredAt);
 }
 
 // restoreOne brings a rejected candidate back (Bring back, or the Undo of

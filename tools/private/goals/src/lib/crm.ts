@@ -4,7 +4,8 @@ import { audienceOf, refreshFed } from "./sources.ts";
 
 // Key results fed by Clients, the CRM (SDK 0.5+: events between tools,
 // once the owner approved the link). A deal Clients shows to some members
-// only (its audience) is kept, never counted (lib/sources.ts). Clients tells each
+// only (its audience) counts in the numbers like any other — a value is a
+// bare sum or count, naming no deal (lib/sources.ts). Clients tells each
 // deal won and each won deal reopened; Goals keeps only what a key result
 // needs — the deal's reference, amount, currency and when it was won —
 // and sets the value of every key result fed by it: the amount won, or the

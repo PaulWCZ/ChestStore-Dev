@@ -48,10 +48,13 @@ TEST_DATABASE_URL=postgres://… npm test   # on a real PostgreSQL (concurrent u
 - **Confidential objectives**: any new query that lists objectives for a
   person adds `visibleTo(sql, readerOf(actor))` (src/lib/read.ts); a test in
   `test/chase.test.ts` shows each place.
-- **Another tool's item counts only when it is for everyone**: a received
-  event's audience is kept (`fed_events.audience`, `crm_deals.audience`)
-  and `refreshFed` counts only rows with `audience is null` — a key
-  result's value is shown to every reader of its objective.
+- **Another tool's item counts in the number, whatever its audience; its
+  content stays its audience's**: a key result's value is a bare count or
+  sum, so `refreshFed` counts every row. A received event's audience is
+  kept (`fed_events.audience`, `crm_deals.audience`) and anything that
+  shows an item's content (today only a board's name, `knownBoards`) reads
+  only rows with `audience is null`. Never add a page, export, notice or
+  API that lists the items behind a value; keep no title or name.
 - **Money keeps its currency**: a money key result's `currency` is the one
   chosen, else `defaultCurrency()`; never add values of two currencies.
 - **Pages left open follow realtime** (`Live`, channel `goals`), never a

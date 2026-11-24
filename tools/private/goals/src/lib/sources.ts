@@ -36,10 +36,14 @@ import { instantOf } from "./zone.ts";
 //                           was hiring.hire_cancelled — Hiring renames it too)
 //
 // Who may see each (its audience, SDK 0.5+): "all", or the members the
-// publishing tool allowed. A key result's value is shown to everyone who
-// reads its objective, so an item for some members only is kept (with its
-// audience) but never counted: a confidential deal never moves a number
-// everyone sees.
+// publishing tool allowed. A key result's value is a bare number (a count,
+// or a sum of amounts) that names no item, so every item counts in it,
+// whatever its audience: Support's solved tickets (for Support's roles)
+// move "Tickets solved" like any other. What shows an item's content stays
+// its audience's: Goals keeps no title, customer or candidate name, and the
+// one thing it shows from an item — a board's name, offered in "Cards done
+// on …" (knownBoards) — comes only from items for everyone. The audience is
+// kept (fed_events.audience, crm_deals.audience) for that.
 
 export const sources = ["crm.won_amount", "crm.won_count", "tasks.done", "helpdesk.solved", "hiring.hired"] as const;
 export type Source = (typeof sources)[number];
@@ -123,7 +127,9 @@ export const handlers = (sql: Sql): Record<FedType, (e: ToolEvent) => Promise<vo
 
 // The boards of Tasks Goals has heard of (a card done on them), to offer
 // "Cards done on …": Goals cannot ask Tasks for its boards (no query
-// between tools yet), so a board shows once one of its cards is done.
+// between tools yet), so a board shows once one of its cards is done —
+// and only from a card for everyone: a board's name is an item's content,
+// never shown outside its audience (only the numbers count every item).
 export async function knownBoards(sql: Query): Promise<{ id: string; name: string }[]> {
   const rows = await sql<{ scope: string; scope_name: string | null }[]>`
     select distinct on (scope) scope, scope_name from fed_events where kind = 'tasks.card' and scope is not null and audience is null order by scope, updated_at desc limit 200`;
@@ -148,12 +154,12 @@ export async function refreshFed(sql: Query, keyResultIds?: string[]): Promise<n
       // units (2 decimals for the euro, 0 for the yen).
       const [{ total, n }] = (await sql<{ total: string | null; n: string }[]>`
         select sum(amount_cents) filter (where currency = ${r.currency ?? ""}) as total, count(*) as n
-        from crm_deals where won_at >= ${from} and won_at < ${to} and audience is null`) as unknown as [{ total: string | null; n: string }];
+        from crm_deals where won_at >= ${from} and won_at < ${to}`) as unknown as [{ total: string | null; n: string }];
       value = r.source === "crm.won_amount" ? Math.round(Number(total ?? 0)) / 10 ** currencyDecimals(r.currency ?? "EUR") : Number(n);
     } else {
       const [{ n }] = (await sql<{ n: string }[]>`
         select count(*) as n from fed_events
-        where kind = ${kindOf[r.source]} and at >= ${from} and at < ${to} and audience is null
+        where kind = ${kindOf[r.source]} and at >= ${from} and at < ${to}
           ${r.source_mine ? sql`and ${r.owner} = any(members)` : sql``}
           ${r.source_scope ? sql`and scope = ${r.source_scope}` : sql``}`) as unknown as [{ n: string }];
       value = Number(n);
