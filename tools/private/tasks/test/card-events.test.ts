@@ -271,3 +271,8 @@ test("each event names its card as subject; a private board's card carries its a
   assert.equal(closed.subject, `card:${d.id}`);
   assert.deepEqual(closed.audience, { members: [hugo.id, ines.id].sort(), groups: [groups.office], roles: ["manager"] });
 });
+
+test("a board's name goes without format characters (the Chest refuses them); the board keeps it as typed", () => {
+  const data = cardEventData({ type: "tasks.card.done", card: "1", board: "2", board_name: "Team ​👩‍💻 Ops﻿", assignees: [] });
+  assert.equal(data["boardName"], "Team 👩💻 Ops");
+});

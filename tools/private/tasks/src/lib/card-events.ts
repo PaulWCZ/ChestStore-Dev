@@ -56,9 +56,14 @@ export const cardEventAudience = (row: Pick<Row, "visibility" | "people" | "grou
     ? { members: [...new Set(row.people ?? [])].sort(), groups: [...new Set(row.groups ?? [])].sort(), roles: ["manager"] }
     : undefined;
 
+// An event's text refuses format characters (Unicode Cf: a zero-width
+// joiner inside an emoji, a zero-width space, a BOM): stripped in the event
+// only — the board keeps its name as typed.
+export const eventText = (text: string): string => text.replace(/\p{Cf}/gu, "");
+
 export const cardEventData = (row: Pick<Row, "type" | "card" | "board" | "board_name" | "assignees">): Record<string, unknown> =>
   row.type === "tasks.card.done"
-    ? { card: row.card, board: row.board, boardName: [...(row.board_name ?? "")].slice(0, 80).join(""), assignees: [...(row.assignees ?? [])].sort().slice(0, cardEventLimits.assignees) }
+    ? { card: row.card, board: row.board, boardName: [...eventText(row.board_name ?? "")].slice(0, 80).join(""), assignees: [...(row.assignees ?? [])].sort().slice(0, cardEventLimits.assignees) }
     : { card: row.card };
 
 // publishCardEvents tells what waits, oldest first; stops at the first
@@ -77,7 +82,7 @@ export async function publishCardEvents(sql: Query): Promise<number> {
     where e.published_at is null order by e.id limit ${cardEventLimits.perRun}`;
   let told = 0;
   for (const row of rows) {
-    if (row.type === "tasks.card.done" && !row.board_name) {
+    if (row.type === "tasks.card.done" && !eventText(row.board_name ?? "").trim()) {
       await sql`update card_events set published_at = now() where id = ${row.id}`;
       continue;
     }

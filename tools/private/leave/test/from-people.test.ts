@@ -115,3 +115,12 @@ test("a leaving checklist in People sets the last day unless one is set another 
   await stays(sofia.id, "2026-09-29T12:04:00Z");
   assert.equal((await staffRow(sql, sofia.id)).endDate, "2027-01-31");
 });
+
+test("People's types are read from People only (the source the Chest stamps); the week as text, as People's chest.json declares it", async () => {
+  const { sql } = database;
+  const before = await staffRow(sql, sofia.id);
+  assert.equal(await chest.deliver({ type: "people.record", source: "hiring", data: full(sofia.id, { employeeNumber: "0777" }) }, POST), 204);
+  assert.equal((await staffRow(sql, sofia.id)).employeeNumber, before.employeeNumber, "another tool's word changes nothing");
+  assert.deepEqual(readRecord(full(sofia.id, { workDays: "1,2,3,4,5" }))?.workDays, [1, 2, 3, 4, 5]);
+  assert.equal(readRecord(full(sofia.id, { workDays: "1,9" })), null);
+});

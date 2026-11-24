@@ -78,11 +78,12 @@ export function handlers(sql: Sql): events.Handlers<Received> {
       await keepInLine(sql);
       await events.acknowledgeErasure(event.data.erasure);
     },
-    // People's (any audience: Leave applies a record or a last day to the
-    // person's leave rules, and shows them to no one by themselves).
-    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); await keepInLine(sql); },
-    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); await keepInLine(sql); },
-    "people.leaving-cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); await keepInLine(sql); },
+    // People's, from People only (the source the Chest stamps): any
+    // audience — Leave applies a record or a last day to the person's leave
+    // rules, and shows them to no one by themselves.
+    "people.record": async e => { if (e.source !== "people") return; await fromRecord(sql, e.data, new Date(e.occurredAt)); await keepInLine(sql); },
+    "people.leaving": async e => { if (e.source !== "people") return; await fromLeaving(sql, e.data, new Date(e.occurredAt), false); await keepInLine(sql); },
+    "people.leaving-cancelled": async e => { if (e.source !== "people") return; await fromLeaving(sql, e.data, new Date(e.occurredAt), true); await keepInLine(sql); },
   };
 }
 
