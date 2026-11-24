@@ -5,7 +5,7 @@ import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
 import { download, formToken, solveWork, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
-import { applies, comparable } from "../dist/runtime.js";
+import { applies, comparable, verdict } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, settled, testDatabase } from "../dist/testing.js";
 
@@ -259,14 +259,18 @@ test("settled(): waits for after()'s tasks, and those they start", async () => {
 });
 
 test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
-  const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
+  const read = { ticket: 3, latest: 3, move: 1, moves: 1, since: 4, actions: 4, sending: 0, loading: 0 };
+  assert.equal(verdict({ ...read, navigation: false }), "show");
   assert.equal(applies({ ...read, navigation: false }), true);
-  assert.equal(applies({ ...read, navigation: false, latest: 4 }), false, "a newer read is on its way");
-  assert.equal(applies({ ...read, navigation: false, moves: 2 }), false, "a navigation came since: this refresh read the old address");
-  assert.equal(applies({ ...read, navigation: false, sending: 1 }), false, "an action is on its way");
-  assert.equal(applies({ ...read, navigation: false, settled: false }), false, "an action was on its way when it started");
-  assert.equal(applies({ ...read, navigation: true, latest: 5, sending: 1, settled: false }), true, "the person's own click");
-  assert.equal(applies({ ...read, navigation: true, moves: 2 }), false, "but not a click followed by another");
+  assert.equal(verdict({ ...read, navigation: false, latest: 4 }), "drop", "a newer read is on its way");
+  assert.equal(verdict({ ...read, navigation: false, moves: 2 }), "drop", "a navigation came since: this refresh read the old address");
+  assert.equal(verdict({ ...read, navigation: false, loading: 1 }), "drop", "a navigation is on its way: this refresh reads the page being left");
+  assert.equal(verdict({ ...read, navigation: false, loading: 1, moves: 2 }), "drop");
+  assert.equal(verdict({ ...read, navigation: false, sending: 1, actions: 5 }), "again", "an action is on its way");
+  assert.equal(verdict({ ...read, navigation: false, actions: 6 }), "again", "an action started and ended while it was on its way");
+  assert.equal(applies({ ...read, navigation: false, actions: 6 }), false);
+  assert.equal(verdict({ ...read, navigation: true, latest: 5, sending: 1, actions: 9, loading: 1 }), "show", "the person's own click");
+  assert.equal(verdict({ ...read, navigation: true, moves: 2 }), "drop", "but not a click followed by another");
 });
 
 test("a rule shared with the browser refuses with the server's own AppError", () => {

@@ -39,5 +39,5 @@ it also checks the report's size figures (`lab/starter-bench/sizes.mjs
 --check`).
 
 Versions: `0.1.0-studio.N`, raised at every change a tool must re-vendor
-(this copy: `0.1.0-studio.12`).
+(this copy: `0.1.0-studio.13`).
 MIT.

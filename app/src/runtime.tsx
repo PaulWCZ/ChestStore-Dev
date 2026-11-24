@@ -69,6 +69,8 @@ export async function startIslands(islands: Record<string, ComponentType<never>>
   // at the scroll it was left at.
   history.scrollRestoration = "manual";
   addEventListener("popstate", event => {
+    // The address has moved: a navigation on its way is the page left.
+    moves++;
     const scroll = (event.state as { scroll?: number } | null)?.scroll ?? 0;
     void refresh().then(shown => { if (shown) scrollTo(0, scroll); });
   });
@@ -109,6 +111,23 @@ const islandsIn = (node: Node): Element[] => (node instanceof Element ? [...(nod
 let latest = 0;
 let moves = 0;
 let sending = 0;
+// Actions started or answered so far: a read across one may predate it.
+let actions = 0;
+// The navigation on its way (its move), 0 when none.
+let navigating = 0;
+// Resolved at the first moment no action is on its way, once what an
+// answered action does next (its refresh, its redirect, the island's own
+// navigate()) has started.
+const settledWaiters: (() => void)[] = [];
+function whenSettled(): Promise<void> {
+  return new Promise(resolve => {
+    settledWaiters.push(resolve);
+    if (sending === 0) wake();
+  });
+}
+function wake(): void {
+  setTimeout(() => { if (sending === 0) settledWaiters.splice(0).forEach(resolve => resolve()); }, 0);
+}
 export function refresh(): Promise<boolean> {
   return load(location.href, false);
 }
@@ -139,9 +158,26 @@ const entryOf = (doc: Document) => doc.querySelector<HTMLScriptElement>('head sc
 async function load(href: string, push: false | "push" | "replace"): Promise<boolean> {
   const ticket = ++latest;
   const move = push ? ++moves : moves;
-  // A page read while an action is on its way may predate it: not shown
-  // (the action's own refresh follows).
-  const settled = sending === 0;
+  if (push) navigating = move;
+  // A page read while an action starts or ends may predate it: not shown.
+  const since = actions;
+  let outcome: boolean | "again";
+  try {
+    outcome = await readPage(href, push, { ticket, move, since });
+  } finally {
+    if (push && navigating === move) navigating = 0;
+  }
+  if (outcome !== "again") return outcome;
+  // Dropped for an action only: once the actions are answered, read again
+  // — unless what they did next read the page itself (the action's own
+  // refresh, a redirect, a navigation): that read wins.
+  await whenSettled();
+  if (ticket !== latest || move !== moves || (navigating !== 0 && navigating === moves)) return false;
+  return load(location.href, false);
+}
+
+async function readPage(href: string, push: false | "push" | "replace", { ticket, move, since }: { ticket: number; move: number; since: number }): Promise<boolean | "again"> {
+  const now = () => verdict({ navigation: push !== false, ticket, latest, move, moves, since, actions, sending, loading: navigating });
   let response: Response;
   let html: string | null = null;
   try {
@@ -156,7 +192,8 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     if (ticket === latest) toast({ id: "refresh", text: words.unavailable, tone: "error" });
     return false;
   }
-  if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
+  const first = now();
+  if (first !== "show") return first === "again" ? "again" : false;
   if (response.status === 304 && push === false) {
     unchanged = true;
     return true;
@@ -207,12 +244,21 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     else location.reload();
     return false;
   }
-  if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
+  const second = now();
+  if (second !== "show") return second === "again" ? "again" : false;
+  // A navigation read across an action (shown: the person's click) may
+  // predate it: read again once the actions are answered.
+  if (push !== false && (since !== actions || sending > 0)) {
+    void whenSettled().then(() => { if (moves === move + 1) void refresh(); });
+  }
   const read = comparable(html, metaOf(next, "chest-render"));
   unchanged = push === false && read === lastRead;
   lastRead = read;
   setMeta("chest-version", metaOf(next, "chest-version"));
   setMeta("chest-render", metaOf(next, "chest-render"));
+  // A navigation put in place: a refresh that started before (it read the
+  // page left) is not shown.
+  if (push !== false) moves++;
   if (unchanged) return true;
   // The page left keeps its scroll in its history entry (Back finds it).
   if (push === "push") {
@@ -249,16 +295,28 @@ const hashOf = (href: string, response: Response) => (response.redirected ? "" :
 // its HTML put in place as refresh() does, the address in the history,
 // the top of the page in view, the layout's islands (a toast and its
 // Undo) kept. Another part or another site: a plain page load.
-// Whether a page read may be put in place when it arrives. A navigation is
-// the person's own click: shown unless another navigation came after it —
-// never dropped for a refresh or an action on its way. A refresh is shown
-// only if it is the newest read, no navigation came since it started, and
-// no action was or is on its way (its page may predate it).
-export function applies(r: { navigation: boolean; ticket: number; latest: number; move: number; moves: number; settled: boolean; sending: number }): boolean {
-  if (r.move !== r.moves) return false;
-  if (r.navigation) return true;
-  return r.ticket === r.latest && r.settled && r.sending === 0;
+// What to do with a page read when it arrives: "show" it, "drop" it, or
+// read the page "again" once the actions are answered.
+// - A navigation is the person's own click: shown unless another
+//   navigation (or Back, Forward) came after it — never dropped for a
+//   refresh or an action (read again after it is shown, when an action
+//   started or ended while it was on its way).
+// - A refresh is dropped when a newer read started, a navigation came
+//   since it started (moves counts their start and the moment they are
+//   shown), or a navigation is on its way (it reads the page being left:
+//   its 404 must not reload over the navigation). It is read again when
+//   an action started or ended since it started, or one is on its way:
+//   its page may predate the action.
+// ticket/latest: the reads; move/moves: the navigations; since/actions:
+// the actions' starts and ends; loading: the navigation on its way.
+export type PageRead = { navigation: boolean; ticket: number; latest: number; move: number; moves: number; since: number; actions: number; sending: number; loading: number };
+export function verdict(r: PageRead): "show" | "drop" | "again" {
+  if (r.move !== r.moves) return "drop";
+  if (r.navigation) return "show";
+  if (r.ticket !== r.latest || (r.loading !== 0 && r.loading === r.moves)) return "drop";
+  return r.since === r.actions && r.sending === 0 ? "show" : "again";
 }
+export const applies = (r: PageRead): boolean => verdict(r) === "show";
 
 // top: false keeps the scroll and the focus where they are (a card opened
 // beside its board, a filter); true (default) shows the new page's top and
@@ -421,6 +479,7 @@ async function request<T>(url: string, headers: Record<string, string>, body: Bo
   let outcome!: Outcome<T> & { redirect?: string };
   const refused = (message: string, error = "unavailable") => ({ ok: false, error, message }) as typeof outcome;
   sending++;
+  actions++;
   try {
     // A public page's form token (a bounded action requires it).
     const action = actionOf(url);
@@ -458,6 +517,8 @@ async function request<T>(url: string, headers: Record<string, string>, body: Bo
     outcome = refused(words.unavailable);
   } finally {
     sending--;
+    actions++;
+    if (sending === 0) wake();
   }
   return outcome;
 }
