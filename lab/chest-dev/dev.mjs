@@ -251,10 +251,10 @@ const chest = await testing.fakeChest({
   // the tool's POST /chest-webhooks.
   ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: `http://127.0.0.1:${inner}` } } : {}),
   // The Chest (contract 0.4: CHEST_ORGANIZATION, CHEST_TIME_ZONE,
-  // CHEST_LANGUAGE, CHEST_CURRENCY, the team host CHEST_TEAM_URL and, for a
+  // CHEST_LANGUAGE, the team host CHEST_TEAM_URL and, for a
   // tool with a public part, the public host CHEST_PUBLIC_URL — null:
   // none).
-  chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", teamUrl: origin, publicUrl: manifest.public ? publicOrigin : null },
+  chest: { organization: "Atelier Martin", timeZone: zone, language: "en", teamUrl: origin, publicUrl: manifest.public ? publicOrigin : null },
   // The company's look (Proposal (studio)): its own identity for every tool
   // until the switcher on /_dev says otherwise.
   theme: {},
@@ -299,7 +299,7 @@ if (flag("linked")) {
 // (chest.json), from the shell when it has them, as the owner would set
 // them in the Chest.
 const pkg = JSON.parse(readFileSync(join(tool, "package.json"), "utf8"));
-const chestEnv = Object.fromEntries(["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
+const chestEnv = Object.fromEntries(["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
 const declared = Object.fromEntries((manifest.env ?? []).filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
 const dev = !flag("prod") && typeof pkg.scripts?.dev === "string";
 const env = {
@@ -668,7 +668,9 @@ function front(request, response, host) {
   // A contract-0.4 Chest names no visitor: the header is a proposal (SDK
   // report §4.8), sent only with --visitor-address, so public forms are
   // tested as they will run today (every visitor unknown).
-  if (host === "public" && flag("visitor-address")) headers["chest-visitor-address"] = String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "");
+  // With it, the front also sets Chest-Visitor, the key visitors.visitor()
+  // reads (SDK studio.2: an HMAC the Chest holds), as the fake plays it.
+  if (host === "public" && flag("visitor-address")) for (const [name, value] of typeof chest.visitorHeaders === "function" ? chest.visitorHeaders(String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "")) : new Headers({ "chest-visitor-address": String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "") })) headers[name] = value;
   if (decision.member) headers["chest-member"] = testing.signAssertion(current(request));
   void toTool(host, request, response, headers);
 }

@@ -96,18 +96,17 @@ export async function startFakeChest(dir, port) {
     ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: origin } } : {}),
     // https placeholders, as the Chest gives https origins (0.4.x's
     // chest.tool refuses anything else): the bench follows no link.
-    chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", teamUrl: teamUrl, publicUrl: manifest.public ? publicUrl : null },
+    chest: { organization: "Atelier Martin", timeZone: zone, language: "en", teamUrl: teamUrl, publicUrl: manifest.public ? publicUrl : null },
     theme: {},
   });
   // The Chest's variables the fake wrote in this process's environment.
-  const names = ["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"];
+  const names = ["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"];
   const chestEnv = Object.fromEntries(names.filter((n) => process.env[n] !== undefined).map((n) => [n, process.env[n]]));
   // A Chest gives these whatever the SDK version (0.4): set them when an
   // older fake does not.
   chestEnv.CHEST_ORGANIZATION ??= "Atelier Martin";
   chestEnv.CHEST_TIME_ZONE ??= zone;
   chestEnv.CHEST_LANGUAGE ??= "en";
-  chestEnv.CHEST_CURRENCY ??= "EUR";
   chestEnv.CHEST_TEAM_URL ??= teamUrl;
   if (manifest.public) chestEnv.CHEST_PUBLIC_URL ??= publicUrl;
   const idOf = (key) => "mbr_" + key + "a".repeat(26 - key.length);
