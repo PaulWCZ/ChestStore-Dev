@@ -688,6 +688,11 @@ await step("a dialog never loses what was typed: Escape asks first; Keep editing
 await step("two managers at once: a take-back from a page read before someone else's is refused (it moved), and the page shows where it is", async () => {
   await as(context, origin, "sofia");
   await english();
+  // A page read before someone else's write: with the Chest's realtime the
+  // item page reads itself again at once, so Sofia's page is cut from it
+  // (its connection refused, as on a network that dropped it) to stay as
+  // read.
+  await page.routeWebSocket(/\/_chest\/realtime$/u, ws => ws.close());
   await page.goto(itemUrl);
   if (await page.getByRole("button", { name: "Take back" }).count() === 0) {
     await page.getByRole("button", { name: "Give to someone" }).click();

@@ -6,12 +6,11 @@
 // approves the links and events.emit answers how many tools an event
 // reached — the harness's fake Chest always answers none, as a Chest whose
 // owner approved no link.)
-import { as, done, expect, open, step } from "./lib.mjs";
+import postgres from "postgres";
+import { as, done, expect, open, step, toolDatabase, watchRealtime } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 6800);
-// /_chest/realtime: a page's live channel (SDK 0.7.0 realtime); this
-// harness does not serve the Chest's realtime (lab/chest-dev/README.md).
-const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(zzzzzzzz|chest\/forms\/2|_chest\/realtime)$/u });
+const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(zzzzzzzz|chest\/forms\/2)$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
@@ -719,9 +718,29 @@ await step("pass 4: a manager lets everyone make forms: a member makes one, owns
   expect(await page.locator("#form-title").inputValue() === "Hugo's team quiz", "his form is still his to edit");
 });
 
+// SDK 0.7.0's realtime: the forms page left open joins "forms" on the
+// Chest; a form written (here by the database itself) is a row of the feed
+// "forms", and the page reads itself again without a reload.
+await step("the forms page left open follows the Chest's realtime: a form renamed elsewhere shows its new name without a reload", async () => {
+  await as(context, origin, "ines");
+  await english();
+  const live = watchRealtime(page);
+  await page.goto(origin + "/chest");
+  const card = page.locator("a.form-card").first();
+  await card.waitFor();
+  const id = Number(/\/chest\/forms\/(\d+)/u.exec((await card.getAttribute("href")) ?? "")?.[1]);
+  expect(id > 0, "a form on the page");
+  await live.joined();
+  const sql = postgres(toolDatabase("forms", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update forms set draft = jsonb_set(draft, '{title}', '"Live renamed form"'), updated_at = now() where id = ${id}`;
+  } finally {
+    await sql.end();
+  }
+  await live.received(f => f.op === "msg" && f.event === "forms.update" && f.payload?.id === id);
+  await page.locator("a.form-card", { hasText: "Live renamed form" }).waitFor({ timeout: 10000 });
+});
+
 await phone.close();
 await browser.close();
-// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
-// a page's live channel (SDK 0.7.0 realtime) cannot connect here, and the
-// page stays as read. Its refusals are the harness's, not Forms'.
-done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));
+done(problems);

@@ -7,3 +7,4 @@
 - `05-critique.md`, `05-critique/<tool>.md` — the severe critique of every tool, with its October update
 - `06-perseus-starter.md` — the proposed Perseus starter (`starter/` on `app/`) compared with `reference/perseus-starter`, with measurements (brief/08)
 - `07-stack-and-memory.md` — the 18 tools before (Next.js) and after (the studio stack): memory at rest, cold start, image, build (brief/08)
+- `08-sdk-0.7.md` — the 18 tools on SDK 0.7.0 (contract 0.7): currency and zone in the tools, what is impossible or degraded, with the tool and code that prove it, sealed values, realtime, and the needs for the SDK report
