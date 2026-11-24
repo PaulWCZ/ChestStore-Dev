@@ -7,6 +7,11 @@ import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5500);
 const { browser, context, page, origin, problems } = await open(port, "sofia", { locale: "en" });
+// A page that follows the Chest's realtime reads itself once just after it
+// joins (what came between its render and the join): a flow goes on once
+// that read is done, as a person would (they never act in the first 200 ms).
+const plainGoto = page.goto.bind(page);
+page.goto = (url, options) => plainGoto(url, { waitUntil: "networkidle", ...options });
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 // Another member in the same browser: the page left first, so that a read

@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "news",
   "title": "News",
   "description": "The company's front page: announcements, events, new colleagues — and who has read what matters.",
@@ -17,11 +17,49 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
     "member.*"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "news"
+      },
+      {
+        "name": "post:*"
+      },
+      {
+        "name": "mine:{member}"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "posts",
+        "channel": "news",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "comments",
+        "channel": "post:{post_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "reactions",
+        "channel": "post:{post_id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "publish",

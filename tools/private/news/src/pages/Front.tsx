@@ -38,7 +38,8 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
   const names = all.some(p => p.groups.length > 0) ? await groupNames() : new Map<string, string>();
   const audience = (p: (typeof all)[number]) => audienceLabel(p, names, locale);
   const byline = (id: string): Byline => (id === member.id ? { name: t.people.you, photo: member.photo } : { name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null });
-  const d = dates(locale, zone, now);
+  // Instants on the reader's own clock; the company's day on the Chest's.
+  const d = dates(locale, member.timeZone, now, zone);
   const isNew = (p: (typeof all)[number]) => marker !== null && p.author !== member.id && p.publishAt > marker;
   const words = { kinds: t.kinds, front: t.front, event: t.event };
   const page = Number(/^[1-9][0-9]{0,4}$/u.test(pageText) ? pageText : "1");
@@ -65,7 +66,7 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
   const toApprove = publisher ? await waitingCount(sql) : 0;
   return { title: t.tool.name, body: (
     <div className="front">
-      <Island name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island name="LiveFront" props={{}} />
       <header className="nameplate">
         <p className="dateline"><span>{d.today()}</span></p>
         <h1>{t.tool.name}</h1>

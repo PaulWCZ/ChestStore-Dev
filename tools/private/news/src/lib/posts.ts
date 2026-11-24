@@ -152,7 +152,7 @@ function publisher(actor: Member | null): Member {
 export const forPerson = (sql: Query, person: Grouped) => sql`(
   (not exists (select 1 from post_groups g where g.post_id = p.id) and not exists (select 1 from post_people pp where pp.post_id = p.id))
   or exists (select 1 from post_people pp where pp.post_id = p.id and pp.member = ${person.id})
-  ${person.groups.length > 0 ? sql`or exists (select 1 from post_groups g where g.post_id = p.id and g.group_id in ${sql([...person.groups])})` : sql``})`;
+  ${(person.groups ?? []).length > 0 ? sql`or exists (select 1 from post_groups g where g.post_id = p.id and g.group_id in ${sql([...(person.groups ?? [])])})` : sql``})`;
 
 // Who sees a post kept to an audience: its audience, its author, the
 // Chest's admins (lib/access.ts, seesPost).
@@ -642,14 +642,14 @@ export async function editComment(sql: Sql, actor: Member | null, commentId: unk
 
 // "I have read it": on an Important post, by an explicit click; it counts
 // for the version of the text the post asks to confirm.
-export async function confirm(sql: Sql, actor: Member | null, postId: unknown): Promise<{ id: string }> {
+export async function confirm(sql: Sql, actor: Member | null, postId: unknown): Promise<{ id: string; author: string }> {
   const who = reader(actor);
   const row = await visible(sql, who, postId);
   // Only its audience is asked (an admin or the author outside it is not).
   if (!row.important || row.publish_at.getTime() > Date.now() || !inAudience(who, row)) throw new AppError("invalid");
   await sql`insert into confirmations (post_id, member, version) values (${row.id}, ${who.id}, ${row.text_version})
     on conflict (post_id, member) do update set version = excluded.version, at = now() where confirmations.version < ${row.confirm_from}`;
-  return { id: String(row.id) };
+  return { id: String(row.id), author: row.author };
 }
 
 // Coming or not to an event, until the end of its last day; null takes the

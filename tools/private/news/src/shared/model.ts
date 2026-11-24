@@ -61,11 +61,15 @@ export const groupPattern = /^grp_[a-z2-7]{26}$/u;
 // members of some of the Chest's groups and some people picked by hand:
 // either lets a person in. Pure: the composer counts with it too.
 export type Audience = { groups: readonly string[]; people: readonly string[] };
-export type Grouped = { id: string; groups: readonly string[] };
+// A person's groups may be null (SDK 0.7.0: a member in more groups than a
+// request carries, about 150 — the server completes them first): none then,
+// the safe answer.
+export type Grouped = { id: string; groups: readonly string[] | null };
 
 export function inAudience(person: Grouped, post: Audience): boolean {
   if (post.groups.length === 0 && post.people.length === 0) return true;
-  return post.people.includes(person.id) || post.groups.some(g => person.groups.includes(g));
+  const mine = person.groups ?? [];
+  return post.people.includes(person.id) || post.groups.some(g => mine.includes(g));
 }
 
 export const isEveryone = (post: Audience): boolean => post.groups.length === 0 && post.people.length === 0;

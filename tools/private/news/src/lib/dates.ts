@@ -1,12 +1,13 @@
 // Safe in the browser: no SDK here.
-// How a page writes days and times: in the reader's language, on the
-// Chest's clock (its time zone).
+// How a page writes days and times: in the reader's language; instants on
+// the clock of `zone` (a member's page: the member's own), the company's
+// day ("today", the front page's dateline) on the Chest's (`company`).
 import { format, formatDate, relative } from "../i18n/index.ts";
 import type { EventInfo } from "./posts.ts";
 
 export type Dates = ReturnType<typeof dates>;
 
-export function dates(locale: string, zone: string, now = new Date()) {
+export function dates(locale: string, zone: string, now = new Date(), company = zone) {
   const at = (value: string, options: Intl.DateTimeFormatOptions) => formatDate(value, locale, { ...options, timeZone: zone });
   // A day of the calendar ("YYYY-MM-DD") is the same everywhere: read at noon UTC.
   const day = (value: string, options: Intl.DateTimeFormatOptions) => formatDate(value + "T12:00:00Z", locale, { ...options, timeZone: "UTC" });
@@ -15,7 +16,7 @@ export function dates(locale: string, zone: string, now = new Date()) {
     full: (value: string) => at(value, { dateStyle: "long", timeStyle: "short" }),
     date: (value: string) => at(value, { day: "numeric", month: "long", year: "numeric" }),
     short: (value: string) => at(value, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
-    today: () => at(now.toISOString(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+    today: () => formatDate(now.toISOString(), locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: company }),
     time: (value: string) => at(value, { hour: "numeric", minute: "2-digit" }),
     dayLong: (value: string) => day(value, { weekday: "long", day: "numeric", month: "long" }),
     dayNumber: (value: string) => day(value, { day: "numeric" }),

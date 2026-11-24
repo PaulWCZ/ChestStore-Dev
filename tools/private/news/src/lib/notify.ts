@@ -9,7 +9,7 @@ import { people } from "./people.ts";
 // (Proposal (studio), announced for 0.5) — and the Chest shows each member
 // theirs. The Chest emails members their notifications by each member's
 // choice: News never emails a member. A notification is a courtesy: when
-// the Chest cannot take it (not granted, quota, unreachable), the action
+// the Chest cannot take it (not granted, unreachable), the action
 // that sent it still succeeds.
 export type Words = (t: Catalogue, locale: Locale) => { title: string; body?: string };
 

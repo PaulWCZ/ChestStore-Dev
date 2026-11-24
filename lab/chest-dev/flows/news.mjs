@@ -10,6 +10,11 @@ import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4500);
 const { browser, context, page, origin, problems } = await open(port, "camille", { language: "en" });
+// A page that follows the Chest's realtime reads itself once just after it
+// joins (what came between its render and the join): a flow goes on once
+// that read is done, as a person would (they never act in the first 200 ms).
+const plainGoto = page.goto.bind(page);
+page.goto = (url, options) => plainGoto(url, { waitUntil: "networkidle", ...options });
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -108,7 +113,9 @@ await step("after 10 seconds, everyone gets a notification in their language —
   expect(!(await page.locator(".ck-toast", { hasText: "Sent." }).locator(".ck-toast-undo").count()), "once sent, no Undo");
   const text = await dev();
   expect(!text.includes("<b>Important: New badges from Monday</b>"), "no email to members");
-  expect(has(text, `fr: Important${sp}: New badges from Monday`), "the notice's French words");
+  // SDK 0.7.0: the Chest keeps each member's item in their language — the
+  // French members' items are in French.
+  expect(has(text, `Important${sp}: New badges from Monday`) && has(text, "Important: New badges from Monday"), "the notice in French and in English");
   expect(text.includes("Important: New badges from Monday"), "and its English ones");
 });
 
@@ -131,15 +138,50 @@ await step("a reader confirms from the front page; reacts and comments", async (
   expect(status === 404, "a reader cannot open the composer: " + status);
 });
 
+await step("a post's page left open follows its readers as they confirm — the Chest's realtime, never a timer — and its author, watching, is not notified of a comment", async () => {
+  // (This harness relays what News publishes; the feeds of the tables
+  // — a comment, a reaction — are the Chest's triggers, which it does not
+  // run: those are proven by the tests on the SDK's fake.)
+  const author = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 }, locale: "en-GB" });
+  await author.addCookies([{ name: "dev_member", value: "mbr_camille" + "a".repeat(19), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+  const own = await author.newPage();
+  own.on("pageerror", e => problems.push("page: " + e.message));
+  await own.goto(badgesUrl);
+  const before = await own.locator(".readers").innerText();
+  // Joined, the page reads itself once; then, left open, it asks nothing.
+  await own.waitForTimeout(1500);
+  const reads = [];
+  own.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+  await own.waitForTimeout(3000);
+  expect(reads.length === 0, "an idle page asks nothing: " + reads.join(", "));
+  const commented = async () => ((await dev()).match(/a commenté|commented on/gu) ?? []).length;
+  const bellBefore = await commented();
+  // Inès, from her own browser, comments and confirms.
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await other.addCookies([{ name: "dev_member", value: "mbr_ines" + "a".repeat(22), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
+  const ines = await other.newPage();
+  await ines.goto(badgesUrl);
+  await ines.getByLabel("Votre commentaire").fill("Merci pour l’info !");
+  await ines.getByRole("button", { name: "Commenter", exact: true }).click();
+  await ines.locator(".thread", { hasText: "Merci pour l’info" }).waitFor();
+  expect(await commented() === bellBefore, "Camille, watching, is not notified of the comment");
+  await ines.getByRole("button", { name: "Je l’ai lue" }).click();
+  await ines.waitForSelector(".confirm-box.done");
+  await own.waitForFunction(text => document.querySelector(".readers")?.innerText !== text, before, { timeout: 10_000 });
+  expect(reads.length > 0 && (await own.locator(".thread").innerText()).includes("Merci pour l’info"), "read again in place, the comment with it");
+  await other.close();
+  await author.close();
+});
+
 await step("the publisher sees who read it, reminds the others, downloads the list", async () => {
   await as(context, origin, "camille");
   await page.goto(badgesUrl);
   const readers = await page.locator(".readers").innerText();
-  expect(/Read by 1 of 6/u.test(readers), "count: " + readers.split("\n")[0]);
-  expect(readers.includes("Hugo Bernard"), "Hugo confirmed");
+  expect(/Read by 2 of 6/u.test(readers), "count: " + readers.split("\n")[0]);
+  expect(readers.includes("Hugo Bernard") && readers.includes("Inès Moreau"), "Hugo and Inès confirmed");
   expect(readers.includes("Nora Petit") && !readers.includes("Unknown member"), "those who have not, by name");
   await page.getByRole("button", { name: "Remind those who have not" }).click();
-  await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Reminder sent to 5 people')");
+  await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Reminder sent to 4 people')");
   const csv = await (await page.request.get(badgesUrl + "/confirmations")).text();
   expect(csv.includes("Hugo Bernard,Confirmed"), "csv confirmed row");
   expect(csv.includes("Not yet"), "csv pending rows");
@@ -169,7 +211,8 @@ await step("a publisher adds a picture to the lead story, then deletes a post an
   await page.waitForSelector(".cover-preview img", { timeout: 8000 });
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.waitForURL(/\/chest\/posts\/4$/u);
-  expect(await page.locator(".cover img").isVisible(), "cover on the article");
+  // The picture shows once loaded (a page read in place: waited for, not sampled).
+  expect(await page.locator(".cover img").waitFor({ timeout: 5000 }).then(() => true, () => false), "cover on the article");
   await page.goto(origin + "/chest/posts/2");
   await page.getByRole("button", { name: "Delete" }).click();
   await page.waitForURL(origin + "/chest");
@@ -362,7 +405,7 @@ await step("two languages: each reader sees theirs", async () => {
   expect((await page.locator("#headline").innerText()) === "Cantine fermée vendredi", "Inès reads French");
   await page.getByRole("link", { name: "Read in English" }).click();
   await page.waitForURL(u => u.searchParams.get("lang") === "en");
-  expect((await page.locator("#headline").innerText()) === "Canteen closed on Friday", "and may read the English one");
+  expect(await page.locator("#headline", { hasText: "Canteen closed on Friday" }).waitFor({ timeout: 5000 }).then(() => true, () => false), "and may read the English one");
 });
 
 await step("an event with places: a waiting list, and the Chest's calendar", async () => {
