@@ -365,9 +365,19 @@ in `src/lib/access.ts` and tested per role.
 - **Live without polling** (`realtime`): *My expenses* joins the member's
   own channel (`mine:<id>`), where the tool publishes "expenses.changed"
   when someone else changes their expenses (approved, refused, paid, a card
-  payment's draft); *To approve* joins `desk` (accountants and approvers),
-  the feed of the table `expenses` (its ids only: the page reads the rest,
-  checking who may see what). The Chest holds the connections, so the
+  payment's draft); *To approve* joins its reader's desk —
+  `desk:<approver>` for an approver, `desk:accountants` for the
+  accountants —, where a row of `desk_events` arrives (its id only: the
+  page reads the rest, checking who may see what) at each write of an
+  expense sent to that desk, and when one leaves it (reassigned, taken
+  back, refused). **Nobody hears of a draft, and an approver only of the
+  expenses sent to them**: a trigger writes `desk_events` (migration 0008;
+  the table `expenses` itself is not fed), and the Chest checks the table
+  `desk_live` at every join, where the tool writes a row once *To approve*
+  checked the reader's role. The rows go when their role changes, their
+  access is revoked, they leave or are erased; the Chest takes them out at
+  once, and the page, read again (a count of exits is part of its version:
+  never a 304), lets them in again if still allowed. The Chest holds the connections, so the
   tool sleeps while the pages stay open; no timer anywhere.
 - Memory: the CSV is bounded to 20,000 lines; the ZIP is streamed with one
   receipt in memory at a time (10 MB at most), 5,000 receipts and 1 GB per

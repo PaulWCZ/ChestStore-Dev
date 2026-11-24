@@ -32,17 +32,18 @@
         "name": "mine:{member}"
       },
       {
-        "name": "desk",
-        "join": [
-          "accountant",
-          "approver"
-        ]
+        "name": "desk:{key}",
+        "join": {
+          "table": "desk_live",
+          "key": "desk_key",
+          "member": "member_id"
+        }
       }
     ],
     "feeds": [
       {
-        "table": "expenses",
-        "channel": "desk",
+        "table": "desk_events",
+        "channel": "desk:{desk_key}",
         "columns": [
           "id"
         ]

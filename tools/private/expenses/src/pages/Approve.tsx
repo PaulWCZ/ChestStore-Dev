@@ -5,6 +5,7 @@ import { localeOf, plural, relative } from "../i18n/index.ts";
 import type { PersonGroup } from "../islands/ApproveView.tsx";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { decided, totals, waiting, warnings, type Expense } from "../lib/expenses.ts";
 import { formatMoney } from "../shared/money.ts";
 import { leftNote, nameOf, people } from "../lib/people.ts";
@@ -26,6 +27,8 @@ export async function approvePage({ member, t, locale: language }: PageContext):
   const money = (l: Expense[]) => totals(l).map(x => formatMoney(x.amount, x.currency, locale)).join(" + ");
   const byOwner = new Map<string, Expense[]>();
   for (const e of list) byOwner.set(e.owner, [...(byOwner.get(e.owner) ?? []), e]);
+  // Its reader's desk, followed live (lib/live.ts): the role was checked above.
+  const [desk] = await admit(sql, member);
   const now = new Date();
   const groups: PersonGroup[] = [...byOwner].map(([owner, l]) => ({
     owner,
@@ -42,7 +45,7 @@ export async function approvePage({ member, t, locale: language }: PageContext):
     title: t.approve.title,
     body: (
       <div className="page">
-        <Island name="Live" props={{ channel: "desk", names: ["expenses"] }} />
+        {desk && <Island name="Live" props={{ channel: desk.channel, ticket: desk.ticket, names: ["desk_events.insert"] }} />}
         <div className="page-head"><h1>{t.approve.title}</h1></div>
         <Island
           name="ApproveView"

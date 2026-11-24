@@ -1,6 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { forgetInRuns } from "./payments.ts";
+import * as live from "./live.ts";
 import { forget } from "./receipts.ts";
 import { refresh, settleWaiting } from "./tell.ts";
 
@@ -21,6 +22,8 @@ import { refresh, settleWaiting } from "./tell.ts";
 //   Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   const owners = await sql.begin(async tx => {
+    // They follow no desk live any more (lib/live.ts).
+    await live.forget(tx, memberId);
     await tx`delete from approvers where approver_id = ${memberId}`;
     const moved = await tx<{ id: string; member_id: string }[]>`
       update expenses set approver_id = null where approver_id = ${memberId} and status = 'submitted' returning id, member_id`;
@@ -33,6 +36,9 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   const objects = await sql.begin(async tx => {
+    await live.forget(tx, memberId);
+    await tx`delete from live_out where member_id = ${memberId}`;
+    await tx`delete from desk_events where desk_key = ${memberId}`;
     await tx`delete from approvers where approver_id = ${memberId} or member_id = ${memberId}`;
     await tx`update expenses set approver_id = null where approver_id = ${memberId} and status = 'submitted'`;
     const drafts = await tx<{ receipt_object: string | null }[]>`
@@ -66,8 +72,11 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await refresh(sql, []);
 }
 
-export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
+export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.revoked" | "member.removed" | "member.erased"> {
   return {
+    // Their role changed (an approver, an accountant, no longer): their
+    // desk is checked again (lib/live.ts).
+    "member.updated": async event => { if (event.data.changed.includes("role")) await live.forget(sql, event.data.id); },
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": event => leave(sql, event.data.id),
     "member.erased": async event => {

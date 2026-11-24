@@ -11,7 +11,7 @@ first. Expenses' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (contract 0.7): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`, `realtime` (channels `mine:{member}`, `desk`; feed of `expenses` on `desk`), `sealed`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY` (only to move 0.2's IBANs to the Chest's sealing); `build.static` `/assets/`. Proposals: `translations` (no `mail`: nobody outside is mailed) |
+| `chest.json`, `chest.proposals.json` | Manifest (contract 0.7): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`, `realtime` (channels `mine:{member}`, `desk:{key}` joined through `desk_live`; feed of `desk_events` — written by a trigger for sent expenses only, migration 0008 — on `desk:{desk_key}`; `src/lib/live.ts`), `sealed`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY` (only to move 0.2's IBANs to the Chest's sealing); `build.static` `/assets/`. Proposals: `translations` (no `mail`: nobody outside is mailed) |
 | `src/app.tsx` | **Every route**: the pages (`expenses()` adds the tabs' numbers, `View.layout`), the downloads (receipts, transfer files, CSV, ZIP streamed, journal, certificates), the receipt reader's files `/chest/ocr/` (their own policy: `'wasm-unsafe-eval'`), `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name: thin, the member from the Chest, values passed as sent (amounts as typed) to the services, which check them |
 | `src/pages/` | One module per page: reads, then hands plain data to its island |

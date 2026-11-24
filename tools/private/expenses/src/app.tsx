@@ -14,7 +14,7 @@ import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
-import { stamp } from "./lib/stamp.ts";
+import { exits, stamp } from "./lib/stamp.ts";
 import { today } from "./lib/today.ts";
 import { receiptObject, sectionCounts } from "./lib/expenses.ts";
 import { exportCsv, exportZip, selectionOf } from "./lib/export.ts";
@@ -63,7 +63,7 @@ const expenses = (render: (p: PageContext) => Promise<View>, { changing = false 
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, counts] = await Promise.all([render(p), sectionCounts(db(), p.member)]);
   return { ...view, layout: { counts } };
-}, changing ? { version: ({ member }) => (roleOf(member) ? stamp(db(), today()) : null) } : {});
+}, changing ? { version: async ({ member }) => (roleOf(member) ? `${await stamp(db(), today())}.${await exits(db(), member.id)}` : null) } : {});
 
 // ---- The members' part (/chest…).
 // My expenses: to send, waiting, approved, paid back.
