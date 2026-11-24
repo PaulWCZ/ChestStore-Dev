@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { noticeIn } from "./support/notices.ts";
 import * as b from "../src/lib/booking.ts";
 import * as mailer from "../src/lib/mailer.ts";
 import * as tell from "../src/lib/tell.ts";
@@ -84,21 +85,25 @@ test("the host hears of a booking in the bell, in English and French, never by e
   const made = { ...(await anyBooking()), guestName: "Kenji Sato", guestNote: "About the oak table" };
   chest.outbox.length = 0;
   chest.notifications.length = 0;
-  await tell.booked(made, "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  const booked = () => tell.booked(made, "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  const en = await noticeIn(chest, ines.id, "en", booked);
   assert.equal(chest.outbox.length, 0, "no mail to a member");
-  assert.equal(chest.notifications.length, 1, "one notice, both languages");
+  assert.equal(chest.notifications.length, 1, "one notice");
   const n = chest.notifications[0]!;
   assert.equal(n.member, ines.id);
   assert.equal(n.key, `booking:${made.id}`);
   assert.equal(n.path, `/chest/bookings/${made.id}`);
-  assert.match(shownTo(n, "en").title, /^Kenji Sato booked /u);
-  assert.match(shownTo(n, "fr").title, /^Kenji Sato a réservé /u);
-  assert.match(shownTo(n, "en").body ?? "", /^Meeting — About the oak table/u);
-  assert.match(shownTo(n, "fr").body ?? "", /^Rendez-vous — About the oak table/u);
+  assert.match(en.title, /^Kenji Sato booked /u);
+  assert.match(en.body ?? "", /^Meeting — About the oak table/u);
+  // The same notice to a member who reads French: its translation.
+  const fr = await noticeIn(chest, ines.id, "fr", booked);
+  assert.equal(chest.notifications.length, 1, "the same key replaces it");
+  assert.match(fr.title, /^Kenji Sato a réservé /u);
+  assert.match(fr.body ?? "", /^Rendez-vous — About the oak table/u);
   // A later notice of the booking replaces it.
-  await tell.cancelled({ ...made, cancelReason: "" }, "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  const cancelled = await noticeIn(chest, ines.id, "en", () => tell.cancelled({ ...made, cancelReason: "" }, "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" }));
   assert.equal(chest.notifications.length, 1);
-  assert.match(shownTo(chest.notifications[0]!, "en").title, /cancelled/u);
+  assert.match(cancelled.title, /cancelled/u);
 });
 
 test("a member is never a mail recipient: the Chest refuses it", async () => {
@@ -164,18 +169,20 @@ test("a colleague moves or cancels a host's booking: the host hears who did it, 
   const made = { ...(await anyBooking()), guestName: "Kenji Sato", cancelReason: "" };
   chest.outbox.length = 0;
   chest.notifications.length = 0;
-  await tell.changedFor("moved", made, "Camille Martin", "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  const moved = () => tell.changedFor("moved", made, "Camille Martin", "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  const en = await noticeIn(chest, made.memberId, "en", moved);
   assert.equal(chest.outbox.length, 0, "no mail to a member");
   const n = chest.notifications[0]!;
   assert.equal(n.member, made.memberId);
   assert.equal(n.key, `booking:${made.id}`);
   assert.equal(n.path, `/chest/bookings/${made.id}`);
-  assert.match(shownTo(n, "en").title, /^Camille Martin moved your booking with Kenji Sato to /u);
-  assert.match(shownTo(n, "fr").title, /^Camille Martin a déplacé votre rendez-vous avec Kenji Sato à /u);
-  assert.equal(shownTo(n, "fr").body, "Rendez-vous");
+  assert.match(en.title, /^Camille Martin moved your booking with Kenji Sato to /u);
+  const fr = await noticeIn(chest, made.memberId, "fr", moved);
+  assert.match(fr.title, /^Camille Martin a déplacé votre rendez-vous avec Kenji Sato à /u);
+  assert.equal(fr.body, "Rendez-vous");
   // The cancellation replaces it, with the colleague's reason.
-  await tell.changedFor("cancelled", { ...made, cancelReason: "Closed that day" }, "Camille Martin", "Europe/Paris");
+  const cancelled = await noticeIn(chest, made.memberId, "en", () => tell.changedFor("cancelled", { ...made, cancelReason: "Closed that day" }, "Camille Martin", "Europe/Paris"));
   assert.equal(chest.notifications.length, 1);
-  assert.match(shownTo(chest.notifications[0]!, "en").title, /^Camille Martin cancelled your booking with Kenji Sato, /u);
-  assert.equal(shownTo(chest.notifications[0]!, "en").body, "Closed that day");
+  assert.match(cancelled.title, /^Camille Martin cancelled your booking with Kenji Sato, /u);
+  assert.equal(cancelled.body, "Closed that day");
 });

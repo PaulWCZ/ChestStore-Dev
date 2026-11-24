@@ -13,12 +13,12 @@ islands, refresh, fields, words, tests).
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest, contract 0.4 (roles `admin`, `host`; public part; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the proposals it uses (`mail`, `calendar`, `emits`, `receives`, `translations`) |
-| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.7), the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `chest.json`, `chest.proposals.json` | Manifest, contract 0.7 (roles `admin`, `host`; public part; `emits` with each type's schema, `receives`; `realtime`: the channel `agenda:*` and the feeds of `bookings` and `blocks`; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the studio proposals it uses (`mail`, `calendar`, `translations`) |
+| `vendor/` | SDK 0.7.0 + studio proposals (0.7.0-studio.2), the UI kit, `@argentic/chest-app` 0.1.0-studio.12: packed copies, never edited |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, `/api/slots`, `/chest/api/slots`, `/chest/export`, `/b/<secret>/ics`, `/feed/<token>.ics`, `/chest-events`, `/chest-schedules`; `framed`: the public pages' `frame-ancestors` from Settings |
 | `src/actions.ts` | **Every mutation**, by name: the team's (`action`) and the public part's (`publicAction`: `bookTime`, `cancelMine`, `moveMine`) |
 | `src/pages/` | Pages rendered on the server: `Agenda`, `Booking`, `NewBooking`, `Types`, `TypeEdit`, `Hours`, `Settings`; public: `CompanyPage`, `HostPage`, `TypePage`, `GuestBooking`, their frame `PublicShell` |
-| `src/islands/` | What runs in the browser (`index.ts` lists them): `AgendaTools` (block a time from the agenda's buttons, `data-block`/`data-unblock`, one island for the whole list), `FreeToggle`, `FirstRun`, `TypeForm`, `TypeSwitch`, `WeekEditor`, `Exceptions`, `OtherCalendars`, the settings' forms, `CancelMeeting`, `MoveMeeting`, `PaidSwitch`, `ForGuest`; public: `BookTime`, `MoveMine`, `CancelMine` |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): `AgendaTools` (block a time from the agenda's buttons, `data-block`/`data-unblock`, one island for the whole list), `FreeToggle`, `FirstRun`, `LiveAgenda` (the agenda and a booking's page follow the Chest's realtime: `useLive("agenda:<host>", ["bookings", "blocks"])`, never a timer), `TypeForm`, `TypeSwitch`, `WeekEditor`, `Exceptions`, `OtherCalendars`, the settings' forms, `CancelMeeting`, `MoveMeeting`, `PaidSwitch`, `ForGuest`; public: `BookTime`, `MoveMine`, `CancelMine` |
 | `src/components/` | Shared by pages and islands, browser-safe: icons, mark, `picker.tsx` (the month grid and times, the guest's form), `zone-select.tsx`, `copy-button.tsx` (also an island), `fold.tsx` |
 | `src/shared/` | Pure modules the browser needs too: `zone.ts` (wall clock ↔ instant), `zones.ts` (the zone list), `kinds.ts` (colours and their classes, kinds, durations, questions' shapes and bounds, hours ranges, slugify). `src/lib/` re-exports them |
 | `src/lib/` | Rules and SQL (below); never imported by an island |
@@ -40,7 +40,7 @@ islands, refresh, fields, words, tests).
 | `src/lib/embed.ts` | The websites allowed to frame the public pages |
 | `src/lib/mailer.ts`, `src/lib/guests.ts`, `src/lib/tell.ts`, `src/lib/notify.ts` | Emails to guests (people outside) through the Chest's mail connector (falling back to the page); the host's bell (notifications with translations) |
 | `src/lib/lifecycle.ts` | Members leaving or erased; `seen` (events and schedule runs handled once, `chest_events`) |
-| `src/lib/public-origin.ts` | The Chest's addresses (`chest.tool.*`); the public form's guard is the package's (`bound`, budgets in `formLimits` of `src/lib/booking.ts`) |
+| `src/lib/public-origin.ts` | The Chest's addresses (`chest.tool.*`); the visitor's key (`visitors.visitor()`, proposal); the public form's guard is the package's (`bound`, budgets in `formLimits` of `src/lib/booking.ts`) |
 | `src/lib/db.ts` | The tool's database pool (`provide()` lets the unit tests hand it their connection) |
 | `test/` | `app.test.mjs` (the built server: routes, policy, look, actions, public pages, framing, files, events, schedules), `stack.test.ts` (the package's `checkSources`, `checkWords`), the services' tests; `support/db.ts` (PGlite with `btree_gist`, or `TEST_DATABASE_URL`) |
 
@@ -86,15 +86,23 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   tool: Hiring's interviews) and the day's limits — all read by `busyOf`;
   a new source goes there, never into the page. The agenda's grey rows
   (`busyElsewhere`) show `busy` and `told_spans` within the hours.
-- **Events between tools**: every new way to make, move or cancel a
+- **Events between tools** (SDK 0.7.0 `events.emit`, schemas in
+  `chest.json` `"emits"`): every new way to make, move or cancel a
   booking, block a time or read a calendar calls `share.changed` or
-  `share.shareBusy` after it. `booking.busy` carries times only and only
+  `share.shareBusy` after it. Data is flat and of the declared kinds (a
+  list of times is JSON text); a new field is declared first (a type's
+  data only grows; another shape is a new type). Keys and subjects are
+  identifiers (`[A-Za-z0-9._:-]`, 128 at most): a guest appears as
+  `guestTag(email)`, never their address. `booking.confirmed`/`cancelled`
+  carry the audience `{members: [host], roles: ["admin"]}`; a received
+  event's audience is kept (`told_busy.audience`) and honoured on the
+  agenda. `booking.busy` carries times only and only
   the host's own (`ownBusy`): never what another tool told Booking (no
   echo). `booking.confirmed` never carries the note, the answers or the
   guest's link. An event's data depends only on what is recorded (`at`
   is `created_at`, `moved_at` or `cancelled_at`, never the time of
   telling): the same key told again must carry the same data, or the
-  Chest refuses it (`key_conflict`). Change a payload only with a new `v`.
+  Chest refuses it (`key_reused`). Change a payload only with a new type.
 - **One type, one name on the team's screens**: show a booking's type
   with `typeNames` / `titlesOf` (the reader's language); `booking.title`
   is what the guest read, for their emails only.
@@ -106,6 +114,10 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
 - **Email keys are whole** (never cut; the SDK hashes a long one) and
   name the recipient when it can change; the same key for other
   recipients is a `key_conflict`.
+- **A page others change is live through realtime, never a timer**: a
+  new table the agenda shows gets a feed in `chest.json` (`"channel":
+  "agenda:{member_id}"`, `"columns": ["id"]`: one feed per table, ids
+  only) and its name in `LiveAgenda`'s `useLive`.
 - **Mail goes to guests only** (`src/lib/mailer.ts`, `mail.send` to an
   address). A member is told with a notification (`src/lib/notify.ts`:
   one notice, English words and French `translations`), never a mail.

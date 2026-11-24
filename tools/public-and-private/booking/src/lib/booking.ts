@@ -587,6 +587,16 @@ export async function otherHosts(sql: Query, actor: Member): Promise<string[]> {
   return rows.map(r => r.member_id);
 }
 
+// The hosts whose agenda a page follows live (src/islands/LiveAgenda.tsx):
+// the reader's own, or for the "Everyone" view every host (the first 100:
+// past them, a page shows the change at its next reading).
+export async function followedHosts(sql: Query, actor: Member, all: boolean): Promise<string[]> {
+  if (!all) return (await hostOf(sql, actor.id)) ? [actor.id] : [];
+  if (!can(actor, "bookings.all")) return [];
+  const rows = await sql<{ member_id: string }[]>`select member_id from hosts order by member_id limit 100`;
+  return rows.map(r => r.member_id);
+}
+
 // ——— What visitors see ———
 
 // The hosts on the company's booking page: listed, here, with at least one
@@ -759,7 +769,8 @@ export async function ownBusy(sql: Query, memberId: string, from: Date, to: Date
 // Where a host is busy outside Booking in the coming days, within their
 // hours: what their other calendars (by provider: "calendar.google.com")
 // and the other tools ("tool:hiring") say. The agenda shows these as grey
-// rows, so a hole in the free times is never a mystery. Times only.
+// rows, so a hole in the free times is never a mystery. Times only; what
+// another tool told is shown only when its audience lets the host see it.
 export type Elsewhere = { day: string; start: number; end: number; source: string };
 export async function busyElsewhere(sql: Query, host: Host, days = 7, now = Date.now()): Promise<Elsewhere[]> {
   const today = wall(now, host.zone).date;
@@ -769,7 +780,8 @@ export async function busyElsewhere(sql: Query, host: Host, days = 7, now = Date
     select lower(b.span) as lo, upper(b.span) as hi, c.provider as source from busy b join calendars c on c.id = b.calendar_id
     where b.member_id = ${host.memberId} and b.span && ${range}
     union all
-    select lower(span), upper(span), 'tool:' || source from told_spans where member_id = ${host.memberId} and span && ${range}`;
+    select lower(s.span), upper(s.span), 'tool:' || s.source from told_spans s join told_busy t using (source, member_id)
+    where s.member_id = ${host.memberId} and s.span && ${range} and (t.audience is null or t.audience ? ${host.memberId})`;
   const overrides = Object.fromEntries((await overridesOf(sql, host.memberId, today)).map(o => [o.day, o.ranges]));
   const out: Elsewhere[] = [];
   const sources = [...new Set(rows.map(r => r.source))].sort();

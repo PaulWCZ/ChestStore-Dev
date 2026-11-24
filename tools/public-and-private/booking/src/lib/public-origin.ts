@@ -35,12 +35,14 @@ export function publicOrigin(headers: Headers, tool = process.env["CHEST_TOOL"] 
   return `${proto}://${host.startsWith(team) ? tool + "." + host.slice(team.length) : host}`;
 }
 
-// visitorKey is what the form's own counters know of a visitor: the address
-// the Chest's front saw (Proposal (studio): Chest-Visitor-Address, read by
-// visitors.address()), else "unknown" — then every visitor counts together,
-// under the counters' ceiling for everyone and the database's daily cap
-// (lib/booking.ts guard). Never X-Forwarded-For: the Chest adds none, so it
-// is whatever the visitor wrote.
+// visitorKey is what the form's own counters know of a visitor: the Chest's
+// opaque key for them (Proposal (studio): Chest-Visitor, an HMAC of their
+// address under a key only the Chest holds, read by visitors.visitor()),
+// else "unknown" — then every visitor counts together, under the counters'
+// ceiling for everyone and the database's daily cap (lib/booking.ts guard).
+// Never the address itself, never X-Forwarded-For: the Chest adds none, so
+// it is whatever the visitor wrote. (On a 0.7.0 Chest, which sets no such
+// header, every visitor is "unknown": README "Needs from the SDK".)
 export function visitorKey(headers: Headers): string {
-  return visitors.address(headers)?.slice(0, 64) ?? "unknown";
+  return visitors.visitor(headers);
 }

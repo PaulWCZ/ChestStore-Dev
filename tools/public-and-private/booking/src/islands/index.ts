@@ -6,6 +6,7 @@ import { CancelMeeting } from "./CancelMeeting.tsx";
 import { CancelMine } from "./CancelMine.tsx";
 import { Exceptions } from "./Exceptions.tsx";
 import { FirstRun } from "./FirstRun.tsx";
+import { LiveAgenda } from "./LiveAgenda.tsx";
 import { ForGuest } from "./ForGuest.tsx";
 import { MoveMeeting, PaidSwitch } from "./MoveMeeting.tsx";
 import { OtherCalendars } from "./OtherCalendars.tsx";
@@ -22,7 +23,7 @@ import { WeekEditor } from "./WeekEditor.tsx";
 export const islands = {
   ToastHost, CopyButton,
   // The team's part.
-  FirstRun, AgendaTools, FreeToggle, CancelMeeting, MoveMeeting, PaidSwitch, ForGuest,
+  FirstRun, LiveAgenda, AgendaTools, FreeToggle, CancelMeeting, MoveMeeting, PaidSwitch, ForGuest,
   TypeSwitch, TypeForm, WeekEditor, OtherCalendars, Exceptions,
   PageSettings, ImportCalendly, CompanySettings, EmbedSettings,
   // The public part.

@@ -2,13 +2,13 @@ import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { ownBusy, titlesOf, type Booking } from "./booking.ts";
-import { busyFingerprint, busySnapshot, readBusy } from "./busy-snapshot.ts";
+import { busyData, busyFingerprint, busySnapshot, readBusy } from "./busy-snapshot.ts";
 import type { Query, Sql } from "./db.ts";
 
 // What Booking tells the other tools of the Chest, and what it hears from
-// them (Proposal (studio): events between tools, chest.proposals.json
-// "emits" and "receives"; README "With the other tools"). Each goes only
-// where an admin of the Chest linked the two tools — the Chest's decision,
+// them (SDK 0.7.0 events between tools: chest.json "emits", each type with
+// the schema of its data, and "receives"; README "With the other tools").
+// Each goes only where the owner approved the link — the Chest's decision,
 // never the tool's. A courtesy: when the Chest cannot take an event, the
 // booking stands and nothing is said.
 //
@@ -24,9 +24,15 @@ import type { Query, Sql } from "./db.ts";
 
 const day = 86_400_000;
 
-async function publish(type: string, data: Record<string, unknown>, key: string): Promise<boolean> {
+// An event's key and subject are identifiers of the tool's own (letters,
+// digits, ". _ : -", 128 at most): a guest's address goes in as a short
+// hash (after a restore from a backup, a booking's id can name another
+// guest's meeting: the key tells them apart).
+export const guestTag = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16);
+
+async function emit(type: string, data: Record<string, unknown>, options: events.EmitOptions): Promise<boolean> {
   try {
-    await events.publish(type, data, { key });
+    await events.emit(type, data, options);
     return true;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
@@ -39,7 +45,7 @@ async function publish(type: string, data: Record<string, unknown>, key: string)
 // shareBusy tells the other tools the busy times of some hosts, when they
 // changed since last told (a new booking, a time blocked, a calendar read;
 // the window moves on each day). Says how many were told. Stops at the
-// first refusal of the Chest (no events here, or its hourly quota).
+// first refusal of the Chest (no events here, or not granted).
 export async function shareBusy(sql: Query, memberIds: string[], now = Date.now()): Promise<number> {
   const ids = [...new Set(memberIds.filter(m => /^mbr_[a-z2-7]{26}$/u.test(m)))];
   if (ids.length === 0) return 0;
@@ -54,7 +60,7 @@ export async function shareBusy(sql: Query, memberIds: string[], now = Date.now(
     if (hash === h.hash) continue;
     // The key names the time and the content: a retry is one event, two
     // different snapshots never are.
-    if (!(await publish("booking.busy", snapshot, `busy:${h.member_id}:${now}:${hash.slice(0, 8)}`))) return told;
+    if (!(await emit("booking.busy", busyData(snapshot), { subject: h.member_id, key: `busy:${h.member_id}:${now}:${hash.slice(0, 8)}` }))) return told;
     await sql`insert into shared_busy (member_id, hash, told_at) values (${h.member_id}, ${hash}, ${new Date(now)})
       on conflict (member_id) do update set hash = excluded.hash, told_at = excluded.told_at`;
     told++;
@@ -71,17 +77,20 @@ export async function shareAllBusy(sql: Query, now = Date.now()): Promise<number
 
 // ——— booking.confirmed, booking.cancelled ———
 
-// The booking as Clients reads it (version 1). The contact is the guest as
-// they gave themselves; company is null (the form does not ask it). The
-// type's name in every language of the store. Never the guest's note, their
-// answers or their link: those stay in Booking (path opens the booking for
-// a member who may see it, through chest.toolLink("booking", path)).
+// The booking as Clients reads it (version 1), flat as the schema of
+// chest.json "emits" declares it (booking.confirmed, booking.cancelled).
+// The contact is the guest as they gave themselves — not a member: their
+// name and address are text; the form asks no company. The type's name in
+// every language of the store (typeName English, typeNameFr French). Never
+// the guest's note, their answers or their link: those stay in Booking
+// (path opens the booking for a member who may see it).
 // at is when that happened, as recorded — made, last moved, cancelled —
 // never the time of telling: a retry of the same key carries the same
 // data, so the Chest takes it as the same event (a key reused for other
-// data is refused: SDK studio.15).
-async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancelled"): Promise<Record<string, unknown>> {
+// data is refused: key_reused).
+export async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancelled"): Promise<Record<string, unknown>> {
   const at = status === "cancelled" ? (b.cancelledAt ?? b.movedAt ?? b.createdAt) : b.moves > 0 ? (b.movedAt ?? b.createdAt) : b.createdAt;
+  const names = await titlesOf(sql, b);
   return {
     v: 1,
     booking: b.id,
@@ -90,9 +99,14 @@ async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancel
     host: b.memberId === "erased" ? null : b.memberId,
     start: b.startsAt.toISOString(),
     end: b.endsAt.toISOString(),
-    type: { id: b.typeId, name: await titlesOf(sql, b) },
+    type: b.typeId,
+    typeName: names.en,
+    typeNameFr: names.fr,
     kind: b.locationKind,
-    contact: { name: b.guestName, email: b.guestEmail, phone: b.guestPhone || null, company: null, language: b.guestLanguage },
+    contactName: b.guestName,
+    contactEmail: b.guestEmail,
+    contactPhone: b.guestPhone || null,
+    contactLanguage: b.guestLanguage,
     source: b.source,
     moves: b.moves,
     ...(status === "cancelled" ? { cancelledBy: b.cancelledBy } : {}),
@@ -100,17 +114,22 @@ async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancel
   };
 }
 
+// Who in Booking may see a booking: its host and the administrators (who
+// see everyone's). A receiver shows it to them only (SDK 0.7.0 audience).
+export const bookingAudience = (b: Pick<Booking, "memberId">): events.EmitAudience =>
+  b.memberId === "erased" ? { roles: ["admin"] } : { members: [b.memberId], roles: ["admin"] };
+
 // changed: a booking was made, moved or cancelled — Clients hears of it,
 // and the busy times of its host (and of the one it left, a team type
 // moved to another host) are told again. Says whether the Chest took the
 // booking's event (told again, the same one: taken as the same event).
 export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled", b: Booking, options: { previousHost?: string; now?: number } = {}): Promise<boolean> {
   const now = options.now ?? Date.now();
-  // The guest in the key (studio.16): after a restore from a backup, a
-  // booking's id can name another guest's meeting.
+  const base = `booking:${b.id}:${guestTag(b.guestEmail)}`;
+  const common = { subject: `booking:${b.id}`, audience: bookingAudience(b) };
   const taken = kind === "cancelled"
-    ? await publish("booking.cancelled", await bookingData(sql, b, "cancelled"), `booking:${b.id}:${b.guestEmail}:cancelled`)
-    : await publish("booking.confirmed", await bookingData(sql, b, "confirmed"), `booking:${b.id}:${b.guestEmail}:confirmed:${b.moves}`);
+    ? await emit("booking.cancelled", await bookingData(sql, b, "cancelled"), { ...common, key: `${base}:cancelled` })
+    : await emit("booking.confirmed", await bookingData(sql, b, "confirmed"), { ...common, key: `${base}:confirmed:${b.moves}` });
   await shareBusy(sql, [b.memberId, ...(options.previousHost ? [options.previousHost] : [])], now);
   return taken;
 }
@@ -119,16 +138,20 @@ export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled"
 
 // takeBusy keeps a member's busy times as another tool told them
 // (hiring.busy, leave.busy): the snapshot replaces that tool's earlier one, unless it
-// is older than the one kept. Says whether it was kept.
+// is older than the one kept. Says whether it was kept. The event's
+// audience (who in the teller may see it) is kept with it: the agenda's
+// grey rows show it only to them; the times are never offered either way
+// (a visitor learns only that a time is not free).
 export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boolean> {
   const source = event.source;
   if (typeof source !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || source.length > 63 || source === "booking") return false;
   const s = readBusy(event.data);
   if (!s) return false;
+  const audience = event.audience === "all" ? null : sql.json([...new Set(event.audience)].filter(m => /^mbr_[a-z2-7]{26}$/u.test(m)) as never);
   return sql.begin(async tx => {
     const [kept] = await tx<{ member_id: string }[]>`
-      insert into told_busy (source, member_id, taken_at, period) values (${source}, ${s.member}, ${s.at}, tstzrange(${s.from}, ${s.to}))
-      on conflict (source, member_id) do update set taken_at = excluded.taken_at, period = excluded.period
+      insert into told_busy (source, member_id, taken_at, period, audience) values (${source}, ${s.member}, ${s.at}, tstzrange(${s.from}, ${s.to}), ${audience})
+      on conflict (source, member_id) do update set taken_at = excluded.taken_at, period = excluded.period, audience = excluded.audience
       where told_busy.taken_at < excluded.taken_at
       returning member_id`;
     if (!kept) return false;

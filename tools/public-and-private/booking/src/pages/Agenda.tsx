@@ -58,6 +58,7 @@ export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
   const elsewhere = own && host ? await b.busyElsewhere(sql, host) : [];
   const stale = host ? (await calendars.calendarsOf(sql, member.id)).find(c => c.stale) : undefined;
   const today = wall(Date.now(), zone).date;
+  const live = await b.followedHosts(sql, member, all);
   const freeItems: Item[] = [...free].flatMap(([day, windows]) => windows.map(w => ({ kind: "free" as const, at: instantOf(day, w.start, zone), day, start: w.start, end: w.end })));
   const busyItems: Item[] = elsewhere.map(e => ({ kind: "busy" as const, at: instantOf(e.day, e.start, zone), ...e }));
   const items: Item[] = [...list.map(x => ({ kind: "booking" as const, at: x.startsAt, booking: x })), ...blocks.map(x => ({ kind: "block" as const, at: x.start, block: x })), ...freeItems, ...busyItems];
@@ -229,6 +230,8 @@ export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
       {(hosting || seesAll) && <p className="agenda-foot"><a className="link-button" href={`/chest/export${all ? "?who=all" : ""}`}><Download />{t.bookings.export}</a></p>}
       {/* Blocking a time (from a free stretch, "Block a time") and freeing
           one, with Undo: one island for the whole agenda. */}
+      {/* Left open, the agenda follows the Chest's realtime (no timer). */}
+      {live.length > 0 && <Island name="LiveAgenda" props={{ hosts: live }} />}
       {own && <Island name="AgendaTools" props={{ today, t: { hours: t.hours, bookings: t.bookings, date: t.kit.date, dialog: t.kit.dialog, invalid: t.errors.invalid } }} />}
     </>
   );

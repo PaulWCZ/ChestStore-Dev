@@ -7,7 +7,7 @@ import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "
 // catalogues; the Chest shows each member their language and mails it to
 // them by their own choice (the tool sends members no mail). A
 // notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
+// unreachable), the action that sent it still succeeds.
 export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
   const ids = [...new Set(recipients)];
   if (ids.length === 0) return;
@@ -16,7 +16,7 @@ export async function notify(recipients: Iterable<string>, message: (t: Catalogu
     const b = body ? cutLines(body, 280) : "";
     return { title: cut(title, 80), ...(b ? { body: b } : {}) };
   };
-  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as notifications.Translations;
+  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as Record<string, notifications.Words>;
   try {
     await notifications.notify(ids, { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations });
   } catch (error) {

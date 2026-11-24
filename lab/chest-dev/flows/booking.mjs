@@ -21,7 +21,10 @@ function calendlyFromTomorrow() {
 }
 
 const port = Number(process.argv[2] ?? 5100);
-const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
+// /_chest/realtime: the agenda's live channel (SDK 0.7.0 realtime); this
+// harness does not serve the Chest's realtime yet (lab/chest-dev/README.md),
+// so a page's join is answered 404 and the page stays as read.
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999|_chest\/realtime)$/u });
 let guestPage = "";
 // The team's pages speak each member's language (Inès and Camille: French
 // in the cast): these steps read them in English.
@@ -558,7 +561,8 @@ await step("a host who writes in one language only: every visitor reads the page
 
 // A time of Inès's clock (Paris) as the UTC minute an event carries.
 const parisOffset = day => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" }).formatToParts(new Date(day + "T12:00:00Z")).find(p => p.type === "timeZoneName").value.replace("GMT", "") || 0);
-const utcMinute = (day, minutes) => new Date(Date.parse(day + "T00:00:00Z") + (minutes - parisOffset(day) * 60) * 60000).toISOString().slice(0, 16) + "Z";
+// An instant on the minute, RFC 3339 with its seconds (an event's "time").
+const utcMinute = (day, minutes) => new Date(Date.parse(day + "T00:00:00Z") + (minutes - parisOffset(day) * 60) * 60000).toISOString().slice(0, 16) + ":00Z";
 const minutesOf = text => Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const devText = async () => (await page.request.get(origin + "/_dev")).text();
@@ -599,17 +603,19 @@ await step("Hiring tells Booking Inès has an interview: that hour is not offere
   const day = (await section.getAttribute("aria-labelledby")).slice(2);
   const [startText, endText] = (await section.locator(".meeting.free .time").first().innerText()).split("\n").map(x => x.trim());
   const start = minutesOf(startText), end = Math.min(minutesOf(endText), start + 60);
-  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, start), utcMinute(day, end)]] };
+  // Hiring's snapshot as SDK 0.7.0 carries it: flat fields, the spans as JSON text.
+  const spans = [[utcMinute(day, start), utcMinute(day, end)]];
+  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z", spans: JSON.stringify(spans) };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "hiring.busy", data: JSON.stringify(data) } });
   await page.goto(origin + "/chest");
   const interview = page.locator(`.day[aria-labelledby="d-${day}"] .meeting.elsewhere`, { hasText: "Un entretien dans Recrutement" });
   expect((await interview.innerText()).includes(hhmm(start)), "the interview's hour on her agenda");
   const slots = await (await page.request.get(origin + `/api/slots?host=ines-moreau&type=project-call&from=${day}&to=${day}`)).json();
-  const from = Date.parse(data.spans[0][0]), to = Date.parse(data.spans[0][1]);
+  const from = Date.parse(spans[0][0]), to = Date.parse(spans[0][1]);
   expect(!slots.slots.some(s => Date.parse(s) < to && Date.parse(s) + 30 * 60000 > from), "no time offered across the interview");
   // Booking never tells Hiring back what Hiring told it.
-  const dev = await devText();
-  expect(!dev.includes(`"${data.spans[0][0]}"`), "no echo in what Booking publishes");
+  const dev = (await devText()).replaceAll("&quot;", '"').replaceAll("\\\"", '"');
+  expect(!dev.includes(JSON.stringify(spans[0])), "no echo in what Booking publishes (the interview's span)");
 });
 
 await step("Leave tells Booking Inès is off a whole day: no time is offered that day, her agenda reads « Absent »; « now free » gives the day back", async () => {
@@ -621,7 +627,7 @@ await step("Leave tells Booking Inès is off a whole day: no time is offered tha
   const before = await slotsThatDay();
   expect(before.length > 0, "the day is open before");
   // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
-  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z", spans: JSON.stringify(spans) });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(day, 0), utcMinute(next, 0)]], new Date())) } });
   expect((await slotsThatDay()).length === 0, "no time offered on her day off");
   await page.goto(origin + "/chest");
@@ -629,7 +635,7 @@ await step("Leave tells Booking Inès is off a whole day: no time is offered tha
   expect(await row.count() > 0, "« Absent » on her agenda that day");
   expect(await page.locator(`.day[aria-labelledby="d-${day}"] .meeting.free`).count() === 0, "no free stretch left that day");
   // Booking never tells Hiring back what Leave told it.
-  const told = (await devText()).replaceAll("&quot;", '"');
+  const told = (await devText()).replaceAll("&quot;", '"').replaceAll("\\\"", '"');
   expect(!told.includes(`["${utcMinute(day, 0)}","${utcMinute(next, 0)}"]`), "no echo in what Booking publishes");
   // Her leave cancelled: Leave says she is free again; the day comes back as it was.
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([], new Date(Date.now() + 1000))) } });
@@ -650,7 +656,7 @@ await step("a visitor's booking is told to Clients (who, which type, when; never
   const dev = await devText();
   const confirmed = dev.split("<li>").find(li => li.includes("booking.confirmed") && li.includes("Nadia Benali"));
   expect(confirmed, "booking.confirmed published");
-  expect(confirmed.includes("nadia@example.com") && confirmed.includes("&quot;company&quot;:null") && confirmed.includes("Measurement visit at your home") && !confirmed.includes("code 1234"), "the contact and the type, never the note");
+  expect(confirmed.includes("&quot;contactEmail&quot;:&quot;nadia@example.com&quot;") && confirmed.includes("Measurement visit at your home") && !confirmed.includes("code 1234"), "the contact and the type, flat (SDK 0.7.0), never the note");
   expect(dev.split("<li>").some(li => li.includes("booking.busy") && li.includes("mbr_hugo")), "Hugo's busy times told");
 });
 
@@ -774,4 +780,7 @@ await step("the company's page speaks the visitor's language, else the Chest's (
 });
 
 await browser.close();
-done(problems);
+// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
+// the agenda's live channel (SDK 0.7.0 realtime) cannot connect here, and
+// the page stays as read. Its refusals are the harness's, not Booking's.
+done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));

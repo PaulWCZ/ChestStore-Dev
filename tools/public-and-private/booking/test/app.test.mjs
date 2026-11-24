@@ -67,6 +67,11 @@ test("the agenda: the member's language, the policy, the look as a stylesheet, n
   assert.match(html, /data-island="AgendaTools"/u, "blocking a time, from the agenda");
   assert.match(html, /data-block="\{&quot;day&quot;/u, "free stretches say what they ask, as data");
   assert.match(html, /class="meeting type-[a-z]+/u, "a type's colour is a class");
+  // Left open, the agenda follows her channel on the Chest's realtime (no timer).
+  assert.match(html, new RegExp(`data-island="LiveAgenda"[^>]*${ines.id}`, "u"), "the agenda follows Inès's bookings live");
+  assert.doesNotMatch(html, /AutoRefresh/u);
+  const everyone = await (await get(camille, "/chest?who=all")).text();
+  assert.match(everyone, new RegExp(`data-island="LiveAgenda"[^>]*${ines.id}`, "u"), "an administrator's Everyone follows every host");
   const anonymous = await app.fetch(new Request(team + "/chest"));
   assert.equal(anonymous.status, 401);
 });
@@ -328,8 +333,8 @@ test("the Chest's events and schedule runs, signed, each handled once", async ()
   assert.equal((await app.fetch(new Request(team + "/chest-schedules", { method: "POST", body: "{}" }))).status, 401, "unsigned");
   // A host who leaves: their page takes no new booking.
   const left = { type: "member.removed", id: "evt_" + "d".repeat(26), data: { id: hugo.id } };
-  assert.equal(await chest.emit(left, to), 204);
-  assert.equal(await chest.emit(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
+  assert.equal(await chest.deliver(left, to), 204);
   assert.equal((await get(null, "/hugo-bernard")).status, 404);
 });
 
@@ -341,8 +346,8 @@ test("a colleague cancels a host's booking: the guest is emailed, the host hears
   assert.equal(response.status, 200);
   const told = chest.notifications.filter(n => n.member === ines.id && n.key === `booking:${row.id}`);
   assert.equal(told.length, 1, "Inès is told in the bell");
-  assert.match(told[0].title, /^Camille Martin cancelled your booking with /u);
-  assert.match(told[0].translations?.fr?.title ?? "", /^Camille Martin a annulé votre rendez-vous avec /u);
+  // Inès reads French: the Chest keeps the notice's French translation for her.
+  assert.match(told[0].title, /^Camille Martin a annulé votre rendez-vous avec /u);
   assert.equal(told[0].body, "The shop is closed that day");
   assert.ok(!chest.notifications.some(n => n.member === camille.id), "no bell for the one who acted");
 });

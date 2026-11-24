@@ -180,19 +180,17 @@ routes.get("/:host/:type", (c, next) => (members(c.req.path) ? notFound() : next
 // read the body before handle()). A handler that throws makes the Chest
 // send it again: they are idempotent.
 
-// The members' lifecycle, and what other tools tell (Proposal (studio):
-// events between tools — hiring.busy, the interviews a member is on;
-// leave.busy, the days a member is off).
+// The members' lifecycle, and what other tools tell (SDK 0.7.0 events
+// between tools, chest.json "receives": hiring.busy, the interviews a
+// member is on; leave.busy, the days a member is off). One handler map.
 routes.post("/chest-events", async c => {
   const sql = db();
   return new Response(null, {
-    status: await events.handle(c.req.raw, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "hiring.busy": async e => { await takeBusy(sql, e); },
-        "leave.busy": async e => { await takeBusy(sql, e); },
-      },
-    }),
+    status: await events.handle(c.req.raw, {
+      ...handlers(sql),
+      "hiring.busy": async e => { await takeBusy(sql, e); },
+      "leave.busy": async e => { await takeBusy(sql, e); },
+    }, { seen: seen(sql) }),
   });
 });
 

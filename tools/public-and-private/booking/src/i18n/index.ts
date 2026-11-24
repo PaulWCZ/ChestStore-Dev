@@ -54,13 +54,13 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
 // fill puts values in a text's {placeholders} (the starter's name of format).
 export const fill = format;
 
-// How a reader writes dates, times, numbers, amounts and plurals: their
-// language, their time zone (a member's own; the Chest's for a visitor),
-// the Chest's currency. Made on the server for each request: a page is
+// How a reader writes dates, times, numbers and plurals: their language,
+// their time zone (a member's own; the Chest's for a visitor). Booking
+// shows no amounts (a payment link is the host's own page). Made on the server for each request: a page is
 // sent already written. (Booking writes a meeting in the zone it belongs
 // to — the host's, the guest's — with the helpers of ./format.ts.)
 export type Format = ReturnType<typeof formatter>;
-export function formatter(locale: Locale, timeZone: string, currency = "EUR") {
+export function formatter(locale: Locale, timeZone: string) {
   const tag = intl(locale);
   const instant = (value: Date | string) => (typeof value === "string" ? new Date(value) : value);
   return {
@@ -71,7 +71,6 @@ export function formatter(locale: Locale, timeZone: string, currency = "EUR") {
     dateTime: (value: Date | string) => dateFormat(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
     day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T00:00:00Z`)),
     number: (n: number, digits = 1) => numberFormat(tag, { maximumFractionDigits: digits }).format(n),
-    money: (amount: number) => numberFormat(tag, { style: "currency", currency }).format(amount),
     list: (items: string[]) => listFormat(locale).format(items),
     plural: (forms: { readonly zero?: string; readonly one: string; readonly other: string }, n: number, values: Record<string, string | number> = {}) => plural(forms, n, locale, values),
   };

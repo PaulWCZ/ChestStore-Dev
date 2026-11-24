@@ -94,6 +94,9 @@ export async function bookingPage({ member, t, locale: given, param }: PageConte
             {movable ? <Island name="MoveMeeting" props={{ id: x.id, guest: x.guestName, zone, locale, zones: zoneGroups(t.zones, Date.now(), [zone]), t: words }} /> : <p className="hint">{t.booking.cannotMove}</p>}
           </section>
         )}
+        {/* Left open, the booking follows the Chest's realtime: a guest who
+            moves or cancels it is seen at once (no timer). */}
+        {x.memberId !== "erased" && <Island name="LiveAgenda" props={{ hosts: [x.memberId] }} />}
         {upcoming && (
           <section className="card">
             <Island name="CancelMeeting" props={{ id: x.id, guest: x.guestName, t: { booking: t.booking } }} />
