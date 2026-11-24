@@ -5,6 +5,16 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
+Official SDK reference refreshed to 0.5.1 (`8630b83`). The official standalone
+browser realtime module and recovery regressions are backported into the SDK
+fork as `0.3.1-studio.2`, preserving its experimental server APIs. Full rebasing
+of the divergent 0.3.1 server fork to contract 0.5 remains separate work; the
+prototype tools are not qualified official applications.
+
+**Platform reference refresh (12 October 2026):** the application-contract excerpt and `building-tools` specification are refreshed for Chest PR #321. See `reference/README.md` for exact scope and revision. The official contract remains 0.5; the SDK reference is 0.5.1. The owner clarified that Forms and Chat remain prototypes to be rebuilt, and this studio is currently useful to explore SDK requirements. A precompiled official release remains a proposal compatible with customization when its exact source remains available; no prebuilt distribution is introduced by this refresh.
+
+**Update from the owner (2026-10-07): read [brief/09-update-sdk-0.5.md](brief/09-update-sdk-0.5.md).** `reference/` was refreshed (SDK 0.5.0 from Chest-SDK main, not yet on npm; contract 0.5; the Perseus starter, the test bench, the contract and the changed specs). Asks: every tool on SDK 0.5.0 with the official shapes of groups, broadcast, events and visitors' uploads; realtime instead of polling; sealed fields for sensitive data; needs kept in the SDK report. Do not build a team chat: the official Chat (`chest-by-argentic/chat`) exists, study it.
+
 **Update from the owner (2026-10-05): read [brief/08-update-2026-10.md](brief/08-update-2026-10.md).** `reference/` was refreshed (SDK 0.4.1, contract 0.4, the Perseus starter); the 18 tools are refused by a 0.4 Chest as they are (`"version": 2`, schedules on `/chest-jobs`). Asks: (a) every tool on SDK 0.4.x and the 0.4 manifest; (b) memory at rest measured, Next.js tools moved to the lighter reference stack unless measured otherwise; (c) a better starter template for Perseus (`reports/` + a working template folder).
 
 ### Update 2026-10 — the plan and where it stands

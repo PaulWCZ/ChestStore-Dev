@@ -30,7 +30,20 @@ function repository(files: Record<string, string>, commit = true): string {
 
 test("the Chest's verdict on a repository it would take: what the tool is and asks", async () => {
   const verdict = await check(repository({ "migrations/0001_tasks.sql": "create table tasks (id serial primary key);" }));
-  assert.deepEqual(verdict, { checker: "0.4", ok: true, contract: "0.4", name: "tasks", roles: ["manager", "member"], permissions: ["database"], migrations: 1 });
+  assert.deepEqual(verdict, { checker: "0.5", ok: true, contract: "0.4", name: "tasks", roles: ["manager", "member"], permissions: ["database"], migrations: 1 });
+});
+
+test("a migration that breaks the version before it is taken, with a warning; the contract step is not", async () => {
+  const dropping = await check(repository({ "migrations/0001_tasks.sql": "create table tasks (id serial primary key, title text);", "migrations/0002_drop.sql": "alter table tasks drop column title;" }));
+  assert.equal(dropping.ok, true);
+  assert.equal(dropping.warnings?.length, 1);
+  assert.match(dropping.warnings?.[0] ?? "", /^migration 0002_drop\.sql drops a column, which the version before it may still read/u);
+  let printed = "";
+  assert.equal(await main(["check", repository({ "migrations/0001_tasks.sql": "alter table tasks rename column title to name;" })], text => { printed += text; }), 0);
+  assert.match(printed, /\n {2}Warning: migration 0001_tasks\.sql renames a column/u);
+  const marked = await check(repository({ "migrations/0001_tasks.sql": "create table tasks (id serial primary key, title text);", "migrations/0002_drop.sql": "-- chest: contract\nalter table tasks drop column title;" }));
+  assert.equal(marked.ok, true);
+  assert.equal(marked.warnings, undefined);
 });
 
 test("the working tree is checked as it is, committed or not, as Git would archive it", async () => {
@@ -78,7 +91,7 @@ test("the command: its exit status, its words, and outside a repository", async 
   const dir = repository({});
   let printed = "";
   assert.equal(await main(["check", dir], text => { printed += text; }), 0);
-  assert.match(printed, /^OK: the Chest \(tool contract 0\.4\) would take tasks/u);
+  assert.match(printed, /^OK: the Chest \(tool contract 0\.5\) would take tasks/u);
   printed = "";
   assert.equal(await main(["check", dir, "--json"], text => { printed += text; }), 0);
   assert.equal(JSON.parse(printed).ok, true);
@@ -92,6 +105,6 @@ test("the command: its exit status, its words, and outside a repository", async 
   assert.equal(await main(["deploy"], () => {}), 2);
   printed = "";
   assert.equal(await main(["--version"], text => { printed += text; }), 0);
-  assert.match(printed, /^0\.4\.\d+\n$/u);
+  assert.match(printed, /^0\.5\.\d+\n$/u);
   assert.ok(archive(dir).length > 0);
 });

@@ -1,7 +1,9 @@
 # Tool storage
 
-**Specified 28 September 2026, approved by Paul; to build** (batch ST in
-[status.md](../03_roadmap/status.md)). What exists is described in
+**Specified 28 September 2026, approved by Paul; built** (batch ST in
+[status.md](../03_roadmap/status.md)); public uploads simplified by Paul on
+7 October 2026 (“it is the same as the files we accept from members”), public
+files left for later (below). What exists is described in
 `03_code/01_chest-by-argentic/docs/architecture.md` (“Outils serveurs”,
 Fichiers); this page states what is added: uploads from the browser, a
 storage request in `chest.json`, and a Storage view to administer it.
@@ -44,7 +46,7 @@ the owner sees every tool's storage on one page (below).
 ```json
 {
   "capabilities": ["files"],
-  "files": { "quota": "5 GiB", "maxObject": "100 MiB", "publicUploads": true, "publicFiles": true }
+  "files": { "quota": "5 GiB", "maxObject": "100 MiB" }
 }
 ```
 
@@ -53,11 +55,15 @@ the owner sees every tool's storage on one page (below).
 | (capability `files`) | — | — | “Keeps private files of its own, up to 1 GiB.” (the quota asked replaces 1 GiB) |
 | `quota` | 1 GiB | 100 MiB to 100 GiB, and never beyond what the server's disk can give | part of the sentence above |
 | `maxObject` | 32 MiB | 1 to 512 MiB | “…, 100 MiB per file” when not the default |
-| `publicUploads` | false | — | “Lets visitors of its public part upload files (10 MiB each at most).” |
-| `publicFiles` | false | — | “Publishes the files it puts under `public/` on its public address.” |
 
-A later version that asks for a bigger quota or object size, or adds a public
-key, needs an owner or admin approval, like any widening. The owner or an
+Uploads from visitors need **no key of their own**: a tool with a public part
+and files could already take a visitor's bytes through its own server and keep
+them; the Chest's upload gives it no new power, only safer bounds (below). The
+approval already says both “Its pages will be visible to the whole Internet”
+and “Keeps private files of its own”.
+
+A later version that asks for a bigger quota or object size needs an owner or
+admin approval, like any widening. The owner or an
 admin can also set the quota by hand in the Storage view (lower or higher than
 asked, within the server's disk); the value set wins until changed.
 
@@ -72,6 +78,9 @@ const up = await files.uploadUrl("invoices/2026/0042.pdf", {
   maxSize: 10 << 20,
   types: ["application/pdf"],
 });
+// A public route: a visitor's CV — into a folder, recognised types only
+const cv = await files.uploadUrl("applications/", { public: true, types: ["application/pdf"] });
+// → { url: "/_chest/files/upload/<token>", method: "PUT", expiresIn: 900 }
 // → { url, method: "PUT", expiresIn: 900 }
 
 // Browser side: send the file as it is
@@ -87,7 +96,6 @@ const info = await files.stat("invoices/2026/0042.pdf"); // {name, type, size, s
 | `files.stat(name)` | `GET /files/{name}?stat` | the object, or `null` |
 | `files.move(from, to)` | `POST /files/move` | the object at its new name (atomic, same tool) |
 | `files.url(name, {thumbnail?: 256 \| 1024, download?: boolean})` | `POST /files/url` | `{url, expiresIn}` |
-| `files.publicUrl(name)` | — (computed) | the permanent public address of a `public/…` object |
 | unchanged | `put`, `get`, `list`, `delete` | |
 
 **The upload token** is signed by the Chest (HMAC under the node's files key)
@@ -99,18 +107,43 @@ segment), maximum size (≤ `maxObject`), accepted types (default: any), expiry
 - **Private upload** (default): on the tool's team host, the same origin as its
   `/chest` pages, so no CORS. The member's session is required and must still
   have the tool; `Origin` of the host is required. 201 `{name, type, size}`.
-- **Public upload** (`public: true`, requires `publicUploads`): on the tool's
-  public host, `/_chest/upload/<token>`, no session; 10 MiB at most whatever
-  the tool asks; 30 uploads a minute per client address; the name forced under
-  `uploads/public/`. For forms with attachments, job applications, support
-  tickets.
+- **Public upload** (`public: true`, a tool with a public part): the same
+  mechanism — a token the tool signs, the bytes straight to the Chest, the
+  tool's quota — for a visitor of its public part, for forms with
+  attachments, job applications, support tickets. Because the sender is
+  anonymous:
+  - **Where:** the url is a path, `/_chest/files/upload/<token>`, which the
+    visitor's page sends to its own address — the tool's public address, its
+    custom domain, or the page framed by the company's website. No session.
+    A visitor's token is taken there only, a member's on the team host only.
+  - **Into a folder only:** the Chest names the file, so a visitor never
+    replaces one.
+  - **Declared types, recognised by content:** the tool must name the types
+    it accepts, each one the Chest recognises by its bytes (images, PDF, Word,
+    Excel, PowerPoint, OpenDocument, archives). The Chest ignores the name and
+    the type the browser says: the file is of the type its content is, among
+    those accepted, or it is refused (415). Plain text and CSV cannot be told
+    by their bytes, so they are not accepted from visitors.
+  - **Never public:** the file joins the tool's private files; only its
+    members see it, through the tool (a candidate's CV). The Chest serves no
+    file on the public part.
+  - **Abuse:** per visitor (client address, as the front gives it): 2 uploads
+    at once, 10 a minute, and in an hour a twentieth of the tool's quota (never
+    less than its largest file); beyond, “slow down” (429 with the wait). No
+    fixed cap on all visitors together: the tool's quota and the server's disk
+    bound them, and a full disk refuses cleanly (507) whatever the quota.
+  - Each file's size: the tool's largest object, as for members — no smaller
+    fixed bound.
 
 **Checks at upload:** declared size before reading (413 `too_large`, 429
-`quota_exceeded`), the body read up to the bound and dropped at the first byte
-too many; the type must be one the token accepts; for images, PDFs and
-archives the first bytes must match the type (400 `type_mismatch`); nothing
-of a refused upload remains. SVG, HTML and scripts are always served as
-downloads, never inline. No antivirus scan at this stage (said in the docs).
+`quota_exceeded`), room on the server's disk (507 `storage_full`), the body
+read up to the bound and dropped at the first byte too many; from a member,
+the type must be one the token accepts and the content must hold it when the
+Chest recognises the type (400 `type_mismatch`) — by its first bytes for
+images, PDFs and archives, by its parts for Office and OpenDocument files;
+from a visitor, the type is the content's (above); nothing of a refused upload
+remains. SVG, HTML and scripts are always served as downloads, never inline.
+No antivirus scan at this stage (said in the docs).
 
 **Thumbnails.** For JPEG, PNG, GIF (first frame) and WebP up to 40 megapixels,
 `files.url(name, {thumbnail})` returns a 256 or 1,024 px version (JPEG, or PNG
@@ -122,11 +155,12 @@ was written (built 30 September: a receipt sent twice is recognised without
 reading it again). Nothing else is
 converted (no video, no HEIC, no PDF pages).
 
-**Public files** (`publicFiles`): objects under `public/` are served on the
-tool's public host at `/_chest/public/<name>` without a link to sign, with
-`Cache-Control: public, max-age=3600` and a revision in the address
-(`publicUrl` adds `?v=<rev>`). For product images, a CMS, avatars on a public
-page. Everything else stays private, as today.
+**Public files — later.** Serving files on the public part (product images, a
+CMS) was specified as a `publicFiles` key; it is left out for now: no tool
+needs it yet, and it would be the one way a file of a tool becomes public —
+with visitors' uploads beside it, a mistake in a name would publish a CV.
+A tool that shows an image publicly serves it from its own public route
+(`files.get`). To decide again when a real tool needs it.
 
 **Resumable uploads** (tus-like) for files beyond 512 MiB: later, if a real tool
 needs it.
@@ -191,19 +225,19 @@ tokens refused), same rights and journal as the view. MCP: `files_list`,
 | | Value |
 |---|---|
 | Quota per tool | 1 GiB by default; asked in `chest.json` up to 100 GiB; set by the owner or an admin |
-| Object | 32 MiB by default, up to 512 MiB asked; 10 MiB for a public upload |
+| Object | 32 MiB by default, up to 512 MiB asked; the same for a visitor's upload |
 | Objects per tool | 10,000 by default, 100,000 with a quota ≥ 10 GiB |
 | Upload token | 15 min, single use |
 | Download link | 15 min (unchanged) |
 | Thumbnails | JPEG, PNG, GIF, WebP; 40 megapixels; 256 and 1,024 px |
-| Public uploads | 30 a minute per client address, per tool |
+| Public uploads | per client address and tool: 2 at once, 10 a minute, a twentieth of the quota an hour (at least one largest object); all visitors together: the quota and the server's disk |
 
 ## What to build
 
 | Where | Change |
 |---|---|
-| Chest | `files` manifest key and sentences; quotas per tool in the policy; upload tokens and the two upload routes; content checks; `stat`, `move`; thumbnails worker; public files route; Storage tab and Settings → Storage; storage journal; `/api/v1` routes |
-| SDK 0.2.0 | `uploadUrl`, `stat`, `move`, `url` options, `publicUrl`; `fakeChest` storage |
+| Chest | `files` manifest key and sentences; quotas per tool in the policy; upload tokens and the upload routes (team host, public part); content recognition; visitors' pace; the server's disk; `stat`, `move`; thumbnails worker; Storage tab and Settings → Storage; storage journal; `/api/v1` routes |
+| SDK 0.2.0, 0.5.0 | `uploadUrl` (and `public` in 0.5.0), `stat`, `move`, `url` options, `StorageFull`; `fakeChest` storage and visitors' uploads |
 | MCP | `files_list`, `files_link`, `files_delete` |
 | Backups | Larger quotas weigh on the nightly archive: measured with batch BK before quotas above 10 GiB are offered |
-| Proofs | VM proof: private upload with a session, refused without; wrong type, too large, quota full; public upload; thumbnail; deletion from the view seen by the tool |
+| Proofs | VM proof: private upload with a session, refused without; wrong type, too large, quota full; public upload accepted and kept privately, wrong content refused, an over-pace visitor slowed down; thumbnail; deletion from the view seen by the tool |

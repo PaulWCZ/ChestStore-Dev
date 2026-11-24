@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.5",
   "name": "testweb",
   "title": "Server test bench",
   "description": "The web server that exercises the tool contract of a Chest.",
@@ -13,15 +13,57 @@
     "database",
     "files",
     "members",
+    "members.groups",
     "notifications",
-    "ai"
+    "ai",
+    "realtime"
   ],
   "ai": {
     "monthly": 2,
     "purpose": "Summarises a member's text in one sentence"
   },
+  "realtime": {
+    "channels": [
+      {
+        "name": "lobby",
+        "send": true,
+        "presence": true
+      },
+      {
+        "name": "room:{id}",
+        "join": {
+          "table": "chat_members",
+          "key": "room",
+          "member": "member_id"
+        }
+      }
+    ],
+    "feeds": [
+      {
+        "table": "chat_messages",
+        "channel": "room:{room}",
+        "columns": [
+          "id",
+          "room",
+          "author",
+          "text"
+        ]
+      }
+    ]
+  },
+  "emits": {
+    "note.added": {
+      "description": "A note is added",
+      "data": {
+        "note": "id",
+        "author": "member",
+        "text": "text"
+      }
+    }
+  },
   "receives": [
-    "member.*"
+    "member.*",
+    "note.added"
   ],
   "schedules": [
     {

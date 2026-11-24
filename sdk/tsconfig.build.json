@@ -16,7 +16,8 @@
     "client/src/database.ts",
     "client/src/files.ts",
     "client/src/notifications.ts",
-    "client/src/testing.ts"
+    "client/src/testing.ts",
+    "client/src/realtime-client.ts"
   ],
   "include": []
 }

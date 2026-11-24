@@ -36,6 +36,18 @@ export function publicPage(version: string, address: string | null): string {
 <p><a href="/chest">Team space</a></p>`);
 }
 
+// The public form of a visitor: one PDF, sent straight to the Chest
+// (/apply.js); what came back is said in #status.
+export function applyPage(): string {
+  return document("Apply", `<p>Send your CV, as a PDF.</p>
+<form id="apply">
+<label for="cv">CV</label>
+<input id="cv" name="cv" type="file" accept="application/pdf" required>
+<button type="submit">Send</button>
+</form>
+<p id="status" role="status"></p>`, "/apply.js");
+}
+
 // What the team page says of the Chest: its organization, its time zone and
 // its currency (the chest module), today there, where the tool is reached,
 // and the zone and the day of the tool's database sessions, which the Chest
@@ -76,7 +88,30 @@ ${form}
 <ul id="notes" aria-label="Notes"></ul>
 <ul id="photos" aria-label="Photos"></ul>
 <p><a href="/chest/members">Members</a></p>
+<p><a href="/chest/chat">Chat</a></p>
 <p><a href="/">Public part</a></p>`, "/chest/app.js");
+}
+
+// The chat: room 1, joined or left by the member, its messages as they are
+// written, who is typing and who is here — drawn by /chest/chat.js, live
+// through the Chest. The member's id is the page's, to tell their own
+// messages; never trusted by the tool, which reads member().
+export function chatPage(name: string, id: string): string {
+  return document("Chat", `<p>Hello, ${escape(name)}</p>
+<div id="chat" data-member="${escape(id)}">
+<p id="live" role="status">Connecting…</p>
+<p id="present" aria-label="Present"></p>
+<button type="button" id="join">Join room 1</button>
+<button type="button" id="leave" hidden>Leave room 1</button>
+<ul id="messages" aria-label="Messages"></ul>
+<form id="say" hidden>
+<label for="message">Message</label>
+<input id="message" name="text" maxlength="280" autocomplete="off" required>
+<button type="submit">Send</button>
+</form>
+<p id="typing" aria-live="polite"></p>
+</div>
+<p><a href="/chest">Team notes</a></p>`, "/chest/chat.js");
 }
 
 // The members' page: who has the tool, as the Chest lists them — their name,
