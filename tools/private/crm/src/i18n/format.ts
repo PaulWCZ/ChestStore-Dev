@@ -74,16 +74,24 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
 // Each language named in itself, never translated (a switch, a picker).
 export const languageNames: Record<string, string> = { en: "English", fr: "Français" };
 
-// money writes an amount of whole cents in the reader's conventions
-// ("€12,500" in English, "12 500 €" in French) and in a currency (the
-// deal's; the company's, chest.currency, for totals); whole units unless
-// cents are asked for, or "€12.5K" / "12,5 k€" when compact.
+// money writes an amount kept in hundredths of its currency in the
+// reader's conventions ("€12,500" in English, "12 500 €" in French) and in
+// a currency (the deal's; the team's default, for totals); whole units
+// unless cents are asked for — then as many decimals as the currency has
+// ("€12.50", "¥1,250", "KWD 1.250") —, or "€12.5K" / "12,5 k€" when compact.
 export function money(cents: number, locale: Locale, options: { cents?: boolean; compact?: boolean; currency?: string } = {}): string {
+  const currency = options.currency ?? "EUR";
+  const digits = options.cents ? currencyDigits(currency) : 0;
   return numberFormat(locale, {
     style: "currency",
-    currency: options.currency ?? "EUR",
-    ...(options.compact ? { notation: "compact", maximumFractionDigits: 1 } : { minimumFractionDigits: options.cents ? 2 : 0, maximumFractionDigits: options.cents ? 2 : 0 }),
+    currency,
+    ...(options.compact ? { notation: "compact", maximumFractionDigits: 1 } : { minimumFractionDigits: digits, maximumFractionDigits: digits }),
   }).format(cents / 100);
+}
+
+// A currency's minor unit (2 for EUR, 0 for JPY, 3 for KWD), from Intl.
+export function currencyDigits(currency: string): number {
+  return numberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
 }
 
 // formatDay writes a day (YYYY-MM-DD) as it is, whatever the time zone.

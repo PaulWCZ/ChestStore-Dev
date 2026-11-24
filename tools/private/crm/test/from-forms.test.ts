@@ -381,3 +381,27 @@ test("a flat forms.contact makes the contact and its line, as the nested shape d
   assert.equal(line.body, "Call me back");
   assert.equal(line.data["form"], "Contact us");
 });
+
+// Event types name no tool in 0.7.0: forms.contact is Forms' word only
+// when Forms (the event's source) told it.
+test("a forms.contact told by another tool makes nothing", async () => {
+  const data = { v: 1, form: "78", formTitle: "Contact us", answer: "902", answeredAt: new Date(Date.now() - 60_000).toISOString(), language: "en", path: "/chest/forms/78/answers/902",
+    contactName: "Not Forms", contactEmail: "not-forms@example.com", message: "Hello" };
+  assert.equal(await chest.deliver({ type: "forms.contact", source: "hiring", data }, POST), 204);
+  assert.deepEqual(await byEmail("not-forms@example.com"), []);
+  assert.equal(readFormContact({ id: "evt_x", data, source: "booking" }), null);
+});
+
+// A line told for an audience (SDK 0.7.0) is theirs: on the leads of My
+// day, a lead's message is the latest its reader may see.
+test("a lead's message on My day: the latest line its reader may see", async () => {
+  const { sql } = database;
+  const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const flat = (answer: string, message: string, ago: number) => ({ v: 1, form: "79", formTitle: "Contact us", answer, answeredAt: at(ago), language: "en", path: `/chest/forms/79/answers/${answer}`,
+    contactName: "Lina Lead", contactEmail: "lina@lead.example", message });
+  assert.equal(await told(flat("903", "Open to all", 10)), 204);
+  assert.equal(await chest.deliver({ type: "forms.contact", source: "forms", data: flat("904", "For Camille only", 5), audience: [camille.id] }, POST), 204);
+  const message = async (who: typeof camille) => (await leads(sql, asMember(who), 100)).rows.find(r => r.email === "lina@lead.example")?.message;
+  assert.equal(await message(camille), "For Camille only");
+  assert.equal(await message(hugo), "Open to all");
+});

@@ -246,19 +246,19 @@ export async function contactChoices(sql: Sql, actor: Member | null, q: unknown 
 // names on them.
 export type ContactExport = {
   contact: Contact;
-  deals: { id: string; title: string; valueCents: number; stage: string; createdAt: string }[];
+  deals: { id: string; title: string; valueCents: number; currency: string; stage: string; createdAt: string }[];
   activities: Activity[];
   steps: (Step & { doneAt: string | null })[];
   files: { name: string; type: string; size: number; addedAt: string }[];
 };
 export async function exportContact(sql: Sql, actor: Member | null, contactId: unknown): Promise<ContactExport> {
   const c = await contact(sql, actor, contactId);
-  const deals = await sql<{ id: string; title: string; value_cents: string; stage: string; created_at: Date }[]>`
-    select d.id, d.title, d.value_cents, coalesce(s.name, s.key) as stage, d.created_at from deals d join stages s on s.id = d.stage_id where d.contact_id = ${c.id} order by d.created_at`;
+  const deals = await sql<{ id: string; title: string; value_cents: string; currency: string; stage: string; created_at: Date }[]>`
+    select d.id, d.title, d.value_cents, d.currency, coalesce(s.name, s.key) as stage, d.created_at from deals d join stages s on s.id = d.stage_id where d.contact_id = ${c.id} order by d.created_at`;
   const steps = await sql<(Parameters<typeof toStep>[0] & { done_at: Date | null })[]>`select ${stepColumns(sql)}, p.done_at from steps p where p.contact_id = ${c.id} order by p.created_at`;
   return {
     contact: c,
-    deals: deals.map(d => ({ id: String(d.id), title: d.title, valueCents: Number(d.value_cents), stage: d.stage, createdAt: d.created_at.toISOString() })),
+    deals: deals.map(d => ({ id: String(d.id), title: d.title, valueCents: Number(d.value_cents), currency: d.currency, stage: d.stage, createdAt: d.created_at.toISOString() })),
     activities: await timeline(sql, { contactId: c.id, ...(actor ? { viewer: actor.id } : {}) }, 5000),
     steps: steps.map(s => ({ ...toStep(s), doneAt: s.done_at?.toISOString() ?? null })),
     files: (await sql<{ file_name: string; type: string; size: string; added_at: Date }[]>`select file_name, type, size, added_at from attachments where contact_id = ${c.id} order by added_at`).map(f => ({ name: f.file_name, type: f.type, size: Number(f.size), addedAt: f.added_at.toISOString() })),
