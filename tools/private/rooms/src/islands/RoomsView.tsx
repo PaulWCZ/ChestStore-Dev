@@ -51,7 +51,7 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   day: string;
   // The days the booking form offers (value, words), the day shown among them.
   days: { value: string; label: string }[];
-  // Today in the Chest's zone (the day field's "today").
+  // Today on the office's clock (the day field's "today").
   today: string;
   now: number | null;
   // The office's zone: the clock of this page.

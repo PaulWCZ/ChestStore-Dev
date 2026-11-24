@@ -62,20 +62,28 @@ export function openerOf(request: Request): Opener {
 // openTexts opens what is sealed (in one call, 500 at a time) and keeps
 // what is not (written before Hiring sealed: sealPending seals it at
 // night); unreadable is what the reader sees instead of a text that
-// cannot be opened.
-export async function openTexts(open: Opener, values: { text: string; context: string }[], unreadable: string): Promise<string[]> {
+// cannot be opened — or, null, the read is refused ("unavailable"): an
+// export never hands out a placeholder in place of what the team wrote.
+export async function openTexts(open: Opener, values: { text: string; context: string }[], unreadable: string | null): Promise<string[]> {
   const out = values.map(v => v.text);
   const todo = values.map((v, i) => ({ v, i })).filter(x => sealed.isSealed(x.v.text));
   for (let k = 0; k < todo.length; k += 500) {
     const part = todo.slice(k, k + 500);
     const opened = await open(part.map(x => ({ sealed: x.v.text, context: x.v.context })));
-    part.forEach((x, j) => { out[x.i] = opened[j] ?? unreadable; });
+    part.forEach((x, j) => {
+      const text = opened[j] ?? null;
+      if (text === null && unreadable === null) throw new AppError("unavailable");
+      out[x.i] = text ?? unreadable!;
+    });
   }
   return out;
 }
 
 // openDetail: a candidate's page with its notes and feedback opened.
-export async function openDetail(open: Opener, d: CandidateDetail, unreadable: string): Promise<CandidateDetail> {
+// mineLocked: the reader's own feedback could not be opened — their form
+// must not offer the placeholder as their words (saving it would replace
+// what they wrote).
+export async function openDetail(open: Opener, d: CandidateDetail, unreadable: string | null): Promise<CandidateDetail & { mineLocked: boolean }> {
   const id = d.candidate.id;
   const feedback = [...(d.mine ? [d.mine] : []), ...d.others];
   const texts = await openTexts(open, [
@@ -85,7 +93,9 @@ export async function openDetail(open: Opener, d: CandidateDetail, unreadable: s
   const notes = d.notes.map((n, i) => ({ ...n, body: texts[i]! }));
   const at = (k: number) => d.notes.length + k * 2;
   const opened = feedback.map((f, k) => ({ ...f, strengths: texts[at(k)]!, concerns: texts[at(k) + 1]! }));
-  return { ...d, notes, mine: d.mine ? opened[0]! : null, others: opened.slice(d.mine ? 1 : 0) };
+  const mineLocked = d.mine !== null && unreadable !== null && [[d.mine.strengths, opened[0]!.strengths], [d.mine.concerns, opened[0]!.concerns]]
+    .some(([stored, shown]) => sealed.isSealed(stored!) && shown === unreadable);
+  return { ...d, notes, mine: d.mine ? opened[0]! : null, others: opened.slice(d.mine ? 1 : 0), mineLocked };
 }
 
 // sealPending seals, at night, the notes and feedback written before

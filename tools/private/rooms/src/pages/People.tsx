@@ -29,7 +29,7 @@ export async function peoplePage(p: PageContext): Promise<View> {
   const coming = twoWeeks(c.today, c.rules.weekdays).filter(d => d >= c.today).slice(0, 5);
   const from = coming[0] && coming[0] < day ? coming[0] : day;
   const to = coming.at(-1) && coming.at(-1)! > day ? coming.at(-1)! : day;
-  const [said, desks, meetings] = await Promise.all([presenceOf(sql, ids, from, to), deskBookingsOf(sql, ids, from, to), inMeetings(sql, ids, from, to)]);
+  const [said, desks, meetings] = await Promise.all([presenceOf(sql, ids, from, to, c.member.id), deskBookingsOf(sql, ids, from, to), inMeetings(sql, ids, from, to)]);
   const officeName = new Map(c.offices.map(o => [o.id, o.name]));
   // Each person's desks of each day, once (hundreds of people, a week).
   const deskOf = new Map<string, DeskBooking[]>();
@@ -45,7 +45,7 @@ export async function peoplePage(p: PageContext): Promise<View> {
     title: t.who.title,
     body: (
       <div className="narrow">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ tables: ["presence", "desk_bookings", "room_bookings", "room_attendees", "offices"] }} />
         <PageHeader title={t.who.title} intro={<span className="place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}</span>} />
         {/* A name (the kit's SearchBox: "/" reaches it), a team (the kit's
             Filters: links, one team at a time, "Everyone" first). */}

@@ -50,7 +50,7 @@ export const isStatus = (value: unknown): value is Status => typeof value === "s
 export const parts = ["day", "am", "pm"] as const;
 export type Part = (typeof parts)[number];
 export const isPart = (value: unknown): value is Part => typeof value === "string" && (parts as readonly string[]).includes(value);
-// The minutes of the day each part covers, in the Chest's time zone.
+// The minutes of the day each part covers, on the clock of the desk's office (lib/zone.ts).
 export const partMinutes: Record<Part, [number, number]> = { day: [0, 1440], am: [0, 720], pm: [720, 1440] };
 export const overlaps = (a: Part, b: Part): boolean => partMinutes[a][0] < partMinutes[b][1] && partMinutes[b][0] < partMinutes[a][1];
 

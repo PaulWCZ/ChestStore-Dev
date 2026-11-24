@@ -1,8 +1,8 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { dayIn, zonedIn } from "../shared/model.ts";
 
-// The Chest's time zone (chest.timeZone, given by the Chest; its owner sets
-// it in Settings → General). "Today", a next step's day, "won this month"
+// The company's time zone (chest.timeZone, SDK 0.7.0: taken once from the
+// owner's browser, set on no screen). "Today", a next step's day, "won this month"
 // and the week of the team report are the company's, in this zone; the
 // database's sessions are in it too (current_date). Server only: client
 // components receive the day as a prop.

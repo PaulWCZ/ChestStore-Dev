@@ -11,7 +11,7 @@ import { byIds, cancelRoomBookings, type RoomBooking } from "./room-bookings.ts"
 // turned check-in on (Rules), someone taps "I'm here" from ten minutes
 // before its start, and a room nobody checked in to is freed a quarter of
 // an hour after it started — its people told. The Chest calls the tool
-// every quarter of an hour (Proposal (studio): schedules, "quarter"), so a
+// every quarter of an hour (the "quarter" schedule), so a
 // room is freed between 15 and 30 minutes after its start. A room booked
 // on the spot (within ten minutes of its start) is taken as checked in.
 export { checkInOpens } from "../shared/model.ts";

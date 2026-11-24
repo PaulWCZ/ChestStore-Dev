@@ -313,6 +313,7 @@ export const en = {
     usedBy: "Handed out",
   },
   form: {
+    currency: "Currency",
     newTitle: "Add equipment",
     editTitle: "Edit {name}",
     what: "What is it?",
@@ -564,7 +565,10 @@ export const en = {
     addPlaceholder: "Furniture, tools, cameras…",
     added: "{name} added.",
     licenceKind: "Seats and renewal",
-    currency: "Prices are in {currency}, the currency of your Chest.",
+    currencyTitle: "Default currency",
+    currencyIntro: "Fills in the currency of a new price or cost. Each amount keeps its own: the ones already written do not change.",
+    currencySave: "Save",
+    currencySaved: "New prices will be in {currency}.",
     kind: "It holds",
     kinds: {
       asset: "Things, one by one",
@@ -633,6 +637,7 @@ export const en = {
     invalid_tag: "An asset tag is letters, digits and - . _ /, 32 at most.",
     tag_taken: "{tag} is already on another item.",
     invalid_money: "Write an amount such as 1299.90.",
+    invalid_currency: "Choose a currency from the list.",
     invalid_seats: "Seats: a whole number, 1 or more.",
     invalid_date: "Check the date (not in the future for a handover).",
     not_available: "A retired item can’t be given. Set it back in stock first.",

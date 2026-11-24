@@ -2,7 +2,7 @@ import { ToastHost } from "@argentic/chest-app/client";
 import { DayPicker } from "../components/day-picker.tsx";
 import { ExampleButton } from "../components/example-office.tsx";
 import { OfficePicker } from "../components/office-picker.tsx";
-import { AutoRefresh } from "./AutoRefresh.tsx";
+import { Live } from "./Live.tsx";
 import { BookFor } from "./BookFor.tsx";
 import { DeskView } from "./DeskView.tsx";
 import { Period } from "./Period.tsx";
@@ -20,7 +20,7 @@ import { WeekView } from "./WeekView.tsx";
 // component inside it; the same components stand alone as islands on the
 // pages that need only them).
 export const islands = {
-  ToastHost, AutoRefresh, DayPicker, OfficePicker, ExampleButton, Search,
+  ToastHost, Live, DayPicker, OfficePicker, ExampleButton, Search,
   // My week.
   WeekView,
   // Desks, rooms, visitors.

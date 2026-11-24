@@ -479,6 +479,7 @@ export const en = {
   },
   candidate: {
     sealedText: "Sealed: this text cannot be opened right now.",
+    feedbackLocked: "Your feedback cannot be opened right now. Try again in a moment.",
     back: "Back to {job}",
     applied: "Applied {date}",
     addedBy: "Added by {name}, {date}",

@@ -1,16 +1,8 @@
 {
   "calendar": true,
-  "capabilities": [
-    "members.groups"
-  ],
   "mail": {
     "send": true
   },
-  "receives": [
-    "leave.approved",
-    "leave.cancelled",
-    "group.*"
-  ],
   "translations": {
     "fr": {
       "title": "Salles",

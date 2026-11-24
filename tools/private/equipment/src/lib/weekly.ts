@@ -13,7 +13,7 @@ import { endingSoon as tellEnding, refreshBadges } from "./tell.ts";
 // same item under the same key.
 export async function weekly(sql: Sql, run: Run): Promise<void> {
   // The Chest's day when the run was due (the cron line is read on its clock).
-  const day = chest.todayIn(chest.timeZone, new Date(run.scheduledAt));
+  const day = chest.today(new Date(run.scheduledAt));
   const items = await endingSoon(sql, day);
   const upcoming = items.filter(i => (i.warrantyUntil !== null && i.warrantyUntil >= day) || (i.renewsOn !== null && i.renewsOn >= day));
   await tellEnding(upcoming.map(i => `${i.name} (${i.tag})`));

@@ -32,7 +32,7 @@ export async function companiesPage({ member, locale: lang, t, query }: PageCont
   const field = fieldFilterOf(get);
   const filter = { q: get("q"), owner: get("owner"), tag: get("tag"), ...(field ? { field } : {}) };
   const sql = db();
-  const cur = currency();
+  const cur = await currency(sql);
   const [{ rows, total, page, pageSize }, tags, people, fields] = await Promise.all([
     listCompanies(sql, member, filter, { page: get("page"), sort: get("sort") }),
     tagsInUse(sql, "companies"),
@@ -101,7 +101,7 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
   const sql = db();
   const c = await readCompany(sql, member, param("id"));
   const [items, people, deals, choices, files] = await Promise.all([
-    timeline(sql, { companyId: c.id }),
+    timeline(sql, { companyId: c.id, viewer: member.id }),
     listContacts(sql, member, { company: c.id }, { limit: 200 }),
     listDeals(sql, member, { company: c.id, status: "" }, 200),
     formChoices(sql, member, t),
@@ -124,7 +124,7 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
     title: c.name,
     body: (
       <div className="page record">
-        <Island name="AutoRefresh" props={{ seconds: 45 }} />
+        <Island name="Live" props={{ tables: ["companies", "contacts", "deals", "activities"] }} />
         <nav className="crumbs"><a href="/chest/companies"><Back />{t.shell.companies}</a></nav>
         <div className="record-head">
           {c.industry && <p className="label-mono">{shownName("industries", c.industry, t)}</p>}

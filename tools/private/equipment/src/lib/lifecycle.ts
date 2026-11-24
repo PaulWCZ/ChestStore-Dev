@@ -75,7 +75,9 @@ async function departed(sql: Sql, memberId: string): Promise<void> {
   await left({ id: memberId, name: who && (who.status === "member" || who.status === "former" || who.status === "no_access") ? who.name : "" }, count);
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export type LifecycleType = "access.revoked" | "member.removed" | "member.erased";
+
+export function handlers(sql: Sql): events.Handlers<LifecycleType> {
   return {
     "access.revoked": event => departed(sql, event.data.id),
     "member.removed": event => departed(sql, event.data.id),

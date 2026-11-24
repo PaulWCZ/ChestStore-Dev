@@ -5,7 +5,7 @@ import { AppError, log } from "@argentic/chest-app";
 import { db } from "./db.ts";
 import { leaving, leavingCancelled } from "./departures.ts";
 import { connected, refresh } from "./intune.ts";
-import { forgetSeen, handlers, seen } from "./lifecycle.ts";
+import { forgetSeen, handlers, seen, type LifecycleType } from "./lifecycle.ts";
 import { people } from "./people.ts";
 import { forgetReturned, publishReturned } from "./returned.ts";
 import * as tell from "./tell.ts";
@@ -18,28 +18,26 @@ import { weekly } from "./weekly.ts";
 // database (seen), not in memory — the tool sleeps.
 
 // The members' lifecycle ("receives": ["member.*"], lib/lifecycle.ts), and
-// what People tells Equipment (Proposal (studio): events between tools —
-// departures, chest.proposals.json "receives"). An event of another shape
+// what People tells Equipment (SDK 0.7.0 events between tools, chest.json
+// "receives": its departures, each with who in People may see it — its
+// audience, honoured in lib/departures.ts). An event of another shape
 // changes nothing.
 export async function onEvent(request: Request): Promise<Response> {
   const sql = db();
-  return new Response(null, {
-    status: await events.handle(request, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "people.leaving": async e => {
-          const d = await leaving(sql, e, chest.today());
-          if (!d) return;
-          const who = (await people([d.memberId])).get(d.memberId);
-          await tell.leaving({ id: d.memberId, name: who?.status === "member" ? who.name : "" }, d.lastDay, d.count);
-        },
-        "people.leaving_cancelled": async e => {
-          const member = await leavingCancelled(sql, e);
-          if (member) await tell.stays(member);
-        },
-      },
-    }),
-  });
+  const all: events.Handlers<LifecycleType | "people.leaving" | "people.leaving-cancelled"> = {
+    ...handlers(sql),
+    "people.leaving": async e => {
+      const d = await leaving(sql, e, chest.today());
+      if (!d) return;
+      const who = (await people([d.memberId])).get(d.memberId);
+      await tell.leaving({ id: d.memberId, name: who?.status === "member" ? who.name : "" }, d.lastDay, d.count, d.audience);
+    },
+    "people.leaving-cancelled": async e => {
+      const member = await leavingCancelled(sql, e);
+      if (member) await tell.stays(member);
+    },
+  };
+  return new Response(null, { status: await events.handle(request, all, { seen: seen(sql) }) });
 }
 
 // The runs of chest.json's "schedules", read on the Chest's clock:

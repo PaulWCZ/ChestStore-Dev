@@ -32,3 +32,32 @@ export async function setExport(sql: Query, actor: Member | null, value: ExportC
   if (!can(actor, "stages")) throw new AppError("forbidden");
   await sql`insert into settings (key, value) values ('export', ${value}) on conflict (key) do update set value = excluded.value`;
 }
+
+// The team's default currency (SDK 0.7.0: the Chest has none — a company
+// may sell in several). It is the currency of a new deal, and the one the
+// totals are written in (the deals in another are counted, never added).
+// Each deal keeps its own (deals.currency). EUR until a manager sets
+// another (migrations/0010).
+export async function defaultCurrency(sql: Query): Promise<string> {
+  const [row] = await sql<{ value: string }[]>`select value from settings where key = 'currency'`;
+  return row && /^[A-Z]{3}$/u.test(row.value) ? row.value : "EUR";
+}
+
+// A currency a manager may choose: an ISO 4217 code this server knows.
+export function currencyCode(value: unknown): string {
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (!/^[A-Z]{3}$/u.test(code) || !knownCurrencies().includes(code)) throw new AppError("invalid");
+  return code;
+}
+let known: string[] | null = null;
+export function knownCurrencies(): string[] {
+  known ??= Intl.supportedValuesOf("currency");
+  return known;
+}
+
+export async function setDefaultCurrency(sql: Query, actor: Member | null, value: unknown): Promise<string> {
+  if (!can(actor, "stages")) throw new AppError("forbidden");
+  const code = currencyCode(value);
+  await sql`insert into settings (key, value) values ('currency', ${code}) on conflict (key) do update set value = excluded.value`;
+  return code;
+}

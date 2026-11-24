@@ -49,7 +49,7 @@ const columns = (sql: Query) => sql`
   o.id, o.name, o.website, o.phone, o.industry, o.tags, o.owner, o.address, o.postcode, o.city, o.country, o.siren, o.vat, o.email, o.notes, o.custom, o.created_by, o.created_at,
   (select count(*)::int from contacts c where c.company_id = o.id) as contacts,
   (select count(*)::int from deals d join stages s on s.id = d.stage_id where d.company_id = o.id and s.kind = 'open') as open_deals,
-  (select sum(d.value_cents) from deals d join stages s on s.id = d.stage_id where d.company_id = o.id and s.kind = 'open') as open_value,
+  (select sum(d.value_cents) from deals d join stages s on s.id = d.stage_id where d.company_id = o.id and s.kind = 'open' and d.currency = (select value from settings where key = 'currency')) as open_value,
   (select max(a.at) from activities a where a.company_id = o.id and a.removed_at is null) as last_activity`;
 
 const toCompany = (r: Row): Company => ({

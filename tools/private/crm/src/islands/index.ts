@@ -21,14 +21,14 @@ import { StepBox } from "../components/step-box.tsx";
 import { ActivityTable, PipelineTable, ResultsTable } from "../components/team-tables.tsx";
 import { Timeline } from "../components/timeline.tsx";
 import { CompanyList, ContactList, DealList } from "./lists.tsx";
-import { AutoRefresh, HeaderTools, SearchField } from "./shell.tsx";
+import { HeaderTools, Live, SearchField } from "./shell.tsx";
 
 // The components that also run in the browser (islands), by name. A page
 // renders one with <Island name="StepBox" props={{…}} />; everything else
 // is HTML from the server, with no script. Islands do not nest; the
 // components they are made of live in src/components/.
 export const islands = {
-  ToastHost, AutoRefresh, HeaderTools, SearchField,
+  ToastHost, Live, HeaderTools, SearchField,
   // My day.
   DayList, SelfStepButton, LeadsBox,
   // New records, anywhere.

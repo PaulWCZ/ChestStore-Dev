@@ -1,4 +1,6 @@
+import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
+import * as realtime from "@argentic/chest-sdk/realtime";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural } from "../i18n/index.ts";
 import { badges, cut, notify, withdraw, cutLines } from "./notify.ts";
@@ -55,12 +57,14 @@ export async function left(person: { id: string; name: string }, count: number):
 // "Marc Lefort leaves on 12 Oct — 3 items to take back"; the item goes when
 // all is back, when the departure is taken back, or when the person has
 // left (then "left and holds" says the rest).
-export async function leaving(person: { id: string; name: string }, lastDay: string, count: number): Promise<void> {
+// audience: the members People allows to see the departure (null: all) —
+// the managers outside it are not told.
+export async function leaving(person: { id: string; name: string }, lastDay: string, count: number, audience: string[] | null = null): Promise<void> {
   if (count === 0) {
     await withdraw(`leaving:${person.id}`);
     return;
   }
-  const to = await managers();
+  const to = (await managers()).filter(id => audience === null || audience.includes(id));
   await notify(to, (t, locale) => ({
     title: plural(person.name ? t.bell.leaving : t.bell.leavingUnnamed, count, locale, { name: cut(person.name, 30), date: formatDay(lastDay, locale, { day: "numeric", month: "short" }) }),
     body: t.bell.leavingBody,
@@ -110,6 +114,21 @@ export async function refreshBadges(sql: Query, members: (string | null | undefi
     group by r.member_id`;
   const mine = new Map(pending.map(p => [p.member_id, p.n]));
   await badges(new Map(ids.map(id => [id, (to.includes(id) ? waiting : 0) + (mine.get(id) ?? 0)])));
+  await mineChanged(members);
+}
+
+// What a member holds changed (given, taken back, a seat, a receipt): their
+// own page, if open, reads itself again (SDK 0.7.0 realtime: the
+// "mine:{member}" channel, which only they join). A courtesy: a Chest that
+// cannot take it changes nothing.
+export async function mineChanged(members: (string | null | undefined)[]): Promise<void> {
+  for (const id of new Set(members.filter((m): m is string => typeof m === "string" && m.startsWith("mbr_")))) {
+    try {
+      await realtime.publish(`mine:${id}`, "mine.changed");
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
+  }
 }
 
 // Stock of a thing counted in bulk: when it falls to its minimum or under,

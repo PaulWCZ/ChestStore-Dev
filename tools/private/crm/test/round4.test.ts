@@ -24,9 +24,11 @@ atLeast(7);
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  // A Chest in dollars: what the tool writes follows it.
-  chest = await fakeChest({ network: {}, members: everyone, chest: { currency: "USD" } });
+  // A team in dollars (SDK 0.7.0: the tool's own default currency): what
+  // it writes follows it.
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
+  await database.sql`update settings set value = 'USD' where key = 'currency'`;
 });
 after(async () => {
   await chest.close();

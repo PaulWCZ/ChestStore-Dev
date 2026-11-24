@@ -97,11 +97,11 @@ test("the export has a column per field, and reads back into the same fields", a
   const all = await items.listItems(sql, M);
   const fields = await allFields(sql);
   const t = catalogue("en");
-  const text = toCsv(exportRows(all, t, "EUR", () => "", fields));
+  const text = toCsv(exportRows(all, t, () => "", fields));
   const header = parseCsv(text)[0]!;
   assert.ok(header.includes("Licence plate") && header.includes("RAM (GB)") && header.includes("Next inspection"));
   const cats = await listCategories(sql, M);
-  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields };
+  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields, currency: "EUR" };
   const p = plan(text, "csv", context);
   const van = p.rows.find(r => r.name === "Renault Kangoo")!;
   const plate = fields.find(f => f.name === "Licence plate")!, inspection = fields.find(f => f.name === "Next inspection")!;
@@ -122,7 +122,7 @@ test("a field the tool proposed speaks each reader's language until renamed; an 
   await refused(addField(sql, M, { categoryId: screens, name: "système d’exploitation", type: "text" }), "field_taken");
   // A French file's column goes into it.
   const cats = await listCategories(sql, M);
-  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields: await allFields(sql) };
+  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields: await allFields(sql), currency: "EUR" };
   const p = plan("Nom;Catégorie;Système d’exploitation\nDell 27;Écran;Android 15\n", "csv", context);
   assert.deepEqual([p.rows[0]?.extra[os.id], p.offered], ["Android 15", []]);
   // Saved under its French name: still the key; renamed: the manager's words.
@@ -136,7 +136,7 @@ test("the French export writes the key's French name, and reads back", async () 
   const { sql } = database;
   await sql`insert into fields (category_id, name, key, type, position) values (${phones}, 'IMEI', 'imei', 'text', 8)`;
   const fields = await allFields(sql);
-  const header = parseCsv(toCsv(exportRows(await items.listItems(sql, M), catalogue("fr"), "EUR", () => "", fields)))[0]!;
+  const header = parseCsv(toCsv(exportRows(await items.listItems(sql, M), catalogue("fr"), () => "", fields)))[0]!;
   assert.ok(header.includes("Plaque d’immatriculation") || !fields.some(f => f.key === "plate"));
   assert.ok(header.includes("IMEI"));
 });

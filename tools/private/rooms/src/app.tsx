@@ -11,7 +11,7 @@ import { flush } from "./lib/calendar.ts";
 import { quarter, remind } from "./lib/check-in.ts";
 import { db } from "./lib/db.ts";
 import { bookingsCsv, occupancyCsv } from "./lib/export.ts";
-import { forgetSeen, handlers, seen } from "./lib/lifecycle.ts";
+import { forgetSeen, handlers, seen, type LifecycleType } from "./lib/lifecycle.ts";
 import { bookingIcs, myCsv, myIcs, origin } from "./lib/mine.ts";
 import { photoLink } from "./lib/photos.ts";
 import { stamp } from "./lib/stamp.ts";
@@ -47,7 +47,7 @@ export const app = createApp({
 
 // The pages others change read themselves again while open: their version
 // (src/lib/stamp.ts) makes a read that finds nothing new a 304.
-const changing = { version: ({ member }: { member: Parameters<typeof stamp>[1] }) => stamp(db(), member, zone()) };
+const changing = { version: ({ member }: { member: Parameters<typeof stamp>[1] }) => stamp(db(), member) };
 // My week (?day= highlights a day: the bell's links; ?office=).
 app.get("/chest", page(weekPage, changing));
 // Book a desk (?day, part, view=list, f=screen,window, office, for).
@@ -113,19 +113,16 @@ app.get("/", publicPage(publicHome));
 // send it again: they are idempotent; a delivery already handled is
 // dropped (seen).
 
-// The members' lifecycle, the groups (Proposal (studio): "groups"), and
-// what the Leave tool tells (Proposal (studio): events between tools).
+// The members' lifecycle, and what the Leave tool tells (SDK 0.7.0:
+// events between tools, chest.json "receives"; the owner approves the link).
 app.post("/chest-events", async c => {
   const sql = db();
-  return new Response(null, {
-    status: await events.handle(c.req.raw, handlers(sql), {
-      seen: seen(sql),
-      tools: {
-        "leave.approved": async e => { await leaveApproved(sql, e, zone()); await flush(sql, zone()); },
-        "leave.cancelled": async e => { await leaveCancelled(sql, e); await flush(sql, zone()); },
-      },
-    }),
-  });
+  const all: events.Handlers<LifecycleType | "leave.approved" | "leave.cancelled"> = {
+    ...handlers(sql),
+    "leave.approved": async e => { await leaveApproved(sql, e, zone()); await flush(sql, zone()); },
+    "leave.cancelled": async e => { await leaveCancelled(sql, e); await flush(sql, zone()); },
+  };
+  return new Response(null, { status: await events.handle(c.req.raw, all, { seen: seen(sql) }) });
 });
 
 // chest.json's "schedules": every quarter of an hour, "quarter" — the

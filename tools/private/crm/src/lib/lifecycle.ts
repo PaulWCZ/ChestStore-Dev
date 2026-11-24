@@ -58,7 +58,9 @@ async function nameOf(memberId: string): Promise<string> {
   return person && (person.status === "member" || person.status === "former") ? person.name : "";
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export type LifecycleType = "access.revoked" | "member.removed" | "member.erased";
+
+export function handlers(sql: Sql): events.Handlers<LifecycleType> {
   const gone = async (memberId: string) => {
     const counts = await leave(sql, memberId);
     // Their steps now belong to nobody: out of their calendar.

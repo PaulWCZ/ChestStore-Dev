@@ -23,6 +23,9 @@ type SeatHolder = { member: string; name: string; photo: string | null; since: s
 type ItemInfo = {
   id: string; name: string; tag: string; status: Status; kind: Kind; seats: number; heldSince: string | null; placeName: string | null;
   quantity: number | null; minQuantity: number | null;
+  // The currency a repair's cost is written in (the item's, else the
+  // tool's default).
+  currency: string;
 };
 // What the page wrote about the item's receipt and repair, in the reader's
 // words; the inventory under way, if any.
@@ -393,7 +396,7 @@ function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
       )}
       {fromRepair && (
         <div className="form-field">
-          <label className="label" htmlFor="repair-cost">{t.repair.cost} <span className="muted">({t.common.optional})</span></label>
+          <label className="label" htmlFor="repair-cost">{t.repair.cost} <span className="muted">({item.currency} · {t.common.optional})</span></label>
           <input id="repair-cost" className="field" value={cost} onChange={e => setCost(e.target.value)} inputMode="decimal" maxLength={20} />
         </div>
       )}

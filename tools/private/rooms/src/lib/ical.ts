@@ -13,7 +13,7 @@ import { windowsZone } from "./windows-zones.ts";
 // numbers, texts, people, the weekly test. What it reads: VEVENT with
 // DTSTART and DTEND or DURATION, whole days (VALUE=DATE), times in UTC,
 // with a TZID (IANA, the Windows names Outlook writes, or the calendar's
-// own VTIMEZONE), or floating (the Chest's zone); RRULE (DAILY, WEEKLY,
+// own VTIMEZONE), or floating (the room's office's zone); RRULE (DAILY, WEEKLY,
 // MONTHLY, YEARLY with INTERVAL, COUNT, UNTIL, BYDAY with ordinals,
 // BYMONTHDAY, BYMONTH, BYSETPOS, WKST), RDATE, EXDATE, RECURRENCE-ID (a
 // moved or cancelled occurrence), STATUS:CANCELLED. Pure and tested.

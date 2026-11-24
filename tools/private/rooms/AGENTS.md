@@ -11,17 +11,18 @@ read it first. Here, what is Rooms' own.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `admin`, `manager` (office manager), `member`; `database`, `files`, `members`, `notifications`; `receives`; the `quarter` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Studio proposals: `calendar`, `capabilities: ["members.groups"]`, `mail.send` (visitors' invitations only), `receives` Leave's events and `group.*`, `translations` |
+| `chest.json` | Manifest (contract 0.7, SDK 0.7.0): roles `admin`, `manager` (office manager), `member`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives` `member.*` and Leave's `leave.approved`, `leave.cancelled`; the `quarter` schedule; `realtime`: the `office` channel and the feeds of the tables the pages show (keys only); `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Studio proposals: `calendar`, `mail.send` (visitors' invitations only), `translations` |
 | `migrations/0001_rooms.sql` | Schema. **The exclusion constraints** (`desk_taken`, `desk_already`, `room_taken`) are what prevents double booking; `btree_gist` is required. Never edit a shipped file; add the next one |
 | `migrations/0003_…` – `0007_…` | Calendar queue, usual week, lent desks, groups, check-in, presets, example, import, visitors, Leave's words |
 | `migrations/0008_calendar_uids.sql` | `room_bookings.uid_salt` (a booking's calendar key `room:<id>:<salt>`; null: a booking made before, key `room:<id>`), `calendar_sent.published` (the key the Chest holds) |
 | `migrations/0009_change_stamp.sql`, `0011_chest_changes.sql` | The pages' version: 0009's sequence, replaced by 0011's package change log (`chest_watch` a new table there) |
+| `migrations/0013_office_zones_leave_audience.sql` | `offices.time_zone` (null: the Chest's), `rooms_floor_zone(floor, fallback)`, `leave_words.audience` (null: everyone) |
 | `migrations/0012_visitor_invitations.sql` | `settings.mail` dropped (members are never mailed); a visit's optional `email`, `language`, `invitation` (sent / not_sent) and `mail_sequence` |
 | `src/app.tsx` | **Every route**: the pages, the files (`download()`), the room photo link, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name (`call()` from the islands); the bell and the calendars go `after()` the answer; imports are `parallel` |
 | `src/pages/` | `Week`, `Desks`, `Rooms`, `People`, `Visitors`, `Places` (offices, rules, export), `PublicHome` |
-| `src/islands/` | `WeekView`, `DeskView`, `BookFor`, `RoomsView` (the grid, the phone list, the booking form; props sent compact: `SentBooking`, `Who`), `VisitorsView`, `PlacesView`, `RulesForm`, `Period`, `Search`, `AutoRefresh`; `index.ts` lists them |
+| `src/islands/` | `WeekView`, `DeskView`, `BookFor`, `RoomsView` (the grid, the phone list, the booking form; props sent compact: `SentBooking`, `Who`), `VisitorsView`, `PlacesView`, `RulesForm`, `Period`, `Search`, `Live` (realtime: the page read again when a fed table changes); `index.ts` lists them |
 | `src/components/` | Shared by pages and islands: icons, the mark, `DayPicker`, `OfficePicker`, `ExampleButton`, `StayLink` (a link opened in place, scroll kept), date problems |
 | `src/layout.tsx` | The kit's shell, the sections, the toasts |
 | `src/theme.ts`, `src/tokens.css`, `src/styles.css`, `src/grid.css` | Blueprint and the company's choice as `/chest/look.css`; Rooms' tokens; its components; the grid's places as classes (`at-N`, `len-N`, `rows-N`: no style attribute) |
@@ -29,7 +30,7 @@ read it first. Here, what is Rooms' own.
 | `src/shared/model.ts`, `src/shared/app-error.ts` | Bounds, keys, days, quarter hours, free slots — pure, browser-safe (islands import these, never `src/lib/`) |
 | `src/lib/access.ts` | **Who may do what**: abilities (`can`) and `mayChange` |
 | `src/lib/booking-rules.ts` | What every booking is held to, the time range built by PostgreSQL in the Chest's zone, constraint errors → codes |
-| `src/lib/context.ts`, `src/lib/zone.ts`, `src/lib/stamp.ts` | What every page starts from; the Chest's time zone; a page's version |
+| `src/lib/context.ts`, `src/lib/zone.ts`, `src/lib/stamp.ts` | What every page starts from (its clock: the shown office's zone); the zones (the Chest's, an office's, a room's, a desk's); a page's version |
 | `src/lib/places.ts`, `desk-bookings.ts`, `room-bookings.ts`, `presence.ts`, `visits.ts`, `usual.ts`, `check-in.ts`, `settings.ts` | The office and its bookings, presence, visitors, the usual week, check-in, the rules |
 | `src/lib/calendar.ts`, `invitations.ts`, `tell.ts`, `notify.ts` | The calendar feeds (`enqueue` in the changing transaction, `flush` from the database's state), visitors' invitations by email (outside people only), the bell (one notice with its translations) |
 | `src/lib/groups.ts`, `people.ts`, `directory.ts`, `match.ts` | The Chest's groups (kept a minute, forgotten on events), names, the pickers' people, matching imported names and addresses |
@@ -70,15 +71,29 @@ NODE_ENV=development npm test            # as the workbench runs them
 - **Identity only from `member()`** (the page's or action's `member`); store `mbr_…` ids.
 - **A member's groups come from `lib/groups.ts`** (`groupsOf` for one,
   `membership` for many, through `members.get` and `members.list({ group
-  })` with `members.groups`), never from the request's `member.groups`,
-  which an older assertion may leave short. Ask them
+  })` with `members.groups`; `groups.list` is paged), never from the
+  request's `member.groups`, which an older assertion may leave short and
+  0.7.0 makes `null` past about 150 groups. Ask them
   before a transaction, not inside it.
 - **Never check availability in code and then insert**: insert, and let the
   constraint refuse (`conflict()` turns SQLSTATE 23P01 into `taken` /
   `already_booked`). Insert inside a savepoint when the transaction must go on.
-- **Times**: build ranges with `span()` (PostgreSQL, the Chest's zone) and read
-  them back as minutes of the booking's `day`; never do zone arithmetic in
-  JavaScript. Test daylight-saving days.
+- **Times**: each office keeps its own zone (`offices.time_zone`, null: the
+  Chest's). Build ranges with `span()` in the zone of the place's office
+  (`roomZone`, `deskZone`, `officeZone` from `lib/zone.ts`) and read them
+  back as minutes of the booking's `day` with `rooms_floor_zone(floor,
+  ${zone()})` or `coalesce(o.time_zone, ${zone()})` — the fallback is
+  always the Chest's zone, never the page's (`c.zone`, the shown office's
+  clock). Never do zone arithmetic in JavaScript. Test daylight-saving
+  days. No screen sets the Chest's zone.
+- **Realtime, never a timer**: a page others change shows
+  `<Island name="Live" props={{ tables: [...] }} />` with the tables it
+  reads; each is a feed of `chest.json` (keys only: `test/zones.test.ts`
+  checks them against the schema). A new table a page reads → `chest_watch`
+  in its migration and a feed.
+- **Leave's audience**: a day off Leave told for an audience is shown only
+  to it and the person (`presenceOf(…, viewer)`); a page that shows other
+  people's presence passes its reader.
 - **Every service function takes `(sql, actor, …)`**, checks rights first and
   throws `AppError(code)`. Add an ability → a line in `test/access.test.ts`.
 - **Islands and `src/components/` import only** `src/i18n/format.ts`,

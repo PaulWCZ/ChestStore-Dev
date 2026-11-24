@@ -43,7 +43,7 @@ export async function visitorsPage(p: PageContext): Promise<View> {
     title: t.visitors.title,
     body: (
       <div className="narrow">
-        <Island name="AutoRefresh" props={{ seconds: 20 }} />
+        <Island name="Live" props={{ tables: ["visits", "offices"] }} />
         <Island name="VisitorsView" id={`visitors-${office.id}-${day}`} props={{
           head: {
             title: t.visitors.title,

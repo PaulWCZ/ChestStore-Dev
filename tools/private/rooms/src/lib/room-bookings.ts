@@ -8,6 +8,7 @@ import { groupsOf } from "./groups.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import type { TransactionSql } from "postgres";
 import { addDays, clean, day, daysBetween, id, int, limits, memberIds, minutes } from "../shared/model.ts";
+import { roomZone } from "./zone.ts";
 
 // Meeting rooms booked by the quarter hour. PostgreSQL refuses two live
 // bookings of a room that overlap (constraint room_taken): whoever comes
@@ -36,11 +37,12 @@ const toBooking = (r: Row): RoomBooking => ({
   start: Number(r.start), end: Number(r.end), series: r.series === null ? null : String(r.series), attendees: r.attendees ?? [], revision: Number(r.revision ?? 0), checkedIn: r.checked_in === true,
 });
 
-// The columns every answer carries: local day and minutes in the Chest's zone.
+// The columns every answer carries: local day and minutes in the zone of
+// the room's office (zone: the Chest's, for an office without one).
 function columns(sql: Query, zone: string) {
   return sql`b.id, b.room_id, r.name as room_name, b.member_id, b.title, to_char(b.day, 'YYYY-MM-DD') as day,
-    (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
-    (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
+    (extract(epoch from (lower(b.during) at time zone rooms_floor_zone(r.floor_id, ${zone})) - b.day::timestamp) / 60)::int as start,
+    (extract(epoch from (upper(b.during) at time zone rooms_floor_zone(r.floor_id, ${zone})) - b.day::timestamp) / 60)::int as "end",
     b.series, b.revision, b.checked_in_at is not null as checked_in,
     coalesce((select array_agg(a.member_id order by a.member_id) from room_attendees a where a.booking_id = b.id), '{}') as attendees`;
 }
@@ -91,7 +93,9 @@ export async function bookRoom(sql: Sql, actor: Member | null, input: RoomInput,
   const who = await bookedFor(actor, input.for);
   const attendees = memberIds(input.attendees, limits.attendees).filter(a => a !== who.id);
   return sql.begin(async tx => {
-    const m = await moment(tx, actor, zone);
+    // The room's office keeps its own clock (lib/zone.ts).
+    const z = await roomZone(tx, roomId, zone);
+    const m = await moment(tx, actor, z);
     const s = slot(m, input.start, input.end);
     const weeks = input.weeks === undefined ? 1 : int(input.weeks, 1, m.exempt ? 52 : m.rules.repeatWeeks);
     checkWhen(m, first, s, "room");
@@ -105,7 +109,7 @@ export async function bookRoom(sql: Sql, actor: Member | null, input: RoomInput,
         const row = await tx.savepoint(async sp => {
           const [r] = await sp<{ id: string }[]>`
             insert into room_bookings (room_id, member_id, title, day, during, series)
-            values (${roomId}, ${who.id}, ${title}, ${d}, ${span(sp, d, s.start, s.end, zone)}, ${series})
+            values (${roomId}, ${who.id}, ${title}, ${d}, ${span(sp, d, s.start, s.end, z)}, ${series})
             returning id`;
           return r!;
         });
@@ -176,8 +180,10 @@ async function changeOne(tx: TransactionSql, actor: Member, bid: string, input: 
     if (!mayChange(actor, row.member_id)) throw new AppError("forbidden");
     if (row.over) throw new AppError("past");
     const [before] = await byIds(tx, [bid], zone);
-    const m = await moment(tx, actor, zone);
     const roomId = input.roomId === undefined ? before!.roomId : id(input.roomId);
+    // The minutes asked are those of the (new) room's office.
+    const z = await roomZone(tx, roomId, zone);
+    const m = await moment(tx, actor, z);
     const d = input.day === undefined ? before!.day : day(input.day);
     const s = slot(m, input.start ?? before!.start, input.end ?? before!.end);
     // A meeting under way may run longer or shorter; it keeps its start.
@@ -192,7 +198,7 @@ async function changeOne(tx: TransactionSql, actor: Member, bid: string, input: 
         // Moved (another day, time or room): its reminder and its check-in
         // belonged to the old slot.
         const moved = d !== before!.day || s.start !== before!.start || s.end !== before!.end || roomId !== before!.roomId;
-        await sp`update room_bookings set room_id = ${roomId}, day = ${d}, during = ${span(sp, d, s.start, s.end, zone)}, title = ${title}, revision = revision + 1, changed_at = now(),
+        await sp`update room_bookings set room_id = ${roomId}, day = ${d}, during = ${span(sp, d, s.start, s.end, z)}, title = ${title}, revision = revision + 1, changed_at = now(),
           reminded_at = case when ${moved} then null else reminded_at end, checked_in_at = case when ${moved} then null else checked_in_at end where id = ${bid}`;
       });
     } catch (error) {
