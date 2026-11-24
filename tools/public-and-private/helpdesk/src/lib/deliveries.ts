@@ -23,13 +23,21 @@ import { cleanup } from "./tickets.ts";
 // The members' lifecycle (lib/lifecycle.ts), the requests Forms sends and
 // the incidents Status tells (events between tools, SDK 0.7.0: one map,
 // chest.json's "receives"; lib/forms-in.ts, lib/incidents-in.ts).
+export function fromItsTool(e: Pick<events.ToolEvent, "type" | "source">): boolean {
+  if (e.source === e.type.split(".")[0]) return true;
+  log.warn("event ignored: not from the tool its type names", { type: e.type });
+  return false;
+}
+
 export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
   return new Response(null, {
     status: await events.handle(request, {
       ...handlers(sql),
-      "forms.request": async e => { await fromForms(sql, e); },
-      "status.incident": async e => { await incidents.received(sql, e); },
+      // Each type only from the tool its first word names (the Chest stamps
+      // source): another tool emitting "forms.request" is not Forms.
+      "forms.request": async e => { if (fromItsTool(e)) await fromForms(sql, e); },
+      "status.incident": async e => { if (fromItsTool(e)) await incidents.received(sql, e); },
     }, { seen: seen(sql) }),
   });
 }

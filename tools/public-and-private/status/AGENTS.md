@@ -100,3 +100,4 @@ npm run dev                            # rebuilds on change
 - **No timer on a team page**: they follow `LiveTeam` (realtime feeds of
   ids); only the public page refreshes itself, and only while its
   visitor is active.
+- **An event's text never carries a format character** (`eventText` in `lib/tell-tools.ts`: the Chest refuses Unicode Cf — an emoji's joiner, a zero-width space, a BOM); stripped in the event only, the incident keeps its words.

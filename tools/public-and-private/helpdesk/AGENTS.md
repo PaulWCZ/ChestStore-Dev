@@ -183,3 +183,4 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
   (`lib/downloads.ts`): two at once; HEAD takes none.
 - **No inline script or style**: no `style={}`, no `<style>`; the look is
   `/chest/look.css` and `/look.css`.
+- **Each received type only from the tool it names** (`fromItsTool`: `forms.request` from Forms, `status.incident` from Status, by the Chest-stamped `source`); read exactly the fields the partner declares in its `chest.json`, require nothing more.

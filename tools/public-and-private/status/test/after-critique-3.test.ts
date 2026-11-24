@@ -241,6 +241,16 @@ test("status.incident tells the other tools: opened, updated, resolved, removed 
   assert.equal(chest.emitted.length, before);
 });
 
+test("a format character a person typed (an emoji's joiner, a zero-width space) is left out of the event only; the incident keeps it", async () => {
+  const { sql } = database;
+  const { incidentId } = await open({ [payments]: "major" }, "Paie\u200bments 👩\u200d💻 down");
+  await tellTools(sql, incidentId, "opened");
+  const d = chest.emitted.at(-1)!.data as Record<string, string>;
+  assert.ok(!/\p{Cf}/u.test(JSON.stringify(d)), "no format character in what is told");
+  assert.equal(d["title"], "Paiements 👩💻 down");
+  assert.match((await incidents.incidentFor(sql, editor, incidentId)).title, /\u200b/u, "kept as typed");
+});
+
 test("an incident's time is told within the Chest's 72 hours, else the Chest's own", () => {
   const now = Date.parse("2026-11-24T12:00:00Z");
   assert.ok(occurredAtOf(new Date(now - 71 * 3_600_000), now));

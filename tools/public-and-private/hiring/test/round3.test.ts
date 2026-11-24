@@ -143,6 +143,17 @@ test("Leave says Inès is off: no time is offered on her day off, the recruiter 
   assert.equal((await interviews.busy(sql, asMember(camille), [ines.id], tuesday)).length, 0);
 });
 
+test("busy times are taken only from the tool their type names (booking.busy from Booking, leave.busy from Leave)", async () => {
+  const { sql } = database;
+  const data = bookingBusy(hugo.id, [[new Date(Date.now() + 86400000), new Date(Date.now() + 90000000)]]);
+  const base = { id: "evt_x", occurredAt: new Date().toISOString(), audience: "all" as const, data };
+  assert.equal(await share.takeBusy(sql, { ...base, type: "booking.busy", source: "people" }), false);
+  assert.equal(await share.takeBusy(sql, { ...base, type: "leave.busy", source: "booking" }), false);
+  assert.equal(await share.takeBusy(sql, { ...base, type: "booking.busy", source: "booking" }), true);
+  // Booking's shape as its chest.json declares it (v, spans as JSON text) is read.
+  assert.equal(await share.takeBusy(sql, { ...base, type: "leave.busy", source: "leave", data: { v: 1, ...data, at: new Date(Date.now() + 1000).toISOString() } }), true);
+});
+
 test("Hiring tells Booking the interviews' times, only when they change, never what Booking told it", async () => {
   const { sql } = database;
   chest.emitted.length = 0;

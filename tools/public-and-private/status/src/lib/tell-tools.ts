@@ -35,9 +35,14 @@ import { impactOf } from "./status-view.ts";
 
 export type IncidentAction = "opened" | "updated" | "resolved" | "removed";
 
+// The Chest refuses a format character (Unicode Cf: a zero-width joiner
+// inside an emoji, a zero-width space, a BOM) in an event's text: taken
+// out of what is told only — the incident keeps its words as typed.
+export const eventText = (text: string): string => text.replace(/\p{Cf}/gu, "");
+
 export async function incidentData(sql: Query, i: Incident, action: IncidentAction): Promise<Record<string, unknown>> {
-  const titles: Record<string, string> = { [i.language]: i.title };
-  if (i.titleSecond && i.secondLanguage) titles[i.secondLanguage] = i.titleSecond;
+  const titles: Record<string, string> = { [i.language]: eventText(i.title) };
+  if (i.titleSecond && i.secondLanguage) titles[i.secondLanguage] = eventText(i.titleSecond);
   const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
   const last = i.updates.find(u => u.removedAt === null && u.status !== "postmortem");
   const origin = await publicOrigin(sql);
@@ -48,14 +53,14 @@ export async function incidentData(sql: Query, i: Incident, action: IncidentActi
     status: i.status,
     impact,
     language: i.language,
-    title: i.title,
+    title: eventText(i.title),
     titles: JSON.stringify(titles),
     services: JSON.stringify(touched(i).flatMap(id => {
       const c = services.get(id);
       if (!c || c.teamOnly) return [];
-      const names: Record<string, string> = { [c.language]: c.name };
+      const names: Record<string, string> = { [c.language]: eventText(c.name) };
       const other = locales.find(l => l !== c.language);
-      if (c.nameSecond && other) names[other] = c.nameSecond;
+      if (c.nameSecond && other) names[other] = eventText(c.nameSecond);
       return [{ id: c.id, names, state: i.status === "resolved" ? "operational" : last?.states[id] ?? "operational" }];
     })),
     startedAt: i.startedAt.toISOString(),
