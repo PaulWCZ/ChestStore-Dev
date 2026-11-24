@@ -1,11 +1,15 @@
 # chest-dev — the studio's local Chest
 
-`dev.mjs` runs one tool as a Chest of **contract 0.4** would, on this
-machine — any tool that follows the contract (`npm ci`, `build.command`,
+`dev.mjs` runs one tool as a Chest of **contract 0.7** would (SDK
+`0.7.0-studio.N`'s fake; a tool still on 0.4 starts too, see "Unmigrated
+tools"), on this machine — any tool that follows the contract (`npm ci`, `build.command`,
 `build.start` with `PORT`), whatever its framework (Next.js, or Hono + React
 built by Vite like `reference/perseus-starter`) — against the SDK working
 copy's `fakeChest` (`sdk/`). `screens.mjs` takes screenshots, `audit.mjs`
-runs axe-core, `flows/` are browser flows (`flows/lib.mjs`).
+runs axe-core, `flows/` are browser flows (`flows/lib.mjs`). All three launch the
+Chromium `browser.mjs` picks: `CHROMIUM_PATH` when set, else the newest
+`chromium-<build>` under `PLAYWRIGHT_BROWSERS_PATH` (default
+`/opt/pw-browsers`; 1243 today), else the newest headless shell there.
 
 ```sh
 node lab/chest-dev/dev.mjs tools/private/tasks --reset            # npm run dev: https://127.0.0.1:4000/_dev
@@ -39,12 +43,14 @@ host", and `reference/sdk/contract/README.md`) enforces the Chest's rules:
 |---|---|---|
 | team | `/chest`, `/chest/…` (any case) | to the tool with the `Chest-Member` assertion of the member chosen on `/_dev`. A method other than `GET`/`HEAD` needs `Sec-Fetch-Site: same-origin` and `Origin: <team host>`: **403** otherwise (a browser sends them; `fetch` from Node or curl does not) |
 | team | `GET`/`HEAD` under a `build.static` prefix (`/_next/static/` when absent) | to the tool, to anyone, no member |
-| team | `/_dev/…`, `/_chest/…` | the harness; the fake Chest's front (photos, files, uploads) |
+| team | `/_dev/…`, `/_chest/…` | the harness; the fake Chest's front (photos, files, uploads, realtime's question before connecting) |
+| team | `GET /_chest/realtime` with `Upgrade: websocket` | a page's **realtime** connection (0.7.0), relayed to the fake's hub as the member signed in; **403** from another `Origin`, **404** without the capability `realtime` |
+| public | `/_chest/files/upload/…` | a visitor's upload (0.7.0's `files.uploadUrl(folder, {public: true})` answers that path), the fake Chest's |
 | team | anything else | **302** to the public host, same path and query |
 | public | `/chest…` | **302** to the team host |
 | public | `GET`/`HEAD` under a `build.static` prefix | to the tool (static files are served on both hosts) |
 | public | anything else | to the tool without identity when `"public": true`; **404** otherwise |
-| both | a path not in its simple form (`//`, `.`/`..`, `\`, `%2F`, `%5C`, `%2E`, `%00`); `Upgrade` | **400**; **501** |
+| both | a path not in its simple form (`//`, `.`/`..`, `\`, `%2F`, `%5C`, `%2E`, `%00`); any other `Upgrade` | **400**; **501** |
 
 Toward the tool: path, query and `Host` unchanged, every `Chest-*` header
 from the client removed, and `X-Forwarded-For`, `Forwarded` and
@@ -162,7 +168,6 @@ status the tool answered go to the log.
 | Organization | Atelier Martin | `CHEST_ORGANIZATION` → `chest.organization.name` |
 | Time zone | `CHEST_TIME_ZONE` of the shell, else `Europe/Paris` | `CHEST_TIME_ZONE` → `chest.timeZone`, `chest.today()` |
 | Language | `en` | `CHEST_LANGUAGE` → `chest.language` |
-| Currency | `EUR` | `CHEST_CURRENCY` → `chest.currency` |
 | Hosts | team `http://localhost:<port>`, public `http://localhost:<port+2>` | `CHEST_TEAM_URL`, `CHEST_PUBLIC_URL` (only with a public part) → `chest.tool.teamUrl`, `chest.tool.publicUrl`; `CHEST_TOOL_URLS` (studio) |
 
 The names before 0.3.0 (`CHEST_COMPANY`, `CHEST_TIMEZONE`, `CHEST_LOCALE`)
@@ -210,8 +215,9 @@ harnesses of one tool never share it),
 with `build.start`; refused when sources are newer, unless `--stale-ok`),
 `--build` (with `--prod`: `npm ci` when needed and `build.command` first),
 `--sleep-after <s>` (put the tool to sleep after that many idle seconds),
-`--tools a,b` (tools installed beside it), `--linked` (an
-admin linked them for the events they receive), `--elsewhere`,
+`--tools a,b` (tools installed beside it, beside those whose events it
+receives — `chest.json` `receives`), `--linked` (ignored with a warning:
+0.7.0 has no links between tools), `--elsewhere`,
 `--granting-groups`, `--no-mail-connector` (the company's mail provider is
 not connected: `mail.available()` says `not_connected` and `mail.send`
 throws `Unavailable`, as on a Chest whose owner has not connected it yet;
@@ -240,10 +246,10 @@ await control(page, origin, "member", { member: id("hugo"), timeZone: "Asia/Toky
 |---|---|---|
 | `/_dev/as` | `member`, `language` (`en`, `fr`, or empty: theirs; `locale` still read) | who is signed in on `/chest`. Cookies `dev_member`, `dev_locale` |
 | `/_dev/member` | `member`, `timeZone` (IANA) | what the member chose in the Chest: `members.get/list/lookup` answer the `timeZone`; the next request's assertion carries it. No event: the Chest sends none. The tool's `members.lookup` may keep an answer for a minute |
-| `/_dev/delivery` | `mail` (`ready`, `not_connected`, `suspended`, `quota`), `webhooks` (`ready`, `suspended`) | whether the Chest delivers: `mail.available()`, `webhooks.available()` and `send` follow it |
-| `/_dev/deliver` | `type`, `data` (JSON), optional `occurredAt` (ISO 8601), `source` (a tool's name; the type's first part by default), `id` (`evt_…`: the same event twice) | an event of another tool, as the Chest delivers it |
-| `/_dev/event` | `member`, `type` (`member.updated`, `access.revoked`, `member.removed`, `member.erased`) | a member's lifecycle; `member.removed` and `member.erased` move them to the former members with `leftAt` now |
-| `/_dev/group` | `member`, `group`, `action` (`add`, `remove`) | an admin moves someone in or out of a group (`member.updated`, `group.changed`) |
+| `/_dev/delivery` | `mail` (`ready`, `not_connected`, `suspended`; `quota` is 400: no daily number since 0.7.0-studio.2, the Chest paces), `webhooks` (`ready`, `suspended`) | whether the Chest delivers: `mail.available()`, `webhooks.available()` and `send` follow it |
+| `/_dev/deliver` | `type`, `data` (JSON), optional `occurredAt` (ISO 8601), `source` (a tool's name; the type's first part by default — 0.7.0 tells a tool's event by it), `subject`, `audience` (`all` by default, or member ids), `id` (`evt_…`: the same event twice) | an event of another tool, as the Chest delivers it (`member.*`, `access.revoked`, `folders.*` go without source) |
+| `/_dev/event` | `member`, `type` (`member.updated`, `access.revoked`, `member.removed`, `member.erased`) | a member's lifecycle (`chest.deliver`); `member.removed` and `member.erased` move them to the former members with `leftAt` now; those three also close the member's realtime pages (`access_removed`) |
+| `/_dev/group` | `member`, `group`, `action` (`add`, `remove`) | an admin moves someone in or out of a group (`member.updated`; 0.7.0 has no group events) |
 | `/_dev/schedule` | `name` (a schedule of `chest.json`) | a run now, signed, to `POST /chest-schedules` (the tool woken first) |
 | `/_dev/sleep`, `/_dev/wake` | — | the Chest puts the tool to sleep (its process stops), or wakes it |
 | `/_dev/bounce` | `message` (`msg_…` of the outbox), `permanent` (`1`, `0`) or `complained=1` | the message could not be delivered (or was marked as spam): `mail.status(id)` says `bounced` (`complained`), a permanent one or a complaint suppresses the address. Nothing is posted to the tool |
@@ -266,17 +272,50 @@ The page shows: the member signed in (language, zone) and the Chest
 (organization, zone, today); the bell, badges and files; **Members'
 choices** (each member's zone);
 **Delivery** (with mail or webhooks); **Events between tools**, each
-published event as `<code>type</code> <small>{data}</small>` (the line flows
-match) followed by its `key` and `occurredAt`; the former members with the
-day they left.
+emitted event (`chest.emitted`) as `<code>type</code> <small>{data}</small>`
+(the line flows match) followed by its `key`, `audience` and `occurredAt`;
+**Realtime** (with the capability), the channels and feeds of `chest.json`
+and the last frames the Chest published; the former members with the day
+they left.
 
-**`quota`** sets the fake's `mail.perDay` to 0 (the harness keeps the options
-object the fake reads at each call): `mail.available()` answers `quota`, and
-sends are refused (429 `quota_exceeded`) once one message went out that day —
-the fake lets the day's first message through (`FakeDelivery` has no
-`quota` state; noted for the SDK report). Webhooks have no quota state.
+## Realtime (SDK 0.7.0)
+
+A tool with `"capabilities": ["realtime"]` and a `realtime` key in
+`chest.json` runs as on a Chest:
+
+- **The connection.** A page's `@argentic/chest-sdk/realtime/client`
+  connects to `wss://<team host>/_chest/realtime` (and asks first with a
+  plain `GET` of the same path). The harness relays both, byte for byte, to
+  the hub of the SDK working copy's fake (`testing-realtime.ts`, protocol
+  `chest-realtime.v1`) as `/_chest/realtime?member=<the member signed in on
+  /_dev>` — the only identity, whatever the page's query says (the fake has
+  no session; a Chest uses the member's). The hub applies `chest.json`'s
+  channel rules (roles, `{member}`, membership tables), presence, peers,
+  replay and resync. The tool is never asked: it may sleep while pages
+  stay open. `/_dev/event` `access.revoked`, `member.removed` and
+  `member.erased` close that member's pages (`access_removed`).
+- **The feeds.** "The Chest installs the triggers after the migrations":
+  `feeds.mjs` does, in the tool's database (as the superuser): a schema
+  `chest_realtime` with one function, and a trigger `chest_realtime` on
+  each table of `"feeds"` and each membership table, which `pg_notify`s
+  the row's needed columns at commit. The harness `LISTEN`s and hands each
+  row, in commit order, to `chest.realtime.commit(table, op, row)`; the hub
+  publishes `<table>.insert|update|delete` with the feed's columns on the
+  feed's channel. A membership row deleted takes its member out at once
+  (`realtime.removed`). A row longer than a notification (8000 bytes)
+  carries only the columns that place it (the fake does not mark it
+  `partial`). `TRUNCATE` sends nothing.
+- **In a flow**: `watchRealtime(page)` (`flows/lib.mjs`) before the page
+  opens, then `joined()` and `received(frame => …)`; Booking, Forms and
+  Quotes check that a row written to the database reaches an open page,
+  which reads itself again without a reload.
 
 ## Unmigrated tools
+
+A tool still on 0.4.1-studio starts and serves against 0.7.0's fake, but
+its `chest.proposals.json` `emits` (a list) cannot be taken: its events are
+refused (403) until it declares `emits` in `chest.json`; its received
+events come without the 0.4 envelope; no mail quota. Migrate it.
 
 A tool still on 0.3.0-studio.16 starts and serves, but: everyone reads it in
 English (it reads the assertion's `locale` claim, now `language`),
@@ -290,8 +329,9 @@ is in `CHEST_TIME_ZONE`. Migrate it first (`sdk031-changes`).
   its `next.config.ts` says `agentRules: false` (the template does): do not
   commit that change.
 - Behind the harness, pages served by `next dev` were seen not to hydrate
-  (buttons inert). The front refuses WebSocket upgrades (501) as the Chest
-  does, so `next dev`'s hot reload cannot connect; its development files
+  (buttons inert). The front refuses WebSocket upgrades (501) but the
+  Chest's own realtime, as the Chest does, so `next dev`'s hot reload
+  cannot connect; its development files
   outside `/_next/static/` are refused too. Flows that click run with
   `--prod`.
 - `npm run dev` of a Vite tool (`reference/perseus-starter`'s

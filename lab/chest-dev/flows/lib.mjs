@@ -69,3 +69,39 @@ export async function control(page, origin, name, form) {
 export function expect(value, message) {
   if (!value) throw new Error(message);
 }
+
+// SDK 0.7.0's realtime, as a flow checks it: watchRealtime(page) before a
+// page opens; then joined() resolves once that page's connection to the
+// Chest (wss://<team host>/_chest/realtime, relayed by the harness to the
+// fake Chest's hub) has said hello and had a join answered, and frames()
+// lists what the Chest sent it ({op, ch, event, …}).
+export function watchRealtime(page) {
+  const frames = [];
+  const sockets = [];
+  page.on("websocket", ws => {
+    if (!ws.url().endsWith("/_chest/realtime")) return;
+    sockets.push(ws.url());
+    ws.on("framereceived", f => { try { frames.push(JSON.parse(String(f.payload))); } catch { /* not JSON */ } });
+  });
+  return {
+    sockets,
+    frames: () => frames,
+    // received resolves when a frame the test names has come.
+    received: async (test, timeout = 10000) => {
+      const until = Date.now() + timeout;
+      while (Date.now() < until) {
+        if (frames.some(test)) return;
+        await page.waitForTimeout(100);
+      }
+      throw new Error(`no such realtime frame within ${timeout} ms: ${JSON.stringify(frames).slice(0, 400)}`);
+    },
+    joined: async (timeout = 10000) => {
+      const until = Date.now() + timeout;
+      while (Date.now() < until) {
+        if (frames.some(f => f.op === "hello") && frames.some(f => f.op === "ok" && typeof f.seq === "number")) return;
+        await page.waitForTimeout(100);
+      }
+      throw new Error(`no realtime join answered within ${timeout} ms (sockets: ${sockets.join(", ") || "none"}; frames: ${JSON.stringify(frames).slice(0, 300)})`);
+    },
+  };
+}

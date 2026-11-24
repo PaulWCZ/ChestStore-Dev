@@ -15,12 +15,11 @@
 // "Bon pour accord"; a link turned off stops working. Sofia imports the
 // invoices still to collect from the previous tool, and keeps a copy of the
 // monthly archive.
-import { as, control, done, expect, open, step } from "./lib.mjs";
+import postgres from "postgres";
+import { as, control, done, expect, open, step, toolDatabase, watchRealtime } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
-// /_chest/realtime: the desk's and the lists' live channel (SDK 0.7.0
-// realtime); this harness does not serve the Chest's realtime yet.
-const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$|\/_chest\/realtime$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const french = async () => context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -720,8 +719,28 @@ await step("phone width: no page scrolls sideways", async () => {
   }
 });
 
+// SDK 0.7.0's realtime: the quotes list left open joins "documents" on
+// the Chest; a document written (here by the database itself) is a row of
+// the feed "documents", and the list reads itself again without a reload.
+await step("the quotes list left open follows the Chest's realtime: a quote renamed elsewhere shows its new name without a reload", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  const live = watchRealtime(page);
+  await page.goto(origin + "/chest/quotes");
+  const row = page.locator('a[href^="/chest/documents/"]').first();
+  await row.waitFor();
+  const id = Number(/\/chest\/documents\/(\d+)/u.exec((await row.getAttribute("href")) ?? "")?.[1]);
+  expect(id > 0, "a quote on the list");
+  await live.joined();
+  const sql = postgres(toolDatabase("quotes", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update documents set title = 'Live renamed quote', updated_at = now() where id = ${id}`;
+  } finally {
+    await sql.end();
+  }
+  await live.received(f => f.op === "msg" && f.event === "documents.update" && f.payload?.id === id);
+  await page.getByText("Live renamed quote").first().waitFor({ timeout: 10000 });
+});
+
 await browser.close();
-// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
-// the desk's live channel (SDK 0.7.0 realtime) cannot connect here, and the
-// page stays as read. Its refusals are the harness's, not Quotes'.
-done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));
+done(problems);

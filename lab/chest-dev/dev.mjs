@@ -719,7 +719,15 @@ function front(request, response, host) {
   // With it, the front also sets Chest-Visitor, the key visitors.visitor()
   // reads (SDK studio.2: an HMAC the Chest holds), as the fake plays it.
   if (host === "public" && flag("visitor-address")) for (const [name, value] of typeof chest.visitorHeaders === "function" ? chest.visitorHeaders(String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "")) : new Headers({ "chest-visitor-address": String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "") })) headers[name] = value;
-  if (decision.member) headers["chest-member"] = testing.signAssertion(current(request));
+  // The member's assertion and, with SDK 0.7.0, the opener ticket the
+  // Chest's front gives each member's request (Chest-Opener: sealed values
+  // and folders open with it), as 0.7.0's withMember writes them.
+  if (decision.member) {
+    const who = current(request);
+    if (typeof testing.withMember === "function") {
+      for (const [name, value] of testing.withMember(new Request(origin + "/chest"), who).headers) if (name.startsWith("chest-")) headers[name] = value;
+    } else headers["chest-member"] = testing.signAssertion(who);
+  }
   void toTool(host, request, response, headers);
 }
 
