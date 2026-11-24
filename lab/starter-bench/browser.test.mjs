@@ -177,7 +177,7 @@ test("a refresh that meets an error keeps the page and says so; 403 loads the pa
   await page.click("form.composer button");
   await page.waitForSelector("li.note >> text=Kept through an error");
   await page.evaluate(() => { window.samePage = true; });
-  tool.fail(502);
+  tool.fail(502, { times: 2 }); // the action's refresh and the realtime's re-read
   await page.locator("li.note", { hasText: "Kept through an error" }).getByRole("button", { name: /^(Pin|Unpin)$/u }).click();
   await page.waitForSelector(".ck-toast-error >> text=The Chest did not answer. Try again in a moment.");
   assert.equal(await page.locator("li.note >> text=Kept through an error").count(), 1, "the page is kept");

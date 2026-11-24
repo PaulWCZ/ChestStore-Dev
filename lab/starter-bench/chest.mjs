@@ -53,9 +53,11 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   const child = spawn(command[0], command.slice(1), { cwd: dir, env: { ...env, PORT: String(port) }, stdio: ["ignore", quiet ? "ignore" : "inherit", quiet ? "ignore" : "inherit"] });
   const assertion = () => testing.signAssertion(member);
   // The front: /chest… with the member, everything else as it is.
-  // fail(status, { method, type }): the next request of that method (GET
-  // by default; not a file) answers that status, as the Chest's front
-  // would (403 "Access removed", 502, 503 "Waking up…") — for browser tests.
+  // fail(status, { method, type, times }): the next request of that method
+  // (GET by default; not a file) answers that status, as the Chest's front
+  // would (403 "Access removed", 502, 503 "Waking up…") — for browser tests;
+  // `times` of them (an action's refresh and the realtime's re-read of the
+  // same change race: both must fail for the error to stay on screen).
   let failNext = null;
   // seen: every request the front relayed ("GET /chest/notes.csv"), for
   // tests that count them.
@@ -64,7 +66,7 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
     seen.push(`${req.method} ${req.url}`);
     if (failNext && failNext.method === req.method && !req.url.startsWith("/assets/")) {
       const { status, type } = failNext;
-      failNext = null;
+      failNext = failNext.times > 1 ? { ...failNext, times: failNext.times - 1 } : null;
       res.writeHead(status, { "content-type": type });
       return res.end(type.startsWith("text/html") ? `<!doctype html><title>${status}</title><body><h1>The Chest's page ${status}</h1></body>` : `${status}`);
     }
@@ -140,7 +142,7 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
     pid: child.pid,
     ready,
     assertion,
-    fail(status, { method = "GET", type = "text/html; charset=utf-8" } = {}) { failNext = { status, method, type }; },
+    fail(status, { method = "GET", type = "text/html; charset=utf-8", times = 1 } = {}) { failNext = { status, method, type, times }; },
     async stop() {
       // npm does not pass SIGTERM on to its script: stop the whole tree.
       const all = tree(child.pid);

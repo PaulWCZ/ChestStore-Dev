@@ -5,7 +5,7 @@ with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
 The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
 Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
-This page is for `@argentic/chest-app` 0.1.0-studio.11, on `@argentic/chest-sdk`
+This page is for `@argentic/chest-app` 0.1.0-studio.12, on `@argentic/chest-sdk`
 0.7.0 (tool contract 0.7: `"chest": "0.7"` in `chest.json`).
 
 ## Where things are in a tool
@@ -318,10 +318,10 @@ the reader's zone; `f.day` takes a `"YYYY-MM-DD"` (a `date` column, which
 `db()` returns as text) and writes that day wherever the reader is (a
 day that does not exist, `""` or `"2026-02-31"`, is `fail("invalid")`:
 read a day from an address with `field.day()` first);
-`f.today()` is the reader's own day; the company's day is `chest.today()`
-(SDK), and in SQL `current_date`, `now()::date` and `date_trunc` run in
-the Chest's zone (the database session's), not the member's — which to
-use: "Time zones", below. `f.number`; `f.money(amount, currency, {
+there is no `f.today()`: "today" is the company's day for every member,
+`chest.today()` (SDK), and in SQL `current_date`, `now()::date` and
+`date_trunc` are the same (the database session runs in the Chest's zone)
+— "Time zones", below. `f.number`; `f.money(amount, currency, {
 cents? })` — "Money", below. Never format in the browser, never `new Intl.…` per row (each
 Intl object lives outside V8's heap: hundreds of MiB pile up). French: a
 narrow no-break space (U+202F) before `: ; ? !` (`checkWords` refuses
@@ -334,21 +334,37 @@ sections and its own (`nav`: the sections' labels), never a page's.
 ## Time zones
 
 Two zones, never chosen on a screen of the tool (SDK 0.7.0):
-`member.timeZone` is where the member's browser is (it follows them when
-they travel); `chest.timeZone` is the company's reference zone, taken once
-from the owner's browser and set nowhere. The rule:
+`chest.timeZone` is the company's reference zone, taken once from the
+owner's browser and set nowhere; `member.timeZone` is where the member's
+browser is (it follows them when they travel). The SDK's "Times" table,
+exactly:
 
-- **About one member** — what their page shows, "today" on it, their own
-  deadline, a reminder sent to them — in **their** zone: `f` already is
-  (`f.date`, `f.time`, `f.dateTime`, `f.today()` on a members' page are in
-  `member.timeZone`). Outside their request (a schedule picking who to
-  remind at 8:00 their time), read it with `members.get(id)` when needed —
-  never store it as a preference, never offer a "your time zone" setting.
-- **For the whole company** — a document's date (an invoice, a quote, a
-  payslip month), a company-wide deadline, the day a schedule runs, what
-  SQL's `current_date` means, a file's name (`notes-${chest.today()}.csv`)
-  — in the company's: `chest.today()`, `chest.timeZone` (a visitor's `f`
-  is in it too).
+| What | Zone | API |
+|---|---|---|
+| An instant (created, due at, sent at) | stored as UTC | `timestamptz`, `Date` |
+| "Today", "this week", a deadline's day, business hours, working days | **the company's**, for every member | `chest.today()` (`chest.today(at)`), `chest.timeZone`; SQL's `current_date` |
+| A time or a date shown to a member, a personal reminder's hour | **the member's** | `f.date`, `f.time`, `f.dateTime` (`f` is in `member.timeZone`); `hourIn(member.timeZone)`; `members.get(id).timeZone` outside their request |
+
+- **"Today" is one day for the whole company.** "Due today", "overdue",
+  "this week", a leave's working days, a document's date (an invoice, a
+  payslip month), the day a schedule runs, a file's name
+  (`notes-${chest.today()}.csv`): `chest.today()`, or `current_date` in
+  SQL. A member in Kiritimati at 11:30 on the 6th, while it is 23:30 on
+  the 5th in Paris, sees the 5th's deadlines. `f` has no `today()` (it
+  would be the reader's); never `new Date().toISOString().slice(0, 10)`.
+- **A calendar day is the same day for everyone.** A deadline's day, a
+  `date` column (`"YYYY-MM-DD"`): `f.day(iso)`, never shifted by a zone.
+  Never pass a day to `f.date` (it takes an instant; a string throws) and
+  never make a `Date` of a day to show it.
+- **An instant is shown on the member's clock.** `f.date`, `f.time`,
+  `f.dateTime` of a `timestamptz` are in `member.timeZone` on a members'
+  page (a visitor's `f` is in `chest.timeZone`).
+- **A personal reminder's hour is the member's.** "Remind me at 9:00": a
+  schedule run hourly (`0 * * * *`) reminds each member when
+  `hourIn(member.timeZone) === 9` (`hourIn(zone, at?)` from
+  `@argentic/chest-app`, 0–23), the zone read with `members.get(id)` /
+  `members.list()` — never stored as a preference, never a "your time
+  zone" setting. Which day the reminder is about stays `chest.today()`.
 - **A place of its own** — rooms of a site, a booking host's hours, a
   country's leave, a public status page's "times in…" — a setting of the
   tool's (a zone per site or record, stored in its table, defaulting to
@@ -361,8 +377,10 @@ zone never gets another's 304); a page that also shows the company's day
 adds it: `` version: async () => `${await changeStamp()}.${chest.today()}` ``.
 Tests: `fakeChest({ chest: { timeZone } })` sets the company's zone (the
 database sessions and `testDatabase()`'s `sql` run in it), a test member's
-`timeZone` theirs — give them different zones, and test the day near
-midnight in each.
+`timeZone` theirs — give them far apart zones (company `Europe/Paris`,
+member `Pacific/Kiritimati`) and test near midnight: "due today" is the
+company's day for that member (`chest.today(at)`), their reminder at 9:00
+is at 9:00 on their clock (`hourIn`, `f.time`).
 
 ## Money
 

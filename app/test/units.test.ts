@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { csvLine } from "../src/csv.ts";
 import { follow, liveQuiet, readWith } from "../src/live.ts";
-import { currencyDecimals, formatter, publicLocale } from "../src/i18n.ts";
+import { currencyDecimals, formatter, hourIn, publicLocale } from "../src/i18n.ts";
 import { islandRegistry } from "../src/registry.ts";
 import { checkPage, checkSources, checkWords } from "../src/testing.ts";
 import { AppError, cutText, field, readEmail, readMoney, toolPath } from "../src/tool.ts";
@@ -106,8 +106,11 @@ test("dates, days, numbers, amounts and plurals in the reader's language and zon
   const paris = formatter("en", "Europe/Paris");
   assert.notEqual(paris.time(new Date("2026-10-25T00:30:00Z")), paris.time(new Date("2026-10-25T01:30:00Z")), "02:30 twice: told apart");
   assert.equal(paris.time(new Date("2026-10-25T05:30:00Z")), "06:30");
-  assert.equal(en.today(new Date("2026-10-06T02:00:00Z")), "2026-10-05"); // still the 5th in New York
-  assert.equal(fr.today(new Date("2026-10-05T22:30:00Z")), "2026-10-06");
+  // The hour on a member's clock (a personal reminder's); "today" is the
+  // company's, chest.today(): f has none.
+  assert.equal(hourIn("America/New_York", new Date("2026-10-06T02:00:00Z")), 22);
+  assert.equal(hourIn("Europe/Paris", new Date("2026-10-05T22:30:00Z")), 0, "midnight is 0, never 24");
+  assert.equal("today" in fr, false);
   // An amount in its own currency: the Chest has none (SDK 0.7.0).
   assert.equal(fr.money(1234.5, "EUR"), "1 234,50 €");
   assert.equal(fr.money(123450, "EUR", { cents: true }), "1 234,50 €");
