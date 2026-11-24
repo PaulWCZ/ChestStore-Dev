@@ -56,7 +56,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { request as httpRequest } from "node:http";
+import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { connect as connectSocket } from "node:net";
 import { createServer } from "node:https";
 import { certificate } from "./cert.mjs";
@@ -299,6 +299,50 @@ const chest = await testing.fakeChest({
 const apiOrigin = chest.api;
 chest.api = origin;
 
+// The tool's CHEST_API: the fake's, through one relay of the harness that
+// passes every call as it came — but one. 0.7.0's fake reads its former
+// members once, at start (options.former), so an event about someone who
+// left after the start (a member removed from /_dev: Leave's "the leave
+// cancelled when Inès left", Equipment's "Tom leaves") would be refused
+// invalid_data, where a Chest accepts a member the tool had. While such a
+// POST /events is in the fake's hands, the former members it names stand
+// in chest.members (no role, no groups), and leave when it answers. Only
+// that call sees them; noted for the SDK report (a fake that reads
+// chest.former at each call).
+const hubPort = Number(new URL(apiOrigin).port);
+const memberIds = /mbr_[a-z2-7]{26}/gu;
+const toolApi = createHttpServer(async (request, response) => {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  const body = Buffer.concat(chunks);
+  let standIns = [];
+  if (request.method === "POST" && (request.url ?? "").split("?")[0] === "/events") {
+    const named = new Set(body.toString("utf8").match(memberIds) ?? []);
+    standIns = chest.former.filter(f => named.has(f.id) && !chest.members.some(m => m.id === f.id)).map(f => ({ id: f.id, firstName: "", lastName: "", name: f.name ?? "", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: zone }));
+    chest.members.push(...standIns);
+  }
+  const leave = () => {
+    for (const standIn of standIns) {
+      const at = chest.members.indexOf(standIn);
+      if (at >= 0) chest.members.splice(at, 1);
+    }
+    standIns = [];
+  };
+  const upstream = httpRequest({ host: "127.0.0.1", port: hubPort, path: request.url, method: request.method, headers: { ...request.headers, host: `127.0.0.1:${hubPort}` } }, answer => {
+    leave();
+    response.writeHead(answer.statusCode ?? 502, answer.headers);
+    answer.pipe(response);
+  });
+  upstream.on("error", () => {
+    leave();
+    if (!response.headersSent) response.writeHead(503, { "Content-Type": "application/json" }).end('{"error":"unavailable"}');
+    else response.destroy();
+  });
+  upstream.end(body);
+});
+await new Promise(resolve => toolApi.listen(0, "127.0.0.1", resolve));
+const toolApiOrigin = `http://127.0.0.1:${toolApi.address().port}`;
+
 // Realtime's feeds: the Chest's triggers on the tool's tables, installed
 // after the migrations (feeds.mjs); each committed row reaches the fake's
 // hub, which publishes it to the pages joined to its channel.
@@ -332,7 +376,7 @@ const env = {
   HOME: process.env["HOME"],
   ...declared,
   PORT: String(inner),
-  CHEST_API: apiOrigin,
+  CHEST_API: toolApiOrigin,
   CHEST_TOKEN: chest.token,
   CHEST_TOOL: manifest.name,
   ...chestEnv,
@@ -836,6 +880,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, async () => {
   await toolProcess.close();
   for (const socket of relayed) socket.destroy();
   await Promise.race([feeds?.close(), pause(2000)]);
+  toolApi.closeAllConnections();
+  toolApi.close();
   await Promise.race([chest.close(), pause(2000)]);
   process.exit(0);
 });
