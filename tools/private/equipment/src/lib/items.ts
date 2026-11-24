@@ -171,12 +171,15 @@ export async function loadMany(sql: Query, ids: string[]): Promise<Map<string, I
 export type Entry = {
   item: string; actor: string; kind: string; member?: string | null; place?: string | null; status?: string | null; note?: string | null; day?: string | null;
   qty?: number | null; costCents?: number | null; currency?: string | null; ref?: string | null; due?: string | null;
+  // The currency is the one migrations/0009 guessed for the item (EUR):
+  // it follows the manager's first choice of a default (lib/settings.ts).
+  currencyGuessed?: boolean;
 };
 export async function record(sql: Query, entry: Entry): Promise<void> {
   const cost = entry.costCents ?? null;
-  await sql`insert into history (item_id, actor, kind, member, place, status, note, day, qty, cost_cents, currency, ref, due)
+  await sql`insert into history (item_id, actor, kind, member, place, status, note, day, qty, cost_cents, currency, currency_guessed, ref, due)
     values (${entry.item}, ${entry.actor}, ${entry.kind}, ${entry.member ?? null}, ${entry.place ?? null}, ${entry.status ?? null}, ${entry.note ?? null}, ${entry.day ?? null},
-      ${entry.qty ?? null}, ${cost}, ${cost === null ? null : entry.currency ?? null}, ${entry.ref ?? null}, ${entry.due ?? null})`;
+      ${entry.qty ?? null}, ${cost}, ${cost === null ? null : entry.currency ?? null}, ${cost !== null && entry.currencyGuessed === true}, ${entry.ref ?? null}, ${entry.due ?? null})`;
 }
 
 // ---- Receipts (the person says "I received it": lib/receipts.ts) ----------
@@ -456,7 +459,9 @@ export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown
     await tx`update items set category_id = ${cat.id}, tag = ${tag}, name = ${f.name}, serial = ${f.serial}, purchased_on = ${f.purchasedOn},
       price_cents = ${f.priceCents}, supplier = ${f.supplier}, warranty_until = ${f.warrantyUntil}, notes = ${f.notes}, seats = ${f.seats},
       renews_on = ${f.renewsOn}, cost_cents = ${f.costCents}, currency = ${f.currency}, period = ${f.period}, quantity = ${f.quantity}, min_quantity = ${f.minQuantity},
-      extra = ${tx.json(extra)}, updated_at = now() where id = ${before.id}`;
+      extra = ${tx.json(extra)}, updated_at = now(),
+      currency_guessed = currency_guessed and ${f.currency === before.currency && f.priceCents === before.priceCents && f.costCents === before.costCents}
+      where id = ${before.id}`;
     const after = await load(tx, before.id);
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     const changed = editable.filter(k => k === "category" ? after.category.id !== before.category.id : !same(after[k], before[k]));
@@ -609,6 +614,9 @@ export async function setStatus(sql: Sql, actor: Member | null, itemId: unknown,
   const result = await sql.begin(async tx => {
     const before = await load(tx, itemId, { lock: true });
     const costCurrency = askedCurrency ?? before.currency ?? await defaultCurrency(tx);
+    // A cost in the currency 0009 guessed for the item stays guessed with it.
+    const [{ guessed } = { guessed: false }] = askedCurrency === null && before.currency !== null
+      ? await tx<{ guessed: boolean }[]>`select currency_guessed as guessed from items where id = ${before.id}` : [];
     const costCents = value !== "in_repair" ? money(repair.cost, currencyDecimals(costCurrency)) : null;
     const freed: string[] = [];
     let status: Status = value;
@@ -631,7 +639,7 @@ export async function setStatus(sql: Sql, actor: Member | null, itemId: unknown,
     const repairNews = status === "in_repair" && (ref !== null || due !== null);
     if (status === before.status && freed.length === 0 && !repairNews) return { item: before, freed };
     await tx`update items set status = ${status}, updated_at = now() where id = ${before.id}`;
-    await record(tx, { item: before.id, actor: who.id, kind: "status", status, note, ref, due, costCents: before.status === "in_repair" ? costCents : null, currency: costCurrency });
+    await record(tx, { item: before.id, actor: who.id, kind: "status", status, note, ref, due, costCents: before.status === "in_repair" ? costCents : null, currency: costCurrency, currencyGuessed: guessed });
     return { item: await load(tx, before.id), freed };
   });
   for (const m of result.freed) {

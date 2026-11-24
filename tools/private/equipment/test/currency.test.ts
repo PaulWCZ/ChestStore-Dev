@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import type postgres from "postgres";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "@argentic/chest-app";
@@ -104,4 +106,63 @@ test("an import reads each row's currency, else the default; its amounts in that
   const yen = all.find(i => i.tag === "IMP-1")!, chf = all.find(i => i.tag === "IMP-2")!;
   assert.deepEqual([yen.priceCents, yen.currency], [200000, "JPY"]);
   assert.deepEqual([chf.priceCents, chf.currency], [150050, "CHF"]);
+});
+
+// A Chest that ran Equipment before 0.7.0 kept its amounts in hundredths
+// of the Chest's currency, a currency Equipment never wrote down: 0009
+// takes them for euros, 0010 marks them guessed — and nothing else.
+test("an upgrade from 0.4: the amounts already written are guessed EUR, the new ones are not", async () => {
+  const dir = new URL("../migrations/", import.meta.url);
+  const files = readdirSync(dir).filter(f => f.endsWith(".sql")).sort();
+  const run = async (s: postgres.ReservedSql, names: string[]) => { for (const f of names) await s.unsafe(readFileSync(new URL(f, dir), "utf8")).simple(); };
+  const s = await (database.sql as unknown as postgres.Sql).reserve();
+  try {
+    await s.unsafe("create schema upgrade; set search_path to upgrade");
+    await run(s, files.filter(f => f < "0009"));
+    const [cat] = await s`select id from categories where key = 'laptop'`;
+    const [item] = await s`insert into items (category_id, tag, name, price_cents, created_by) values (${cat!["id"]}, 'OLD-1', 'Old laptop', 129990, ${camille.id}) returning id`;
+    await s`insert into items (category_id, tag, name, created_by) values (${cat!["id"]}, 'OLD-2', 'No price', ${camille.id})`;
+    await s`insert into history (item_id, actor, kind, status, cost_cents) values (${item!["id"]}, ${camille.id}, 'status', 'in_stock', 4550)`;
+    await run(s, files.filter(f => f >= "0009"));
+    assert.deepEqual((await s`select tag, currency, currency_guessed as g from items order by tag`).map(r => [r["tag"], r["currency"], r["g"]]), [["OLD-1", "EUR", true], ["OLD-2", null, false]]);
+    assert.deepEqual((await s`select currency, currency_guessed as g from history where cost_cents is not null`).map(r => [r["currency"], r["g"]]), [["EUR", true]]);
+    assert.equal((await s`select currency_guessed as g from settings`)[0]!["g"], true);
+    // The history stays append-only: a guessed row may only become known.
+    await assert.rejects(s`update history set cost_cents = 1 where cost_cents is not null`);
+    await s`update history set currency_guessed = false where cost_cents is not null`;
+    await assert.rejects(s`update history set currency_guessed = true where cost_cents is not null`);
+  } finally {
+    await s.unsafe("set search_path to public; drop schema upgrade cascade");
+    s.release();
+  }
+});
+
+test("the first currency a manager saves is the one of the guessed amounts, read in its minor unit; once only", async () => {
+  const { sql } = database;
+  const cats = await listCategories(sql, M);
+  const laptop = cats.find(c => c.key === "laptop")!.id;
+  // As 0010 leaves a populated database: amounts in hundredths, guessed EUR.
+  const old = await items.createItem(sql, M, { categoryId: laptop, name: "Guessed laptop", price: "1299.90", currency: "EUR" });
+  const kept = await items.createItem(sql, M, { categoryId: laptop, name: "Known laptop", price: "999", currency: "EUR" });
+  const edited = await items.createItem(sql, M, { categoryId: laptop, name: "Edited laptop", price: "500", currency: "EUR" });
+  await sql`update items set currency_guessed = true where id in (${old.id}, ${edited.id})`;
+  await items.setStatus(sql, M, old.id, "in_repair", "", { ref: "R-9" });
+  await items.setStatus(sql, M, old.id, "in_stock", "", { cost: "45.50" });
+  await sql`update settings set currency_guessed = true`;
+  // A cost recorded on a guessed item is guessed with it.
+  assert.deepEqual((await sql`select currency_guessed as g from history where item_id = ${old.id} and cost_cents is not null`).map(r => r["g"]), [true]);
+  // Edited with a new price: no longer guessed. Renamed only: still guessed.
+  await items.updateItem(sql, M, edited.id, { categoryId: laptop, name: "Edited laptop", price: "550" });
+  await items.updateItem(sql, M, old.id, { categoryId: laptop, name: "Guessed laptop, renamed", price: "1299.90" });
+  await setDefaultCurrency(sql, M, "JPY");
+  const all = await items.listItems(sql, M);
+  const of = (id: string) => all.find(i => i.id === id)!;
+  assert.deepEqual([of(old.id).priceCents, of(old.id).currency], [1300, "JPY"], "1299.90 in hundredths is ¥1,300");
+  assert.deepEqual([of(kept.id).priceCents, of(kept.id).currency], [99900, "EUR"], "written after the upgrade: kept");
+  assert.deepEqual([of(edited.id).priceCents, of(edited.id).currency], [55000, "EUR"], "corrected by hand: kept");
+  assert.deepEqual(await items.repairCosts(sql, old.id), { count: 1, totals: [{ currency: "JPY", cents: 46 }] });
+  // Saved again: nothing guessed is left, nothing moves.
+  await setDefaultCurrency(sql, M, "KWD");
+  assert.deepEqual([(await items.listItems(sql, M)).find(i => i.id === old.id)!.priceCents], [1300]);
+  assert.deepEqual((await sql`select currency_guessed as g from settings`).map(r => r["g"]), [false]);
 });

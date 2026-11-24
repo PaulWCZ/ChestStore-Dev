@@ -45,7 +45,7 @@ export async function leads(sql: Sql, actor: Member | null, limit = 20): Promise
     from contacts c
     left join companies o on o.id = c.company_id
     left join contacts m on m.id = c.maybe_same
-    left join lateral (select a.data, a.body from activities a where a.contact_id = c.id and a.kind = 'form' order by a.at desc, a.id desc limit 1) f on true
+    left join lateral (select a.data, a.body from activities a where a.contact_id = c.id and a.kind = 'form' and (a.audience is null or a.audience @> array[${actor!.id}]::text[]) order by a.at desc, a.id desc limit 1) f on true
     left join lateral (select a.data from activities a where a.contact_id = c.id and a.kind = 'booking' and a.data->>'status' = 'confirmed' and (a.audience is null or a.audience @> array[${actor!.id}]::text[]) order by a.at desc, a.id desc limit 1) g on true
     where c.lead_since is not null and c.owner is null
     order by c.lead_since desc, c.id desc
@@ -146,6 +146,7 @@ export async function formLinesToCheck(sql: Sql, actor: Member | null, limit = 1
       count(*) over ()::int as total
     from activities a join contacts c on c.id = a.contact_id
     where a.kind = 'form' and not coalesce((a.data->>'checked')::boolean, false)
+      and (a.audience is null or a.audience @> array[${actor!.id}]::text[])
       and (
         (a.data ? 'who' and coalesce(a.data->'who'->>'email', '') <> '' and lower(a.data->'who'->>'email') <> lower(c.email))
         or (not a.data ? 'who' and not (c.created_by = 'chest' and a.id = (select min(b.id) from activities b where b.contact_id = c.id and b.kind = 'form')))

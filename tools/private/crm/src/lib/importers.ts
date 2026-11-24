@@ -10,6 +10,7 @@ import type { Query, Sql, TransactionSql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { addField, listFields } from "./fields.ts";
 import { fold } from "../shared/fold.ts";
+import { knownCurrencies } from "./settings.ts";
 import { today, zoned } from "./zone.ts";
 import { clean, emailKey, limits, owner as checkOwner, phone as checkPhone, siren as checkSiren, tags as checkTags, vat as checkVat, website as checkWebsite, stageName, type Stage, type StageKey } from "../shared/model.ts";
 import { email as checkEmail } from "./email.ts";
@@ -266,7 +267,7 @@ async function importDeal(ctx: Context, m: Mapped, stages: Stage[], words: Recor
   const at = createdAt(m);
   const [row] = await ctx.tx<{ id: string }[]>`
     insert into deals (title, company_id, contact_id, value_cents, currency, stage_id, position, expected_close, owner, reason, custom, created_by, closed_at, import_id, created_at)
-    values (${title}, ${companyId}, ${contactId}, ${parseAmount(m.value ?? "", decimal ?? undefined)}, ${m.currency && /^[A-Za-z]{3}$/u.test(m.currency.trim()) ? m.currency.trim().toUpperCase() : ctx.tx`(select value from settings where key = 'currency')`}, ${stage.id}, ${position}, ${dayOf(m.closeDate)}, ${ownerOf(ctx, m.owner)},
+    values (${title}, ${companyId}, ${contactId}, ${parseAmount(m.value ?? "", decimal ?? undefined)}, ${knownCode(m.currency) ?? ctx.tx`(select value from settings where key = 'currency')`}, ${stage.id}, ${position}, ${dayOf(m.closeDate)}, ${ownerOf(ctx, m.owner)},
       ${stage.kind === "open" ? "" : clean(m.reason ?? "", limits.reason, { optional: true })}, ${ctx.tx.json(custom)}, ${ctx.actor.id}, ${stage.kind === "open" ? null : ctx.tx`now()`},
       ${ctx.importId}, ${at ?? ctx.tx`now()`})
     returning id`;
@@ -520,4 +521,11 @@ export async function undoImport(sql: Sql, actor: Member | null, importId: unkno
     await tx`update imports set undone_at = now() where id = ${row.id}`;
     return { removed, steps: steps.map(s => ({ id: String(s.id), owner: s.owner })), objects };
   });
+}
+
+// The currency a row names, when it is an ISO 4217 code this server knows
+// ("usd", " EUR "); else null (the team's default).
+export function knownCode(value: string | undefined): string | null {
+  const code = (value ?? "").trim().toUpperCase();
+  return /^[A-Z]{3}$/u.test(code) && knownCurrencies().includes(code) ? code : null;
 }

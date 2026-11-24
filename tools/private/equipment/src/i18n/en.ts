@@ -569,6 +569,8 @@ export const en = {
     currencyIntro: "Fills in the currency of a new price or cost. Each amount keeps its own: the ones already written do not change.",
     currencySave: "Save",
     currencySaved: "New prices will be in {currency}.",
+    currencyGuessed: "The prices written before this update were taken as euros. Choose your currency and save: they will be in it.",
+    currencyMoved: "Prices are now in {currency}.",
     kind: "It holds",
     kinds: {
       asset: "Things, one by one",

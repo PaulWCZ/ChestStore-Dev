@@ -6,6 +6,8 @@ import * as deals from "../src/lib/deals.ts";
 import { teamReport } from "../src/lib/reports.ts";
 import { defaultCurrency, setDefaultCurrency } from "../src/lib/settings.ts";
 import { minorUnits } from "../src/lib/share.ts";
+import { knownCode } from "../src/lib/importers.ts";
+import { money } from "../src/i18n/index.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo } from "./support/members.ts";
@@ -68,4 +70,13 @@ test("the pages follow the realtime feeds: every feed a table of the schema, its
       where i.indrelid = ${feed.table}::regclass and i.indisprimary order by array_position(i.indkey, a.attnum)`;
     assert.deepEqual(feed.columns, key.map(k => k.column), feed.table);
   }
+});
+
+test("an amount shows its currency's own decimals; an import keeps only a currency this server knows", () => {
+  assert.equal(money(125050, "en", { cents: true, currency: "EUR" }), "€1,250.50");
+  assert.match(money(18000000, "en", { cents: true, currency: "JPY" }), /^(JP)?¥180,000$/u, "no decimals for the yen");
+  assert.match(money(125000, "en", { cents: true, currency: "KWD" }), /^KWD\s1,250\.000$/u, "three for the dinar");
+  assert.equal(knownCode(" usd "), "USD");
+  assert.equal(knownCode("XQZ"), null, "well formed, but no currency");
+  assert.equal(knownCode(""), null);
 });

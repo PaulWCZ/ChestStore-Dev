@@ -171,12 +171,32 @@ test("a type names no tool: crm.deal.won from another tool than Clients makes no
   assert.ok(await quoteOf("S1"), "from Clients: the draft");
 });
 
-test("a deal's amount comes in cents (Clients counts hundredths in every currency): read in the currency's minor units", () => {
+// The rule of every event between tools: an amount is in its currency's
+// ISO 4217 minor unit. Clients converts its hundredths before it emits
+// (minorUnits): Quotes takes them as they come.
+test("a deal's amount comes in its currency's minor unit and is kept as it comes: EUR, JPY, KWD", () => {
   const base = { deal: "Y1", title: "Atelier Tokyo", owner: null };
-  assert.equal(readWon({ ...base, amount: 480000, currency: "EUR" })!.amount, 480000, "the euro: the same");
-  assert.equal(readWon({ ...base, amount: 1000000, currency: "JPY" })!.amount, 10000, "1,000,000 cents are ¥10,000");
-  assert.equal(readWon({ ...base, amount: 1234, currency: "KWD" })!.amount, 12340, "12.34 KWD are 12,340 fils");
+  assert.equal(readWon({ ...base, amount: 480000, currency: "EUR" })!.amount, 480000, "€4,800.00");
+  assert.equal(readWon({ ...base, amount: 10000, currency: "JPY" })!.amount, 10000, "¥10,000");
+  assert.equal(readWon({ ...base, amount: 12340, currency: "KWD" })!.amount, 12340, "12.340 KWD");
   assert.equal(readWon({ ...base, amount: null, currency: "JPY" })!.amount, null);
+});
+
+// Exactly what Clients emits for a yen and a dinar deal (its chest.json
+// "emits" and lib/share.ts: flat, minor units, optional fields left out).
+test("a won deal in yen and one in dinars, as Clients emits them: drafts of ¥10,000 and 12.340 KWD", async () => {
+  const { sql } = database;
+  const emitted = (deal: string, amount: number, currency: string) => ({
+    deal, title: `Deal ${currency}`, amount, currency, owner: hugo.id,
+    companyRef: `co-${deal}`, companyName: `Client ${currency}`, companyCountry: "FR", contactName: "Aki Tanaka", contactEmail: "aki@client.test",
+  });
+  assert.equal(await told("crm.deal.won", emitted("JPY1", 10000, "JPY")), 204);
+  assert.equal(await told("crm.deal.won", emitted("KWD1", 12340, "KWD")), 204);
+  for (const [deal, currency, minor] of [["JPY1", "JPY", 10000], ["KWD1", "KWD", 12340]] as const) {
+    const q = await getDocument(sql, asMember(lea), String(await quoteOf(deal)), today);
+    assert.equal(q.currency, currency);
+    assert.deepEqual(q.lines.map(l => l.unitPrice), [minor], `${deal}: taken as it came`);
+  }
 });
 
 test("a deal for some people only (its audience): no draft every reader of Quotes would see; its owner is told to write it", async () => {

@@ -108,8 +108,11 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
   const currency = isCurrency(data["currency"]) ? data["currency"] : null;
   if (!currency) return null;
   const total = data["amount"];
-  // Timesheets counts in cents (hundredths) whatever the currency; Quotes
-  // keeps the currency's minor units (fromCents: the same for the euro).
+  // The studio's rule for every event between tools is an amount in its
+  // currency's ISO 4217 minor unit. Timesheets says cents (hundredths) and
+  // allows only currencies with two decimals, where the two are the same:
+  // fromCents changes nothing then, and keeps a currency of other decimals
+  // right should one ever come.
   const counted = typeof total === "number" && Number.isSafeInteger(total) && total >= 0 ? fromCents(total, currency) : null;
   const amount = counted !== null && counted <= limits.total ? counted : null;
   const raw = listOf(data["lines"]);

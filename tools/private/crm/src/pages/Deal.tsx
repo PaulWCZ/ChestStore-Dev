@@ -8,7 +8,7 @@ import { timeline } from "../lib/activities.ts";
 import { listFiles } from "../lib/attachments.ts";
 import { db } from "../lib/db.ts";
 import { deal as readDeal } from "../lib/deals.ts";
-import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../lib/page-data.ts";
+import { currencySymbol, dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../lib/page-data.ts";
 import { directory } from "../lib/people.ts";
 import { calendarWorks } from "../lib/step-calendar.ts";
 import { openSteps } from "../lib/steps.ts";
@@ -56,7 +56,8 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
           stages: choices.stages.map(s => ({ id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability })),
           editable,
           canCreate: can(member, "deals.create"),
-          form: { ...dealFormProps(choices, member.id, locale), t: words.deal(t) },
+          // The deal is edited in its own currency, not the team's default.
+          form: { ...dealFormProps(choices, member.id, locale), currency: currencySymbol(locale, d.currency), t: words.deal(t) },
           team: choices.team,
           me: member.id,
           canAssign: choices.canAssign,

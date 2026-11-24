@@ -11,7 +11,7 @@ import { addDays, country, limits, siren, vatNumber } from "../shared/model.ts";
 import { lineNet, totals } from "../shared/totals.ts";
 import { holders } from "./people.ts";
 import { notify, withdraw } from "./notify.ts";
-import { formatMoney, fromCents, isCurrency } from "../shared/money.ts";
+import { formatMoney, isCurrency } from "../shared/money.ts";
 
 // What Clients (the CRM tool) tells Quotes (SDK 0.7.0 events between
 // tools, once the owner approved the link). A deal won there becomes a
@@ -23,7 +23,7 @@ import { formatMoney, fromCents, isCurrency } from "../shared/money.ts";
 //
 // Data, as Clients emits it — flat (SDK 0.7.0: fields of the Chest's
 // kinds, no object):
-//   crm.deal.won      { deal, title, amount: cents (hundredths, whatever the currency's decimals) | null, currency, owner: "mbr_…" | null,
+//   crm.deal.won      { deal, title, amount: minor units of currency | null, currency, owner: "mbr_…" | null,
 //                       companyRef, companyName, companyAddress, companyPostcode, companyCity,
 //                       companyCountry, companySiren, companyVat, companyEmail, contactName, contactEmail }
 //   crm.deal.reopened { deal }
@@ -101,10 +101,11 @@ export function readWon(data: Record<string, unknown>): Won | null {
     const contactName = line(r["name"], limits.contact);
     if (contactName) contact = { name: contactName, email: safe(() => email(r["email"] ?? ""), "") };
   }
-  // Clients counts in cents (hundredths) whatever the currency: Quotes keeps
-  // the currency's minor units (a yen deal of 1,000,000 cents is ¥10,000).
-  const minor = typeof amount === "number" ? fromCents(amount, currency) : null;
-  return { deal, title: name, amount: minor !== null && minor <= limits.unitPrice ? minor : null, currency, company: c, contact, owner: typeof owner === "string" ? owner : null };
+  // The studio's rule for every event between tools: an amount is in its
+  // currency's ISO 4217 minor unit (¥10,000 is 10000, 12.340 KWD is 12340):
+  // Clients converts before it emits (its lib/share.ts minorUnits), Quotes
+  // keeps minor units too — taken as they come, never converted again.
+  return { deal, title: name, amount: typeof amount === "number" ? amount : null, currency, company: c, contact, owner: typeof owner === "string" ? owner : null };
 }
 
 type ClientRow = { id: number; name: string; contact: string; email: string; address: string; postcode: string; city: string; country: string; siren: string; vat_number: string; external_ref: string | null; archived_at: Date | null; language: string; reverse_charge: boolean };

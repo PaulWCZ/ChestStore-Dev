@@ -286,9 +286,13 @@ member ids (`mbr_…`). Goals keeps only what a count needs — a reference,
 the people named, a board, when — never a title, a customer's words or a
 candidate's name (`src/lib/sources.ts`, `src/lib/crm.ts`; table `fed_events`).
 
+An `amount` in an event between tools is, by the studio's rule, an integer
+in its currency's ISO 4217 minor unit (¥10,000 is 10000, 12.340 KWD is
+12340), read as it comes.
+
 | Event (sender) | Data Goals reads | Feeds | Status |
 |---|---|---|---|
-| `crm.deal.won` (Clients) | `{deal, amount: cents \| null, currency}` | "Amount won", "Deals won" | Sent by Clients today |
+| `crm.deal.won` (Clients) | `{deal, amount: minor units \| null, currency}` | "Amount won", "Deals won" | Sent by Clients today |
 | `crm.deal.reopened` (Clients) | `{deal}` | takes the deal back | Sent by Clients today |
 | `hiring.hired` (Hiring) | `{candidate, hiredBy: mbr_…}` (Hiring's own shape `{candidate, name, job, team?, place?, startDate?, hiredBy}`, for everyone; the name and job are not kept) | "People hired" (only theirs: `hiredBy`) | Sent by Hiring today |
 | `hiring.hire-cancelled` (Hiring) | `{candidate}` | takes the hire back | Renamed from `hiring.hire_cancelled` (0.7.0 refuses an underscore): Hiring renames it too |
