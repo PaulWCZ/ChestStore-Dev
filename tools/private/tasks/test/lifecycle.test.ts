@@ -28,7 +28,7 @@ test("someone who leaves is taken off their open cards (the history says so); do
   const finished = await cards.addCard(sql, asMember(camille), b.id, done!.id, "Finished");
   await cards.setAssignees(sql, asMember(camille), open.id, [hugo.id]);
   await cards.setAssignees(sql, asMember(camille), finished.id, [hugo.id]);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
   assert.deepEqual((await cards.cardDetail(sql, asMember(camille), open.id)).assignees, []);
   assert.equal((await cards.cardDetail(sql, asMember(camille), open.id)).history[0]?.kind, "unassigned_left");
   assert.deepEqual((await cards.cardDetail(sql, asMember(camille), finished.id)).assignees, [hugo.id]);
@@ -43,8 +43,8 @@ test("an erasure removes the person's id everywhere, keeps the team's work, and 
   await cards.setAssignees(sql, asMember(camille), c.id, [ines.id]);
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   const d = await cards.cardDetail(sql, asMember(camille), c.id);
   assert.deepEqual(d.assignees, []);
   assert.equal(d.createdBy, "erased");

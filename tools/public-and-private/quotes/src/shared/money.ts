@@ -21,6 +21,18 @@ export function minorDigits(currency: string): number {
   return digits;
 }
 
+// fromCents: an amount in cents — hundredths, whatever the currency's
+// decimals, as Clients and Timesheets count every amount — in the
+// currency's minor units, as Quotes keeps them: the same for the euro (2
+// decimals), a hundredth for the yen (0: 1,000,000 cents are ¥10,000), ten
+// times for the Kuwaiti dinar (3). Rounded half away from zero.
+export function fromCents(cents: number, currency: string): number {
+  const digits = minorDigits(currency);
+  if (digits === 2) return cents;
+  const value = cents * 10 ** (digits - 2);
+  return Math.sign(value) * Math.round(Math.abs(value));
+}
+
 // parseAmount reads what a person types — "12,50", "12.5", "1 234,56",
 // "1,234.56", "1.234,56", "1'234.50", "€ 42", "42 EUR", "-100" (when
 // negative amounts are allowed) — as minor units; null when it is not one

@@ -169,6 +169,7 @@ test("Hiring tells Booking the interviews' times, only when they change, never w
   assert.deepEqual(JSON.parse(told[0]!.data["spans"] as string), [[minute(instantOf(tuesday, "09:30", zone)), minute(instantOf(tuesday, "10:15", zone))]]);
   assert.equal(told[0]!.subject, camille.id, "one member's snapshots in order");
   assert.deepEqual(told[0]!.audience, { roles: ["recruiter", "interviewer"] });
+  assert.equal(told[0]!.data["v"], 1, "Booking keeps a busy snapshot only when v is 1 (its readBusy)");
   assert.deepEqual(Object.keys(told[0]!.data).sort(), Object.keys(manifest.emits["hiring.busy"]!.data).sort(), "the fields chest.json declares");
   assert.ok(!JSON.stringify(told[0]!.data).includes(c.name) && !JSON.stringify(told[0]!.data).includes("Salesperson"), "times only");
   assert.equal(await share.shareBusy(sql, [camille.id]), 0, "unchanged: not told again");

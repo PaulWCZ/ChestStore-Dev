@@ -7,6 +7,7 @@ import { Island } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import { askWho, noSharing, sharingFor } from "../lib/audience.ts";
 import { listBoards } from "../lib/boards.ts";
+import { followBoards } from "../shared/live.ts";
 import { db } from "../lib/db.ts";
 import { newBoardWords } from "./MyTasks.tsx";
 
@@ -22,6 +23,7 @@ export async function boardsPage({ member, locale: language, t, query }: PageCon
     title: archived ? t.boards.archived : t.boards.title,
     body: (
       <div className="wide">
+        {!archived && <Island name="Live" props={{ follow: followBoards(boards.map(b => b.id)) }} />}
         <div className="hello">
           <h1>{archived ? t.boards.archived : t.boards.title}</h1>
           <div className="row">

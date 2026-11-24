@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as jobs } from "../src/calls.ts";
 import { chestEvents as events } from "../src/calls.ts";
 import { normalize, plainText } from "../src/lib/doc.ts";
@@ -149,7 +149,7 @@ test("when due, the owner is told once by the morning run; 'Still correct' settl
   assert.deepEqual((await reviews.myReviews(sql, asMember(ines))).map(r => r.id), [p.id]);
   assert.deepEqual(await reviews.myReviews(sql, asMember(tom)), []);
   assert.equal(await chest.run("reviews", jobs), 204);
-  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: shownTo(n, "fr").title, key: n.key, path: n.path })), [
+  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: (n).title, key: n.key, path: n.path })), [
     { member: ines.id, title: "À relire\u202f: «\u202fFire drill\u202f»", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
   ]);
   // Told once: the next mornings add nothing.
@@ -175,7 +175,7 @@ test("an owner who left: the reminder goes to whoever last saved the page, if th
   await reviews.setReview(sql, asMember(tom), p.id, 6);
   await write(p.id, camille, "Every night at 2:00.");
   await sql`update pages set reviewed_at = now() - interval '7 months' where id = ${p.id}`;
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: tom.id } }, events), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: tom.id } }, events), 204);
   assert.equal((await pages.page(sql, asMember(camille), p.id)).review?.owner, null);
   await chest.run("reviews", jobs);
   assert.deepEqual(chest.notifications.filter(n => n.key === `review:${p.id}`).map(n => n.member), [camille.id]);

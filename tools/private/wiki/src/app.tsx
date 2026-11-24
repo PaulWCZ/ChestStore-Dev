@@ -3,6 +3,7 @@ import { actions } from "./actions.ts";
 import { chestEvents, chestSchedules, exportAll, exportPage, exportSpace, importUpload, leaveEditor, openFile, readsCsv } from "./calls.ts";
 import { framed } from "./frame.tsx";
 import { roleOf } from "./lib/access.ts";
+import { completeGroups } from "./lib/groups.ts";
 import { db } from "./lib/db.ts";
 import { pageStamp } from "./lib/pages.ts";
 import { locales, words } from "./i18n/index.ts";
@@ -27,13 +28,16 @@ import { lookFor } from "./theme.ts";
 // The wiki's routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the look (/chest/look.css), the member of every /chest
 // request — with every group they are in, as the Chest names them with
-// "members.groups" (src/lib/groups.ts) —, /lang/<code>, the error pages, and answers 404 to anything else.
+// "members.groups", completed from the Chest when the request could not
+// carry them all (src/lib/groups.ts) —, /lang/<code>, the error pages, and
+// answers 404 to anything else.
 export const app = createApp({
   actions,
   islands,
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
+  complete: completeGroups,
   // The look: the company's choice, else Library (src/theme.ts), served by
   // the package at /chest/look.css and /look.css.
   look: lookFor,
@@ -54,7 +58,8 @@ app.get("/chest/spaces/:id/settings", members(spaceSettingsPage));
 // A page: read it, edit it (the lock is taken once the editor is on
 // screen), its history, who has read it.
 // Its version (pageStamp: what its reader sees changing) makes the
-// re-reading of a page left open (AutoRefresh) a 304 while nothing changed.
+// re-reading of a page left open (LivePage: realtime) a 304 while nothing
+// changed.
 app.get("/chest/pages/:id", page(framed(readPage), { version: ({ member, param }) => (roleOf(member) === null ? null : pageStamp(db(), member, param("id"))) }));
 app.get("/chest/pages/:id/edit", members(editPage));
 app.get("/chest/pages/:id/history", members(historyPage));

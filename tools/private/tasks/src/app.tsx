@@ -9,6 +9,7 @@ import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { attachment } from "./lib/cards.ts";
 import { db } from "./lib/db.ts";
+import { withGroups } from "./lib/groups.ts";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
 import { boardCsv, boardJson, everything, fileName } from "./lib/export.ts";
 import { boardPage, cardAddress } from "./pages/Board.tsx";
@@ -23,12 +24,14 @@ import { pageLook } from "./theme.ts";
 // The tool's routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the member of every /chest request — with every group
 // of the Chest they are in (the capability "members.groups": a private
-// board may be shared with any) —, the look the company
+// board may be shared with any; asked with members.get when the assertion
+// carries too many, lib/groups.ts) —, the look the company
 // chose as a stylesheet (/chest/look.css; /look.css outside /chest),
 // /lang/<code>, the error pages, and answers 404 to anything else.
 export const app = createApp({
   actions, islands, locales, words,
   layouts: { members: MembersLayout, public: PublicLayout },
+  complete: withGroups,
   look: viewer => pageLook(viewer.member !== null),
   head: viewer => <><meta name="robots" content="noindex, nofollow" /><meta name="description" content={viewer.t.meta.tagline} /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
 });

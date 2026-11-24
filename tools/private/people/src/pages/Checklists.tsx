@@ -74,7 +74,7 @@ export async function checklistsPage({ member, locale, t }: PageContext): Promis
     title: t.checklists.title,
     body: (
       <div className="page narrow">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ follow: [{ channel: "people", names: ["journeys", "journey_items"] }, ...(can(member, "checklists.manage") ? [{ channel: "hr" as const, names: ["arrivals"] }] : [])] }} />
         <PageHeader title={t.checklists.title} action={templates.length > 0 ? <a className="button" href="/chest/checklists/new"><Plus />{t.checklists.start}</a> : null} />
         {nothing ? (
           <EmptyState

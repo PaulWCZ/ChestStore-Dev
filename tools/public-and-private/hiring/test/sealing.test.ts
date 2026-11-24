@@ -84,4 +84,44 @@ test("a Chest that cannot seal refuses the note: it is never kept in clear", asy
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
   await assert.rejects(candidates.addNote(sql, asMember(camille), c.id, "Should not be stored."), { code: "unavailable" });
   assert.equal((await sql`select 1 from notes where candidate_id = ${c.id}`).length, 0);
+  await chest.close();
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "sealed"] });
+});
+
+test("an interviewer on the job opens the notes; others' feedback, hidden until theirs is given, is not even opened", async () => {
+  const { sql } = database;
+  const job = await openJob(sql, asMember(camille), "Interviewers read");
+  const { addInterviewer } = await import("../src/lib/jobs.ts");
+  await addInterviewer(sql, asMember(camille), job.id, hugo.id, async () => true);
+  const c = (await candidates.apply(sql, application(job.slug, { email: "panel@example.com" }))).candidate;
+  await candidates.addNote(sql, asMember(camille), c.id, "Ask about the notice period.");
+  await candidates.giveFeedback(sql, asMember(camille), c.id, { rating: 4, strengths: "Sharp", concerns: "Pricey", recommendation: "yes" });
+  const asked: string[] = [];
+  const counting: Parameters<typeof openDetail>[0] = async items => {
+    asked.push(...items.map(i => i.context));
+    return opener(hugo)(items);
+  };
+  const d = await openDetail(counting, await candidates.candidate(sql, asMember(hugo), c.id), unreadable);
+  assert.deepEqual(d.notes.map(n => n.body), ["Ask about the notice period."]);
+  assert.equal(d.others.length, 0);
+  assert.equal(d.othersHidden, 1);
+  assert.ok(asked.every(x => x.startsWith("note:")), "the hidden feedback's words are never opened");
+});
+
+test("when the Chest cannot open: the page says so and the reader's form saves nothing over their words; exports are refused", async () => {
+  const { sql } = database;
+  const job = await openJob(sql, asMember(camille), "Locked");
+  const c = (await candidates.apply(sql, application(job.slug, { email: "locked@example.com" }))).candidate;
+  await candidates.addNote(sql, asMember(camille), c.id, "Private.");
+  await candidates.giveFeedback(sql, asMember(camille), c.id, { rating: 2, strengths: "Calm", concerns: "", recommendation: "no" });
+  const locked: Parameters<typeof openDetail>[0] = async items => items.map(() => null);
+  const d = await openDetail(locked, await candidates.candidate(sql, asMember(camille), c.id), unreadable);
+  assert.deepEqual(d.notes.map(n => n.body), [unreadable]);
+  assert.equal(d.mineLocked, true, "the feedback form is locked: the placeholder never becomes their words");
+  const open = await openDetail(opener(), await candidates.candidate(sql, asMember(camille), c.id), unreadable);
+  assert.equal(open.mineLocked, false);
+  await assert.rejects(openDetail(locked, await candidates.candidate(sql, asMember(camille), c.id), null), { code: "unavailable" });
+  const { everything } = await import("../src/lib/export-all.ts");
+  const { catalogue } = await import("../src/i18n/index.ts");
+  await assert.rejects(everything(sql, asMember(camille), catalogue("en"), locked).next(), { code: "unavailable" }, "refused before the first byte of the archive");
 });

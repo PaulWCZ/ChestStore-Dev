@@ -146,7 +146,8 @@ test("an approver answers; the answer can be taken back; nobody else answers, no
   assert.equal((await call(hugo, "answer", { id: row.id, verdict: "approve" })).error, "own_request");
   const answered = await call(ines, "answer", { id: row.id, verdict: "approve" });
   assert.equal(answered.ok, true);
-  assert.equal((await call(ines, "takeBack", { id: row.id })).ok, true);
+  const back = await call(ines, "takeBack", { id: row.id });
+  assert.equal(back.ok, true, JSON.stringify(back));
   const refused = await call(ines, "answer", { id: row.id, verdict: "maybe" });
   assert.equal(refused.status, 400);
   assert.equal(refused.error, "invalid");
@@ -224,12 +225,12 @@ test("the host's root says where Leave lives; any other path is a 404 in the vis
   assert.equal(missing.status, 404);
 });
 
-// SDK 0.4.1-studio.7 lifts 0.4.1's cap of 16 groups a member: Hugo, in
-// 17 groups, signs in and is listed under Sales.
+// No cap of groups a member (SDK 0.5+): Hugo, in 17 groups, signs in and
+// is listed under Sales.
 test("a member in 17 groups signs in and is listed under a group's chip", async () => {
   await chest.close();
   const many = Array.from({ length: 16 }, (_, i) => ({ id: "grp_x" + "abcdefghijklmnop"[i]! + "a".repeat(24), name: `Extra ${i}`, members: [hugo.id] }));
-  const crowded = everyone.map(p => (p.id === hugo.id ? { ...p, groups: [...p.groups, ...many.map(g => g.id)] } : p));
+  const crowded = everyone.map(p => (p.id === hugo.id ? { ...p, groups: [...(p.groups ?? []), ...many.map(g => g.id)] } : p));
   chest = await fakeChest({ network: {}, tool: "leave", members: crowded, groups: [...fakeGroups, ...many], capabilities: ["members", "files", "notifications", "members.groups"], chest: { publicUrl: null } });
   try {
     await page(crowded.find(p => p.id === hugo.id)!, "/chest");

@@ -8,6 +8,28 @@ import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4300);
 const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/chest\/(pages\/(16|999)|pages\/\d+\/edit)$/u });
+// A page that follows the Chest's realtime reads itself once just after it
+// joins (what came between its render and the join): a flow goes on once
+// that read is done, as a person would (they never act in the first 200 ms).
+const plainGoto = page.goto.bind(page);
+page.goto = (url, options) => plainGoto(url, { waitUntil: "networkidle", ...options });
+const plainReload = page.reload.bind(page);
+page.reload = options => plainReload({ waitUntil: "networkidle", ...options });
+// A page put in place (a link, an action's navigation) joins too: the same.
+const plainWaitForURL = page.waitForURL.bind(page);
+page.waitForURL = async (url, options) => {
+  await plainWaitForURL(url, options);
+  await page.waitForLoadState("networkidle").catch(() => {});
+};
+// Another person, in a browser of their own.
+async function someone(member, language = "en") {
+  const c = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 }, locale: "en-GB" });
+  await c.addCookies([{ name: "dev_member", value: "mbr_" + member + "a".repeat(26 - member.length), url: origin }, { name: "dev_locale", value: language, url: origin }]);
+  const p = await c.newPage();
+  p.on("pageerror", e => problems.push("page: " + e.message));
+  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("console: " + m.text()); });
+  return { c, p };
+}
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 // A 1×1 PNG: the fake Chest checks that an image is what it says.
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
@@ -90,6 +112,40 @@ await step("while Tom edits, Camille finds the page taken and reads it meanwhile
   await page.locator(".ProseMirror").waitFor();
   await page.getByRole("button", { name: "Stop editing" }).click();
   await page.waitForURL(created);
+});
+
+await step("live, never a timer: a reader's page says who edits; Camille, waiting behind Tom's lock, gets the editor the moment he stops", async () => {
+  const reader = await someone("hugo");
+  const tom = await someone("tom");
+  const camille = await someone("camille", "fr");
+  try {
+    await reader.p.goto(created, { waitUntil: "networkidle" });
+    const banner = reader.p.locator(".notice", { hasText: "editing this page" });
+    expect(!(await banner.count()), "nobody edits yet");
+    // Left open with nothing happening, the reader's page asks nothing.
+    const reads = [];
+    reader.p.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+    await reader.p.waitForTimeout(2500);
+    expect(reads.length === 0, "an idle page asks nothing: " + reads.join(", "));
+    await tom.p.goto(created + "/edit", { waitUntil: "networkidle" });
+    await tom.p.locator(".ProseMirror").waitFor();
+    await reader.p.locator(".notice", { hasText: "Tom Walker has been editing" }).waitFor({ timeout: 10_000 });
+    await camille.p.goto(created + "/edit", { waitUntil: "networkidle" });
+    await camille.p.waitForSelector("text=Quelqu’un d’autre modifie cette page");
+    const asked = [];
+    camille.p.on("request", r => { if (r.url().includes("/actions/openEditor")) asked.push(r.url()); });
+    await camille.p.waitForTimeout(2500);
+    expect(asked.length === 0, "waiting, she asks nothing: " + asked.length);
+    await tom.p.getByRole("button", { name: "Stop editing" }).click();
+    await tom.p.waitForURL(created);
+    await camille.p.locator(".ProseMirror").waitFor({ timeout: 10_000 });
+    await reader.p.locator(".notice", { hasText: "Camille Martin has been editing" }).waitFor({ timeout: 10_000 });
+    await camille.p.getByRole("button", { name: "Arrêter de modifier" }).click();
+    await camille.p.waitForURL(created);
+    await banner.waitFor({ state: "detached", timeout: 10_000 });
+  } finally {
+    for (const x of [reader, tom, camille]) await x.c.close();
+  }
 });
 
 await step("unsaved changes come back after the tab is closed", async () => {
@@ -234,8 +290,15 @@ await step("a typed title survives a stray Escape; deleting for good asks first,
   await page.waitForURL(/\/chest\/pages\/\d+\/edit\?new=1$/u);
   const old = page.url().replace(/\/edit\?new=1$/u, "");
   await page.locator(".ProseMirror").waitFor();
+  const reread = page.waitForResponse(r => r.url() === old && r.request().method() === "GET", { timeout: 5000 }).catch(() => null);
   await page.getByRole("button", { name: "Stop editing" }).click();
   await page.waitForURL(old);
+  // The lock given back is said on the page's channel (page.lock): the
+  // page reads itself once more. Delete after that read, as a person
+  // would — a read the package started before an action and that answers
+  // after it is put in place (a 404 here): the studio's app/ to fix.
+  await reread;
+  await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.waitForURL(/\/chest\/spaces\/1$/u);

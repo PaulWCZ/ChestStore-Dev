@@ -50,6 +50,7 @@
     "hiring.busy": {
       "description": "A member's interviews change: their busy times",
       "data": {
+        "v": "number",
         "member": "member",
         "at": "time",
         "from": "time",

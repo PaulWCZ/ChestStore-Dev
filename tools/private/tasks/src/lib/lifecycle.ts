@@ -49,14 +49,12 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.revoked" | "member.removed" | "member.erased"> {
   return {
-    // A group changed (Proposal (studio), the capability "members.groups",
-    // announced for 0.5): the groups a board may be shared with are read
+    // A member joined or left a group (the capability "members.groups";
+    // SDK 0.5+ has no group events): the groups kept a minute are read
     // again. Who is in a group comes with each member, asked each time.
     "member.updated": async event => { if (event.data.changed.includes("groups")) forgetGroups(); },
-    "group.changed": async () => { forgetGroups(); },
-    "group.removed": async () => { forgetGroups(); },
     // Their cards and steps change hands: the calendars follow.
     "access.revoked": async event => { await leave(sql, event.data.id); await sync(sql); },
     "member.removed": async event => { await leave(sql, event.data.id); await sync(sql); },

@@ -1,10 +1,10 @@
 import { call, fill as format } from "@argentic/chest-app/client";
+import { connect, type Channel } from "@argentic/chest-sdk/realtime/client";
 import type { DialogWords } from "@argentic/chest-ui/components/logic";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Holder } from "../actions.ts";
 import * as I from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
-import { heartbeatSeconds } from "../shared/model.ts";
 
 // Editing a page: the lock first (one person edits at a time), then the
 // page as it is — or the member's own unsaved draft, which comes back.
@@ -41,15 +41,66 @@ export function Editor({ page, pages, fresh = false, locale, t }: { page: PageIn
       : { kind: "editing", title: page.title, doc: JSON.parse(page.doc) as unknown, base: o.version, restored: null, older: false });
   }, [page]);
   useEffect(() => { void open(); }, [open]);
-  // Waiting behind someone else's lock: asked again every 30 seconds — the
-  // editor opens by itself once the page is free, and the holder's line
-  // stays current.
-  const waiting = phase.kind === "locked";
+  // The page's realtime channel (SDK 0.7.0: "page:<id>", chest.json),
+  // one connection while the editor page is open. Never a timer asking the
+  // wiki: the Chest says when the lock changes.
+  // - Editing: the member is present in the channel (presence: who has the
+  //   editor open — a tab gone without a word leaves it at once).
+  // - Waiting behind someone else's lock: asked again when the lock is
+  //   given back or taken (page.lock, lib/live.ts), when the channel is
+  //   joined without a replay or must resync (something may have been
+  //   missed), a lease after its holder left the presence (their tab gone:
+  //   the lock lapses then), and once when its holder would turn idle (they
+  //   may be taken over then; still typing, the answer says when next).
+  const channel = useRef<Channel | null>(null);
+  const waitingFor = phase.kind === "locked" ? phase.holder : null;
+  const editing = phase.kind === "editing";
+  const latest = useRef({ waitingFor, open });
+  latest.current = { waitingFor, open };
   useEffect(() => {
-    if (!waiting) return;
-    const timer = setInterval(() => void open(), heartbeatSeconds * 1000);
-    return () => clearInterval(timer);
-  }, [waiting, open]);
+    let live: ReturnType<typeof connect>;
+    try {
+      live = connect();
+    } catch {
+      return; // not in a page (no realtime): the editor still works, by hand
+    }
+    const ch = live.channel(`page:${page.id}`);
+    channel.current = ch;
+    const again = () => { if (latest.current.waitingFor) void latest.current.open(); };
+    const stops = [ch.on("page.lock", again), ch.onJoined(({ replayed }) => { if (!replayed) again(); }), ch.onResync(again)];
+    return () => {
+      for (const stop of stops) stop();
+      channel.current = null;
+      live.close();
+    };
+  }, [page.id]);
+  useEffect(() => {
+    if (editing) channel.current?.presence.track({ editing: true });
+  }, [editing]);
+  useEffect(() => {
+    if (!waitingFor) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (waitingFor.idleIn !== null) timers.push(setTimeout(() => void open(), waitingFor.idleIn * 1000 + 1000));
+    // The holder's tab gone: their lock lapses a lease later.
+    let lapse: ReturnType<typeof setTimeout> | undefined;
+    const watch = (present: { id: string }[]) => {
+      const here = present.some(p => p.id === waitingFor.id);
+      if (here) {
+        clearTimeout(lapse);
+        lapse = undefined;
+      } else if (!lapse) lapse = setTimeout(() => void open(), (waitingFor.lapse + 2) * 1000);
+    };
+    const ch = channel.current;
+    const stop = ch?.presence.on(watch);
+    // Who is there now (an empty list before the join: the lapse is then
+    // only a later check, cleared when the holder shows up).
+    if (ch) watch(ch.presence.list());
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+      clearTimeout(lapse);
+      stop?.();
+    };
+  }, [waitingFor, open]);
 
   if (phase.kind === "opening") {
     return <div className="opening" role="status">{error ? <p className="error" role="alert">{error}</p> : <p className="muted">{t.editor.opening}</p>}</div>;

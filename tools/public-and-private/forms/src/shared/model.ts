@@ -825,8 +825,17 @@ export function typesFor(accept: Accept): string[] {
 
 // What a visitor may send on a public form: the Chest (SDK 0.7.0) takes a
 // visitor's file only of a type it recognises by its bytes — images, PDF,
-// Office and OpenDocument —, never plain text nor CSV.
-export const visitorTypes: ReadonlySet<string> = new Set(Object.keys(fileTypes).filter(type => !type.startsWith("text/")));
+// the Office documents of today (.docx, .xlsx, .pptx) and OpenDocument —,
+// never plain text nor CSV, nor the old Office formats (.doc, .xls): it
+// refuses to grant an upload of those (invalid_type).
+const chestRecognises: ReadonlySet<string> = new Set([
+  "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
+]);
+export const visitorTypes: ReadonlySet<string> = new Set(Object.keys(fileTypes).filter(type => chestRecognises.has(type)));
 export function visitorTypesFor(accept: Accept): string[] {
   return typesFor(accept).filter(type => visitorTypes.has(type));
 }

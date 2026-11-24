@@ -9,10 +9,9 @@ import { chest } from "@argentic/chest-sdk/chest";
 export const zone = (): string => chest.timeZone;
 export const today = (): string => chest.today();
 
-// A member's own zone (member.timeZone, always given by the Chest; the
-// Chest's for someone without one, such as a test's): for what one person
-// reads for themselves — "today" and "late" on their own to-dos, and the
-// times shown to them.
+// A member's own zone (member.timeZone: where their browser is, SDK
+// 0.7.0; the Chest's for someone without one, such as a test's): for the
+// times shown to them on their own clock. Their "today" and "late" stay
+// the company's (today()).
 export type Zoned = { timeZone?: string | undefined } | null | undefined;
 export const zoneOf = (member: Zoned): string => member?.timeZone ?? chest.timeZone;
-export const todayOf = (member: Zoned, at: Date | number = Date.now()): string => chest.todayIn(zoneOf(member), at);

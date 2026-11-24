@@ -1,11 +1,5 @@
 {
   "calendar": true,
-  "capabilities": [
-    "members.groups"
-  ],
-  "receives": [
-    "group.*"
-  ],
   "translations": {
     "fr": {
       "title": "Actualités",

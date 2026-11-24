@@ -14,15 +14,15 @@ the studio's `app/`.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `editor`, `reader`; `database`, `files`, `members`, `notifications`; `receives`; the `reviews` schedule (weekdays 07:40); `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `capabilities: ["members.groups"]` and `receives: ["group.*"]`, the French tile (no `mail`: the wiki writes to nobody outside) |
+| `chest.json` | Manifest (contract 0.7): roles `editor`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channel `page:*` with presence; feeds `pages`, `page_comments`); the `reviews` schedule (weekdays 07:40); `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): the French tile (no `mail`: the wiki writes to nobody outside) |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the import's upload, the editor's beacon, `/chest-events`, `/chest-schedules` |
 | `src/calls.ts` | What is not a page nor an action, as plain functions of a Request: `chestEvents`, `chestSchedules` (`reviews`), `leaveEditor` (the beacon), `importUpload`, `openFile`, the exports, `readsCsv` |
 | `src/actions.ts` | **Every mutation**, by name (`call("movePage", …)` from an island); thin: the rules are in `src/lib/`. Times the editor shows (a lock's, a draft's) are written here, in the member's zone |
 | `src/frame.tsx` | Around every page of /chest: the sidebar's tree (an island), `NoAccess` for a member without a role; what the layout's Trash tab depends on |
 | `src/layout.tsx` | The kit's `AppShell` (sections Home · Pages · Search · Trash as labelled tabs, `BrandMark`, member chip, the header's search), the toasts (outside `<main>`, `id="toasts"`: they survive `navigate()`) |
 | `src/pages/` | The pages, rendered on the server: `Home`, `Pages`, `Space`, `SpaceSettings`, `Page` (read), `Edit`, `History`, `Reads`, `Search`, `Synonyms`, `Trash`, `Import`, `PublicHome` |
-| `src/islands/` | What runs in the browser, listed in `index.ts`: `Sidebar`/`Contents` (the tree, drag and drop, new page and new space dialogs), `PageActions` (+ `ReviewAsk`, `DraftNotice`, `ReadRequest`), `Comments`, `Editor` (the lock, then `editor/Writing.tsx`: Tiptap, toolbar, `paste.ts`, the "/" menu `slash.tsx`, `extensions.ts` = the schema on the browser's side — a chunk fetched only when the editor opens), `Buttons` (new page, new space, example handbook, a menu of links), `History` (restore, reads' actions), `SpaceSettings`, `SynonymsEditor`, `TrashRow`, `Importer`, `Page.tsx` (`Search`, `Ready`, `AutoRefresh`, `Flash`) |
+| `src/islands/` | What runs in the browser, listed in `index.ts`: `Sidebar`/`Contents` (the tree, drag and drop, new page and new space dialogs), `PageActions` (+ `ReviewAsk`, `DraftNotice`, `ReadRequest`), `Comments`, `Editor` (the lock, then `editor/Writing.tsx`: Tiptap, toolbar, `paste.ts`, the "/" menu `slash.tsx`, `extensions.ts` = the schema on the browser's side — a chunk fetched only when the editor opens), `Buttons` (new page, new space, example handbook, a menu of links), `History` (restore, reads' actions), `SpaceSettings`, `SynonymsEditor`, `TrashRow`, `Importer`, `Page.tsx` (`Search`, `Ready`, `LivePage` — realtime —, `Flash`); `Editor` follows the page's channel itself (the lock, the holder's presence) |
 | `src/components/` | Shared by pages and islands (no server code): icons, the mark, the tree, the new page and new space dialogs, `prose.tsx` (a page's HTML as the server wrote it: the one place HTML goes in as it is) |
 | `src/shared/` | Pure rules both sides use: `doc.ts` (the document's types, `safeHref`, `safeImage`, bounds), `model.ts` (limits, timings, colours, `linkParts`) |
 | `src/lib/access.ts` | **Who may do what**: abilities (`can`) and a space's access (`spaceAccess`: none, read, write — seeing by `visibility`/groups, editing by `editing`/`editors`; `private` = "My pages", its creator's alone, admins included out) |
@@ -37,7 +37,8 @@ the studio's `app/`.
 | `src/lib/importer.ts`, `zip.ts`, `html.ts`, `docx.ts` | Imports (Markdown, Notion, Confluence, Google Docs, Word, HTML), never HTML kept |
 | `src/lib/export.ts`, `origin.ts` | Markdown, HTML and zip exports; the team host's address (`chest.tool.teamUrl`) |
 | `src/lib/comments.ts`, `watching.ts`, `templates.ts`, `reviews.ts`, `reads.ts`, `pins.ts` | Comments, watching, templates, review reminders, read and acknowledged, pins |
-| `src/lib/groups.ts` | Every group of the Chest (kept a minute, forgotten on `group.*` events); a member's groups come with the member (`members.groups`) |
+| `src/lib/groups.ts` | Every group of the Chest (paged, kept a minute, forgotten on `member.updated`); a member's groups come with the member (`members.groups`); `completeGroups` when they are `null` |
+| `src/lib/live.ts` | Realtime: `page.lock` published when a lock changes; who has a page on screen (not told of a comment there) |
 | `src/lib/tell.ts`, `notify.ts` | **Everything the bell says**, each recipient checked against the space's access at that moment; the `reviews` schedule's work |
 | `src/lib/starter.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | The example handbook; leaving and erasure; names (former, no access, erased); the package's `db()` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `index.ts` (`catalogue`, `format`, `plural`, `formatDate`, `relative`, `moment`, `orList` — Intl objects made once per language and zone) |
@@ -56,7 +57,7 @@ one toast per action id; `undo` resolves `true` or says why not), `Dialog`
 `AppShell`/`BrandMark`/`NoAccess`, `SearchBox`, `Avatar`, `EmptyState`,
 `Tabs` (history, plain links), `StatusBadge` (reads),
 `FilePicker` (import),
-`LanguageSwitch` (public page), `useAutoRefresh`; `searchChoices` and
+`LanguageSwitch` (public page); `searchChoices` and
 `matches` (the store's search rule) for "@" mentions, the page picker and
 the editors filter. Its words are the catalogues' `kit` section (`toast`,
 `dialog`, `search`, `files`). `Menu` takes `size="m"` (as tall as the
@@ -83,6 +84,11 @@ NODE_ENV=development npm test              # as Perseus's workbench runs it
 - **Every service function takes `(sql, actor, …)`**, checks access through
   `space()`/`page()` (a space or page the actor cannot see is `not_found`,
   never `forbidden`), and throws `AppError(code)`.
+- **Realtime carries ids, never content**: feeds carry the id alone, a
+  published event no payload. Never a feed on `page_locks` (written at each
+  draft and heartbeat: every reader would read again every few seconds),
+  `drafts` or `page_reads`; a change of lock is `live.lockChanged()` in
+  `after()`. A page others change follows it (`useLive`), never a timer.
 - **Content only through `normalize()`**, HTML only from `render()`. A new
   node or mark means: `src/lib/doc.ts` (schema + bounds), `src/lib/render.ts`,
   `src/lib/markdown.ts` (both ways), `src/islands/editor/extensions.ts` (editor), CSS, and tests

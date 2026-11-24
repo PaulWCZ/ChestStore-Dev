@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { whoPublishes } from "../src/lib/audience.ts";
 import { AppError } from "@argentic/chest-app";
 import { erase, leave } from "../src/lib/lifecycle.ts";
@@ -12,6 +12,10 @@ import { today } from "../src/lib/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, lea, sofia, stranger } from "./support/members.ts";
+
+// SDK 0.7.0's fake keeps each item in its member's language (its
+// translation, the English words otherwise).
+const shown = (n: { title: string; body?: string }) => ({ title: n.title, ...(n.body !== undefined ? { body: n.body } : {}) });
 
 // The third severe critique: search and empty states in the reader's
 // language; posts from everyone
@@ -91,7 +95,7 @@ test("posts from everyone: a reader proposes; before approval only they and the 
   const bell = chest.notifications.filter(n => n.key === tell.proposalsKey);
   assert.deepEqual(bell.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   assert.equal(bell.find(n => n.member === sofia.id)!.title, "1 post waits for your approval");
-  assert.equal(shownTo(bell.find(n => n.member === camille.id)!, "fr").title, "1 publication attend votre validation");
+  assert.equal(shown(bell.find(n => n.member === camille.id)!).title, "1 publication attend votre validation");
   // Before approval: not a post — not on anyone's front page, not in search.
   for (const who of [hugo, lea, ines, sofia, camille]) {
     assert.equal((await posts.front(sql, asMember(who), { zone })).posts.length, 0, who.firstName);
@@ -127,7 +131,7 @@ test("posts from everyone: a reader proposes; before approval only they and the 
   assert.equal((await search(sql, asMember(ines), "SECRETPROPOSAL"))[0]!.id, done.postId);
   // Hugo is told it is published; Léa that Hugo thanks her; the publishers' item goes.
   assert.equal(chest.notifications.find(n => n.member === hugo.id && n.key === `proposal:${made.id}`)!.title, "Your post is on News: “Thank you, Léa!”");
-  assert.equal(shownTo(chest.notifications.find(n => n.member === lea.id && n.key === `post:${done.postId}:welcome`)!, "fr").title, "Hugo Bernard vous remercie dans les Actualités");
+  assert.equal(shown(chest.notifications.find(n => n.member === lea.id && n.key === `post:${done.postId}:welcome`)!).title, "Hugo Bernard vous remercie dans les Actualités");
   assert.equal(chest.notifications.filter(n => n.key === tell.proposalsKey).length, 0);
   // It is gone from the list; approving again finds nothing.
   assert.deepEqual(await proposals.waiting(sql, asMember(sofia)), []);
@@ -142,8 +146,8 @@ test("a publisher never approves their own proposal; declined with a reason, the
   const declined = await proposals.decline(sql, asMember(camille), news.id, "Déjà annoncé lundi.");
   await tell.proposalDeclined(sql, declined);
   const told = chest.notifications.find(n => n.member === ines.id && n.key === `proposal:${news.id}`)!;
-  assert.equal(shownTo(told, "fr").title, "Votre publication n’a pas été publiée\u202f: «\u202fLe chantier de Lyon est fini\u202f»");
-  assert.equal(shownTo(told, "fr").body, "Déjà annoncé lundi.");
+  assert.equal(shown(told).title, "Votre publication n’a pas été publiée\u202f: «\u202fLe chantier de Lyon est fini\u202f»");
+  assert.equal(shown(told).body, "Déjà annoncé lundi.");
   assert.equal((await proposals.mine(sql, asMember(ines)))[0]!.reason, "Déjà annoncé lundi.");
   assert.deepEqual((await proposals.waiting(sql, asMember(sofia))).map(p => p.id), [own.id]);
   await assert.rejects(proposals.approve(sql, asMember(sofia), news.id), refused("not_found"));

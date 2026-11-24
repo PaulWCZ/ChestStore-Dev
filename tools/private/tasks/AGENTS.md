@@ -11,11 +11,11 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives`; schedules `morning`, `retry`; `build.static: ["/assets/"]`. Proposals in `chest.proposals.json` (`calendar`, `emits`, `capabilities: ["members.groups"]`, `receives`, `translations`) |
+| `chest.json` | Manifest (contract 0.7): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives: ["member.*"]`; `emits` (`tasks.card.done`, `tasks.card.reopened`, each with its fields); `realtime` (channel `board:*`, feeds of `cards`, `columns`, `labels`, `fields`, `boards`, ids only); schedules `morning`, `retry`; `build.static: ["/assets/"]`. Proposals (studio) in `chest.proposals.json`: `calendar`, `translations` |
 | `src/app.tsx` | Every route: `createApp` (actions, islands, words, layouts, `look` = the company's choice, `head`), the pages, the downloads, `/chest/files/<id>`, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | Every change, by name (`act()` = an action, then the calendars and the linked tools after the answer) |
 | `src/pages/` | `MyTasks`, `Boards`, `Board` (the board and the open card; the calendar's month and the timeline's window written here; `/chest/cards/<id>`), `Settings`, `Search`, `Import` |
-| `src/islands/` | `BoardView` (dnd-kit; with `ListView`, `CalendarView`, `TimelineView` inside it), `CardPanel`, `BoardSettings`, `Importer`, `TaskGroups`, `NewBoard`, `Switches`, `SearchBox`, `AutoRefresh`; `index.ts` lists them |
+| `src/islands/` | `BoardView` (dnd-kit; with `ListView`, `CalendarView`, `TimelineView` inside it), `CardPanel`, `BoardSettings`, `Importer`, `TaskGroups`, `NewBoard`, `Switches`, `SearchBox`, `Live` (follows the boards a page shows: realtime, never a timer); `index.ts` lists them |
 | `src/components/` | Shared by pages and islands: icons, the mark, Markdown, board tiles |
 | `src/layout.tsx` | The kit's shell, the brand's logo (`look.logo`), `NoAccess` for a role that gives nothing, the toasts |
 | `src/theme.ts`, `src/tokens.css`, `src/styles.css`, `src/timeline-grid.css` | Workshop (`identityOf("tasks")`) and the page's look (`pageLook`); the tool's tokens; its CSS (contract tokens only); the timeline's place classes |
@@ -26,7 +26,7 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 | `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (`notice()`: English with its French as `translations`; the Chest shows each member theirs) and badges |
 | `src/lib/repeats.ts`, `src/lib/morning.ts`, `src/lib/reminders.ts` | A repeating card's series; the weekday morning; the reminder's switch |
 | `src/lib/deliveries.ts` | What the Chest posts: events (`onEvent`) and schedule runs (`onSchedule`), each id kept (`chest_events`, 30 days) |
-| `src/lib/lifecycle.ts`, `src/lib/groups.ts`, `src/lib/audience.ts`, `src/lib/people.ts`, `src/lib/export.ts`, `src/lib/importers.ts`, `src/lib/card-events.ts`, `src/lib/clock.ts`, `src/lib/db.ts` | Leaving and erasure; the Chest's groups that may share a board (`members.groups`, kept a minute); who sees a board; names (former, no access, erased); exports; writing an import; events to Goals; "today" in the Chest's zone; the database |
+| `src/lib/lifecycle.ts`, `src/lib/groups.ts` (the groups a board may be shared with; a member's groups when the Chest sends `null`), `src/lib/audience.ts`, `src/lib/people.ts`, `src/lib/export.ts`, `src/lib/importers.ts`, `src/lib/card-events.ts`, `src/lib/clock.ts`, `src/lib/db.ts` | Leaving and erasure; the Chest's groups that may share a board (`members.groups`, kept a minute); who sees a board; names (former, no access, erased); exports; writing an import; events to Goals; "today" in the Chest's zone; the database |
 | `src/shared/` | Rules used by the server **and** the islands, pure: `repeat.ts`, `calendar.ts` (and the month/timeline window types), `parse-import.ts`, `csv.ts`, `model.ts`, `markdown.ts`, `position.ts`. They refuse with `fail`/`AppError` from `@argentic/chest-app/client` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` (kept Intl objects, for pages and islands) |
 | `migrations/` | Schema. Never edit a shipped file; add the next number |
@@ -145,9 +145,24 @@ npm ci && npm test && npm run build   # all three must pass
 - **Something that points at a card from elsewhere** (a step's assignee, a
   field value) must be handled where a card moves between boards
   (`carry()` in `src/lib/cards.ts`) and where a member leaves (`src/lib/lifecycle.ts`).
-- **"Today" is `chestToday()`** (`src/lib/clock.ts`), never the server's date
-  or a hard-coded zone; the morning uses its run's `scheduledAt` on the
-  Chest's zone (`chest.timeZone`).
+- **"Today" is `chestToday()`** (`src/lib/clock.ts`): the company's day
+  (`chest.timeZone`), the same for every member — never the server's date,
+  the member's zone or a hard-coded one; the morning uses its run's
+  `scheduledAt` on the company's zone. Tasks has no time-zone setting.
+- **Live pages** (realtime, `src/shared/live.ts`, `src/islands/Live.tsx`):
+  a page others change shows `<Island name="Live" props={{ follow:
+  followBoards(ids) }} />`; never a timer. A feed carries ids only (the
+  channel `board:*` is open to every member). A new table whose rows a
+  board shows: give it a `board_id` and a feed in `chest.json`, or, if it
+  hangs off a card (`card_id`), a `tasks_touch_card` trigger (as
+  `migrations/0008_live.sql`); `test/live.test.ts` checks both.
+- **`member.groups` may be `null`**: read groups through
+  `withGroups`/`allWithGroups` (`src/lib/groups.ts`) before
+  `boardAccess`; the pages' member is completed by `createApp`'s `complete`.
+- **Events to other tools** (`src/lib/card-events.ts`): `events.emit` with
+  the subject `card:<id>`, the key, `occurredAt` (72 hours at most) and,
+  for a private board, its audience; a new field is a new type (data only
+  grows) and goes into `chest.json`'s `"emits"` first.
 - **Every path that completes a card calls `makeNext`, every path that
   reopens one `takeBack`**, inside its transaction (`moveCard`,
   `updateColumn`). A card makes its next one once: `next_card_id`.

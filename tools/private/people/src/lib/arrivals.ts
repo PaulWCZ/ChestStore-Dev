@@ -11,10 +11,13 @@ import { profiles, save, wouldLoop } from "./profiles.ts";
 
 // Arrivals: people coming who are not members yet — written by HR by hand
 // (a hire made through LinkedIn and email), or told by another tool
-// (Proposal (studio): events between tools). Today, Hiring:
+// (events between tools, SDK 0.5+; chest.json "receives"). Today, Hiring:
 //
 //   hiring.hired          { candidate, name, email, job, team, place, startDate, hiredBy }
-//   hiring.hire_cancelled { candidate }
+//   hiring.hire-cancelled { candidate }
+//
+// A hire told with an audience (who in Hiring may see it) is shown to the
+// HR people it lists only: they see the arrival and are told of it.
 //
 // HR sees them among the arrivals, may start their arrival checklist before
 // they have access (their own steps wait), and links the arrival to the
@@ -75,52 +78,56 @@ export function readHired(data: Record<string, unknown>): Hired | null {
 // A hire told (again): a new arrival, or the same one brought up to date
 // (a cancelled one comes back). A hire already linked to a member changes
 // nothing. Says what to tell HR.
-export async function hired(sql: Sql, event: ToolEvent): Promise<{ arrival: Arrival; isNew: boolean } | null> {
+export async function hired(sql: Sql, event: ToolEvent): Promise<{ arrival: Arrival; isNew: boolean; audience: string[] | null } | null> {
   if (event.source !== "hiring") return null;
   const h = readHired(event.data);
   if (!h) return null;
   const [before] = await sql<{ status: string }[]>`select status from arrivals where source = 'hiring' and ref = ${h.candidate}`;
   if (before?.status === "linked") return null;
+  const audience = event.audience === "all" ? null : [...event.audience];
   const [row] = await sql<{ id: string }[]>`
-    insert into arrivals (source, ref, name, job, team, place, start_date, hired_by)
-    values ('hiring', ${h.candidate}, ${h.name}, ${h.job}, ${h.team}, ${h.place}, ${h.startDate}, ${h.hiredBy})
+    insert into arrivals (source, ref, name, job, team, place, start_date, hired_by, audience)
+    values ('hiring', ${h.candidate}, ${h.name}, ${h.job}, ${h.team}, ${h.place}, ${h.startDate}, ${h.hiredBy}, ${audience})
     on conflict (source, ref) do update set status = 'expected', cancelled_at = null, name = excluded.name, job = excluded.job,
-      team = excluded.team, place = excluded.place, start_date = excluded.start_date, hired_by = excluded.hired_by
+      team = excluded.team, place = excluded.place, start_date = excluded.start_date, hired_by = excluded.hired_by, audience = excluded.audience
     returning id`;
   const arrival = (await load(sql, [String(row!.id)]))[0]!;
-  return { arrival, isNew: before === undefined || before.status === "cancelled" };
+  return { arrival, isNew: before === undefined || before.status === "cancelled", audience };
 }
 
 // A hire cancelled: the arrival goes if nothing was started for it;
 // otherwise it is marked cancelled (its checklists stopped) for HR to see.
-export async function hireCancelled(sql: Sql, event: ToolEvent): Promise<{ id: string; name: string; kept: boolean; stopped: string[]; assignees: string[] } | null> {
+export async function hireCancelled(sql: Sql, event: ToolEvent): Promise<{ id: string; name: string; kept: boolean; stopped: string[]; assignees: string[]; audience: string[] | null } | null> {
   if (event.source !== "hiring") return null;
   const candidate = event.data["candidate"];
   if (typeof candidate !== "string" || !refPattern.test(candidate)) return null;
   return sql.begin(async tx => {
-    const [a] = await tx<{ id: string; name: string; status: string }[]>`select id, name, status from arrivals where source = 'hiring' and ref = ${candidate} for update`;
+    const [a] = await tx<{ id: string; name: string; status: string; audience: string[] | null }[]>`select id, name, status, audience from arrivals where source = 'hiring' and ref = ${candidate} for update`;
     if (!a || a.status !== "expected") return null;
     const journeys = await tx<{ id: string }[]>`select id from journeys where arrival_id = ${a.id}`;
     if (journeys.length === 0) {
       await tx`delete from arrivals where id = ${a.id}`;
-      return { id: String(a.id), name: a.name, kept: false, stopped: [], assignees: [] };
+      return { id: String(a.id), name: a.name, kept: false, stopped: [], assignees: [], audience: a.audience };
     }
     await tx`update arrivals set status = 'cancelled', cancelled_at = now() where id = ${a.id}`;
     const stopped = await tx<{ id: string }[]>`update journeys set stopped_at = now() where arrival_id = ${a.id} and stopped_at is null returning id`;
     const assignees = await tx<{ assignee: string }[]>`
       select distinct i.assignee from journey_items i join journeys j on j.id = i.journey_id where j.arrival_id = ${a.id} and i.assignee like 'mbr_%'`;
-    return { id: String(a.id), name: a.name, kept: true, stopped: stopped.map(s => String(s.id)), assignees: assignees.map(r => r.assignee) };
+    return { id: String(a.id), name: a.name, kept: true, stopped: stopped.map(s => String(s.id)), assignees: assignees.map(r => r.assignee), audience: a.audience };
   });
 }
 
 type Row = { id: string; source: "hiring" | "manual"; status: "expected" | "cancelled"; name: string; job: string; team: string; place: string; start_date: string | null; manager_id: string | null; hired_by: string | null; told_at: Date; checklists: number; work_email: string };
 
-async function load(sql: Query, ids?: string[]): Promise<Arrival[]> {
+// reader: the HR member reading (an arrival told with an audience is
+// theirs to see only when it lists them); none for the tool's own work.
+async function load(sql: Query, ids?: string[], reader?: string): Promise<Arrival[]> {
   const rows = await sql<Row[]>`
     select a.id, a.source, a.status, a.name, a.job, a.team, a.place, to_char(a.start_date, 'YYYY-MM-DD') as start_date, a.manager_id, a.hired_by, a.told_at, a.work_email,
       (select count(*)::int from journeys j where j.arrival_id = a.id) as checklists
     from arrivals a
     where a.status <> 'linked' ${ids ? sql`and a.id in ${sql(ids)}` : sql``}
+      ${reader === undefined ? sql`` : sql`and (a.audience is null or ${reader} = any(a.audience))`}
     order by a.status, a.start_date nulls last, a.id limit 500`;
   return rows.map(r => ({
     id: String(r.id), source: r.source, status: r.status, name: r.name, job: r.job, team: r.team, place: r.place, startDate: r.start_date,
@@ -131,12 +138,12 @@ async function load(sql: Query, ids?: string[]): Promise<Arrival[]> {
 // HR's list: the arrivals expected and those cancelled.
 export async function listArrivals(sql: Query, actor: Member | null): Promise<Arrival[]> {
   if (!can(actor, "checklists.manage")) throw new AppError("forbidden");
-  return load(sql);
+  return load(sql, undefined, actor!.id);
 }
 
 export async function arrival(sql: Query, actor: Member | null, arrivalId: unknown): Promise<Arrival> {
   if (!can(actor, "checklists.manage")) throw new AppError("forbidden");
-  const found = (await load(sql, [id(arrivalId)]))[0];
+  const found = (await load(sql, [id(arrivalId)], actor!.id))[0];
   if (!found) throw new AppError("not_found");
   return found;
 }
@@ -152,7 +159,8 @@ export async function linkArrival(sql: Sql, actor: Member | null, arrivalId: unk
   return sql.begin(async tx => {
     await tx`select pg_advisory_xact_lock(hashtext('people.managers'))`;
     const [a] = await tx<{ status: string; job: string; team: string; place: string; start_date: string | null; manager_id: string | null }[]>`
-      select status, job, team, place, to_char(start_date, 'YYYY-MM-DD') as start_date, manager_id from arrivals where id = ${key} for update`;
+      select status, job, team, place, to_char(start_date, 'YYYY-MM-DD') as start_date, manager_id from arrivals
+      where id = ${key} and (audience is null or ${actor!.id} = any(audience)) for update`;
     if (!a || a.status !== "expected") throw new AppError("not_found");
     const current = (await profiles(tx, actor, [who])).get(who)!;
     const next = { ...current };
@@ -180,6 +188,9 @@ export async function removeArrival(sql: Sql, actor: Member | null, arrivalId: u
   if (!can(actor, "checklists.manage")) throw new AppError("forbidden");
   const key = id(arrivalId);
   return sql.begin(async tx => {
+    // An arrival its audience does not show this HR person is not theirs.
+    const [shown] = await tx`select 1 from arrivals where id = ${key} and (audience is null or ${actor!.id} = any(audience))`;
+    if (!shown) throw new AppError("not_found");
     const rows = await tx<{ journey_id: string; assignee: string | null }[]>`
       select j.id as journey_id, i.assignee from journeys j left join journey_items i on i.journey_id = j.id where j.arrival_id = ${key}`;
     const journeys = [...new Set(rows.map(r => String(r.journey_id)))].map(jid => ({

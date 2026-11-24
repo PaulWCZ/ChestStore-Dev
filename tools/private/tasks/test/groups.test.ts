@@ -14,7 +14,7 @@ import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora } from "./support/members.ts";
 
 // Tasks is usually open to everyone: no group gives it. With the
-// capability "members.groups" (Proposal (studio), announced for 0.5), a
+// capability "members.groups" (SDK 0.5+, chest.json), a
 // private board may be shared with any group of the Chest, and every
 // member the Chest gives Tasks carries every group they are in
 // (member.groups) — nothing to ask on the side.
@@ -67,7 +67,9 @@ test("someone leaves the group: the board closes to them at once; a group rename
   await assert.rejects(boards.board(sql, await asChest(ines), b.id), hidden);
   chest.groups.find(g => g.id === groups.sales)!.name = "Sales team";
   assert.ok((await sharingGroups())!.some(g => g.name === "Sales"), "kept a minute");
-  await handlers(sql)["group.changed"]!({ id: "evt_groups1", type: "group.changed", occurredAt: new Date().toISOString(), data: { id: groups.sales } } as never);
+  // No group events since 0.5: a member joining or leaving a group is
+  // member.updated {changed: ["groups"]}; the names are read again then.
+  await handlers(sql)["member.updated"]!({ id: "evt_groups1", type: "member.updated", occurredAt: new Date().toISOString(), data: { id: ines.id, changed: ["groups"] } });
   assert.ok((await sharingGroups())!.some(g => g.name === "Sales team"));
   chest.groups.find(g => g.id === groups.sales)!.members = [ines.id, hugo.id];
   chest.groups.find(g => g.id === groups.sales)!.name = "Sales";

@@ -101,9 +101,10 @@ built again from the studio's template to stand next to Tally and Typeform.
   it (20 random characters: nobody guesses another visitor's), checks its
   type by its bytes and paces each visitor; the answer hands the name back
   and the tool checks it before keeping it (`stat`, type, size). A visitor
-  may send images, PDF, Office and OpenDocument files — **never plain text
-  or CSV** (the Chest cannot tell them by their bytes; a member still may
-  on a team form). On a team form the tool signs the file's name. What no
+  may send images, PDF, today's Office files (.docx, .xlsx, .pptx) and
+  OpenDocument files — **never plain text, CSV nor the old .doc and .xls**
+  (0.7.0 does not recognise them by their bytes and refuses to grant their
+  upload; a member still may on a team form). On a team form the tool signs the file's name. What no
   answer records is deleted after a day (schedule `cleanup`).
 - **Spam**: no captcha — the form's signed "shown at" time and counters
   per visitor and for everyone (the package's `bound`).
@@ -211,6 +212,9 @@ is the answer's page in Forms (`/chest/forms/5/answers/…`), a path, never
 an origin. **No audience**: the form's author chose to send its answers to
 the other tools (the form's Settings), so every member of a receiving tool
 may see them there.
+Each text is told without format characters (an emoji's zero-width
+joiner, a zero-width space: SDK 0.7.0 refuses an event holding one); the
+answer keeps what was typed.
 
 **Clients receives `forms.contact`** (its README, "What Clients receives":
 the contact found by email — or by phone only when the name is the same
@@ -561,9 +565,10 @@ calls are refused and the tool falls back as said):
   that kind reached no tool, and lists on an answer only the tools that
   received it. The links from an answer to Clients or Support need the
   proposal too.
-- **A visitor's plain text or CSV file** — 0.7.0 takes from a visitor
-  only what it recognises by its bytes; a public form's file question
-  offers images, PDF, Office and OpenDocument files.
+- **A visitor's plain text, CSV, .doc or .xls file** — 0.7.0 takes from a
+  visitor only what it recognises by its bytes (no plain text, no CSV, no
+  old Office format); a public form's file question offers images, PDF,
+  .docx, .xlsx, .pptx and OpenDocument files.
 - **Per-visitor limits** — the visitor's key is a **proposal**
   (`visitors.visitor()`): 0.7.0's front names no visitor, so a robot that
   drops its cookie can spend a form's day for everyone (*What it does

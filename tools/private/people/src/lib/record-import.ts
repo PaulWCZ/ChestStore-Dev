@@ -296,7 +296,7 @@ export async function previewRecords(sql: Sql, actor: Member | null, text: unkno
 // then each row's cells written as HR's own change ("imported" in the
 // journal, field names only). The other tools are told what changed
 // (Leave: numbers, first and last days) after.
-export async function applyRecords(sql: Sql, actor: Member | null, text: unknown, choices: Choices = {}): Promise<{ created: number; updated: number; skipped: number }> {
+export async function applyRecords(sql: Sql, actor: Member | null, text: unknown, choices: Choices = {}, request: Request): Promise<{ created: number; updated: number; skipped: number }> {
   const p = await prepare(sql, actor, text, choices);
   if (p.missing) throw new AppError("import_invalid");
   const who = actor!;
@@ -318,7 +318,7 @@ export async function applyRecords(sql: Sql, actor: Member | null, text: unknown
         created++;
       }
       const given = read(row.changes as Record<string, unknown>) as Partial<Fields>;
-      const { changed } = await writeRecord(tx, who, key, given, "imported");
+      const { changed } = await writeRecord(tx, who, key, given, "imported", request);
       if (changed.length > 0 && row.recordId) updated++;
       touched.push(key);
     }

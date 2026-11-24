@@ -50,8 +50,9 @@ async function comment(by: typeof hugo, cardId: string, body: string, mentions: 
   return done.comment;
 }
 const secretIn = (text: string | undefined) => (text ?? "").includes("SECRETX");
-// A notice holds the secret in any of its languages.
-const holds = (n: (typeof chest.notifications)[number]) => [n.title, n.body, ...Object.values(n.translations ?? {}).flatMap(w => [w?.title, w?.body])].some(secretIn);
+// A notice holds the secret (each item is kept in its member's language:
+// French members' items are checked in French, the others' in English).
+const holds = (n: (typeof chest.notifications)[number]) => [n.title, n.body].some(secretIn);
 
 test("SECRETX: a deleted comment takes its bell items back, in every language", async () => {
   const { sql } = database;

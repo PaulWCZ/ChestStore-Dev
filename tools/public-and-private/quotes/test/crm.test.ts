@@ -164,6 +164,21 @@ test("SDK 0.7.0's flat shape: the company and the contact as fields of their own
   assert.equal(q.client?.name, "Menuiserie Noir SARL");
 });
 
+test("a type names no tool: crm.deal.won from another tool than Clients makes nothing", async () => {
+  assert.equal(await chest.deliver({ type: "crm.deal.won", source: "forms", data: won("S1") }, POST), 204);
+  assert.equal(await quoteOf("S1"), undefined, "not from Clients: no draft");
+  assert.equal(await told("crm.deal.won", won("S1")), 204);
+  assert.ok(await quoteOf("S1"), "from Clients: the draft");
+});
+
+test("a deal's amount comes in cents (Clients counts hundredths in every currency): read in the currency's minor units", () => {
+  const base = { deal: "Y1", title: "Atelier Tokyo", owner: null };
+  assert.equal(readWon({ ...base, amount: 480000, currency: "EUR" })!.amount, 480000, "the euro: the same");
+  assert.equal(readWon({ ...base, amount: 1000000, currency: "JPY" })!.amount, 10000, "1,000,000 cents are ¥10,000");
+  assert.equal(readWon({ ...base, amount: 1234, currency: "KWD" })!.amount, 12340, "12.34 KWD are 12,340 fils");
+  assert.equal(readWon({ ...base, amount: null, currency: "JPY" })!.amount, null);
+});
+
 test("a deal for some people only (its audience): no draft every reader of Quotes would see; its owner is told to write it", async () => {
   // Hugo had many notices already: past the Chest's pace (0.7.0), a new
   // one folds into his grouped item instead of keeping its key.

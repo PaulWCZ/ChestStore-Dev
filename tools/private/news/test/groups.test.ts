@@ -18,7 +18,7 @@ import { camille, everyone, groups, hugo, ines, lea, workshop } from "./support/
 
 const zone = "Europe/Paris";
 const hidden = (error: unknown) => error instanceof AppError && error.code === "not_found";
-const inWorkshop = (m: (typeof everyone)[number]) => ([hugo.id, lea.id].includes(m.id) ? { ...m, groups: [...m.groups, groups.workshop] } : m);
+const inWorkshop = (m: (typeof everyone)[number]) => ([hugo.id, lea.id].includes(m.id) ? { ...m, groups: [...(m.groups ?? []), groups.workshop] } : m);
 const cast = everyone.map(inWorkshop);
 
 let database: TestDatabase;

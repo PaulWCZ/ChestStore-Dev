@@ -1,7 +1,7 @@
 import { ToastHost } from "@argentic/chest-app/client";
 import { ArrivalForm } from "./ArrivalForm.tsx";
 import { ArrivalList } from "./ArrivalList.tsx";
-import { AutoRefresh } from "./AutoRefresh.tsx";
+import { Live } from "./Live.tsx";
 import { AnswerChange, AskChange } from "./ChangeRequest.tsx";
 import { CreateRecord } from "./CreateRecord.tsx";
 import { DirectoryView } from "./DirectoryView.tsx";
@@ -30,7 +30,7 @@ import { TodoList } from "./TodoList.tsx";
 // is HTML from the server, with no script. Islands do not nest (an island
 // may use another's component: ArrivalList shows ArrivalForm).
 export const islands = {
-  ToastHost, AutoRefresh, PrintButton,
+  ToastHost, Live, PrintButton,
   DirectoryView, LinkSuggestion, ProfileForm, OrgChart, TodoList,
   ArrivalList, ArrivalForm, ExamplesButton, NewTemplate, StartForm, JourneyView, TemplateEditor,
   Importer, TableEditor,

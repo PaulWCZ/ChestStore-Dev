@@ -19,7 +19,7 @@ export type Page = { people: Reader[]; next: string | null };
 export async function page(after: string | null): Promise<Page> {
   const answer = await members.list({ limit: pageSize, ...(after ? { after } : {}) });
   return {
-    people: answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: localeOf(m.language), role: m.role, groups: [...m.groups] })),
+    people: answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: localeOf(m.language), role: m.role, groups: [...(m.groups ?? [])] })),
     next: answer.next,
   };
 }

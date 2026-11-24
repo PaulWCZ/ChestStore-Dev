@@ -64,28 +64,21 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased"> {
   return {
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": async event => {
       await leave(sql, event.data.id);
       await dropPrivate(sql, event.data.id);
     },
-    // Someone moved between groups: the pages to confirm that no longer
-    // concern them leave their bell.
+    // Someone moved between groups (a group removed too: SDK 0.7.0 tells
+    // it member by member, with no group events): the groups are read
+    // again, and the pages to confirm that no longer concern them leave
+    // their bell.
     "member.updated": async event => {
       if (!event.data.changed.includes("groups")) return;
+      forgetGroups();
       await reconcileReads(sql, { member: event.data.id });
-    },
-    // Groups (Proposal (studio), "members.groups"): read again; a group
-    // changed or gone takes its pages to confirm from whoever left it.
-    "group.changed": async event => {
-      forgetGroups();
-      if (event.data.changed.includes("members")) await reconcileReads(sql, { group: event.data.id });
-    },
-    "group.removed": async event => {
-      forgetGroups();
-      await reconcileReads(sql, { group: event.data.id });
     },
     "member.erased": async event => {
       await erase(sql, event.data.id);

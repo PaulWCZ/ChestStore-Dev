@@ -339,3 +339,35 @@ test("erasing a host tells Clients each meeting called off", async () => {
   assert.deepEqual(told.map(p => [p.data["booking"], p.data["host"], p.data["cancelledBy"]]), [[made.booking.id, null, "host"]]);
   assert.ok(camille);
 });
+
+test("hiring.busy exactly as Hiring emits it (its chest.json: v, member, at, from, to, spans as JSON text) is kept; from another tool it is ignored", async () => {
+  const { sql, host, type } = await inesReady();
+  const tuesday = async () => (await b.freeTimes(sql, host, type, "2026-10-06", "2026-10-06", monday)).map(s => s.start.slice(11, 16));
+  assert.ok((await tuesday()).includes("12:00"), "Tuesday at 14:00 in Paris is open");
+  // tools/public-and-private/hiring/src/lib/busy-snapshot.ts busyData: RFC 3339
+  // instants from toISOString(), the spans' minutes as JSON text.
+  const emitted = { v: 1, member: ines.id, at: new Date(monday).toISOString(), from: "2026-10-05T00:00:00.000Z", to: "2027-01-03T00:00:00.000Z", spans: JSON.stringify([["2026-10-06T12:00Z", "2026-10-06T13:00Z"]]) };
+  // A type names no tool: a "hiring.busy" from another tool is accepted and ignored.
+  assert.equal(await chest.deliver({ type: "hiring.busy", source: "forms", data: emitted }, POST), 204);
+  assert.ok((await tuesday()).includes("12:00"), "nothing taken from a tool that is not Hiring");
+  assert.equal(await chest.deliver({ type: "leave.busy", source: "hiring", data: emitted }, POST), 204);
+  assert.ok((await tuesday()).includes("12:00"), "nor Leave's type from Hiring");
+  assert.equal(await chest.deliver({ type: "hiring.busy", source: "hiring", data: emitted }, POST), 204);
+  assert.ok(!(await tuesday()).includes("12:00"), "the interview's hour is no longer offered");
+  // Another version is another shape: never read as this one.
+  assert.equal(readBusy({ ...emitted, v: 2 }), null);
+  const { v: _, ...unversioned } = emitted;
+  assert.ok(readBusy(unversioned), "a teller that declares no version is read too");
+});
+
+test("a guest's name with an emoji of several parts (a zero-width joiner) is told without the joiner: the Chest refuses format characters; Booking keeps the name as typed", async () => {
+  const { sql, host, type } = await inesReady();
+  const name = "Nina 👩‍💻 Petit​";
+  const made = await b.book(sql, host, type, { ...guest, name, start: "2026-10-06T08:00:00.000Z" }, monday);
+  assert.equal(await share.changed(sql, "booked", made.booking, { now: monday }), true, "the Chest took it");
+  const confirmed = chest.emitted.find(p => p.type === "booking.confirmed" && p.data["booking"] === made.booking.id)!;
+  assert.equal(confirmed.data["contactName"], "Nina 👩💻 Petit");
+  const [kept] = await sql<{ guest_name: string }[]>`select guest_name from bookings where id = ${made.booking.id}`;
+  assert.equal(kept!.guest_name, name, "kept as typed");
+  assert.equal(share.eventText("a\r\nb\u0007‮c\t\uD800"), "a\nbc\t");
+});

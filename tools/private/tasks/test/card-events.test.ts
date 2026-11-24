@@ -5,14 +5,14 @@ import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onSchedule as JOB } from "../src/lib/deliveries.ts";
 import * as boards from "../src/lib/boards.ts";
-import { cardEventTypes, forgetCardEvents, occurredAtFor, publishCardEvents } from "../src/lib/card-events.ts";
+import { cardEventData, cardEventTypes, forgetCardEvents, occurredAtFor, publishCardEvents } from "../src/lib/card-events.ts";
 import * as cards from "../src/lib/cards.ts";
 import { en } from "../src/i18n/en.ts";
 import { importBoard } from "../src/lib/importers.ts";
 import { fromTrello } from "../src/shared/parse-import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { camille, everyone, groups, hugo, ines, lea } from "./support/members.ts";
 
 // Tasks → Goals ("Cards done"): tasks.card.done {card, board, boardName,
 // assignees} when a card becomes done, tasks.card.reopened {card} when it
@@ -25,8 +25,12 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-const chestWith = (emits: string[]) => fakeChest({ network: {},
-  tool: "tasks", members: everyone, emits, capabilities: ["members", "files", "notifications"],
+// What chest.json declares (the Chest checks each event against it).
+const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8"));
+const declared = (types: readonly string[]) => Object.fromEntries(types.map(type => [type, manifest.emits[type]]));
+const chestWith = (types: readonly string[]) => fakeChest({ network: {},
+  tool: "tasks", members: everyone, emits: declared(types), capabilities: ["members", "members.groups", "files", "notifications"],
+  groups: [{ id: groups.office, name: "Office", members: [camille.id, lea.id] }, { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] }],
 });
 before(async () => {
   database = await testDatabase();
@@ -46,13 +50,16 @@ async function setup(name = "Office move") {
   const [todo, doing, done] = await boards.columns(database.sql, b.id);
   return { b, todo: todo!, doing: doing!, done: done! };
 }
-const fromNow = () => chest.published.length;
-const since = (start: number) => chest.published.slice(start).map(e => ({ type: e.type, data: e.data }));
+const fromNow = () => chest.emitted.length;
+const since = (start: number) => chest.emitted.slice(start).map(e => ({ type: e.type, data: e.data }));
 const keyPattern = (card: string, what: "done" | "reopened") => new RegExp(`^tasks:${card}:${what}:\\d{13}$`, "u");
 
-test("the manifest's proposals declare the two events Goals reads", () => {
+test("chest.json declares the two events Goals reads, with their fields", () => {
+  assert.deepEqual(Object.keys(manifest.emits).sort(), [...cardEventTypes].sort());
+  assert.deepEqual(manifest.emits["tasks.card.done"].data, { card: "id", board: "id", boardName: "text", assignees: "members" });
+  assert.deepEqual(manifest.emits["tasks.card.reopened"].data, { card: "id" });
   const proposals = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.proposals.json"), "utf8"));
-  assert.deepEqual(proposals.emits, ["tasks.card.done", "tasks.card.reopened"]);
+  assert.equal(proposals.emits, undefined, "official in 0.7: never a proposal");
 });
 
 test("a card moved into Done is told with its board and people; moved back (Undo), it is reopened; done again, told again", async () => {
@@ -68,7 +75,7 @@ test("a card moved into Done is told with its board and people; moved back (Undo
   await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null);
   assert.equal(await publishCardEvents(sql), 1);
   assert.deepEqual(since(start), [{ type: "tasks.card.done", data: { card: c.id, board: b.id, boardName: "Office move", assignees: [hugo.id, ines.id].sort() } }]);
-  assert.match(chest.published.at(-1)!.key!, keyPattern(c.id, "done"));
+  assert.match(chest.emitted.at(-1)!.key!, keyPattern(c.id, "done"));
   assert.equal(await publishCardEvents(sql), 0, "told once");
 
   // Moved within Done: still done, nothing to tell.
@@ -80,13 +87,13 @@ test("a card moved into Done is told with its board and people; moved back (Undo
   await cards.moveCard(sql, asMember(hugo), c.id, doing.id, null, null);
   assert.equal(await publishCardEvents(sql), 1);
   assert.deepEqual(since(start), [{ type: "tasks.card.reopened", data: { card: c.id } }]);
-  assert.match(chest.published.at(-1)!.key!, keyPattern(c.id, "reopened"));
+  assert.match(chest.emitted.at(-1)!.key!, keyPattern(c.id, "reopened"));
 
-  const keys = new Set(chest.published.map(e => e.key));
+  const keys = new Set(chest.emitted.map(e => e.key));
   await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null);
   await publishCardEvents(sql);
-  assert.equal(chest.published.at(-1)!.type, "tasks.card.done");
-  assert.ok(!keys.has(chest.published.at(-1)!.key), "a new key");
+  assert.equal(chest.emitted.at(-1)!.type, "tasks.card.done");
+  assert.ok(!keys.has(chest.emitted.at(-1)!.key), "a new key");
 });
 
 test("every other path: added or copied into Done, moved to another board's Done, a column made done or not, a column archived into another", async () => {
@@ -157,15 +164,16 @@ test("an import's done cards are history: never told", async () => {
 test("20 people at most, by id; a board deleted before the event left drops it", async () => {
   const { sql } = database;
   const { b, todo, done } = await setup();
+  const many = Array.from({ length: 25 }, (_, i) => `mbr_${String.fromCharCode(97 + (i % 26)).repeat(26)}`);
+  const told = cardEventData({ type: "tasks.card.done", card: "1", board: "2", board_name: "x", assignees: many }).assignees as string[];
+  assert.equal(told.length, 20);
+  assert.ok(told.every(id => /^mbr_[a-z2-7]{26}$/u.test(id)));
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Everyone's task");
-  const many = Array.from({ length: 25 }, (_, i) => `mbr_${String.fromCharCode(97 + (i % 26)).repeat(26)}`.slice(0, 30));
-  await sql`insert into card_assignees (card_id, member_id) select ${c.id}, unnest(${many}::text[]) on conflict do nothing`;
+  await sql`insert into card_assignees (card_id, member_id) values (${c.id}, ${hugo.id}), (${c.id}, ${ines.id})`;
   const start = fromNow();
   await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null);
   await publishCardEvents(sql);
-  const told = since(start)[0]!.data["assignees"] as string[];
-  assert.equal(told.length, 20);
-  assert.ok(told.every(id => /^mbr_[a-z2-7]{26}$/u.test(id)));
+  assert.deepEqual(since(start)[0]!.data["assignees"], [hugo.id, ines.id].sort());
 
   const gone = await setup("Short-lived");
   const d = await cards.addCard(sql, asMember(hugo), gone.b.id, gone.todo.id, "Nobody will know");
@@ -186,15 +194,15 @@ test("a Chest that refuses the events: the move is kept, the events wait, and th
   chest = await chestWith([]);
   await cards.moveCard(sql, asMember(camille), c.id, done.id, null, null);
   assert.equal(await publishCardEvents(sql), 0);
-  assert.equal(chest.published.length, 0);
+  assert.equal(chest.emitted.length, 0);
   assert.equal((await cards.cardDetail(sql, asMember(hugo), c.id)).done, true, "the move is kept");
 
   await chest.close();
   chest = await chestWith([...cardEventTypes]);
   assert.equal(await chest.run("retry", JOB), 204);
-  assert.deepEqual(chest.published.map(e => ({ type: e.type, data: e.data })), [{ type: "tasks.card.done", data: { card: c.id, board: b.id, boardName: "Office move", assignees: [] } }]);
+  assert.deepEqual(chest.emitted.map(e => ({ type: e.type, data: e.data })), [{ type: "tasks.card.done", data: { card: c.id, board: b.id, boardName: "Office move", assignees: [] } }]);
   assert.equal(await chest.run("retry", JOB), 204);
-  assert.equal(chest.published.length, 1, "once");
+  assert.equal(chest.emitted.length, 1, "once");
 });
 
 test("what was told a day ago, or refused for a week, is forgotten", async () => {
@@ -209,11 +217,11 @@ test("what was told a day ago, or refused for a week, is forgotten", async () =>
   assert.equal(left!.n, 0);
 });
 
-// studio.16: the Chest keeps when it happened (occurredAt), so Goals counts
-// a card done late on a cycle's last day in that cycle even when it is told
-// after midnight. Within 24 hours the true time goes with it; older (a
-// Chest down for a night), it goes without — the Chest refuses older times.
-test("a late event carries when the card was done; one older than a day goes without it", async () => {
+// The Chest keeps when it happened (occurredAt), so Goals counts a card
+// done late on a cycle's last day in that cycle even when it is told after
+// midnight. Within 72 hours the true time goes with it; older (a Chest
+// down for three days), it goes without — the Chest refuses older times.
+test("a late event carries when the card was done; one older than 72 hours goes without it", async () => {
   const { sql } = database;
   const { b, todo, done } = await setup();
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Pay the deposit");
@@ -225,21 +233,46 @@ test("a late event carries when the card was done; one older than a day goes wit
   const doneAt = new Date(Date.now() - 40 * 60_000);
   doneAt.setMilliseconds(0);
   await sql`update card_events set at = ${doneAt} where card = ${c.id}`;
-  // And another, done 30 hours ago, never told (a Chest down that long).
+  // And another, done 80 hours ago, never told (a Chest down that long).
   const c2 = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Old one");
-  await sql`insert into card_events (type, card, board, at) values ('tasks.card.done', ${c2.id}, ${b.id}, now() - interval '30 hours')`;
+  await sql`insert into card_events (type, card, board, at) values ('tasks.card.done', ${c2.id}, ${b.id}, now() - interval '80 hours')`;
   await chest.close();
   chest = await chestWith([...cardEventTypes]);
   assert.equal(await chest.run("retry", JOB), 204);
-  const late = chest.published.find(e => e.data["card"] === c.id)!;
+  const late = chest.emitted.find(e => e.data["card"] === c.id)!;
   assert.equal(late.occurredAt, doneAt.toISOString(), "the real time of the change");
   assert.match(late.key!, new RegExp(`:${doneAt.getTime()}$`, "u"));
-  const old = chest.published.find(e => e.data["card"] === c2.id)!;
-  assert.ok(old, "an event older than a day is still told");
+  const old = chest.emitted.find(e => e.data["card"] === c2.id)!;
+  assert.ok(old, "an event older than 72 hours is still told");
   assert.ok(Date.now() - new Date(old.occurredAt).getTime() < 60_000, "without its time: the Chest's own");
   // The helper, at its edges.
   const now = Date.parse("2026-09-30T12:00:00Z");
-  assert.ok(occurredAtFor(new Date(now - 23 * 3_600_000), now));
-  assert.equal(occurredAtFor(new Date(now - 24 * 3_600_000), now), undefined);
-  assert.equal(occurredAtFor(new Date(now - 23 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
+  assert.ok(occurredAtFor(new Date(now - 71 * 3_600_000), now));
+  assert.equal(occurredAtFor(new Date(now - 72 * 3_600_000), now), undefined);
+  assert.equal(occurredAtFor(new Date(now - 71 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
+});
+
+test("each event names its card as subject; a private board's card carries its audience, a team board's none", async () => {
+  const { sql } = database;
+  const { b, todo, done } = await setup();
+  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Open to all");
+  await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null);
+  await publishCardEvents(sql);
+  const open = chest.emitted.at(-1)!;
+  assert.equal(open.subject, `card:${c.id}`);
+  assert.equal(open.audience, undefined, "a team board: everyone who has Tasks");
+
+  const secret = await boards.createBoard(sql, asMember(hugo), { name: "Hiring plan", visibility: "private", people: [ines.id], groups: [groups.office] }, en.templates.columns);
+  const [first, , last] = await boards.columns(sql, secret.id);
+  const d = await cards.addCard(sql, asMember(hugo), secret.id, first!.id, "Confidential");
+  await cards.moveCard(sql, asMember(hugo), d.id, last!.id, null, null);
+  await publishCardEvents(sql);
+  const closed = chest.emitted.at(-1)!;
+  assert.equal(closed.subject, `card:${d.id}`);
+  assert.deepEqual(closed.audience, { members: [hugo.id, ines.id].sort(), groups: [groups.office], roles: ["manager"] });
+});
+
+test("a board's name goes without format characters (the Chest refuses them); the board keeps it as typed", () => {
+  const data = cardEventData({ type: "tasks.card.done", card: "1", board: "2", board_name: "Team ​👩‍💻 Ops﻿", assignees: [] });
+  assert.equal(data["boardName"], "Team 👩💻 Ops");
 });

@@ -31,12 +31,22 @@ export async function recordView(sql: Sql, actor: Member, post: Viewed, now = ne
   if (post.scheduled || post.sending || post.author === actor.id || !inAudience(actor, post)) return false;
   const published = new Date(post.publishAt).getTime();
   if (published > now.getTime() || now.getTime() - published > liveDays * 864e5) return false;
-  const [row] = await sql<{ view_key: string | null }[]>`
-    update posts set view_key = coalesce(view_key, ${randomBytes(32).toString("hex")})
-    where id = ${post.id} and views_kept is null returning view_key`;
-  if (!row?.view_key) return false;
+  // The post's key is written once (its first view): a view writes no row
+  // of posts after that — each write of a post is a realtime event to every
+  // open page (chest.json's feed), and a page read again records a view.
+  const [row] = await sql<{ view_key: string | null; views_kept: number | null }[]>`select view_key, views_kept from posts where id = ${post.id}`;
+  if (!row || row.views_kept !== null) return false;
+  let key = row.view_key;
+  if (!key) {
+    const [set] = await sql<{ view_key: string }[]>`
+      update posts set view_key = ${randomBytes(32).toString("hex")}
+      where id = ${post.id} and views_kept is null and view_key is null returning view_key`;
+    // Another view set it first: read it.
+    key = set?.view_key ?? (await sql<{ view_key: string | null }[]>`select view_key from posts where id = ${post.id} and views_kept is null`)[0]?.view_key ?? null;
+  }
+  if (!key) return false;
   const hour = new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000);
-  await sql`insert into post_views (post_id, fingerprint, hour) values (${post.id}, ${fingerprint(row.view_key, actor.id)}, ${hour}) on conflict do nothing`;
+  await sql`insert into post_views (post_id, fingerprint, hour) values (${post.id}, ${fingerprint(key, actor.id)}, ${hour}) on conflict do nothing`;
   return true;
 }
 

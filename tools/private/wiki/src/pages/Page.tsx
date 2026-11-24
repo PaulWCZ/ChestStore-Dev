@@ -68,7 +68,7 @@ export async function readPage({ member, locale: language, t, param, query: q }:
   return { title: p.title, body: (
     <div className={`page reading color-${p.space.color}`}>
       <Island name="Flash" props={{ text: flash }} />
-      <Island id={`refresh-${p.id}`} name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island id={`live-${p.id}`} name="LivePage" props={{ id: p.id }} />
       <nav className="crumbs" aria-label={t.page.breadcrumb}>
         <a href={`/chest/spaces/${p.spaceId}`} className="kicker">{p.space.name}</a>
         {path.map(a => <span key={a.id}><span aria-hidden="true">/</span><a href={`/chest/pages/${a.id}`}>{a.title}</a></span>)}

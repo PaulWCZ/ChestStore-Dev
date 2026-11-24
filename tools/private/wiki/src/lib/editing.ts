@@ -100,11 +100,13 @@ export async function heartbeat(sql: Sql, actor: Member | null, pageId: unknown)
 // leave: the actor's editor closed without saving (a closed tab, the back
 // button, another page). What they typed last is kept as their draft, when
 // it came along, and the lock is given back at once.
-export async function leave(sql: Sql, actor: Member | null, pageId: unknown, draft?: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<void> {
+// It answers whether a lock was given back (a "Save" or "Stop editing"
+// before it gave it back already: nothing to tell anyone).
+export async function leave(sql: Sql, actor: Member | null, pageId: unknown, draft?: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<boolean> {
   const p = await page(sql, actor, pageId, "write");
   const me = actor!.id;
   if (draft) await keepDraft(sql, actor, p.id, draft);
-  await sql`delete from page_locks where page_id = ${p.id} and member_id = ${me}`;
+  return (await sql`delete from page_locks where page_id = ${p.id} and member_id = ${me} returning 1`).length > 0;
 }
 
 // discardDraft drops the actor's unsaved changes to a page (from the page

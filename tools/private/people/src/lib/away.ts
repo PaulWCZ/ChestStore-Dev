@@ -122,11 +122,14 @@ export async function leaveApproved(sql: Sql, event: ToolEvent, now: string): Pr
   // throws and the Chest delivers the event again later.
   if (!(await present([t.member])).has(t.member)) return false;
   const at = validTime(event.occurredAt);
+  // Who Leave allows to see it (null: everyone): People shows it to them
+  // only, and to the person.
+  const audience = event.audience === "all" ? null : [...event.audience];
   const done = await sql`
-    insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at)
-    values (${t.request}, ${t.member}, ${t.from}, ${t.to}, ${t.fromHalf}, ${t.toHalf}, ${at})
+    insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at, audience)
+    values (${t.request}, ${t.member}, ${t.from}, ${t.to}, ${t.fromHalf}, ${t.toHalf}, ${at}, ${audience})
     on conflict (request) do update set member_id = excluded.member_id, from_day = excluded.from_day, to_day = excluded.to_day,
-      from_half = excluded.from_half, to_half = excluded.to_half, told_at = excluded.told_at, cancelled = false
+      from_half = excluded.from_half, to_half = excluded.to_half, told_at = excluded.told_at, cancelled = false, audience = excluded.audience
     where away.told_at <= excluded.told_at`;
   return done.count > 0;
 }
@@ -153,13 +156,16 @@ function validTime(value: unknown): Date {
   return Number.isNaN(d.getTime()) || d.getTime() > Date.now() + 5 * 60_000 ? new Date() : d;
 }
 
-// Who is away today, among these people (the directory's).
-export async function awayOf(sql: Query, ids: readonly string[], now: string): Promise<Map<string, Away>> {
+// Who is away today, among these people (the directory's), as the reader
+// may see it: a leave Leave told with an audience is shown to those it
+// lists and to the person, to nobody else.
+export async function awayOf(sql: Query, ids: readonly string[], now: string, reader: string): Promise<Map<string, Away>> {
   const found = new Map<string, Away>();
   if (ids.length === 0) return found;
   const rows = await sql<{ member_id: string; from_day: string; to_day: string; from_half: Half | "day"; to_half: Half | "day" }[]>`
     select member_id, to_char(from_day, 'YYYY-MM-DD') as from_day, to_char(to_day, 'YYYY-MM-DD') as to_day, from_half, to_half from away
     where not cancelled and member_id = any(${[...ids]}::text[]) and to_day >= ${now}::date
+      and (audience is null or ${reader} = any(audience) or member_id = ${reader})
     order by member_id, from_day limit 5000`;
   const byMember = new Map<string, Span[]>();
   for (const r of rows) byMember.set(r.member_id, [...(byMember.get(r.member_id) ?? []), { from: r.from_day, to: r.to_day, fromHalf: r.from_half, toHalf: r.to_half }]);

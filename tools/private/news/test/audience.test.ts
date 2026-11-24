@@ -33,7 +33,7 @@ beforeEach(async () => {
 const zone = "Europe/Paris";
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
-const readerOf = (m: typeof hugo): Reader => ({ id: m.id, name: m.name, photo: null, locale: "en", role: m.role, groups: m.groups });
+const readerOf = (m: typeof hugo): Reader => ({ id: m.id, name: m.name, photo: null, locale: "en", role: m.role, groups: m.groups ?? [] });
 
 // Sofia (publisher, Office) writes for Sales: Hugo and Inès are Sales;
 // Léa and Nora are in no group; Camille is an admin (Office).

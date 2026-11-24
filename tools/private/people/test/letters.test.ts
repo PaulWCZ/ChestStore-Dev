@@ -7,7 +7,7 @@ import { ofRecord } from "../src/lib/journal.ts";
 import { addExamples, fill, listLetters, printLetter, purgeLetters, removeLetter, saveLetter, shown } from "../src/lib/letters.ts";
 import { createRecord, updateRecord } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { asMember } from "./support/member.ts";
+import { asMember, opener } from "./support/member.ts";
 import { camille, everyone, hugo, nora, sofia } from "./support/members.ts";
 
 // Letters from templates: a certificat de travail, an attestation d'emploi.
@@ -15,7 +15,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications"], chest: { organization: "Atelier Martin" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "sealed"], chest: { organization: "Atelier Martin" } });
 });
 after(async () => {
   await chest.close();
@@ -57,9 +57,9 @@ test("the two examples in one click, each shown in the reader's language until H
 test("a letter printed from a record: filled in HR's language, signed by them, noted in the record's journal; nobody else prints", async () => {
   const { sql } = database;
   const { id } = await createRecord(sql, hr, { memberId: nora.id });
-  await updateRecord(sql, hr, id, { legalName: "PETIT Nora", birthDate: "2000-02-11", job: "Sales assistant", qualification: "Employée, niveau 2", startDate: "2026-09-23", endDate: "2027-03-31" });
+  await updateRecord(sql, hr, id, { legalName: "PETIT Nora", birthDate: "2000-02-11", job: "Sales assistant", qualification: "Employée, niveau 2", startDate: "2026-09-23", endDate: "2027-03-31" }, opener(hr));
   const [cert] = await listLetters(sql, hr);
-  const done = await printLetter(sql, hr, id, cert!.id, "2027-03-31");
+  const done = await printLetter(sql, hr, id, cert!.id, "2027-03-31", opener(hr));
   assert.equal(done.title, "Certificat de travail");
   assert.match(done.text, /^CERTIFICAT DE TRAVAIL\n\nAtelier Martin\n12 rue des Tanneurs, 69007 Lyon/u);
   assert.match(done.text, /Je soussigné\(e\) Camille Martin, agissant pour le compte de Atelier Martin, certifie que PETIT Nora, né\(e\) le 11 février 2000, a été employé\(e\) dans notre entreprise du 23 septembre 2026 au 31 mars 2027, en qualité de Sales assistant \(Employée, niveau 2\)\./u);
@@ -69,8 +69,8 @@ test("a letter printed from a record: filled in HR's language, signed by them, n
   assert.deepEqual([log[0]!.action, log[0]!.fields], ["letter_printed", ["Certificat de travail"]]);
   // In English for an English-speaking HR person; what is missing is said.
   const attestation = (await listLetters(sql, hr)).find(l => l.phrase === "attestation")!;
-  const en = await printLetter(sql, asMember(sofia), id, attestation.id, "2026-10-01");
+  const en = await printLetter(sql, asMember(sofia), id, attestation.id, "2026-10-01", opener(asMember(sofia)));
   assert.match(en.text, /confirm that PETIT Nora has been employed by the company since 23 September 2026 as Sales assistant\. Contract: Permanent \(CDI\), full time\./u);
-  await assert.rejects(printLetter(sql, asMember(nora), id, cert!.id, "2027-03-31"), refused("forbidden"));
-  await assert.rejects(printLetter(sql, hr, "999", cert!.id, "2027-03-31"), refused("not_found"));
+  await assert.rejects(printLetter(sql, asMember(nora), id, cert!.id, "2027-03-31", opener(asMember(nora))), refused("forbidden"));
+  await assert.rejects(printLetter(sql, hr, "999", cert!.id, "2027-03-31", opener(hr)), refused("not_found"));
 });

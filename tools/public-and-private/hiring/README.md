@@ -308,14 +308,20 @@ they gave theirs) — every open journaled by the Chest. Who wrote, when,
 the rating and the recommendation stay in clear (lists, averages). Each
 value is bound to its candidate. Notes written before are sealed by the
 nightly `cleanup`. A Chest that cannot seal refuses a new note ("not
-available"): it is never kept in clear instead. Migration
+available"): it is never kept in clear instead. A Chest that cannot open
+them now (locked after a restore, unreachable) shows "Sealed: this text
+cannot be opened right now" in their place, locks the reader's own
+feedback form (its placeholder must never replace their words), and
+refuses the exports (*Export everything*, a candidate's data) rather
+than hand out an archive with placeholders. Migration
 `0009_sealed_texts.sql` only widens the columns' bounds (a sealed value is
 longer than its words). `chest check` still warns on
 `0007_files_gone.sql` (it drops a table without the contract marker):
 shipped before, never edited.
 
-**The currency of salaries** is Hiring's own (*Settings*: the country's
-currency until chosen, else the euro); every job keeps its own code; no
+**The currency of salaries** is Hiring's own (*Settings*; until chosen,
+the latest salary's currency — the evidence of what the team wrote —,
+else the country's, else the euro); every job keeps its own code; no
 total adds salaries.
 
 When a member loses access or leaves, they are
@@ -337,7 +343,7 @@ kinds only:
 |---|---|---|
 | `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `candidate` (id), `name`, `email?`, `job`, `team?`, `place?` (text), `startDate` (date?), `hiredBy` (member) — key `hiring:<candidate>:hired:<time of the move>` |
 | `hiring.hire-cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `candidate` (id) — key `hiring:<candidate>:cancelled:<time>`. **Renamed** from `hiring.hire_cancelled`: 0.7.0 refuses an underscore in a type; People and Goals must hear the new name |
-| `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `member` (member), `at`, `from`, `to` (time), `spans` (text: JSON `[[start, end], …]`, UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
+| `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `v` (number, 1 — Booking reads no other), `member` (member), `at`, `from`, `to` (time), `spans` (text: JSON `[[start, end], …]`, UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
 
 Each event's subject is its candidate or member (a receiver gets them in
 order). Audience: `hiring.hired` and `hiring.hire-cancelled` are for the

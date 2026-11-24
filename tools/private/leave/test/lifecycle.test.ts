@@ -40,13 +40,13 @@ test("someone who leaves: their waiting requests are cancelled, their approved l
   const past = addDays(quietMonday(0), -28);
   const approved = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: ines.id, ...week(past) });
   const waiting = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(addDays(monday, 21)) });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, POST), 204);
   assert.equal((await requests.request(sql, asMember(camille), waiting.id)).status, "cancelled");
   assert.equal((await requests.request(sql, asMember(camille), approved.id)).status, "approved");
   assert.deepEqual((await requests.history(sql, asMember(camille), waiting.id)).map(s => [s.kind, s.actor]), [["asked", ines.id], ["left", "chest"]]);
   assert.equal((await staffRow(sql, hugo.id)).approverId, null);
   // Delivered again: nothing changes.
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
 });
 
 test("approved leave after the last day no longer counts: cancelled, its days back, HR told (the final balance 14.75 → 15.25)", async () => {
@@ -58,7 +58,7 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   const left = async () => (await balances.balancesOf(sql, [sofia.id])).get(sofia.id)!.find(b => b.typeId === paid)!.left;
   assert.equal(await left(), 14.75);
   chest.notifications.length = 0;
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
   assert.equal((await staffRow(sql, sofia.id)).endDate, today());
   assert.equal((await requests.request(sql, asMember(camille), half.id)).status, "cancelled");
   assert.deepEqual((await requests.history(sql, asMember(camille), half.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id], ["after_last_day", "chest"]]);
@@ -71,7 +71,7 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   assert.equal(told?.path, `/chest/people/${sofia.id}`);
   assert.ok(!(await requests.between(sql, asMember(camille), wednesday, wednesday)).some(e => e.id === half.id));
   // Delivered again: nothing is given back twice.
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
   assert.equal(await left(), 15.25);
 });
 
@@ -109,8 +109,8 @@ test("an erasure: the person disappears, the days of HR's records stay, signed '
   await balances.adjust(sql, asMember(camille), { memberId: tom.id, typeId: paid, days: 2, reason: "Tom's seniority days" });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: tom.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   const [row] = await sql`select member_id, note, reason, days::float as days, status from requests where id = ${r.id}`;
   assert.deepEqual({ ...row }, { member_id: "erased", note: null, reason: null, days: 5, status: "approved" });
   const lines = await sql`select member_id, kind, days::float as days, reason from ledger where request_id = ${r.id} or reason is null and member_id = 'erased' order by id`;

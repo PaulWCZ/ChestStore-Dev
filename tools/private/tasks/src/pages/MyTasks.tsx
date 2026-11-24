@@ -16,6 +16,7 @@ import { db } from "../lib/db.ts";
 import { calendarPage, calendarWorks, sync as syncCalendar } from "../lib/due-calendar.ts";
 import { reminderOn } from "../lib/reminders.ts";
 import { refreshBadges } from "../lib/tell.ts";
+import { followBoards } from "../shared/live.ts";
 import { dueState, type DueState } from "../shared/model.ts";
 
 // Home: what is on my plate, across every board, by when it is due; and
@@ -80,7 +81,7 @@ export async function myTasksPage({ member, locale: language, t }: PageContext):
     title: t.home.title,
     body: (
       <div className="narrow">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ follow: followBoards(boards.filter(b => !b.archived).map(b => b.id)) }} />
         <div className="hello">
           <div>
             <h1>{t.home.title}</h1>

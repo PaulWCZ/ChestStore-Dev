@@ -1,3 +1,4 @@
+import { sealLegacy } from "./sealing.ts";
 import { chest } from "@argentic/chest-sdk/chest";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
@@ -50,6 +51,9 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   await purgeFields(sql);
   await purgeLetters(sql);
   await purgeJournal(sql);
+  // What was written in clear before sealing (address, emergency contact,
+  // a change waiting) is sealed now.
+  await sealLegacy(sql);
 }
 
 // "Hugo Bernard's trial period ends on 12 October": one item per record and

@@ -50,7 +50,7 @@ export async function directoryPage({ member, locale, t, query }: PageContext): 
   const setup = steps && (!steps[0].done || recorded!.size === 0) ? steps : null;
   const pick = (key: string) => (query(key) ?? "").slice(0, 100);
   // Who is away today (Leave tells People): written here, dates on the server.
-  const away = await awayOf(sql, entries.map(e => e.id), now);
+  const away = await awayOf(sql, entries.map(e => e.id), now, member.id);
   const awayWords = (id: string) => {
     const a = away.get(id);
     return a ? awayText(a, now, t.away, d => formatDay(d, locale, { weekday: "short", day: "numeric", month: "short" }), format) : null;
@@ -90,7 +90,7 @@ export async function directoryPage({ member, locale, t, query }: PageContext): 
     title: t.directory.title,
     body: (
       <div className="page wide">
-        <Island name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island name="Live" props={{ follow: [{ channel: "people", names: ["profiles", "away"] }, ...(hr ? [{ channel: "hr" as const, names: ["arrivals"] }] : [])] }} />
         {!ok && <p className="banner warn" role="alert">{t.directory.unavailable}</p>}
         {matches.map(m => <Island key={m.arrivalId} id={`suggest-${m.arrivalId}`} name="LinkSuggestion" props={{ arrivalId: m.arrivalId, memberId: m.person.id, text: format(t.arrivals.suggestion, { name: m.person.name }), action: t.arrivals.suggestionAction, linked: t.arrivals.linked }} />)}
         {todo > 0 && (

@@ -11,14 +11,14 @@ actions, words, the database, tests, recipes, pitfalls — is
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `hr`, `manager`, `employee`; `database`, `members`, `notifications`; `receives`; the `morning` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Manifest keys of SDK proposals (`calendar`, `capabilities: ["members.groups"]`, `emits` incl. `leave.busy`, `receives` from People, `translations`) |
+| `chest.json` | Manifest (contract 0.7): roles `hr`, `manager`, `employee`; `database`, `members`, `members.groups`, `notifications`, `realtime`; `receives` (`member.*` and People's three types); `emits` (`leave.approved`, `leave.cancelled`, `leave.busy`, each with its fields); `realtime` (channel `leave`, feeds of `requests`, `ledger`, `leave_types`, ids only); the `morning` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Manifest keys of SDK proposals (`calendar`, `translations`) |
 | `src/app.tsx` | **Every route**: the pages (`members()` runs a page only for a member with a role, and counts what waits for an approver: the layout's "To answer"), payroll's two downloads, `/chest-events`, `/chest-schedules`, the host's root |
 | `src/actions.ts` | **Every mutation**, by name (`call("askLeave", …)` from an island). Thin: the services check everything; `keepInLine()` after each change |
 | `src/calls.ts` | What the Chest posts by itself: events (`events.handle`) and schedule runs (`schedules.handle`, `morning`), with the durable `seen` |
 | `src/downloads.ts` | Payroll's CSVs: the month's absences, everyone's balances on a day (served by the package's `download()`: a refusal is a page in the reader's words) |
 | `src/pages/` | The pages, rendered on the server: Home, NewRequest, Request, Approvals, Calendar, People, Person, Import, Payroll, Settings, PublicHome |
-| `src/islands/` | What runs in the browser (`index.ts` lists them): the request form, the approval cards, a request's actions, my requests (Cancel + Undo), HR's forms, the people table, the settings, AutoRefresh |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): the request form, the approval cards, a request's actions, my requests (Cancel + Undo), HR's forms, the people table, the settings, Live |
 | `src/layout.tsx` | The kit's shell and sections, NoAccess, the toasts; the public layout |
 | `src/shared/` | **Browser-safe rules** islands share with the server: `calendar.ts` (days, French public holidays, the cost of a span with the person's week, overlaps, months earned), `left.ts` (the one "days left"), `model.ts` (input rules, limits, colours), `normalize.ts`, `status.ts`, `type-name.ts` |
 | `src/lib/access.ts` | **Who may do what**: abilities (`can`), what one sees of someone's leave (`sightOf`: own, approver, team), who may answer (`mayDecide`) |
@@ -30,7 +30,7 @@ actions, words, the database, tests, recipes, pitfalls — is
 | `src/lib/last-day.ts` | A last day set: leave after it cancelled, leave across it cut, days given back (reason key `afterLastDay`) — by the Chest's leaving event and by HR |
 | `src/lib/setup.ts` | HR's first-run checklist |
 | `src/lib/routing.ts` | Who answers a person's requests, given the directory (pure) |
-| `src/lib/directory.ts` | The members who have the tool, from the Chest; the Chest's groups for *Who's away* (`members.groups.all()` / `members.list({ group })` with `members.groups`, else the groups that give Leave) |
+| `src/lib/directory.ts` | The members who have the tool, from the Chest; the Chest's groups for *Who's away* (`members.groups.list`, paged / `members.list({ group })`); every list read page after page, no cap |
 | `src/lib/import.ts`, `src/shared/normalize.ts`, `src/lib/csv.ts` | The two imports (pure plans: people and balances; approved leave), header recognition and HR's mapping, Lucca's columns; CSV read/write (formula-safe). Fixtures in `test/fixtures/` |
 | `src/lib/payroll.ts` | The month's approved absences for payroll (`src/downloads.ts`: the CSVs) |
 | `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (each recipient's language) and approvers' tile numbers |
@@ -56,6 +56,18 @@ NODE_ENV=development npm test        # as the workbench runs them
 ```
 
 ## Rules
+
+- **Events between tools** (`src/lib/share.ts`, `src/lib/busy.ts`): `events.emit`
+  with a subject (`request:<id>`, the member for `leave.busy`), the key, the
+  audience `awayAudience(member)` (the roles that see *Who's away*, and the
+  person) and `occurredAt` (71 hours at most). Fields are flat kinds
+  (`leave.busy`'s spans are JSON text); a new field is a new type
+  (`…v2`): data only grows. Every type received is a key of the one map
+  of `handlers()` (`src/lib/lifecycle.ts`) and of `chest.json`'s
+  `"receives"`.
+- **Live pages**: `<Island name="Live" props={{}} />` (realtime, the
+  channel `leave`); never a timer. A new table a page shows gets a feed in
+  `chest.json` (ids only).
 
 - **Identity only from `member`** of the page or action (the package reads
   the Chest's assertion); store `mbr_…` ids,

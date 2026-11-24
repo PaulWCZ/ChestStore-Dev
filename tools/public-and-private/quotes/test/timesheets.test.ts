@@ -239,6 +239,26 @@ test("SDK 0.7.0's flat shape: names as fields, the lines as JSON text, the path 
   assert.ok(await draftOf("80"));
 });
 
+test("a type names no tool: a hand-off from another tool than Timesheets makes no invoice, nor takes one back", async () => {
+  assert.equal(await chest.deliver({ type: "timesheets.billable", source: "crm", data: billable("83") }, POST), 204);
+  assert.equal(await draftOf("83"), null, "not from Timesheets: no draft");
+  assert.equal(await told("timesheets.billable", billable("83")), 204);
+  assert.ok(await draftOf("83"));
+  assert.equal(await chest.deliver({ type: "timesheets.billable-cancelled", source: "crm", data: { handoff: "83" } }, POST), 204);
+  assert.ok(await draftOf("83"), "not from Timesheets: the draft stays");
+});
+
+test("rates and amounts come in cents (Timesheets counts hundredths in every currency): read in the currency's minor units", () => {
+  const flat = {
+    handoff: "81", projectName: "Tokyo", currency: "JPY", minutes: 60, amount: 1200000, entries: 1,
+    lines: JSON.stringify([{ label: "Design", task: null, minutes: 60, rate: 1200000, amount: 1200000, entries: 1 }]),
+  };
+  const read = readBillable(flat)!;
+  assert.deepEqual([read.amount, read.lines[0]!.rate], [12000, 12000], "12,000 yen an hour, not 1,200,000");
+  const euro = readBillable({ ...flat, currency: "EUR" })!;
+  assert.deepEqual([euro.amount, euro.lines[0]!.rate], [1200000, 1200000], "the euro: the same");
+});
+
 test("what Timesheets emits, field for field (its chest.json \"emits\": no version): a draft, then taken back", async () => {
   // tools/private/timesheets/src/lib/handoff.ts, sendBillable and cancelHandoff.
   const emitted = {

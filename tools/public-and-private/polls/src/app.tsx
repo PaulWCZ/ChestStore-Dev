@@ -12,6 +12,7 @@ import { can, settles, surveys } from "./lib/access.ts";
 import { everyone, inAudience } from "./lib/audience.ts";
 import { db } from "./lib/db.ts";
 import { exportCsv } from "./lib/export.ts";
+import { completeGroups } from "./lib/groups.ts";
 import { byLink } from "./lib/guests.ts";
 import { calendar } from "./lib/ics.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
@@ -31,7 +32,8 @@ import { lookOf, sheetOf } from "./theme.ts";
 // Polls' routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the look (/chest/look.css, /look.css), the member of
 // every /chest request — with every group they are in, as the Chest names
-// them with "members.groups" (src/lib/groups.ts) —, /lang/<code>, the
+// them with "members.groups", completed from the Chest when the request
+// could not carry them all (src/lib/groups.ts) —, /lang/<code>, the
 // error pages, and answers 404 to anything else.
 // The look is the company's choice, a stylesheet of its own (src/theme.ts);
 // the head carries Polls' icon and keeps search engines away.
@@ -41,6 +43,7 @@ export const app = createApp({
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
+  complete: completeGroups,
   look: viewer => lookOf(viewer.member !== null ? "team" : "public"),
   head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
 });
@@ -146,7 +149,7 @@ app.post("/chest-events", async c => {
 
 // Every 15 minutes, "pass": polls past their closing time close and their
 // organisers hear of it, the next rounds of repeating surveys open, the
-// day-before reminders go out, a telling stopped by the hourly quota goes
+// day-before reminders go out, a telling the Chest could not take goes
 // on, what was deleted long ago is purged. Without schedules, the same
 // pass runs when someone opens a page (catchUp).
 app.post("/chest-schedules", async c => {

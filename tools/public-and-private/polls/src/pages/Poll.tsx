@@ -31,7 +31,8 @@ type AnswerQuestion = { id: string; kind: "choice" | "date" | "scale" | "text" |
 
 // A poll, /chest/polls/<id>: what it asks, the answer form, the results
 // when they show, and for its organiser the participation and the
-// controls. It re-reads itself every 20 s while it is open.
+// controls. It reads itself again when the Chest says it changed
+// (realtime: the LivePoll island), and once at its closing time.
 export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sql; member: Member; locale: Locale; t: Catalogue; f: Format; request: Request }, id: string): Promise<View> {
   const zone = chestZone();
   // The work a schedule would do, on a visit: Polls works without one.
@@ -46,7 +47,10 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
   const { poll } = pv;
   if (poll.status === "draft") redirect(`/chest/polls/${poll.id}/edit`);
 
-  const d = dates(locale, zone);
+  // Instants (closing, comments) on the reader's own clock; the company's
+  // days (a round's opening) and a date option's hours (the office's) on
+  // the Chest's.
+  const d = dates(locale, member.timeZone);
   const range = { range: t.dates.range, dayAndTime: t.dates.dayAndTime };
   const single = poll.kind !== "survey";
 
@@ -133,7 +137,7 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
 
   return { title: poll.title, body: (
     <>
-      {poll.status === "open" && <Island name="AutoRefresh" props={{ seconds: 20 }} />}
+      <Island name="LivePoll" props={{ id: poll.id, closesAt: poll.status === "open" ? poll.closesAt : null }} />
       <a className="back" href="/chest"><Back />{t.shell.home}</a>
       <header className="poll-head">
         <div className="row">

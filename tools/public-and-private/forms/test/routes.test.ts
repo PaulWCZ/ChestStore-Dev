@@ -162,6 +162,22 @@ test("an answer makes a contact and opens a ticket when the form says so, once e
   assert.equal(chest.emitted.length, before + 2);
 });
 
+test("names typed with format characters (an emoji's zero-width joiner, a zero-width space) are told without them: the Chest refuses them; the answer keeps what was typed", async () => {
+  const { sql } = database;
+  const def = form([name, mail, topic, message], "Contact\u200B us 👩\u200D💻");
+  const routes = { contact: { name: name.id, email: mail.id, message: message.id }, request: { subject: topic.id, details: message.id, email: mail.id, name: name.id } };
+  const { form: f } = await publishedForm(def, { routes });
+  const before = chest.emitted.length;
+  await take(sql, f, { version: f.version, answers: { [name.id]: "Nina\u200D Roux", [mail.id]: "nina@example.com", [topic.id]: { ids: [topic.options![0]!.id] }, [message.id]: "Six chaises\u200B." } }, null, "fr");
+  const sent = chest.emitted.slice(before);
+  assert.deepEqual(sent.map(e => e.type).sort(), ["forms.contact", "forms.request"], "both taken by the Chest");
+  const contact = sent.find(e => e.type === "forms.contact")!.data;
+  assert.equal(contact["contactName"], "Nina Roux");
+  assert.equal(contact["message"], "Six chaises.");
+  assert.equal(contact["formTitle"], "Contact us 👩💻");
+  assert.ok(sent.every(e => !/\p{Cf}/u.test(JSON.stringify(e.data))));
+});
+
 test("a team form opens tickets for the member who answers; an anonymous form never routes; a wrong mapping is refused", async () => {
   const { sql } = database;
   const need = q("short", "What do you need?", { required: true });
