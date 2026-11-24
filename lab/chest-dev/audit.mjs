@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright-core";
+import { executablePath } from "./browser.mjs";
 
 const require = createRequire(import.meta.url);
 const args = process.argv.slice(2);
@@ -37,7 +38,6 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const origin = `https://127.0.0.1:${port}`;
 const publicOrigin = `https://localhost:${port + 2}`;
 const axe = require.resolve("axe-core/axe.min.js");
-const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
 const id = key => "mbr_" + key + "a".repeat(26 - key.length);
 const found = new Map();

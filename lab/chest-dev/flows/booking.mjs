@@ -3,7 +3,8 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { as, done, expect, open, step } from "./lib.mjs";
+import postgres from "postgres";
+import { as, done, expect, open, step, toolDatabase, watchRealtime } from "./lib.mjs";
 
 // The Calendly export of the tests, its days moved so that its first is
 // tomorrow (a fixed date passes; an import skips the past).
@@ -21,10 +22,7 @@ function calendlyFromTomorrow() {
 }
 
 const port = Number(process.argv[2] ?? 5100);
-// /_chest/realtime: the agenda's live channel (SDK 0.7.0 realtime); this
-// harness does not serve the Chest's realtime yet (lab/chest-dev/README.md),
-// so a page's join is answered 404 and the page stays as read.
-const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999|_chest\/realtime)$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
 let guestPage = "";
 // The team's pages speak each member's language (Inès and Camille: French
 // in the cast): these steps read them in English.
@@ -779,8 +777,32 @@ await step("the company's page speaks the visitor's language, else the Chest's (
   expect((await lang({ "accept-language": "de-DE", cookie: "lang=fr" })) === "fr", "the switch wins");
 });
 
+// SDK 0.7.0's realtime: Inès's agenda left open joins agenda:<her id> on
+// the Chest; a booking of hers written (here by the database itself, as
+// any writer would) is a row of the feed "bookings", and the page reads
+// itself again without a reload.
+await step("Inès's agenda left open follows the Chest's realtime: a booking of hers changes, the page shows it without a reload", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "ines");
+  await english();
+  const live = watchRealtime(page);
+  await page.goto(origin + "/chest");
+  const meeting = page.locator("a.meeting").first();
+  await meeting.waitFor();
+  const bookingId = Number(/\/chest\/bookings\/(\d+)/u.exec((await meeting.getAttribute("href")) ?? "")?.[1]);
+  expect(bookingId > 0, "a meeting on the agenda");
+  await live.joined();
+  const sql = postgres(toolDatabase("booking", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update bookings set guest_name = 'Live Renamed Guest' where id = ${bookingId}`;
+  } finally {
+    await sql.end();
+  }
+  await live.received(f => f.op === "msg" && f.event === "bookings.update" && f.payload?.id === bookingId);
+  await page.locator("a.meeting", { hasText: "Live Renamed Guest" }).waitFor({ timeout: 10000 });
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("bookings.update"), "the Chest published the feed's row (/_dev, Realtime)");
+});
+
 await browser.close();
-// This harness refuses WebSocket upgrades (501, lab/chest-dev/README.md):
-// the agenda's live channel (SDK 0.7.0 realtime) cannot connect here, and
-// the page stays as read. Its refusals are the harness's, not Booking's.
-done(problems.filter(p => !/WebSocket connection to '[^']*\/_chest\/realtime' failed/u.test(p)));
+done(problems);
