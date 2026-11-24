@@ -18,7 +18,7 @@ let chest: FakeChest, database: TestDatabase;
 let app: { fetch(request: Request): Promise<Response> };
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, tool: "people", members: everyone, capabilities: ["database", "files", "members", "members.email", "notifications"] });
+  chest = await fakeChest({ network: {}, tool: "people", members: everyone, capabilities: ["database", "files", "members", "members.email", "notifications", "sealed"] });
   ({ app } = await import("../dist/test/app.js" as string) as { app: typeof app });
 });
 after(async () => {
@@ -297,12 +297,12 @@ test("no public part: the root says where People lives, in the visitor's languag
 test("the Chest's events: a member who leaves keeps their place above their reports; told twice, done once", async () => {
   const to = (request: Request) => app.fetch(request);
   const removed = { type: "member.removed" as const, id: "evt_" + "r".repeat(26), data: { id: lea.id } };
-  assert.equal(await chest.emit(removed, to), 204);
-  assert.equal(await chest.emit(removed, to), 204);
+  assert.equal(await chest.deliver(removed, to), 204);
+  assert.equal(await chest.deliver(removed, to), 204);
   const [row] = await database.sql<{ left: boolean }[]>`select manager_left as left from profiles where member_id = ${hugo.id}`;
   assert.equal(row?.left, true);
   // A change of name: nothing to do (names are read when a page renders).
-  assert.equal(await chest.emit({ type: "member.updated" as const, id: "evt_" + "u".repeat(26), data: { id: hugo.id, changed: ["name"] } }, to), 204);
+  assert.equal(await chest.deliver({ type: "member.updated" as const, id: "evt_" + "u".repeat(26), data: { id: hugo.id, changed: ["name"] } }, to), 204);
 });
 
 test("the morning schedule runs on POST /chest-schedules, at least once, and nothing else is a schedule", async () => {
@@ -339,7 +339,7 @@ test("a checklist says Hiring only for an arrival Hiring told, never for one HR 
 test("the welcome to an arrival: an address already a member's is said on the form and gets a notification; an email that bounced shows on the checklist", async () => {
   await chest.close();
   const withAddresses = everyone.map(p => ({ ...p, email: `${p.firstName.toLowerCase()}@atelier.test` }));
-  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["database", "files", "members", "members.email", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["database", "files", "members", "members.email", "notifications", "mail", "sealed"], mail: { domain: "atelier.test" } });
   try {
     const list = await call(sofia, "createTemplate", { kind: "onboarding", name: "Welcome" });
     assert.equal(list.ok, true, list.message);
@@ -370,6 +370,6 @@ test("the welcome to an arrival: an address already a member's is said on the fo
     assert.match((await page(camille, `/chest/checklists/${mailed.value.id}`)).html, /role="status">L’e-mail de bienvenue à lucie\.garnier@atelier\.test n’a pas pu être remis\./u);
   } finally {
     await chest.close();
-    chest = await fakeChest({ network: {}, tool: "people", members: everyone, capabilities: ["database", "files", "members", "members.email", "notifications"] });
+    chest = await fakeChest({ network: {}, tool: "people", members: everyone, capabilities: ["database", "files", "members", "members.email", "notifications", "sealed"] });
   }
 });

@@ -30,6 +30,17 @@ import type { Definition } from "../shared/model.ts";
 // No audience: the form's author chose, in its Settings, to send each
 // answer to the other tools — every member of a receiving tool may see it
 // there (README, "With the other tools").
+// eventText: a text as the Chest takes it in an event's data — no format
+// character (Unicode Cf: a zero-width joiner inside an emoji, a zero-width
+// space, a BOM, a direction mark), no control character but line breaks
+// and tabs, no lone surrogate: SDK 0.7.0 refuses the whole event
+// (invalid_data) for one of them. Only the event is cleaned: what people
+// typed stays as they typed it in the tool.
+export const eventText = (text: string): string =>
+  text.replace(/\r\n?/gu, "\n").replace(/[^\P{Cc}\n\t]|[\p{Cf}\p{Cs}]/gu, "");
+export const eventData = (data: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(data).map(([k, v]) => [k, typeof v === "string" ? eventText(v) : v]));
+
 export type Field = { question: string; key: string | null; label: string; kind: string; value: string | number | boolean };
 export type Answered = { form: string; title: string; answer: string; language: string; fields: Field[]; email: string | null; member: string | null };
 
@@ -65,7 +76,7 @@ export function answeredData(form: Pick<Form, "id">, def: Definition, answer: An
 export async function answered(form: Pick<Form, "id" | "anonymous" | "shareEvents">, def: Definition, answer: Answer): Promise<boolean> {
   if (form.anonymous || !form.shareEvents) return false;
   try {
-    await events.emit("forms.answered", answeredEvent(form, def, answer), { subject: `answer:${answer.id}`, key: `forms:${answer.id}:answered` });
+    await events.emit("forms.answered", eventData(answeredEvent(form, def, answer)), { subject: `answer:${answer.id}`, key: `forms:${answer.id}:answered` });
     return true;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
@@ -93,7 +104,7 @@ export async function routed(sql: Query, form: Pick<Form, "id" | "anonymous" | "
   for (const [type, data] of outgoing) {
     if (!data) continue;
     try {
-      const told = await events.emit(type, data, { subject: `answer:${answer.id}`, key: `forms:${answer.id}:${type.slice(6)}` });
+      const told = await events.emit(type, eventData(data), { subject: `answer:${answer.id}`, key: `forms:${answer.id}:${type.slice(6)}` });
       // Where it went: only when a tool received it (the owner may have
       // switched the link off since the form was set).
       if (told.receivers > 0) sent.push(type);

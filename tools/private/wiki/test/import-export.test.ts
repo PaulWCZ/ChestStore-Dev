@@ -156,7 +156,7 @@ test("someone who leaves frees the pages they were editing; an erasure removes t
   const p = await pages.createPage(sql, asMember(camille), { spaceId: s.id, title: "Who to ask" });
   await editing.startEditing(sql, asMember(tom), p.id);
   await editing.saveDraft(sql, asMember(tom), p.id, { title: "Who to ask", doc: { type: "doc" }, baseVersion: 1 });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: tom.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: tom.id } }, POST), 204);
   assert.equal(await editing.lockOf(sql, p.id), null);
   assert.equal((await sql`select count(*)::int as n from drafts where member_id = ${tom.id}`)[0]!["n"], 0);
   // Inès writes, then is erased.
@@ -166,8 +166,8 @@ test("someone who leaves frees the pages they were editing; an erasure removes t
   await spaces.updateSpace(sql, asMember(camille), s.id, { editing: "some", editors: [ines.id, tom.id] });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   const after = await pages.page(sql, asMember(camille), p.id);
   assert.equal(after.updatedBy, "erased");
   assert.ok((await history.versions(sql, asMember(camille), p.id)).every(v => v.author !== ines.id));

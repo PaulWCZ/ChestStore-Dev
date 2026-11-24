@@ -87,30 +87,21 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await proposalsWaiting(sql);
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased"> {
   return {
     "access.revoked": async event => {
       await leave(sql, event.data.id);
       await reconcile(sql, { member: event.data.id });
     },
     "member.removed": event => leave(sql, event.data.id),
-    // Someone moved between groups: the Important posts no longer for them
-    // leave their bell (and their number); those now for them show on the
-    // front page and in their number.
+    // Someone moved between groups (a group removed too: SDK 0.7.0 tells
+    // it member by member, with no group events): the Important posts no
+    // longer for them leave their bell (and their number); those now for
+    // them show on the front page and in their number.
     "member.updated": async event => {
       if (!event.data.changed.includes("groups")) return;
+      forgetGroups();
       await reconcile(sql, { member: event.data.id });
-    },
-    // Groups (Proposal (studio), "members.groups"): members left a group, or
-    // the group is gone — its posts' bell items leave whoever they are no
-    // longer for.
-    "group.changed": async event => {
-      forgetGroups();
-      if (event.data.changed.includes("members")) await reconcile(sql, { group: event.data.id });
-    },
-    "group.removed": async event => {
-      forgetGroups();
-      await reconcile(sql, { group: event.data.id });
     },
     "member.erased": async event => {
       await erase(sql, event.data.id);

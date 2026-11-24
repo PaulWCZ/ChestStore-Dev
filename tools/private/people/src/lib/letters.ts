@@ -135,9 +135,9 @@ export function fill(body: string, values: Partial<Record<MergeField, string>>):
 // A letter for one record, in the reader's language (dates, the contract's
 // words), noted in the record's journal (the letter's name, never its
 // text). The signer is the HR person printing it.
-export async function printLetter(sql: Query, actor: Member | null, recordId: unknown, letterId: unknown, today: string): Promise<{ title: string; text: string; missing: MergeField[]; recordId: string }> {
+export async function printLetter(sql: Query, actor: Member | null, recordId: unknown, letterId: unknown, today: string, request: Request): Promise<{ title: string; text: string; missing: MergeField[]; recordId: string }> {
   const who = hr(actor);
-  const found = await record(sql, who, recordId);
+  const found = await record(sql, who, recordId, request);
   if (recordAccess(who, { memberId: found.record.memberId }) !== "edit") throw new AppError("not_found");
   const l = await letter(sql, who, letterId);
   const locale = localeOf(who.language);

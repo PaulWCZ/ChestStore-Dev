@@ -4,7 +4,7 @@ import { asked, can, sees } from "./access.ts";
 import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { readAnswer, type Given } from "./model.ts";
-import { chestGroups } from "./groups.ts";
+import { chestGroups, groupsOf } from "./groups.ts";
 import { closeDue, load, placesTaken, rights, type Poll } from "./polls.ts";
 import { teamFloor } from "./teams.ts";
 
@@ -34,7 +34,7 @@ export async function answer(sql: Sql, actor: Member | null, pollId: unknown, in
   // Read before the transaction (the Chest is asked): the answerer's groups
   // large enough to be counted.
   const known = await chestGroups();
-  const teams = known ? actor.groups.filter(g => known.some(k => k.id === g && k.size >= teamFloor)) : [];
+  const teams = known ? groupsOf(actor).filter(g => known.some(k => k.id === g && k.size >= teamFloor)) : [];
   return sql.begin(async tx => {
     await closeDue(tx, now);
     const poll = await load(tx, pollId, { lock: true });

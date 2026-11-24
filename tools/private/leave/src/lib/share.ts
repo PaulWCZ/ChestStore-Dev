@@ -1,14 +1,16 @@
 import { log } from "@argentic/chest-app";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
+import { grants, roles } from "./access.ts";
 import { shareBusy } from "./busy.ts";
 import { addDays, type Half } from "../shared/calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { sync } from "./leave-calendar.ts";
 import { today } from "./today.ts";
 
-// What Leave tells the other tools of the Chest (Proposal (studio): events
-// between tools; chest.proposals.json "emits"), once an admin linked them.
+// What Leave tells the other tools of the Chest (events between tools, SDK
+// 0.5+; chest.json "emits", each type with its fields), once the owner
+// approved the link.
 // Rooms marks the person "Off" those days and frees their desk; People
 // shows "Away · back on …". Who and which days, never the kind of leave
 // nor the note: colleagues see "Away", as here. The contract, as Rooms
@@ -18,8 +20,12 @@ import { today } from "./today.ts";
 //   leave.cancelled { member, from, to, fromHalf, toHalf, request }
 //
 // dates "YYYY-MM-DD"; fromHalf "pm" starts at noon, toHalf "am" ends at
-// noon. Key: "leave:<request>:<approved|cancelled>:<outbox id>:<member>".
+// noon. Key: "leave:<request>:<approved|cancelled>:<outbox id>:<member>";
+// subject "request:<id>" (a request's words come in the order told);
 // occurredAt: the time of the change, while the Chest takes it (publish).
+// Audience (awayAudience): those who see who is away in Leave — every
+// role whose rights hold "calendar" (never why) — and the person: a
+// receiver shows it to them only.
 //
 // Told: each approved **absence** (a kind with away = true) that is not
 // over. A kind that is not an absence (remote work, training: "not away"
@@ -38,8 +44,12 @@ import { today } from "./today.ts";
 // then publishes what waits, oldest first. It runs after every change,
 // after the Chest's and People's events, and each weekday morning
 // (keepInLine): whichever way a leave changed, it is told, and what the
-// Chest could not take (not linked yet, its hourly quota, unreachable) is
-// tried again at the next run.
+// Chest could not take (not approved yet, unreachable) is tried again at
+// the next run.
+
+// Who in Leave may see that someone is away: the roles that see the team
+// calendar, and the person themself.
+export const awayAudience = (member: string): events.EmitAudience => ({ members: [member], roles: roles.filter(r => grants(r).includes("calendar")) });
 
 export const shareLimits = { perRun: 200, keepPublishedHours: 24, keepWaitingDays: 90 } as const;
 
@@ -54,7 +64,7 @@ function fromRaw(raw: string, member: string, request: string): Told | null {
   return { member, from, to, fromHalf, toHalf, request };
 }
 
-// The key carries whom the event is about (SDK README, studio.16): after a
+// The key carries whom the event is about: after a
 // restore from a backup, the outbox's ids start again and an id could name
 // another person's word the Chest still remembers.
 export const leaveEventKey = (type: Type, request: string, id: string, member: string): string =>
@@ -117,16 +127,16 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
   });
 }
 
-// occurredAt (studio.16): an event carries the time of its change while
-// the Chest takes it — up to 24 hours back; we stop an hour short, for the
-// clocks and a slow run —, so a receiver that orders words by time orders
+// occurredAt: an event carries the time of its change while the Chest
+// takes it — up to 72 hours back; we stop an hour short, for the clocks and
+// a slow run —, so a receiver that orders words by time orders
 // them as they happened even when told late. Older, it goes without, and
 // the Chest stamps the time it takes it (later, never earlier, than the
 // change). A request's words written together (a cancellation and the
 // approval of a shortened leave) are judged together — by the first one's
 // time —, so the approval never carries an old time while its cancellation
 // carries the Chest's newer one.
-export const occurredWindowMs = 23 * 3_600_000;
+export const occurredWindowMs = 71 * 3_600_000;
 
 export function occurredAtFor(first: Date, at: Date, now: number = Date.now()): Date | undefined {
   // A database clock ahead of the container's by more than the Chest takes
@@ -153,22 +163,23 @@ export async function publish(sql: Query, now: () => number = Date.now): Promise
       if (!occurredAt) untimed.add(row.data.request);
       const key = leaveEventKey(row.type, row.data.request, row.id, row.data.member);
       try {
-        await events.publish(row.type, row.data, { key, ...(occurredAt ? { occurredAt } : {}) });
+        await events.emit(row.type, row.data, { subject: `request:${row.data.request}`, key, audience: awayAudience(row.data.member), ...(occurredAt ? { occurredAt } : {}) });
       } catch (error) {
         // The time refused (the Chest's clock against ours): told without.
         if (!occurredAt || !(error instanceof ChestError) || error.code !== "invalid_event") throw error;
         untimed.add(row.data.request);
-        await events.publish(row.type, row.data, { key });
+        await events.emit(row.type, row.data, { subject: `request:${row.data.request}`, key, audience: awayAudience(row.data.member) });
       }
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
-      // A key the Chest already holds for another event would be refused
-      // for ever: a bug, said, and not tried again.
-      if (error.code !== "key_conflict") {
+      // A key the Chest already holds for another event, or data it
+      // refuses, would be refused for ever: a bug, said, and not tried
+      // again.
+      if (!["key_reused", "invalid_data"].includes(error.code)) {
         log.warn("leave event not published yet", { type: row.type, code: error.code });
         return told;
       }
-      log.warn("leave event refused", { type: row.type, code: "key_conflict" });
+      log.warn("leave event refused", { type: row.type, code: error.code });
     }
     await sql`update leave_outbox set published_at = now() where id = ${row.id}`;
     told++;
@@ -176,7 +187,7 @@ export async function publish(sql: Query, now: () => number = Date.now): Promise
   return told;
 }
 
-// forgetOld drops what was published a day ago (past the key's window),
+// forgetOld drops what was published a day ago,
 // and what waited for days that are over (the receivers drop past days) or
 // for 90 days.
 export async function forgetOld(sql: Query, now = new Date()): Promise<void> {

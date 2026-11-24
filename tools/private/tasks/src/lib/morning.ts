@@ -5,6 +5,7 @@ import * as members from "@argentic/chest-sdk/members";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import { boardAccess } from "./access.ts";
 import { membership } from "./boards.ts";
+import { allWithGroups } from "./groups.ts";
 import { purgeComments, urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
 import { format, plural, type Catalogue } from "../i18n/index.ts";
@@ -73,7 +74,7 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
   if (rows.length === 0) return reminded;
   let found: Member[];
   try {
-    found = (await members.lookup(rows.map(r => r.member_id))).members;
+    found = await allWithGroups((await members.lookup(rows.map(r => r.member_id))).members);
   } catch (error) {
     if (error instanceof ChestError) return reminded;
     throw error;

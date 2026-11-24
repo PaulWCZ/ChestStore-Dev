@@ -66,6 +66,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
   const [questions, setQuestions] = useState<Question[]>(() => initial.questions.map((q, i) => ({ ...q, key: i })));
   const [busy, setBusy] = useState<"send" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const finished = useRef(false);
   const restored = useRef(false);
   // The closing day as typed, when the field refuses it (before today,
   // unreadable): the field says why, and neither Save nor Send goes until
@@ -95,7 +96,9 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     }
   }, []);
   useEffect(() => {
-    if (mode !== "new" || !restored.current) return;
+    // Saved or sent: kept no more, whatever re-renders before the page
+    // moves (a read of the page brought by the Chest's realtime).
+    if (mode !== "new" || !restored.current || finished.current) return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({ value: { ...value, questions: questions.map(({ key: _key, ...q }) => q) } }));
     } catch {
@@ -170,6 +173,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
       return;
     }
     if (mode === "new") {
+      finished.current = true;
       try { window.localStorage.removeItem(storageKey); } catch { /* nothing kept */ }
     }
     const id = result.value.id;

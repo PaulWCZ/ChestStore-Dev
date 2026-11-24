@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "leave",
   "title": "Leave",
   "description": "Ask for time off, get an answer in one click, see who is away. French rules built in: jours ouvrés or ouvrables, public holidays, earned leave.",
@@ -18,11 +18,81 @@
   "capabilities": [
     "database",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "people.record",
+    "people.leaving",
+    "people.leaving-cancelled"
   ],
+  "emits": {
+    "leave.approved": {
+      "description": "A leave is approved: who is away, from when to when",
+      "data": {
+        "member": "member",
+        "from": "date",
+        "to": "date",
+        "fromHalf": "text",
+        "toHalf": "text",
+        "request": "id"
+      }
+    },
+    "leave.cancelled": {
+      "description": "An approved leave no longer stands: who, which days",
+      "data": {
+        "member": "member",
+        "from": "date",
+        "to": "date",
+        "fromHalf": "text",
+        "toHalf": "text",
+        "request": "id"
+      }
+    },
+    "leave.busy": {
+      "description": "Someone's days off changed (times only)",
+      "data": {
+        "v": "number",
+        "member": "member",
+        "at": "time",
+        "from": "time",
+        "to": "time",
+        "spans": "text"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "leave"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "requests",
+        "channel": "leave",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "ledger",
+        "channel": "leave",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "leave_types",
+        "channel": "leave",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "morning",

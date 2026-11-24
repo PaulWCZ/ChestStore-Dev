@@ -2,7 +2,7 @@ import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { log } from "@argentic/chest-app";
 import { db } from "./lib/db.ts";
-import { forgetSeen, handlers, seen, tools } from "./lib/lifecycle.ts";
+import { forgetSeen, handlers, seen } from "./lib/lifecycle.ts";
 import { morning } from "./lib/morning.ts";
 
 // What src/app.tsx answers at the addresses the Chest calls by itself —
@@ -13,11 +13,11 @@ import { morning } from "./lib/morning.ts";
 // again: each is idempotent.
 
 // POST /chest-events: the members' lifecycle, and other tools' events
-// (People's records and departures: Proposal (studio), events between
-// tools).
+// (People's records and departures: events between tools, chest.json
+// "receives").
 export async function chestEvents(request: Request): Promise<Response> {
   const sql = db();
-  return new Response(null, { status: await events.handle(request, handlers(sql), { seen: seen(sql), tools: tools(sql) }) });
+  return new Response(null, { status: await events.handle(request, handlers(sql), { seen: seen(sql) }) });
 }
 
 // POST /chest-schedules: the runs of chest.json's "schedules". On weekdays

@@ -1,18 +1,5 @@
 {
   "calendar": true,
-  "capabilities": [
-    "members.groups"
-  ],
-  "emits": [
-    "leave.approved",
-    "leave.cancelled",
-    "leave.busy"
-  ],
-  "receives": [
-    "people.leaving",
-    "people.leaving_cancelled",
-    "people.record"
-  ],
   "translations": {
     "fr": {
       "title": "Congés",

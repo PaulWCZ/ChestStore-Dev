@@ -60,26 +60,4 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
 // The starter's name for format().
 export const fill = format;
 
-// How a reader writes dates, times, numbers and plurals: their language,
-// their time zone (a member's own; the Chest's for a visitor). Made on the
-// server for each request from kept Intl objects (format.ts): a page is
-// sent already written.
-export type Format = ReturnType<typeof formatter>;
-export function formatter(locale: Locale, timeZone: string, currency = "EUR") {
-  const instant = (value: Date | string) => (typeof value === "string" ? new Date(value) : value);
-  return {
-    locale,
-    timeZone,
-    // An instant (a timestamptz): in the reader's zone.
-    date: (value: Date | string) => dateFormat(locale, { timeZone, day: "numeric", month: "short", year: "numeric" }).format(instant(value)),
-    time: (value: Date | string) => dateFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    dateTime: (value: Date | string) => dateFormat(locale, { timeZone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    // A calendar day ("2026-10-05", a date column): the same day everywhere.
-    day: (iso: string) => dateFormat(locale, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T12:00:00Z`)),
-    number: (n: number) => numberFormat(locale).format(n),
-    money: (amount: number) => numberFormat(locale, { style: "currency", currency }).format(amount),
-    plural: (forms: { readonly one: string; readonly other: string; readonly zero?: string }, n: number, values: Record<string, string | number> = {}) => plural(forms, n, locale, values),
-  };
-}
-
 export { dateFormat, dayText, format, formatDate, intl, listFormat, numberFormat, plural, relative } from "./format.ts";

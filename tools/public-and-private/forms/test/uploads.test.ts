@@ -61,6 +61,15 @@ test("a visitor's file is taken once, by the answer that sent it, and checked", 
   await refused(uploads.grant("public", cv, "text/plain", 10), "file_invalid");
   await refused(uploads.grant("public", cv, "text/csv", 10), "file_invalid");
   assert.ok(uploads.acceptedTypes(cv, "team").includes("text/csv"), "a member still may");
+  // Nor the old Office formats, which 0.7.0 does not recognise (it would
+  // refuse the grant): a visitor sends .docx, .xlsx; a member may still .doc.
+  await refused(uploads.grant("public", cv, "application/msword", 10), "file_invalid");
+  await refused(uploads.grant("public", cv, "application/vnd.ms-excel", 10), "file_invalid");
+  assert.ok(uploads.acceptedTypes(cv, "team").includes("application/msword"), "a member still may");
+  // Every type offered to a visitor is one the Chest grants.
+  for (const type of uploads.acceptedTypes(q("file", "Any", { accept: "any" }), "public")) {
+    assert.match((await uploads.grant("public", q("file", "Any", { accept: "any" }), type, 10)).url, /^\/_chest\/files\/upload\//u, type);
+  }
   // A type the question does not take is refused before any upload.
   await refused(uploads.grant("public", cv, "image/png", 10), "file_invalid");
   await refused(uploads.grant("public", cv, "application/pdf", 20 << 20), "file_too_large");

@@ -93,14 +93,15 @@ test("busy times another tool tells are read with their bounds; Hiring tells tim
   // What the event carries (contract 0.7: flat, the spans as JSON text,
   // instants with seconds), and what a receiver reads back.
   const data = busyData(snap);
-  assert.deepEqual(Object.keys(data).sort(), ["at", "from", "member", "spans", "to"]);
-  assert.ok(Object.values(data).every(v => typeof v === "string"));
-  assert.match(data.from!, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
+  assert.deepEqual(Object.keys(data).sort(), ["at", "from", "member", "spans", "to", "v"]);
+  assert.equal(data.v, 1, "Booking reads a snapshot of version 1 only");
+  assert.ok(Object.entries(data).every(([k, v]) => k === "v" || typeof v === "string"));
+  assert.match(data.from, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
   const read = readBusy(data);
   assert.equal(read?.member, hugo.id);
   assert.equal(read?.spans.length, 1);
   assert.equal(readBusy({ member: hugo.id, at: data.at, from: data.from, to: data.to, spans: "all day" }), null);
-  assert.equal(readBusy({ ...data, spans: JSON.parse(data.spans!) })?.spans.length, 1, "a list is read too (Booking may send one)");
+  assert.equal(readBusy({ ...data, spans: JSON.parse(data.spans) })?.spans.length, 1, "a list is read too (Booking may send one)");
   assert.equal(readBusy({}), null);
 });
 

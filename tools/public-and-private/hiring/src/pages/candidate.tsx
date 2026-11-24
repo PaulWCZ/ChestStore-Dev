@@ -153,7 +153,7 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
             {d.access === "interview" && c.status === "active" && (
               <section className="panel feedback-panel" aria-labelledby="your-feedback">
                 <h2 id="your-feedback">{tc.yourFeedback}</h2>
-                <Island id={`feedback-${c.id}`} name="FeedbackForm" props={{ candidateId: c.id, mine: d.mine, t: { candidate: tc, empty: t.errors.empty } }} />
+                <Island id={`feedback-${c.id}`} name="FeedbackForm" props={{ candidateId: c.id, mine: d.mine, locked: d.mineLocked, t: { candidate: tc, empty: t.errors.empty } }} />
               </section>
             )}
 
@@ -205,7 +205,7 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
               {manage && c.status === "active" && (
                 <details className="own-feedback">
                   <summary className="button quiet small">{d.mine ? tc.updateFeedback : tc.yourFeedback}</summary>
-                  <Island id={`feedback-${c.id}`} name="FeedbackForm" props={{ candidateId: c.id, mine: d.mine, t: { candidate: tc, empty: t.errors.empty } }} />
+                  <Island id={`feedback-${c.id}`} name="FeedbackForm" props={{ candidateId: c.id, mine: d.mine, locked: d.mineLocked, t: { candidate: tc, empty: t.errors.empty } }} />
                 </details>
               )}
             </section>

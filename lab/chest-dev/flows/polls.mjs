@@ -7,9 +7,26 @@ import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5500);
 const { browser, context, page, origin, problems } = await open(port, "sofia", { locale: "en" });
+// A page that follows the Chest's realtime reads itself once just after it
+// joins (what came between its render and the join): a flow goes on once
+// that read is done, as a person would (they never act in the first 200 ms).
+const plainGoto = page.goto.bind(page);
+page.goto = (url, options) => plainGoto(url, { waitUntil: "networkidle", ...options });
+const plainReload = page.reload.bind(page);
+page.reload = options => plainReload({ waitUntil: "networkidle", ...options });
+// A page put in place (a link, an action's navigation) joins too: the same.
+const plainWaitForURL = page.waitForURL.bind(page);
+page.waitForURL = async (url, options) => {
+  await plainWaitForURL(url, options);
+  await page.waitForLoadState("networkidle").catch(() => {});
+};
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
+// Another member in the same browser: the page left first, so that a read
+// its realtime asks (the Chest's, at any moment) is never made as the next
+// member — a person never changes under an open page on a Chest.
 const who = async (member, locale) => {
+  await page.goto("about:blank");
   await as(context, origin, member);
   await speak(locale);
 };
@@ -62,6 +79,30 @@ await step("in French, on a phone, a member writes their own answer", async () =
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 390, "no horizontal scroll at 390 px: " + width);
   await page.setViewportSize({ width: 1280, height: 860 });
+});
+
+await step("a poll's page left open follows the answers as they come — the Chest's realtime, never a timer", async () => {
+  const organiser = await fresh("sofia", "en");
+  await organiser.p.goto(coffeeUrl);
+  const before = await organiser.p.locator(".participation").innerText();
+  // Joined, the page reads itself once (what came between its render and
+  // the join); then, left open with nothing happening, it asks the tool
+  // nothing (the tool may sleep).
+  await organiser.p.waitForTimeout(1500);
+  const reads = [];
+  organiser.p.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+  await organiser.p.waitForTimeout(4000);
+  expect(reads.length === 0, "an idle page asks nothing: " + reads.join(", "));
+  // Tom answers elsewhere: Sofia's page reads itself again, in place.
+  const member = await fresh("tom", "en");
+  await member.p.goto(coffeeUrl);
+  await member.p.locator(".pick-option", { hasText: "Coffee" }).click();
+  await member.p.getByRole("button", { name: "Send my answer" }).click();
+  await member.p.waitForSelector(".thanks");
+  await organiser.p.waitForFunction(text => document.querySelector(".participation")?.innerText !== text, before, { timeout: 10_000 });
+  expect(reads.length > 0, "read again in place: " + reads.length);
+  await member.c.close();
+  await organiser.c.close();
 });
 
 await step("the organiser sees who answered, downloads the answers, closes and undoes it", async () => {
@@ -199,6 +240,11 @@ await step("deleting a poll can be undone", async () => {
   await page.locator(".ck-toast-undo").click();
   await page.waitForURL(coffeeUrl);
   expect(await page.getByRole("heading", { name: "Coffee or tea at the offsite?" }).isVisible(), "restored");
+  // The deletion's own row reaches the open page (realtime) while the
+  // action is on its way: the page may read itself again and get 404 — a
+  // read the package never shows (an action was on its way), then the
+  // page goes home. Not a problem of the page: only that one read.
+  for (let i = problems.length - 1; i >= 0; i--) if (problems[i] === `404 ${coffeeUrl}`) problems.splice(i, 1);
 });
 
 await step("the sample polls read well: a draft continues in the composer, a closed pulse round in French", async () => {

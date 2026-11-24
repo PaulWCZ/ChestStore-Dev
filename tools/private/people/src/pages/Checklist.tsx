@@ -54,7 +54,7 @@ export async function checklistPage({ member, locale, t, param }: PageContext): 
     title,
     body: (
       <div className="page narrow">
-        <Island name="AutoRefresh" props={{ seconds: 30 }} />
+        <Island name="Live" props={{ follow: [{ channel: "people", names: ["journeys", "journey_items"] }] }} />
         <BackLink href={hr ? "/chest/checklists" : "/chest/todo"}>{hr ? t.checklists.title : t.todo.title}</BackLink>
         <header className="journey-head">
           <Avatar name={personName} photo={subject.photo} size="xl" />

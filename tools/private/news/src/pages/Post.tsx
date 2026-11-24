@@ -37,7 +37,8 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
   }
   await recordView(sql, member, p);
   const now = new Date();
-  const d = dates(locale, zone, now);
+  // Instants on the reader's own clock; the company's day on the Chest's.
+  const d = dates(locale, member.timeZone, now, zone);
   const publisher = can(member, "publish");
   // The version shown: the reader's language (or the post's own), or the
   // one they asked for (?lang=).
@@ -78,7 +79,7 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
 
   return { title: shown.title, body: (
     <div className="article-page">
-      <Island name="AutoRefresh" props={{ seconds: 30 }} />
+      <Island name="LivePost" props={{ id: p.id, mine: p.author === member.id ? member.id : null }} />
       <a className="back" href="/chest"><Back />{t.post.back}</a>
       <article className="article" aria-labelledby="headline" lang={shown.locale}>
         <header className="article-head">

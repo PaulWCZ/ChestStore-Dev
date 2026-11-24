@@ -16,12 +16,12 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Contract 0.4: roles `organiser`, `member`; `public: true`; `database`, `members`, `notifications`; `receives`; schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `mail: {send}`, `calendar: true`, `capabilities: ["members.groups"]` + `group.*`, `translations` |
+| `chest.json` | Contract 0.7: roles `organiser`, `member`; `public: true`; `database`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `polls`, `poll:*`, `mine:{member}`; feeds `polls`, `comments`, `replies`); schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): `mail: {send}`, `calendar: true`, `translations` |
 | `src/app.tsx` | **Every route**: home, composer, poll, export, .ics, the looks, the guest page, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name (members' `action`, the guest's `publicAction`) |
 | `src/pages/` | Pages rendered on the server: `Home`, `Compose` (new, edit), `Poll` (+ `Results`, `Trend`, `Teams`), `Guest`, `PublicHome` |
-| `src/islands/` | What runs in the browser: `Composer`, `AnswerArea`, `Manage`/`FinalPicker`, `Comments`, `GuestsCard`, `Replies`, `GuestForm`, `PolicySwitch`, `AutoRefresh`; `index.ts` lists them; `words.ts`, `reply-keys.ts` their helpers |
+| `src/islands/` | What runs in the browser: `Composer`, `AnswerArea`, `Manage`/`FinalPicker`, `Comments`, `GuestsCard`, `Replies`, `GuestForm`, `PolicySwitch`, `LiveHome`/`LivePoll` (`Live.tsx`: realtime); `index.ts` lists them; `words.ts`, `reply-keys.ts` their helpers |
 | `src/components/` | Icons and the mark: plain SVG, used by pages and islands |
 | `src/layout.tsx` | The kit's shell (members), the public frame, the toasts (outside `main`, under an id) |
 | `src/theme.ts` | The identity "Confetti" and `sheetOf(surface)`: the look as a stylesheet |
@@ -37,7 +37,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 `readAnswer`), `polls.ts` (services), `answers.ts` (the anonymous
 rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
 (notifications with `translations`, tile, `pass`/`catchUp`; never an email to a member), `groups.ts`, `teams.ts`,
-`audience.ts`, `guests.ts`, `public-origin.ts`,
+`audience.ts`, `guests.ts`, `live.ts` (realtime: answers published, who is watching), `public-origin.ts`,
 `guest-cookie.ts`, `replies.ts`, `agenda.ts` (calendar, guests' email),
 `export.ts` (CSV), `ics.ts`, `csv.ts`, `time.ts`, `zone.ts`, `dates.ts`,
 `people.ts`, `notify.ts`, `lifecycle.ts`, `db.ts`.
@@ -78,7 +78,8 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
   `BrandMark`, `NoAccess`, `Toasts`/`useToast`, `Confirm`, `PeoplePicker`,
   `DateField`, `Calendar` (multiple, inline: the days of a date poll),
   `TimeSelect`, `Switch` (the admin's policy), `Avatar`, `StatusBadge`, `EmptyState`,
-  `PageHeader`, `LanguageSwitch`, `useAutoRefresh`, `Checkbox`. Their words are the
+  `PageHeader`, `LanguageSwitch`, `Checkbox`. A page others change follows
+  the Chest's realtime (`useLive`, `src/islands/Live.tsx`), never a timer. Their words are the
   `toast`, `peoplePicker` and `date` sections of the catalogues. A reversible
   act → a toast with `undo`; a bell item that left → `sent: true`; the
   irreversible (closing an anonymous poll) → `Confirm`. Never
@@ -92,7 +93,15 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
 - **Identity only from `member()`** (`member` of `page()`/`action()`); answers bind to it.
   Never accept a member id from a form (see Rallly's vote IDOR). With
   `members.groups` its `groups` (and `members.*`'s) are every group the
-  member is in; without it, only those that give Polls.
+  member is in; without it, only those that give Polls. `groups` may be
+  `null` (about 150 groups or more): `createApp({ complete:
+  completeGroups })` fills it; rules read `groups ?? []` (none is the safe
+  answer).
+- **Realtime carries ids, never content**: a feed's columns are the id
+  alone; `poll.answered` has no payload. Never a feed on `tallies`,
+  `texts`, `participants` or `group_tallies` (an anonymous answer must not
+  be dated or linked). Every page reads what it shows from Polls, which
+  checks who may see it.
 - **Members are told with notifications, never by email** (the owner's
   decision of 6 October 2026): `notice()` in `src/lib/notify.ts` writes
   English with the other languages as `translations`. `mail.send` is for
@@ -121,10 +130,12 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
   row stamps.
 - **Telling many people** goes through `src/lib/tell.ts`: one key per poll and
   kind (`poll:<id>:ask`, `poll:<id>:final`), so telling again replaces; a
-  lease so two passes never tell at once; the cursor kept when the quota
-  stops it.
+  lease so two passes never tell at once; the cursor kept when the Chest
+  cannot be reached.
 - **Closing is evaluated on read** (`closeDue`): no feature may depend on the
   schedule to be correct, only to be on time.
 - **Words** live in `src/i18n/en.ts` and `fr.ts` (same keys, tested; the
-  kit's words under `kit`); dates are written on the server (`src/lib/dates.ts`
-  on the Chest's clock, `f` for numbers, lists, plurals), never in an island.
+  kit's words under `kit`); dates are written on the server (`src/lib/dates.ts`:
+  instants on the member's clock on their pages, the company's days and a
+  date option's hours on the Chest's; `f` for numbers, lists, plurals),
+  never in an island.

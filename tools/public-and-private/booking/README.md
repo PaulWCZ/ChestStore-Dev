@@ -316,6 +316,14 @@ Booking does not erase them in Clients (the CRM's own erasure does).
 | `hiring.busy` | Hiring: the interviews a member is on (the `booking.busy` shape: spans as JSON text, or a list from a teller of before) | Those times are not offered (`busyOf`), and show on the host's agenda as "An interview in Hiring" — only when the event's audience lets the host see it (kept in `told_busy.audience`; the times are never offered either way). Kept per tool (the Chest's `source`) and member, the latest snapshot only (`told_busy`, `told_spans`); forgotten when the member leaves or is erased |
 | `leave.busy` | Leave: the days a member is off — approved leave, whole days in the Chest's time zone (the same shape; Leave's README, "With the other tools") | The same handler (`takeBusy`): no time is offered those days, and the host's agenda shows them as "Off" ("Absent") — never the kind of leave, which Leave never sends. A later snapshot ("now free": empty `spans`) gives the days back; Hiring's interviews, kept apart, stay |
 
+A type names no tool in 0.7.0: each is read **only from the tool its
+first word names** (`hiring.busy` from Hiring, `leave.busy` from Leave —
+the `source` the Chest stamps); another tool's is accepted and ignored.
+`v: 1` as Hiring sends it, or no `v` from a teller that declares none
+(another `v` is another shape, ignored). What Booking tells is cleaned for the Chest: no format
+character (an emoji's zero-width joiner, a zero-width space) nor control
+character in a text field — a guest's name keeps them in Booking.
+
 ## On a Chest
 
 - Contract **0.7** (`"chest": "0.7"`; `chest check` says OK). `public: true` (no `csp` permission: no inline script nor style, the Chest's default policy holds); `capabilities`: `database`, `members`

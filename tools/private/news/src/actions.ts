@@ -1,12 +1,13 @@
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import * as members from "@argentic/chest-sdk/members";
-import { action, fail, type Field } from "@argentic/chest-app";
+import { action, after, fail, type Field } from "@argentic/chest-app";
 import { inAudience } from "./lib/access.ts";
 import { syncEvent } from "./lib/agenda.ts";
 import * as answering from "./lib/answering.ts";
 import { everyone, tally } from "./lib/audience.ts";
 import { db } from "./lib/db.ts";
+import * as live from "./lib/live.ts";
 import * as posts from "./lib/posts.ts";
 import * as proposals from "./lib/proposals.ts";
 import { removeObjects } from "./lib/storage.ts";
@@ -161,6 +162,8 @@ export const actions = {
   confirmRead: action(post, async ({ postId }, { member }) => {
     const sql = db();
     const done = await posts.confirm(sql, member, postId);
+    // The author's open page reads its readers again (lib/live.ts).
+    after("live", () => live.confirmed(done));
     await tell.confirmed(sql, member, done.id);
     return null;
   }),
@@ -169,7 +172,10 @@ export const actions = {
   // goes to the first waiting, who is told.
   answerEvent: action({ ...post, answer: as<"yes" | "no" | null>() }, async ({ postId, answer }, { member }): Promise<{ answer: "yes" | "no" | "wait" | null }> => {
     const value: "yes" | "no" | null = answer === "yes" || answer === "no" ? answer : answer === null || answer === undefined ? null : fail("invalid");
-    return { answer: (await answering.answerEvent(db(), member, String(postId), value)).answer };
+    const done = await answering.answerEvent(db(), member, String(postId), value);
+    // The event's open pages read its seats again (lib/live.ts).
+    after("live", () => live.answered(String(postId)));
+    return { answer: done.answer };
   }),
 
   // A reminder to those who have not confirmed an Important post (once a

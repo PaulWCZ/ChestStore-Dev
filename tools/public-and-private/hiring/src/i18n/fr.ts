@@ -474,6 +474,7 @@ export const fr: Catalogue = {
   },
   candidate: {
     sealedText: "Scellé : ce texte ne peut pas être ouvert pour l’instant.",
+    feedbackLocked: "Votre avis ne peut pas être ouvert pour l’instant. Réessayez dans un moment.",
     back: "Retour à {job}",
     applied: "A postulé le {date}",
     addedBy: "Ajouté par {name}, le {date}",

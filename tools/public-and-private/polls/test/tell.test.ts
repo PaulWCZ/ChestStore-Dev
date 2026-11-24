@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest, type FakeMember, type FakeNotification } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest, type FakeMember, type FakeNotification } from "@argentic/chest-sdk/testing";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { answer } from "../src/lib/answers.ts";
 import * as polls from "../src/lib/polls.ts";
@@ -34,9 +34,12 @@ const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: null };
 const lunch = { kind: "choice", title: "Lunch on Friday?", options: ["Pizza", "Sushi"], open: true };
 const items = (key: string) => chest.notifications.filter(n => n.key === key);
-// What a member sees of a notice: their language's words (the notice's
-// translations), English otherwise.
-const read = (n: FakeNotification | undefined, who: FakeMember) => shownTo(n!, who.language ?? "en");
+// What a member sees of a notice: SDK 0.7.0's fake keeps each item in its
+// member's language (the notice's translation, English otherwise).
+const read = (n: FakeNotification | undefined, who: FakeMember) => {
+  assert.ok(n && n.member === who.id);
+  return { title: n.title, body: n.body };
+};
 
 test("a sent poll is told to everyone it asks, each in their language — not its organiser, not those without a role", async () => {
   await open();
@@ -150,7 +153,7 @@ test("the pass runs on the Chest's schedule; a call not signed by the Chest is r
   }
 });
 
-test("over the Chest's quotas, a telling waits and goes on later from where it stopped", async () => {
+test("a telling goes a page at a time, never refused for its pace; a Chest out of reach makes it wait for the next pass", async () => {
   const letters = "abcdefghijklmnopqrstuvwxyz234567";
   const crowd: FakeMember[] = Array.from({ length: 1300 }, (_, i) => {
     const code = [...Array(4)].map((_, k) => letters[Math.floor(i / 32 ** k) % 32]).join("");
@@ -159,25 +162,32 @@ test("over the Chest's quotas, a telling waits and goes on later from where it s
   await open([sofia, ...crowd]);
   try {
     const sql = database.sql;
-    // A reminder goes a page of 500 at a time: the third page is over the
-    // 1,000 recipients an hour.
+    // A reminder goes a page of 500 at a time: SDK 0.7.0's Chest refuses
+    // no notice for its pace (it folds a burst into one grouped item), so
+    // the 1,300 are told in one pass.
     const made = await polls.createPoll(sql, asMember(sofia), { ...lunch, closes: { day: "2026-10-06", time: "20:00" } }, ctx);
     await sql`delete from tellings`;
     const later = new Date(now.getTime() + 12 * 36e5);
     await tell.queueReminders(sql, later);
-    const first = await tell.runTellings(sql, later);
-    assert.deepEqual(first, { told: [], waiting: [`${made.id}:remind`] });
-    assert.equal(items(tell.askKey(made.id)).length, 1000);
-    const [row] = await sql<{ after: string | null }[]>`select after from tellings where poll_id = ${made.id}`;
-    assert.ok(row!.after, "the cursor where it stopped");
-    // Still over: nobody told twice.
+    // The Chest out of reach: nothing told, the telling waits.
+    const api = process.env["CHEST_API"];
+    process.env["CHEST_API"] = "http://127.0.0.1:9";
+    try {
+      assert.deepEqual(await tell.runTellings(sql, later), { told: [], waiting: [`${made.id}:remind`] });
+    } finally {
+      process.env["CHEST_API"] = api;
+    }
+    assert.equal(items(tell.askKey(made.id)).length, 0);
+    // Back: everyone not answered is told once.
+    assert.deepEqual(await tell.runTellings(sql, later), { told: [`${made.id}:remind`], waiting: [] });
+    assert.equal(items(tell.askKey(made.id)).length, 1300);
     await tell.runTellings(sql, later);
-    assert.equal(items(tell.askKey(made.id)).length, 1000);
-    // Thirty broadcasts an hour: the thirty-first poll waits for the next pass.
+    assert.equal(items(tell.askKey(made.id)).length, 1300, "nobody told twice");
+    // Thirty-one polls sent at once: one broadcast each, no quota.
     await sql`delete from tellings`;
     for (let i = 0; i < 31; i++) await polls.createPoll(sql, asMember(sofia), { ...lunch, title: "Q" + i }, ctx);
     for (let i = 0; i < 4; i++) await tell.runTellings(sql, later);
-    assert.equal((await sql`select 1 from tellings`).length, 1);
+    assert.equal((await sql`select 1 from tellings`).length, 0);
   } finally {
     await chest.close();
   }

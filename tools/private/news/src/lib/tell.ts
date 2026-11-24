@@ -1,4 +1,4 @@
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import { localeOf, type Locale, type Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
@@ -13,6 +13,7 @@ import { nameOf, people as lookup } from "./people.ts";
 import { mentionsIn, purge, unconfirmedCounts } from "./posts.ts";
 import { removeObjects } from "./storage.ts";
 import { waitingCount, type Approved, type Declined } from "./proposals.ts";
+import { watching } from "./live.ts";
 
 // What News tells people, each in their own language (a notice's
 // translations): through the Chest's notifications, and the number on its
@@ -25,11 +26,11 @@ import { waitingCount, type Approved, type Declined } from "./proposals.ts";
 // has News, or the members of its groups and the people picked), a page of
 // 500 members at a time — a page, not one broadcast, because its number on
 // each tile and the people picked by name are counted on the same page.
-// The Chest takes 1,000 notification recipients an hour per tool:
-// beyond, it refuses (QuotaExceeded) and News keeps where it stopped
-// (announce_after) and goes on at the next pass — a pass runs on the
-// "publish" schedule (every 15 minutes, Proposal (studio)) and whenever
-// someone opens the front page. The item has one key per post: telling
+// The Chest refuses no notice for its pace (SDK 0.7.0: a burst folds into
+// one grouped item); when it cannot be reached, News keeps where it
+// stopped (announce_after) and goes on at the next pass — a pass runs on
+// the "publish" schedule (every 15 minutes) and whenever someone opens the
+// front page. The item has one key per post: telling
 // again replaces it, never doubles it.
 export const postPath = (postId: string) => `/chest/posts/${postId}`;
 export const importantKey = (postId: string) => `post:${postId}:important`;
@@ -39,7 +40,7 @@ type Due = Audience & {
   welcome: string | null; announce_after: string | null; confirm_from: number;
 };
 
-// A result of telling one post: done, or stopped (quota, Chest unreachable)
+// A result of telling one post: done, or stopped (the Chest unreachable)
 // at a cursor to go on from.
 type Told = { done: true } | { done: false; after: string | null };
 
@@ -76,7 +77,7 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
         await notifications.notify(people.map(p => p.id), told);
       } catch (error) {
         if (!(error instanceof CapabilityNotGranted)) {
-          if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof ChestError) return { done: false, after };
+          if (error instanceof ChestError) return { done: false, after };
           throw error;
         }
       }
@@ -174,18 +175,22 @@ export async function clearDigests(sql: Sql): Promise<void> {
 
 // A new comment: the post's author hears of it (not of their own); a reply,
 // the author of the comment it answers; a mention, the person mentioned
-// when they can see the post. Each hears once, of the most specific.
+// when they can see the post. Each hears once, of the most specific. The
+// author and the replied-to who have the post's page on screen see the
+// comment arrive (realtime) and are not told again; a mention is always
+// told (it names them).
 export async function commented(actor: Member, done: { comment: { id: string; body: string }; post: Audience & { id: string; title: string; author: string }; parentAuthor: string | null; mentioned: string[] }): Promise<void> {
   const { post, comment } = done;
   const told = new Set<string>([actor.id, "erased"]);
   const path = postPath(post.id) + "#comment-" + comment.id;
   const text = cut(await readable(comment.body), 280);
   await mentionedIn(actor, post, done.mentioned, comment.body, path, told);
+  const seeing = await watching([post.author, ...(done.parentAuthor ? [done.parentAuthor] : [])].filter(id => !told.has(id)), post.id);
   if (done.parentAuthor && !told.has(done.parentAuthor)) {
     told.add(done.parentAuthor);
-    await notify([done.parentAuthor], t => ({ title: format(t.bell.replied, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path, key: `post:${post.id}:replies` });
+    if (!seeing.has(done.parentAuthor)) await notify([done.parentAuthor], t => ({ title: format(t.bell.replied, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path, key: `post:${post.id}:replies` });
   }
-  if (!told.has(post.author)) {
+  if (!told.has(post.author) && !seeing.has(post.author)) {
     await notify([post.author], t => ({ title: format(t.bell.commented, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path: postPath(post.id) + "#comments", key: `post:${post.id}:comments` });
   }
 }
@@ -269,7 +274,7 @@ export async function reconcile(sql: Sql, only?: { group?: string; member?: stri
       for (const p of open) await withdraw(importantKey(String(p.id)), [only.member]);
       return;
     }
-    people = [{ id: one.id, name: one.name, photo: one.photo, locale: localeOf(one.language), role: one.role, groups: [...one.groups] }];
+    people = [{ id: one.id, name: one.name, photo: one.photo, locale: localeOf(one.language), role: one.role, groups: [...(one.groups ?? [])] }];
   } else {
     const all = await everyone();
     if (!all.complete && all.people.length === 0) return;

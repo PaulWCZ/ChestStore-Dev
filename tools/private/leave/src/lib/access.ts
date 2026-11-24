@@ -30,15 +30,17 @@ export type Ability =
   | "settings" // the company's rules and the leave types
   | "export"; // the payroll export
 
-const grants: Record<Role, readonly Ability[]> = {
+const granted: Record<Role, readonly Ability[]> = {
   hr: ["request", "calendar", "approve", "approve.any", "people.team", "people.all", "settings", "export"],
   manager: ["request", "calendar", "approve", "people.team"],
   employee: ["request", "calendar"],
 };
 
+export const grants = (role: Role): readonly Ability[] => granted[role];
+
 export function can(actor: Member | null, ability: Ability): boolean {
   const role = roleOf(actor);
-  return role !== null && grants[role].includes(ability);
+  return role !== null && granted[role].includes(ability);
 }
 
 // Who may be named someone's approver: a person whose role answers requests.

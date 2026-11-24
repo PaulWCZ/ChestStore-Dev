@@ -43,7 +43,9 @@ export function boardAccess(actor: Member | null, board: BoardMembership): Board
   if (!actor || role === null) return "none";
   if (role === "manager") return "own";
   const mine = board.people.find(p => p.memberId === actor.id);
-  const inGroup = board.groups.some(g => actor.groups.includes(g));
+  // groups: null (more than an assertion carries) reads as none here; the
+  // pages' member is completed first (createApp's complete, lib/groups.ts).
+  const inGroup = board.groups.some(g => (actor.groups ?? []).includes(g));
   const sees = board.visibility === "team" || mine !== undefined || inGroup;
   if (!sees) return "none";
   if (role === "viewer") return "comment";

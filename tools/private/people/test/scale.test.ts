@@ -24,7 +24,7 @@ let app: { fetch(request: Request): Promise<Response> };
 before(async () => {
   assert.equal(new Set(crowd.map(c => c.id)).size, size, "ids are distinct");
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, tool: "people", members: [camille, ...crowd], capabilities: ["database", "files", "members", "members.email", "notifications"] });
+  chest = await fakeChest({ network: {}, tool: "people", members: [camille, ...crowd], capabilities: ["database", "files", "members", "members.email", "notifications", "sealed"] });
   ({ app } = await import("../dist/test/app.js" as string) as { app: typeof app });
   // Ten teams; everyone reports to someone of the first hundred (no loop).
   await database.sql`

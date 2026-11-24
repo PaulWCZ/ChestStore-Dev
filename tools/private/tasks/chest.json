@@ -1,17 +1,114 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "tasks",
   "title": "Tasks",
   "description": "Plan the team's work in boards, give tasks to people, see what is late.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["manager", "member", "viewer"],
-  "role_labels": {"manager": "Manager", "member": "Member", "viewer": "Viewer"},
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
-  "schedules": [
-    {"name": "morning", "cron": "30 7 * * 1-5"},
-    {"name": "retry", "cron": "*/15 * * * *"}
+  "roles": [
+    "manager",
+    "member",
+    "viewer"
   ],
-  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
+  "role_labels": {
+    "manager": "Manager",
+    "member": "Member",
+    "viewer": "Viewer"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "members.groups",
+    "notifications",
+    "realtime"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "emits": {
+    "tasks.card.done": {
+      "description": "A card is done",
+      "data": {
+        "card": "id",
+        "board": "id",
+        "boardName": "text",
+        "assignees": "members"
+      }
+    },
+    "tasks.card.reopened": {
+      "description": "A card done is open again",
+      "data": {
+        "card": "id"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "board:*"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "cards",
+        "channel": "board:{board_id}",
+        "columns": [
+          "id",
+          "board_id"
+        ]
+      },
+      {
+        "table": "columns",
+        "channel": "board:{board_id}",
+        "columns": [
+          "id",
+          "board_id"
+        ]
+      },
+      {
+        "table": "labels",
+        "channel": "board:{board_id}",
+        "columns": [
+          "id",
+          "board_id"
+        ]
+      },
+      {
+        "table": "fields",
+        "channel": "board:{board_id}",
+        "columns": [
+          "id",
+          "board_id"
+        ]
+      },
+      {
+        "table": "boards",
+        "channel": "board:{id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 7 * * 1-5"
+    },
+    {
+      "name": "retry",
+      "cron": "*/15 * * * *"
+    }
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/assets/"
+    ]
+  }
 }

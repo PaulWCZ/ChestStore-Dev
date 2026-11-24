@@ -111,7 +111,7 @@ test("the payroll export: approved absences of a month, the days inside it, HR o
   // Two approved leaves around the turn of a month, one refused, one waiting.
   const month = addDays(new Date().toISOString().slice(0, 8) + "01", 62).slice(0, 7);
   const first = month + "-01";
-  const across = await requests.createRequest(sql, asMember(hugo), { typeId: paid, start: addDays(first, -3), startHalf: "am", end: addDays(first, 2), endHalf: "pm" });
+  const across = await requests.createRequest(sql, asMember(hugo), { typeId: paid, start: addDays(first, -3), startHalf: "am", end: addDays(first, 6), endHalf: "pm" });
   await requests.decide(sql, asMember(ines), across.id, { verdict: "approve" });
   let workday = addDays(first, 8);
   while (weekday(workday) === 0 || weekday(workday) === 6 || holidaysBetween(workday, workday).size > 0) workday = addDays(workday, 1);

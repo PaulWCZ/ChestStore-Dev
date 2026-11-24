@@ -3,11 +3,11 @@ import * as notifications from "@argentic/chest-sdk/notifications";
 import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 
 // Items in the Chest's bell. The Chest shows each member their language
-// (the notice's translations, Proposal (studio), announced for 0.5), and
+// (the notice's translations, SDK 0.5+), and
 // mails members their notifications by each one's own choice in the Chest
 // (each one, once or twice a day, or off) — Tasks never mails anyone. A
 // notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
+// unreachable), the action that sent it still succeeds.
 
 type Words = { title: string; body?: string };
 

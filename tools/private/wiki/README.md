@@ -45,7 +45,10 @@ intranet — on the company's own server, for no fee per seat.
   editor any way at all** — closing the tab, the back button, a link —
   gives the lock back at once (a beacon, with the last words as a draft);
   an open editor says so every 30 seconds, and a lock not heard of for
-  **two minutes** (a crash, a laptop shut) is free again. After **15
+  **two minutes** (a crash, a laptop shut) is free again. It is all
+  **live**: a reader's page shows "… has been editing this page" the
+  moment someone starts, and an editor waiting behind the lock gets the
+  editor the moment it is given back — no page asks the wiki on a timer. After **15
   minutes without typing**, another editor may **take over**; the first
   one's draft stays theirs, and if they save later the other version stays
   in the history (they are told). On the page, its owner sees "You have
@@ -144,7 +147,7 @@ intranet — on the company's own server, for no fee per seat.
   chose to.
 - **Read and acknowledged** (policies, the company's rules): *More → Ask
   readers to confirm*, everyone who reads the space or **any group of the
-  Chest** (with the `members.groups` proposal: Sales, the warehouse… even
+  Chest** (with the `members.groups` capability: Sales, the warehouse… even
   when the wiki is open to all). Each gets a **notification**, in their
   language, with the link (the Chest emails it to those who chose so),
   finds it under "Pages to read" on the home
@@ -272,7 +275,7 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 | `/chest/api/import` | POST the import's files (form) |
 | `/chest/api/pages/<id>/leave` | POST (a beacon, same origin only): the editor closed; gives the lock back, keeps the draft |
 | `/chest-events` | The members' lifecycle, signed by the Chest |
-| `/chest-schedules` | The `reviews` schedule (`chest.json`, contract 0.4), signed by the Chest: weekdays 07:40, the Chest's time |
+| `/chest-schedules` | The `reviews` schedule (`chest.json`, contract 0.7), signed by the Chest: weekdays 07:40, the Chest's time |
 
 ## On a Chest
 
@@ -282,8 +285,24 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
   items: comments, saves of watched pages, reviews due; keyed
   `comments:<page>`, `saved:<page>`, `review:<page>`, withdrawn when the
   page goes to the trash or moves where the person cannot read it; also
-  `read:<page>`, `mention:<page>`). No network. Schedule (`chest.json`): `reviews`,
+  `read:<page>`, `mention:<page>`); `members.groups` (every group of the
+  Chest); `realtime` (live pages, below). No network. Schedule (`chest.json`): `reviews`,
   `40 7 * * 1-5`, on the Chest's clock.
+- **Live pages, never a timer** (`realtime`, channel `page:*` with
+  presence): a page's own rows are the Chest's feeds — `pages` and
+  `page_comments`, each with the row's id alone — and the lock's changes
+  (taken, given back, taken over) are published once written
+  (`page.lock`, no payload; the lock itself is not fed: an open editor
+  writes it every few seconds). A reader's page reads itself again
+  (a 304 when nothing it shows changed: `pageStamp`); the wiki sleeps
+  while it stays open. An editor waiting behind a lock asks again on
+  `page.lock`, a lease after its holder left the channel's presence (a tab
+  gone without a word), and once when the holder would turn idle (15
+  minutes without typing). Whoever has the page on screen
+  (`realtime.online`'s `watching`) is not notified of a new comment there;
+  a mention always is. The open editor's own 30-second heartbeat stays:
+  it is the lock's lease while someone edits (they are active; their draft
+  is saved every few seconds anyway).
 - **Database**: `migrations/0003_search_editors_reads.sql` indexes
   hyphenated words joined too (`wiki_compounds`), keeps the wiki's words
   for typos (`search_words`, filled by a trigger), adds the lock's
@@ -337,45 +356,44 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, on
-the tool contract 0.4: `member.language` and `member.timeZone` (the
-interface in each member's language, times in their zone), **schedules**
-(`reviews`, weekday mornings, on `POST /chest-schedules`) for review
-reminders and read reminders, `chest.tool.teamUrl` for the links an export
-writes back to the wiki, and lookup's `no_access` (someone still in the
-Chest who lost the wiki is named "Léa Dubois (no access)"). Bell items need `notifications`
-(a Chest that refuses them loses nothing else). What would make it better
+Built on SDK 0.7.0 + studio proposals (`0.7.0-studio.2`), in `vendor/`, and
+`@argentic/chest-app` 0.1.0-studio.12, on the tool contract 0.7:
+`member.language` and `member.timeZone` (the interface in each member's
+language, times in their zone), **schedules** (`reviews`, weekday
+mornings, on `POST /chest-schedules`) for review reminders and read
+reminders, `chest.tool.teamUrl` for the links an export writes back to the
+wiki, lookup's `no_access` (someone still in the Chest who lost the wiki is
+named "Léa Dubois (no access)"), `members.groups`, `realtime` and
+notifications with `translations`. Bell items need `notifications` (a
+Chest that refuses them loses nothing else). What would make it better
 (details in the studio's SDK report):
 
 - **Knowing whether a notification was delivered** per member (today
   `notify` is fire-and-forget in the tool): a review reminder is marked
   "told" even if the Chest was briefly unreachable.
-- **Group changes as events**: with the `members.groups` proposal the wiki
-  receives `group.changed`, `group.removed` and `member.updated`
-  (`groups`): a page to confirm leaves the bell of whoever it no longer
-  concerns. Watchers who lose a space through a group change still keep
-  old bell items until the page changes.
-
-- **A live channel** (server-sent events or a presence API) — for real
-  co-editing some day; today a lock and drafts stand in for it.
+- **Watchers and group changes**: someone who leaves a group is told by
+  `member.updated` (`groups`; SDK 0.7.0 has no group events): a page to
+  confirm leaves the bell of whoever it no longer concerns. Watchers who
+  lose a space through a group change still keep old bell items until the
+  page changes.
+- **Co-editing** (several people in one page at once): 0.7.0's realtime
+  gives peers and presence, enough to build it; not done — one editor at
+  a time, the lock live.
 - **Localized manifest titles**: `chest.json` has one `title`.
-- `members.groups` — **Proposal (studio)**, the name announced for 0.5,
-  declared (`"capabilities": ["members.groups"]` in `chest.proposals.json`,
-  as News): `members.groups.all()` gives every group of the Chest, for
-  "who reads", "who edits" and "ask to confirm" (`src/lib/groups.ts`;
-  without it, the groups that give the wiki, as before), and the Chest
-  names every group a member is in (`member(request).groups`,
-  `members.*`): a member's groups come with them. Someone who leaves a
-  group (`member.updated`) or a group changed or removed (`group.*`) takes
-  the pages to confirm that no longer concern them from their bell. The
-  official 0.4.1's `member()` refuses an assertion with more than 16
-  groups; the vendored SDK 0.4.1-studio.7 lifts it (an assertion up to
-  16 KiB, about 300 groups; 0.5 announces no fixed cap).
-- **Notifications with `translations`** — Proposal (studio), announced
-  for 0.5: every notice is written once, in English with its French
-  translation, and the Chest shows each member theirs. The wiki **never
-  emails anyone**: the Chest emails members their notifications by their
-  own choice (every one, once or twice a day, or off; and off per tool).
+- `members.groups` — SDK 0.7.0: every group of the Chest, read page after
+  page (`members.groups.list`), kept a minute, for "who reads", "who edits"
+  and "ask to confirm" (`src/lib/groups.ts`; without it, the groups that
+  give the wiki), and the Chest names every group a member is in
+  (`member(request).groups`, `members.*`). A member in more groups than a
+  request carries (about 150: `groups` is `null`) is completed with
+  `members.get` once a minute (`createApp({ complete })`).
+- **Notifications with `translations`** — SDK 0.7.0: every notice is
+  written once, in English with its French translation, and the Chest
+  shows each member theirs. The wiki **never emails anyone**: the Chest
+  emails members their notifications by their own choice.
+- **The store's words in French** (`translations` in
+  `chest.proposals.json`, a studio proposal): SDK 0.7.0's `chest.json` has
+  one language — the tile and the role names read in English.
 - **`access.granted` / `member.added` events**: someone who gets the wiki
   after a page asked for read confirmations is asked only when it is asked
   again.
@@ -463,10 +481,18 @@ notifications, by their choice). It declares no `mail`.
   proposal is gone): a member's groups come with the member, no extra
   question to the Chest.
 
+## What changed with SDK 0.7.0 (24 November 2026)
+
+- Contract 0.7: `members.groups` and `realtime` are official keys of
+  `chest.json`; `receives: ["group.*"]` is gone (`member.updated` says it).
+- Groups are paged; a member's `groups` may be `null` (completed).
+- No more auto-refresh: a page and the lock are live (above); the waiting
+  editor's 30-second polling is gone.
+
 ## What it does not do (yet)
 
-- **Live co-editing** and cursors (needs a realtime channel from the Chest);
-  one editor at a time instead.
+- **Live co-editing** and cursors (0.7.0's realtime peers could carry
+  them; not built): one editor at a time instead, the lock live.
 - **Restrictions per page** ("only these people" on one page and its
   subpages): access is per space — reading (everyone or some groups) and
   editing (every editor or some groups and people). A salary grid goes in

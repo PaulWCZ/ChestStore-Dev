@@ -9,8 +9,8 @@ import { BackLink } from "./parts.tsx";
 // or saved as PDF by the browser. What the record does not say is named
 // above it (not printed) and left blank in it. Anyone else is told it does
 // not exist (404), as for the record itself.
-export async function letterPage({ member, t, param }: PageContext): Promise<View> {
-  const done = await printLetter(db(), member, param("id"), param("letter"), today()).catch((error: unknown) => (error instanceof AppError ? notFound() : Promise.reject(error)));
+export async function letterPage({ member, request, t, param }: PageContext): Promise<View> {
+  const done = await printLetter(db(), member, param("id"), param("letter"), today(), request).catch((error: unknown) => (error instanceof AppError ? notFound() : Promise.reject(error)));
   return {
     title: done.title,
     body: (

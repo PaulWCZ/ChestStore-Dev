@@ -19,7 +19,7 @@ export async function chestEvents(request: Request): Promise<Response> {
 
 // POST /chest-schedules: the runs of chest.json's "schedules", signed.
 // Every 15 minutes, "publish": what is due is told (scheduled Important
-// posts reach the bell on time, a telling stopped by the hourly quota goes
+// posts reach the bell on time, a telling the Chest could not take goes
 // on), and what was deleted long ago is purged. A run that fails comes
 // again with the same id: it is idempotent. Without schedules, the publish
 // pass runs when someone opens the front page (catchUp).

@@ -1,4 +1,4 @@
-import { shownTo, type FakeMember, type FakeNotification } from "@argentic/chest-sdk/testing";
+import type { FakeMember, FakeNotification } from "@argentic/chest-sdk/testing";
 
 // The people of the tests — the same as the dev harness's cast
 // (lab/chest-dev/cast.mjs, docs/dev.json): ids of the Chest's shape, each
@@ -24,10 +24,9 @@ export const fakeGroups = [
   { id: groups.tech, name: "Tech", members: [lea.id, tom.id] },
 ];
 
-// A notification as its member sees it: in their language (the notice's
-// translations; English when it has none in theirs).
+// A notification as its member sees it: the fake Chest (0.7.0) keeps each
+// item already in its member's language (the notice's translations;
+// English when it has none in theirs).
 export function seen<N extends FakeNotification | undefined>(n: N): N extends FakeNotification ? FakeNotification : undefined {
-  if (!n) return undefined as never;
-  const language = everyone.find(p => p.id === n.member)?.language ?? "en";
-  return { ...n, ...shownTo(n, language) } as never;
+  return n as never;
 }

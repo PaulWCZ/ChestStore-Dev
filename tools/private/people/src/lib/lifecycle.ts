@@ -76,7 +76,8 @@ async function departed(sql: Sql, memberId: string): Promise<void> {
   await left(hr, { id: memberId, name: who?.name ?? "" }, change);
 }
 
-export function handlers(sql: Sql): events.Handlers {
+export type MemberEvent = "access.revoked" | "member.removed" | "member.erased";
+export function handlers(sql: Sql): events.Handlers<MemberEvent> {
   return {
     "access.revoked": event => departed(sql, event.data.id),
     "member.removed": event => departed(sql, event.data.id),

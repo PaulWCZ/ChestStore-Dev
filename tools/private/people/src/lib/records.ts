@@ -10,6 +10,7 @@ import {
   limits, memberId, phone, sexes, workDays, type Contract, type DocumentKind, type Sex,
 } from "../shared/model.ts";
 import { everyone, present } from "./people.ts";
+import { openPrivate, sealedFields, sealPrivate, type Private, type Stored } from "./sealing.ts";
 import { tellRecords } from "./share.ts";
 
 // Employee records: what HR keeps about each person employed — identity as
@@ -39,21 +40,24 @@ export const fieldNames: Field[] = [
 ];
 
 export type Document = { id: string; kind: DocumentKind; name: string; type: string; size: number; addedBy: string; addedAt: string };
-export type HrRecord = Fields & { id: string; memberId: string | null; erased: boolean; updatedAt: string; documents: Document[] };
+// sealed: what the reader sees of the sealed part (address, emergency
+// contact; lib/sealing.ts) — "open", "hidden" (not theirs to open) or
+// "locked" (the Chest cannot open it now).
+export type HrRecord = Fields & { id: string; memberId: string | null; erased: boolean; updatedAt: string; documents: Document[]; sealed: "open" | "hidden" | "locked" };
 export type Summary = Pick<HrRecord, "id" | "memberId" | "legalName" | "job" | "contract" | "workingTime" | "startDate" | "trialEnd" | "contractEnd" | "endDate" | "erased" | "employeeNumber"> & { missing: Field[] };
 
 type Row = {
   id: string; member_id: string | null; legal_name: string; sex: Sex | null; birth_date: string | null; nationality: string; job: string; qualification: string;
   contract: Contract; working_time: "full" | "part"; hours: string | null; start_date: string | null; trial_end: string | null; contract_end: string | null; end_date: string | null;
   work_permit: string; agency: string; tutor_id: string | null; workplace: string; emergency_name: string; emergency_relation: string; emergency_phone: string; address: string;
-  employee_number: string; permit_end: string | null; work_days: number[] | null;
+  employee_number: string; permit_end: string | null; work_days: number[] | null; own_sealed: string | null;
   erased_at: Date | null; updated_at: Date;
 };
 const d = (column: string) => `to_char(${column}, 'YYYY-MM-DD') as ${column}`;
 const columns = [
   "id", "member_id", "legal_name", "sex", d("birth_date"), "nationality", "job", "qualification", "contract", "working_time", "hours::text as hours",
   d("start_date"), d("trial_end"), d("contract_end"), d("end_date"), "work_permit", "agency", "tutor_id", "workplace",
-  "emergency_name", "emergency_relation", "emergency_phone", "address", "employee_number", d("permit_end"), "work_days", "erased_at", "updated_at",
+  "emergency_name", "emergency_relation", "emergency_phone", "address", "employee_number", d("permit_end"), "work_days", "own_sealed", "erased_at", "updated_at",
 ].join(", ");
 
 const toFields = (r: Row): Fields => ({
@@ -99,18 +103,25 @@ async function load(sql: Query, key: string): Promise<(Row & { documents: Docume
   return { ...row, documents: docs.map(x => ({ id: String(x.id), kind: x.kind, name: x.name, type: x.type, size: Number(x.size), addedBy: x.added_by, addedAt: x.added_at.toISOString() })) };
 }
 
-const toRecord = (r: Row & { documents: Document[] }): HrRecord => ({
-  ...toFields(r), id: String(r.id), memberId: r.member_id, erased: r.erased_at !== null, updatedAt: r.updated_at.toISOString(), documents: r.documents,
+// The sealed part as stored (lib/sealing.ts).
+const storedOf = (r: Row): Stored => ({
+  hr: { address: r.address, emergencyName: r.emergency_name, emergencyRelation: r.emergency_relation, emergencyPhone: r.emergency_phone },
+  own: r.own_sealed,
 });
 
 // One record, for HR or its person; opening it by anyone else than its
-// person is written in the journal.
-export async function record(sql: Query, actor: Member | null, recordId: unknown): Promise<{ record: HrRecord; access: "edit" | "read" }> {
+// person is written in the journal. The sealed part is opened on the
+// reader's request (the Chest journals that open too).
+export async function record(sql: Query, actor: Member | null, recordId: unknown, request: Request): Promise<{ record: HrRecord; access: "edit" | "read" }> {
   const found = await load(sql, id(recordId));
   const access = found ? recordAccess(actor, { memberId: found.member_id }) : null;
   if (!found || !access) throw new AppError("not_found");
   if (found.member_id !== actor!.id) await note(sql, actor!, "viewed", { recordId: String(found.id) });
-  return { record: toRecord(found), access };
+  const opened = await openPrivate(request, actor!, { id: String(found.id), memberId: found.member_id, stored: storedOf(found) });
+  return {
+    record: { ...toFields(found), ...opened.values, id: String(found.id), memberId: found.member_id, erased: found.erased_at !== null, updatedAt: found.updated_at.toISOString(), documents: found.documents, sealed: opened.state },
+    access,
+  };
 }
 
 // The record of a member, as a link: for HR, or for the member themselves.
@@ -246,12 +257,12 @@ export function read(given: { [key: string]: unknown }): Partial<Fields> {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export async function updateRecord(sql: Sql, actor: Member | null, recordId: unknown, input: unknown): Promise<{ changed: Field[] }> {
+export async function updateRecord(sql: Sql, actor: Member | null, recordId: unknown, input: unknown, request: Request): Promise<{ changed: Field[] }> {
   const who = hr(actor);
   const key = id(recordId);
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError("invalid");
   const given = read(input as { [key: string]: unknown });
-  const done = await sql.begin(tx => writeRecord(tx, who, key, given, "changed")).catch(error => { throw numberTaken(error); });
+  const done = await sql.begin(tx => writeRecord(tx, who, key, given, "changed", request)).catch(error => { throw numberTaken(error); });
   if (done.changed.length > 0) await tellRecords(sql, [key]);
   return { changed: done.changed };
 }
@@ -267,23 +278,37 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
 // A record detached by an erasure keeps no address nor emergency contact:
 // they are never written again.
 export const erasedFields = ["address", "emergencyName", "emergencyRelation", "emergencyPhone"] as const;
-export async function writeRecord(tx: Query, who: Member, key: string, given: Partial<Fields>, action: "changed" | "imported"): Promise<{ changed: Field[] }> {
+export async function writeRecord(tx: Query, who: Member, key: string, given: Partial<Fields>, action: "changed" | "imported", request: Request): Promise<{ changed: Field[] }> {
   await tx`select id from records where id = ${key} for update`;
   const current = await load(tx, key);
   if (!current) throw new AppError("not_found");
   if (current.erased_at !== null && erasedFields.some(f => given[f] !== undefined && given[f] !== "")) throw new AppError("erased");
-  const before = toFields(current);
+  // The sealed part as HR sees it (opened on HR's request): compared, and
+  // sealed again only when it changed. Not openable (the Chest locked): a
+  // field given counts as changed, one not given keeps its sealed text.
+  const opened = await openPrivate(request, who, { id: key, memberId: current.member_id, stored: storedOf(current) });
+  const before: Fields = { ...toFields(current), ...(opened.state === "open" ? opened.values : {}) };
   const next: Fields = { ...before, ...given };
+  const privateChanged = opened.state === "open"
+    ? sealedFields.some(f => before[f] !== next[f])
+    : sealedFields.some(f => given[f] !== undefined);
   if (given.tutorId && given.tutorId !== before.tutorId && !(await present([given.tutorId])).has(given.tutorId)) throw new AppError("not_member");
   for (const end of [next.trialEnd, next.contractEnd, next.endDate]) if (end && next.startDate && end < next.startDate) throw new AppError("dates");
-  const changed = fieldNames.filter(f => !same(before[f], next[f]));
+  const changed = fieldNames.filter(f => (sealedFields as readonly string[]).includes(f) && opened.state !== "open" ? given[f] !== undefined : !same(before[f], next[f]));
   if (changed.length === 0) return { changed };
+  // Sealed again as a whole (both copies stay alike); a locked Chest keeps
+  // what it holds, and a field given then cannot be written: refused.
+  let stored = storedOf(current);
+  if (privateChanged) {
+    if (opened.state !== "open") throw new AppError("sealed_locked");
+    stored = await sealPrivate(key, Object.fromEntries(sealedFields.map(f => [f, next[f]])) as Private);
+  }
   await tx`
     update records set legal_name = ${next.legalName}, sex = ${next.sex}, birth_date = ${next.birthDate}, nationality = ${next.nationality}, job = ${next.job},
       qualification = ${next.qualification}, contract = ${next.contract}, working_time = ${next.workingTime}, hours = ${next.hours},
       start_date = ${next.startDate}, trial_end = ${next.trialEnd}, contract_end = ${next.contractEnd}, end_date = ${next.endDate},
       work_permit = ${next.workPermit}, agency = ${next.agency}, tutor_id = ${next.tutorId}, workplace = ${next.workplace},
-      emergency_name = ${next.emergencyName}, emergency_relation = ${next.emergencyRelation}, emergency_phone = ${next.emergencyPhone}, address = ${next.address},
+      emergency_name = ${stored.hr.emergencyName}, emergency_relation = ${stored.hr.emergencyRelation}, emergency_phone = ${stored.hr.emergencyPhone}, address = ${stored.hr.address}, own_sealed = ${stored.own},
       employee_number = ${next.employeeNumber}, permit_end = ${next.permitEnd}, work_days = ${next.workDays === null ? null : tx.array(next.workDays)}::smallint[],
       updated_at = now()
     where id = ${key}`;
@@ -458,7 +483,7 @@ export async function eraseRecords(sql: Query, member: string, now: string): Pro
     }
     const personal = await sql<{ object: string }[]>`delete from record_documents where record_id = ${key} and kind in ('identity', 'other') returning object`;
     await sql`
-      update records set member_id = null, erased_at = now(), emergency_name = '', emergency_relation = '', emergency_phone = '', address = '',
+      update records set member_id = null, erased_at = now(), emergency_name = '', emergency_relation = '', emergency_phone = '', address = '', own_sealed = null,
         end_date = coalesce(end_date, ${now}::date), updated_at = now()
       where id = ${key}`;
     for (const o of personal) await dropFile(o.object);

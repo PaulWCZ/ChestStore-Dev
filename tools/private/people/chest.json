@@ -1,16 +1,139 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "people",
   "title": "People",
   "description": "The team's directory and org chart, HR records with the staff register, and checklists to welcome newcomers and see off those who leave.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["hr", "member"],
-  "role_labels": {"hr": "HR", "member": "Member"},
-  "capabilities": ["database", "files", "members", "members.email", "notifications"],
-  "receives": ["member.*"],
-  "schedules": [
-    {"name": "morning", "cron": "40 7 * * 1-5"}
+  "roles": [
+    "hr",
+    "member"
   ],
-  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
+  "role_labels": {
+    "hr": "HR",
+    "member": "Member"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "members.email",
+    "notifications",
+    "realtime",
+    "sealed"
+  ],
+  "receives": [
+    "member.*",
+    "hiring.hired",
+    "hiring.hire-cancelled",
+    "leave.approved",
+    "leave.cancelled",
+    "equipment.returned"
+  ],
+  "emits": {
+    "people.leaving": {
+      "description": "Someone is leaving: their last day",
+      "data": {
+        "member": "member",
+        "lastDay": "date"
+      }
+    },
+    "people.leaving-cancelled": {
+      "description": "Someone is no longer leaving",
+      "data": {
+        "member": "member"
+      }
+    },
+    "people.record": {
+      "description": "A person's HR record: employee number, first and last day, working week",
+      "data": {
+        "member": "member",
+        "employeeNumber": "text?",
+        "startDate": "date?",
+        "lastDay": "date?",
+        "workDays": "text?",
+        "weeklyHours": "number?"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "people"
+      },
+      {
+        "name": "hr",
+        "join": [
+          "hr"
+        ]
+      }
+    ],
+    "feeds": [
+      {
+        "table": "journeys",
+        "channel": "people",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "journey_items",
+        "channel": "people",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "profiles",
+        "channel": "people",
+        "columns": [
+          "member_id"
+        ]
+      },
+      {
+        "table": "away",
+        "channel": "people",
+        "columns": [
+          "request"
+        ]
+      },
+      {
+        "table": "records",
+        "channel": "hr",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "record_requests",
+        "channel": "hr",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "arrivals",
+        "channel": "hr",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/assets/"
+    ]
+  }
 }

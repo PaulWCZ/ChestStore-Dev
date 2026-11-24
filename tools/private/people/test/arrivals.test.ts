@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -27,7 +27,7 @@ after(async () => {
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const hr = asMember(camille);
 const hire = (data: Record<string, unknown>, source = "hiring") => chest.deliver({ type: "hiring.hired", source, data }, POST);
-const cancel = (candidate: string) => chest.deliver({ type: "hiring.hire_cancelled", source: "hiring", data: { candidate } }, POST);
+const cancel = (candidate: string) => chest.deliver({ type: "hiring.hire-cancelled", source: "hiring", data: { candidate } }, POST);
 const lucie = { candidate: "cand_42", name: "Lucie Garnier", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: ines.id };
 
 async function template() {
@@ -69,8 +69,9 @@ test("events of another shape, or from another tool, change nothing", async () =
     { ...lucie, candidate: "c6", job: 7 },
     { ...lucie, candidate: "c7", name: "x".repeat(121) },
   ]) assert.equal(await hire(bad), 204);
-  // A "hiring." event that another tool would send is refused by the SDK.
-  assert.equal(await hire({ ...lucie, candidate: "c8" }, "leave"), 401);
+  // A "hiring.hired" another tool sent (SDK 0.5+: types, never tools; the
+  // Chest stamps the source): handled, and changes nothing.
+  assert.equal(await hire({ ...lucie, candidate: "c8" }, "leave"), 204);
   assert.equal(await cancel("nobody"), 204);
   assert.equal((await arrivals.listArrivals(sql, hr)).length, before);
   assert.deepEqual(arrivals.readHired({ ...lucie, team: null, place: null, startDate: null, email: null }), { candidate: "cand_42", name: "Lucie Garnier", job: "Sales associate", team: "", place: "", startDate: null, hiredBy: ines.id });

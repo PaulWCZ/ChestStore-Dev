@@ -28,7 +28,7 @@ test("its fonts are the tool's own files, served at /assets/fonts (the build.sta
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
-  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
+  const chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
     let look = await currentLook();
     assert.equal(look.source, "catalogue");

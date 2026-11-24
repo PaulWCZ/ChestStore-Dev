@@ -14,13 +14,13 @@ the studio's `app/`.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `publisher`, `reader`; `database`, `files`, `members`, `notifications`; `receives`; the `publish` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `calendar`, `capabilities: ["members.groups"]` and `receives: ["group.*"]`, the French tile (no `mail`: News writes to nobody outside) |
+| `chest.json` | Manifest (contract 0.7): roles `publisher`, `reader`; `database`, `files`, `members`, `members.groups`, `notifications`, `realtime`; `receives`; `realtime` (channels `news`, `post:*`, `mine:{member}`; feeds `posts`, `comments`, `reactions`); the `publish` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposals of the studio's SDK (0.7.0-studio.2): `calendar`, the French tile (no `mail`: News writes to nobody outside) |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the Slack import, `/chest-events`, `/chest-schedules` |
 | `src/calls.ts` | What the Chest calls by itself (`chestEvents`, `chestSchedules`): plain functions of a Request, tested directly |
 | `src/actions.ts` | **Every mutation**, by name (`call("savePost", …)` from an island); thin: the rules are in `src/lib/` |
 | `src/pages/` | The pages, rendered on the server: `Front.tsx` (+ `Story.tsx`), `Post.tsx`, `Compose.tsx` (new, edit), `Propose.tsx`, `Proposals.tsx`, `Search.tsx`, `Transfer.tsx`, `PublicHome.tsx` |
-| `src/islands/` | What runs in the browser, listed in `index.ts`: `Composer` (+ `TextEditor` → `Tiptap`, fetched only by the composer), `Post.tsx` (`PostTools`, `ConfirmBox`, `SendingNotice`, `Rsvp`, `Reactions`, `RemindButton`), `Comments`, `ProposeForm`/`TakeBack`, `Decide`, `SlackImport`, `Search`, `AutoRefresh`, `Ready` (the `html[data-hydrated]` marker flows wait for); `upload.ts` (the three-step upload) |
+| `src/islands/` | What runs in the browser, listed in `index.ts`: `Composer` (+ `TextEditor` → `Tiptap`, fetched only by the composer), `Post.tsx` (`PostTools`, `ConfirmBox`, `SendingNotice`, `Rsvp`, `Reactions`, `RemindButton`), `Comments`, `ProposeForm`/`TakeBack`, `Decide`, `SlackImport`, `Search`, `LiveFront`/`LivePost` (`Live.tsx`: realtime), `Ready` (the `html[data-hydrated]` marker flows wait for); `upload.ts` (the three-step upload) |
 | `src/components/` | Shared by pages and islands (no server code): icons, the mark, `RichText` (a post's text as React elements), `Highlighted` |
 | `src/shared/` | Pure rules both sides use: `model.ts` (bounds, kinds, audience), `markdown.ts`, `editor-doc.ts` (text ↔ the editor's document) |
 | `src/layout.tsx` | The kit's `AppShell` (search, "Write a post"/"Share something", member chip, the company's logo), `NoAccess`, the toasts (outside `<main>`, `id="toasts"`: they survive `navigate()`) |
@@ -34,7 +34,8 @@ the studio's `app/`.
 | `src/lib/tell.ts` | Notifications (one notice with its `translations`, never an email) and the tile: telling Important posts (paged, resumable past the quota), welcomes, comments, replies, mentions, reminders, a freed seat; `reconcile`; `pass`/`catchUp` |
 | `src/lib/agenda.ts`, `state.ts` | Events in the Chest's calendar; what News learned of the Chest |
 | `src/lib/transfer.ts`, `zip.ts` | Download all posts (ZIP); import a Slack channel export |
-| `src/lib/audience.ts`, `groups.ts` | Who has News (500 a page); the Chest's groups (kept a minute; a member's groups come with the member, `members.groups`) |
+| `src/lib/audience.ts`, `groups.ts` | Who has News (500 a page); the Chest's groups (paged, kept a minute; a member's groups come with the member, `members.groups`; `completeGroups` when they are `null`) |
+| `src/lib/live.ts` | Realtime: what is published (`post.answered`, `post.confirmed`), who is watching a post (no notification of a comment they see arrive) |
 | `src/lib/search.ts`, `highlight.ts`, `views.ts`, `ics.ts`, `time.ts`, `zone.ts`, `dates.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | Search; view counts (a number only); `.ics`; days and times on the Chest's clock; leaving and erasure; names; the package's `db()` |
 | `migrations/` | Schema. Never edit a shipped file; add `0008_…` |
 | (to drop) | `preferences`, `digests`, `digest_runs`, `emails` and `posts.email_short` are read by no code since the mail decisions of 6 October 2026 (only `lib/lifecycle.ts` deletes a member's rows, `clearDigests` empties `digests`). A migration must leave the previous version working (a rollback runs none), so drop them in a migration of the **release after** the one that stopped reading them, and remove those deletes in the same change |
@@ -74,7 +75,7 @@ TEST_DATABASE_URL=postgres://… npm test   # the same on a real PostgreSQL
   never picks it before.
 - **Telling many people**: go through `src/lib/tell.ts` — pages of 500, one key
   per post (`post:<id>:important`) so telling again replaces, a lease so two
-  passes never tell at once, the cursor kept when the quota stops it —
+  passes never tell at once, the cursor kept when the Chest cannot be reached —
   only the post's audience. Never an email to a member: a notice with its
   `translations` (`notice()` in `src/lib/notify.ts`).
 - **A proposal is not a post.** Nothing that reads posts sees
@@ -97,7 +98,9 @@ TEST_DATABASE_URL=postgres://… npm test   # the same on a real PostgreSQL
   `DateField` and `TimeSelect` (never `type="date"`/`"time"`; `today` from
   the server), `PeoplePicker` (`localSearch` over who has News),
   `FilePicker` (the Slack ZIP, read in the browser), `Tabs`, `SearchBox`,
-  `EmptyState`, `Avatar`, `AppShell`, `LanguageSwitch`, `useAutoRefresh`.
+  `EmptyState`, `Avatar`, `AppShell`, `LanguageSwitch`. A page others
+  change follows the Chest's realtime (`useLive`, `src/islands/Live.tsx`),
+  never a timer.
   Their words are the catalogues' `kit` section (`toast`, `peoplePicker`,
   `date`, `files`, `search`, over the kit's own). Kept on purpose: the front page's section tabs
   (newspaper section names, links that filter), the kind cards and the
@@ -123,6 +126,14 @@ TEST_DATABASE_URL=postgres://… npm test   # the same on a real PostgreSQL
   no-break spaces.
 - **Words live in `src/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
+- **Realtime carries ids, never content**: a feed's columns are the id
+  alone, a published event has no payload; never a feed on `confirmations`,
+  `rsvps`, `post_views` or `visits` (member ids, reading habits). A write
+  of `posts` is an event to every open page: never write a post's row at
+  each view or read (`lib/views.ts` writes its key once).
+- **Groups may be `null`** (SDK 0.7.0, about 150 groups): `Grouped.groups`
+  is `readonly string[] | null`; rules read `?? []`; `createApp({ complete:
+  completeGroups })` fills it on /chest requests.
 - **No network, no disk, no background work.** Deferred work runs on the
   schedule or on the next visit (`catchUp`). Nothing kept in memory between
   requests: the tool sleeps when idle.

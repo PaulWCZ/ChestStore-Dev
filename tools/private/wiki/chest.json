@@ -1,5 +1,5 @@
 {
-  "chest": "0.4",
+  "chest": "0.7",
   "name": "wiki",
   "title": "Wiki",
   "description": "Write down how the company works — handbook, policies, how-tos — and find any answer in seconds.",
@@ -17,11 +17,37 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
     "member.*"
   ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "page:*",
+        "presence": true
+      }
+    ],
+    "feeds": [
+      {
+        "table": "pages",
+        "channel": "page:{id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "page_comments",
+        "channel": "page:{page_id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "schedules": [
     {
       "name": "reviews",

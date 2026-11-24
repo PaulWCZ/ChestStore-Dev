@@ -4,7 +4,7 @@ import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "
 
 // Items in the Chest's bell. Each notice is written once in English (the
 // fallback) with the same words in every other language of the tool as
-// translations (Proposal (studio), announced for 0.5): the Chest shows
+// translations (SDK 0.5+): the Chest shows
 // each member theirs, and mails members their notifications by their own
 // choice in the Chest — Leave mails no member. A notification is a
 // courtesy: when the Chest cannot take it (not granted, quota,

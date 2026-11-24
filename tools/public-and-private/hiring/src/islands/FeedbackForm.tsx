@@ -10,13 +10,17 @@ type Feedback = { rating: number; strengths: string; concerns: string; recommend
 // an interviewer's on a candidate of a job they are on, or a recruiter's.
 type FeedbackWords = { candidate: Catalogue["candidate"]; empty: string };
 
-export function FeedbackForm({ candidateId, mine, t }: { candidateId: string; mine: Feedback | null; t: FeedbackWords }) {
+// locked: the reader's own words are sealed and the Chest cannot open them
+// right now — the form says so and saves nothing (the placeholder must
+// never replace what they wrote).
+export function FeedbackForm({ candidateId, mine, locked = false, t }: { candidateId: string; mine: Feedback | null; locked?: boolean; t: FeedbackWords }) {
   const [pending, start] = useWork();
   const [rating, setRating] = useState<number>(mine?.rating ?? 0);
   const [recommendation, setRecommendation] = useState<string>(mine?.recommendation ?? "");
   const [error, setError] = useState<string | null>(null);
   const w = t.candidate;
   const ratingWords = [w.ratings.r1, w.ratings.r2, w.ratings.r3, w.ratings.r4];
+  if (locked) return <p className="hint" role="status">{w.feedbackLocked}</p>;
   return (
     <form className="stack" onSubmit={e => {
       e.preventDefault();

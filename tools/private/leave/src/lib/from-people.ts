@@ -5,8 +5,8 @@ import { today } from "./today.ts";
 import { withdraw } from "./notify.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";
 
-// What People tells Leave (Proposal (studio): events between tools;
-// chest.proposals.json "receives"), once an admin linked the two: HR
+// What People tells Leave (events between tools, SDK 0.5+; chest.json
+// "receives"), once the owner approved the link: HR
 // writes a person's employee number, first day, last day and working week
 // once, in People's HR record, and Leave takes them — HR never types them
 // twice. Every event is checked field by field; one of another shape
@@ -15,7 +15,10 @@ import { afterLastDay, refreshBadges } from "./tell.ts";
 //
 //   people.record            { member, employeeNumber, startDate, lastDay, workDays, weeklyHours }
 //   people.leaving           { member, lastDay }   (a leaving checklist started in People)
-//   people.leaving_cancelled { member }
+//   people.leaving-cancelled { member }
+//
+// workDays is ISO days as text, "1,2,3,4,5" (an event's fields are flat
+// since SDK 0.5; a list of numbers, as People told it before, is read too).
 //
 // What People does not say (null) is left as HR set it here. A last day
 // People told is People's: it takes it back (the record's last day
@@ -38,7 +41,8 @@ export function readRecord(data: unknown): RecordEvent | null {
   const lastDay = d["lastDay"] ?? null;
   if (!dayOrNull(startDate) || !dayOrNull(lastDay)) return null;
   if (startDate && lastDay && lastDay < startDate) return null;
-  const days = d["workDays"] ?? null;
+  const told = d["workDays"] ?? null;
+  const days = typeof told === "string" ? (/^[1-7](,[1-7]){0,6}$/u.test(told) ? told.split(",").map(Number) : []) : told;
   if (days !== null && (!Array.isArray(days) || days.length === 0 || days.length > 7 || !days.every(n => Number.isInteger(n) && n >= 1 && n <= 7) || new Set(days).size !== days.length)) return null;
   const hours = d["weeklyHours"] ?? null;
   if (hours !== null && (typeof hours !== "number" || !Number.isFinite(hours) || hours <= 0 || hours > 60)) return null;
@@ -99,7 +103,7 @@ export async function fromRecord(sql: Sql, data: unknown, at: Date): Promise<boo
   return true;
 }
 
-// people.leaving / people.leaving_cancelled: a departure HR started in
+// people.leaving / people.leaving-cancelled: a departure HR started in
 // People (a leaving checklist). It sets the last day unless HR typed one
 // here, the record gave one, or the person already left the Chest.
 export async function fromLeaving(sql: Sql, data: unknown, at: Date, cancelled: boolean): Promise<boolean> {

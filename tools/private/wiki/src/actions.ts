@@ -1,7 +1,7 @@
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
-import { action, fail, type Field, type MemberContext } from "@argentic/chest-app";
+import { action, after, fail, type Field, type MemberContext } from "@argentic/chest-app";
 import { catalogue, localeOf, moment } from "./i18n/index.ts";
 import * as comments from "./lib/comments.ts";
 import { db } from "./lib/db.ts";
@@ -9,7 +9,8 @@ import * as editing from "./lib/editing.ts";
 import { AppError } from "./lib/errors.ts";
 import { attach, folderOf, objectPattern } from "./lib/files.ts";
 import * as history from "./lib/history.ts";
-import { limits, memberPattern } from "./lib/model.ts";
+import * as live from "./lib/live.ts";
+import { limits, lockIdleMinutes, lockLeaseSeconds, memberPattern } from "./lib/model.ts";
 import * as pages from "./lib/pages.ts";
 import { nameOf, people, type Person } from "./lib/people.ts";
 import * as pins from "./lib/pins.ts";
@@ -41,11 +42,16 @@ async function removeObjects(objects: string[]): Promise<void> {
 }
 
 // A lock held by someone else, with their name and since when, in the
-// reader's language and zone.
-export type Holder = { name: string; time: string; idle: boolean; minutes: number };
+// reader's language and zone; id: who (the waiting editor watches them in
+// the page's presence); idleIn: seconds until they count as idle if they
+// type nothing more (null: idle already) — the waiting editor asks again
+// then, once; lapse: seconds a lock not heard of stays held (the holder's
+// tab gone without a word).
+export type Holder = { id: string; name: string; time: string; idle: boolean; minutes: number; idleIn: number | null; lapse: number };
 async function holder(lock: editing.Lock, { member, locale }: MemberContext): Promise<Holder> {
   const person = (await people([lock.memberId])).get(lock.memberId);
-  return { name: nameOf(person, localeOf(locale)), time: moment(lock.since, locale, member.timeZone), idle: lock.idle, minutes: Math.max(0, Math.round((Date.now() - lock.activeAt.getTime()) / 60000)) };
+  const idleAt = lock.activeAt.getTime() + lockIdleMinutes * 60_000;
+  return { id: lock.memberId, name: nameOf(person, localeOf(locale)), time: moment(lock.since, locale, member.timeZone), idle: lock.idle, minutes: Math.max(0, Math.round((Date.now() - lock.activeAt.getTime()) / 60000)), idleIn: lock.idle ? null : Math.max(1, Math.ceil((idleAt - Date.now()) / 1000)), lapse: lockLeaseSeconds };
 }
 
 // A comment as the thread shows it (src/islands/Comments.tsx).
@@ -144,6 +150,9 @@ export const actions = {
   openEditor: action({ ...page, takeOver: as<boolean | undefined>() }, async ({ pageId, takeOver }, context) => {
     const opened = await editing.startEditing(db(), context.member, pageId, { takeOver: takeOver === true });
     if (opened.status === "locked") return { status: "locked" as const, holder: await holder(opened.lock, context) };
+    // Its readers' pages say who edits it now; an editor it was taken
+    // from learns it (lib/live.ts).
+    after("live", () => live.lockChanged(String(pageId)));
     const draft = opened.draft;
     return {
       status: "editing" as const,
@@ -161,6 +170,7 @@ export const actions = {
 
   publishPage: action({ ...page, title: as<string>(), doc: as<string>(), baseVersion: as<number>() }, async ({ pageId, title, doc, baseVersion }, { member }) => {
     const done = await editing.publish(db(), member, pageId, { title, doc, baseVersion });
+    after("live", () => live.lockChanged(String(pageId)));
     if (done.changed) await tell.saved(db(), member, await pages.page(db(), member, pageId));
     return done;
   }, { maxBody: 3 << 20 }),
@@ -176,6 +186,7 @@ export const actions = {
   // Unsaved changes dropped from the page itself; Undo puts them back.
   discardDraft: action(page, async ({ pageId }, { member }) => {
     const kept = await editing.discardDraft(db(), member, pageId);
+    after("live", () => live.lockChanged(String(pageId)));
     return kept ? { title: kept.title, doc: JSON.stringify(kept.doc), baseVersion: kept.baseVersion } : null;
   }),
 
@@ -186,6 +197,7 @@ export const actions = {
 
   stopEditing: action({ ...page, keepDraft: as<boolean | undefined>() }, async ({ pageId, keepDraft }, { member }) => {
     await editing.stopEditing(db(), member, pageId, { keepDraft: keepDraft === true });
+    after("live", () => live.lockChanged(String(pageId)));
     return null;
   }),
 

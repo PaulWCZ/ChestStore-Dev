@@ -567,7 +567,7 @@ export async function exportData(sql: Sql, actor: Member | null, pollId: unknown
 }
 
 // The polls waiting for these members' answer: the number on their tile.
-export async function pendingCounts(sql: Query, people: { id: string; groups: readonly string[]; role: string | null }[], now = new Date()): Promise<Map<string, number>> {
+export async function pendingCounts(sql: Query, people: { id: string; groups: readonly string[] | null; role: string | null }[], now = new Date()): Promise<Map<string, number>> {
   const counts = new Map<string, number>(people.map(p => [p.id, 0]));
   if (people.length === 0) return counts;
   const open = await sql<{ id: string; everyone: boolean; groups: string[]; people: string[] }[]>`
@@ -579,7 +579,7 @@ export async function pendingCounts(sql: Query, people: { id: string; groups: re
   // Their groups are those the Chest names (every group, with
   // "members.groups": lib/groups.ts).
   for (const p of people) {
-    const actor = { id: p.id, role: p.role, isAdmin: false, groups: [...p.groups] };
+    const actor = { id: p.id, role: p.role, isAdmin: false, groups: [...(p.groups ?? [])] };
     counts.set(p.id, open.filter(o => asked(actor, { everyone: o.everyone, groups: o.groups ?? [], people: o.people ?? [] }) && !answered.has(`${o.id}/${p.id}`)).length);
   }
   return counts;

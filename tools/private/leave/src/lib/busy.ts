@@ -1,21 +1,23 @@
 import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
-import { busyFingerprint, busyLimits, busySnapshot, type Span } from "./busy-snapshot.ts";
+import { busyData, busyFingerprint, busyLimits, busySnapshot, type Span } from "./busy-snapshot.ts";
 import { addDays } from "../shared/calendar.ts";
 import type { Query } from "./db.ts";
+import { awayAudience } from "./share.ts";
 import { today } from "./today.ts";
 import { instants } from "./spans.ts";
 import { zonesOf } from "./zones.ts";
 
-// Busy times, for Booking (Proposal (studio): events between tools;
-// chest.proposals.json "emits": "leave.busy"). Booking and Hiring tell each
+// Busy times, for Booking and Hiring (events between tools, SDK 0.5+;
+// chest.json "emits": "leave.busy", its fields flat: the spans are JSON
+// text). Booking and Hiring tell each
 // other when a member is taken ("booking.busy", "hiring.busy"); Leave tells
 // when someone is on approved leave, so a host who is off is not bookable
 // and an interviewer who is off is not offered to a candidate.
 //
 // leave.busy is the shared snapshot, version 1 (lib/busy-snapshot.ts):
-//   { v: 1, member, at, from, to, spans: [[start, end], …] }
+//   { v: 1, member, at, from, to, spans: "[[start, end], …]" }
 // from the start of today (UTC) to 90 days later; each approved leave its
 // whole days in the zone the member works in (lib/zones.ts: the Chest's
 // when the Chest does not say; noon for a half day, lib/spans.ts), as UTC
@@ -29,9 +31,11 @@ import { zonesOf } from "./zones.ts";
 // keeps each one's fingerprint), and every morning as the window moves
 // on. Someone told "nothing" once is not told it again. The same content
 // told within a day is one event; the key carries the time, so busy, free,
-// busy again are three. A courtesy: when the Chest cannot take it (not
-// linked, not granted, its hourly quota), it stops, and the next run goes
-// on from there.
+// busy again are three; the subject is the member (their snapshots come
+// in order); the audience is who sees who is away in Leave, and the
+// person (share.ts awayAudience). A courtesy: when the Chest cannot take it
+// (not approved yet, unreachable), it stops, and the next run goes on
+// from there.
 
 type Row = { member_id: string; start: string; start_half: "am" | "pm"; end: string; end_half: "am" | "pm" };
 
@@ -73,7 +77,7 @@ export async function shareBusy(sql: Query, options: { members?: string[]; now?:
     const empty = snapshot.spans.length === 0;
     if (before?.hash === hash || (empty && (!before || before.empty))) continue;
     try {
-      await events.publish("leave.busy", snapshot, { key: `leave.busy:${member}:${now}:${hash}` });
+      await events.emit("leave.busy", busyData(snapshot), { subject: member, audience: awayAudience(member), key: `leave.busy:${member}:${now}:${hash.slice(0, 32)}` });
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
       return told;
