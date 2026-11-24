@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { ask as chest, json, refusal } from "../src/api.js";
 import { chest as theChest } from "../src/chest.js";
 import { ChestError, Unavailable } from "../src/errors.js";
@@ -75,11 +75,23 @@ export function address(request: Request | Headers_): string | null {
   return /^[0-9a-fA-F:.]{2,45}$/u.test(given) && /[.:]/u.test(given) ? given : null;
 }
 
-// visitor is an opaque key for a visitor of this tool (a hash of their
-// address and the tool), for a tool's own records — never the address.
+// The visitor's key (0.7.0-studio.2): the Chest's front sets
+// Chest-Visitor, HMAC-SHA256 under a key only the Chest holds of the
+// tool's name and the address (22 base64url characters). The tool cannot
+// go back to the address (studio.1's unsalted SHA-256 could: 2^32 IPv4s
+// hash in seconds), and two tools get two keys. A key changes when the
+// Chest rotates its key; a proof needs the Chest to confirm it (README,
+// "visitors"). Outside a Chest, "unknown"; in tests,
+// chest.visitorHeaders(address).
+export const visitorHeader = "chest-visitor";
+export const visitorPattern = /^[A-Za-z0-9_-]{22}$/u;
+
+// visitor is the Chest's opaque key for this visitor of this tool
+// (Chest-Visitor), or "unknown" — never the address, nor anything the tool
+// could turn back into it.
 export function visitor(request: Request | Headers_): string {
-  const a = address(request);
-  return a === null ? "unknown" : createHash("sha256").update((process.env["CHEST_TOOL"] ?? "") + "|" + a).digest("base64url").slice(0, 22);
+  const given = (headersOf(request).get(visitorHeader) ?? "").trim();
+  return visitorPattern.test(given) ? given : "unknown";
 }
 
 const namePattern = /^[a-z][a-z0-9-]{0,31}$/u;

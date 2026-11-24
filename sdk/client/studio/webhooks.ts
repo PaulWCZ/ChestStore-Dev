@@ -17,8 +17,13 @@ import { webhooksChannel } from "./signed.js";
 //   // chest.proposals.json (a 0.7 Chest refuses keys it does not know in
 //   // chest.json) — a permission:
 //   // “Sends notices to web addresses your admins or subscribers give,
-//   //  signed by your Chest (up to 200 addresses)”
-//   "webhooks": { "max": 200 }
+//   //  signed by your Chest”
+//   "webhooks": true
+//
+// No number of addresses (0.7.0-studio.2; a studio.1 {"max"} bounds
+// nothing). Paces: 60 new addresses an hour (RateLimited — an add calls a
+// typed address: unpaced, a scanner), 1,000 deliveries an hour, the rest
+// "pending" in their turn, never refused.
 //
 //   import * as webhooks from "@argentic/chest-sdk/webhooks";
 //   const { id, secret } = await webhooks.add({ url, kind: "generic", label: "Zapier — new answers", owner: who.id });
@@ -92,8 +97,8 @@ const call = async (method: string, path: string, value?: unknown): Promise<Resp
 // never store it. Refused: ChestError invalid_target (the address or the
 // label: nothing is sent), address_refused (422: the name does not resolve,
 // or resolves to a private address), verification_failed (422: the ping of
-// a generic address did not answer 2xx within 10 s), QuotaExceeded (the
-// manifest's max, or 60 new targets an hour), CapabilityNotGranted.
+// a generic address did not answer 2xx within 10 s), RateLimited (60 new
+// targets an hour: retryAfter), CapabilityNotGranted.
 export async function add(input: WebhookInput): Promise<{ id: string; secret: string | null; target: WebhookTarget }> {
   const problems = checkInput(input);
   if (problems.length > 0) throw new ChestError("invalid_target", 400, problems.join("; "));
@@ -164,8 +169,8 @@ export async function rotateSecret(id: string): Promise<string> {
 //                  services yet";
 //   "suspended"    the owner paused the tool's notices (nothing is
 //                  delivered; targets are kept).
-// targets and max say how many addresses the tool has and may have (the
-// manifest's max): "3 of 200"; add() is refused at max even when ok.
+// targets: how many addresses the tool has; max: null since studio.2
+// (kept so studio.1 code compiles).
 export type WebhookAvailability = { ok: boolean; reason: "not_granted" | "suspended" | null; targets: number | null; max: number | null };
 
 // available asks the Chest whether it would deliver now; it never sends
@@ -185,8 +190,9 @@ export async function available(): Promise<WebhookAvailability> {
   if (response.status !== 200) throw await refusal(response, "webhooks");
   const answer = object(await answerOf(response));
   const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
-  if (!answer || !count(answer["targets"]) || !count(answer["max"])) throw new Unavailable();
-  const shape = { targets: answer["targets"], max: answer["max"] };
+  const max = answer?.["max"] ?? null;
+  if (!answer || !count(answer["targets"]) || !(max === null || count(max))) throw new Unavailable();
+  const shape = { targets: answer["targets"], max };
   if (answer["state"] === "ready") return { ok: true, reason: null, ...shape };
   // "suspended", or a state of a later Chest: not a promise to deliver.
   return { ok: false, reason: "suspended", ...shape };
@@ -196,29 +202,32 @@ export async function available(): Promise<WebhookAvailability> {
 // the deliveries (their id, which the receiver sees as Chest-Webhook-Id) and
 // the targets skipped (disabled, or not the tool's). The same key within 24
 // hours answers the first deliveries again and sends nothing. ChestError
-// invalid_message (nothing is sent), QuotaExceeded (1,000 deliveries an
-// hour: nothing is sent), CapabilityNotGranted, Unavailable (the queue may
-// or may not hold it: send again with the same key, which is harmless).
+// invalid_message (nothing is sent), CapabilityNotGranted, Unavailable
+// (the queue may or may not hold it: send again with the same key, which
+// is harmless). Any number of targets, 500 a call (limits.perSend).
 export async function send(targets: string | string[], message: WebhookMessage): Promise<WebhookSent> {
   const ids = [...new Set([targets].flat())];
-  if (ids.length < 1 || ids.length > limits.perSend || !ids.every(id => typeof id === "string" && targetIdPattern.test(id))) throw new ChestError("invalid_message", 400, "1 to 500 target ids (whk_…)");
+  if (ids.length < 1 || !ids.every(id => typeof id === "string" && targetIdPattern.test(id))) throw new ChestError("invalid_message", 400, "1 or more target ids (whk_…)");
   const problems = checkMessage(message);
   if (problems.length > 0) throw new ChestError("invalid_message", 400, problems.join("; "));
-  const response = await call("POST", "/webhooks/send", { targets: ids, event: message.event, text: message.text, ...(message.data !== undefined ? { data: message.data } : {}), key: idempotencyKey(message.key)! });
-  if (response.status !== 200) throw await refusal(response, "webhooks");
-  const answer = object(await answerOf(response));
-  const deliveries = answer?.["deliveries"], skipped = answer?.["skipped"];
-  if (!Array.isArray(deliveries) || !Array.isArray(skipped)) throw new Unavailable();
   const sent: WebhookSent = { deliveries: [], skipped: [] };
-  for (const d of deliveries) {
-    const o = object(d);
-    if (!o || typeof o["id"] !== "string" || !deliveryIdPattern.test(o["id"]) || typeof o["target"] !== "string" || !targetIdPattern.test(o["target"])) throw new Unavailable();
-    sent.deliveries.push({ id: o["id"], target: o["target"] });
-  }
-  for (const s of skipped) {
-    const o = object(s);
-    if (!o || typeof o["target"] !== "string" || (o["reason"] !== "disabled" && o["reason"] !== "not_found")) throw new Unavailable();
-    sent.skipped.push({ target: o["target"], reason: o["reason"] });
+  for (let i = 0; i < ids.length; i += limits.perSend) {
+    const batch = ids.slice(i, i + limits.perSend);
+    const response = await call("POST", "/webhooks/send", { targets: batch, event: message.event, text: message.text, ...(message.data !== undefined ? { data: message.data } : {}), key: idempotencyKey(message.key)! });
+    if (response.status !== 200) throw await refusal(response, "webhooks");
+    const answer = object(await answerOf(response));
+    const deliveries = answer?.["deliveries"], skipped = answer?.["skipped"];
+    if (!Array.isArray(deliveries) || !Array.isArray(skipped)) throw new Unavailable();
+    for (const d of deliveries) {
+      const o = object(d);
+      if (!o || typeof o["id"] !== "string" || !deliveryIdPattern.test(o["id"]) || typeof o["target"] !== "string" || !targetIdPattern.test(o["target"])) throw new Unavailable();
+      sent.deliveries.push({ id: o["id"], target: o["target"] });
+    }
+    for (const s of skipped) {
+      const o = object(s);
+      if (!o || typeof o["target"] !== "string" || (o["reason"] !== "disabled" && o["reason"] !== "not_found")) throw new Unavailable();
+      sent.skipped.push({ target: o["target"], reason: o["reason"] });
+    }
   }
   return sent;
 }

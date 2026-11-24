@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError, QuotaExceeded } from "../../src/errors.js";
+import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited } from "../../src/errors.js";
 import * as files from "../files.js";
 import type { Member } from "../member.js";
 import * as members from "../members.js";
@@ -109,10 +109,16 @@ test("members.matchEmails: addresses → member ids, only for members who have t
     // Any number: 200 a call.
     const many = Array.from({ length: 450 }, (_, n) => `guess${n}@example.test`).concat("camille@example.test");
     assert.deepEqual(await members.matchEmails(many), { "camille@example.test": camille.id });
-    // 5,000 distinct addresses a day: the same ones again are free, new ones beyond are refused.
-    await members.matchEmails(Array.from({ length: 4546 }, (_, n) => `more${n}@example.test`));
+    // No daily number (0.7.0-studio.2): a pace. New addresses at full
+    // speed up to ten a member, 1,000 at least (3 members here: 1,000);
+    // the same ones again are free; beyond, one call with new addresses a
+    // minute — slow down (RateLimited), never QuotaExceeded.
+    assert.equal("perDay" in members.matchLimits, false);
+    await members.matchEmails(Array.from({ length: 546 }, (_, n) => `more${n}@example.test`));
     assert.deepEqual(await members.matchEmails(["camille@example.test", "guess1@example.test"]), { "camille@example.test": camille.id });
-    await assert.rejects(members.matchEmails(["one-more@example.test"]), QuotaExceeded);
+    assert.deepEqual(await members.matchEmails(["one-more@example.test"]), {}, "the first call beyond the day's speed goes through");
+    await assert.rejects(members.matchEmails(["two-more@example.test"]), (e: unknown) => e instanceof RateLimited && !(e instanceof QuotaExceeded));
+    assert.deepEqual(await members.matchEmails(["lea.petit@example.test"]), { "lea.petit@example.test": lea.id }, "addresses already asked are never slowed");
     await assert.rejects(members.matchEmails([42 as unknown as string]), (e: unknown) => e instanceof ChestError && e.code === "invalid_query");
   } finally {
     await chest.close();

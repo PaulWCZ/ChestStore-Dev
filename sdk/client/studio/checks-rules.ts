@@ -4,21 +4,24 @@
 // scripts/check-manifest.mjs imports checkManifest from here.
 
 export const checkPattern = /^[a-z][a-z0-9-]{0,31}$/u;
-export const limits = { checks: 10, minimumMinutes: 1, maximumMinutes: 60, maxMs: 30000 } as const;
+// No number of checks (studio.2): the Chest probes at most
+// probesPerMinute for a tool, each check less often when there are more —
+// never refused (unpaced, the company's server would be a scanner).
+export const limits = { probesPerMinute: 60, minimumMinutes: 1, maximumMinutes: 60, maxMs: 30000 } as const;
 
-// checkManifest lists what is wrong with a manifest's "checks" (none: []).
+// checkManifest lists what is wrong with a manifest's "checks" (none: []):
+// true; studio.1's {"max": N} is read and bounds nothing.
 export function checkManifest(value: unknown): string[] {
+  if (value === true) return [];
   const o = value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-  if (!o || Object.keys(o).some(k => k !== "max")) return ['"checks" is {"max": 1 to 10}'];
-  const max = o["max"];
-  return typeof max === "number" && Number.isInteger(max) && max >= 1 && max <= limits.checks ? [] : ['"checks": max is 1 to 10'];
+  const max = o?.["max"];
+  return o && Object.keys(o).every(k => k === "max") && typeof max === "number" && Number.isInteger(max) && max >= 1 ? [] : ['"checks" is true'];
 }
 
 // checkChecks lists what is wrong with a list of checks (none: []).
 export function checkChecks(value: unknown): string[] {
   if (!Array.isArray(value)) return ['"checks" is a list of {name, url, every, expect}'];
   const problems: string[] = [];
-  if (value.length > limits.checks) problems.push(`at most ${limits.checks} checks`);
   const names = new Set<string>();
   for (const c of value as unknown[]) {
     const o = c !== null && typeof c === "object" && !Array.isArray(c) ? (c as Record<string, unknown>) : null;

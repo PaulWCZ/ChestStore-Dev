@@ -589,7 +589,7 @@ before opening a pull request.
 
 Everything above is the guide of `@argentic/chest-sdk` **0.7.0** as
 Chest-SDK PR #38 holds it at `1a825a6` (not merged, not on npm), word for
-word. This package is **0.7.0-studio.1**: 0.7.0 unchanged, plus the
+word. This package is **0.7.0-studio.2**: 0.7.0 unchanged, plus the
 studio's proposals — primitives the store's tools need that 0.7.0 does not
 give, in files of their own (`client/studio/`). `README.md`, "Studio
 proposals", is their reference; this is the short path.
@@ -604,9 +604,9 @@ proposals", is their reference; this is the short path.
 | Speak the member's language, narrowed to the tool's catalogues | `localeOf(who.language)`, `locales` from `@argentic/chest-sdk/member` | nothing |
 | Email to people **outside** the company (a booking's recap, a quote, a receipt) — never to members | `send`, `available`, `status` from `@argentic/chest-sdk/mail` | `"mail": {"send": true}` |
 | Put events in each member's calendar feed | `put`, `putMany`, `remove`, `list` from `@argentic/chest-sdk/calendar` | `"calendar": true` |
-| Notices to outside addresses (Slack, Teams, any URL) | `add`, `send`, `list`, `journal` from `@argentic/chest-sdk/webhooks` | `"webhooks": {max}` |
-| Checks of web addresses run by the Chest | `configure`, `handle` from `@argentic/chest-sdk/checks` | `"checks": {max}` |
-| Count and guard what anonymous visitors do; their language | `count`, `formToken`, `checkForm`, `language` from `@argentic/chest-sdk/visitors` | nothing |
+| Notices to outside addresses (Slack, Teams, any URL) | `add`, `send`, `list`, `journal` from `@argentic/chest-sdk/webhooks` | `"webhooks": true` |
+| Checks of web addresses run by the Chest | `configure`, `handle` from `@argentic/chest-sdk/checks` | `"checks": true` |
+| Count and guard what anonymous visitors do; their language; a visitor's key for the tool's records (the Chest's, never the address) | `count`, `formToken`, `checkForm`, `language`, `visitor` from `@argentic/chest-sdk/visitors` | nothing |
 | Which addresses are members; when former members left | `members.matchEmails`, `members.leftAt(ids)` | nothing beyond `members` |
 | Files served on the public host (a logo, a header image) | `files.publicPath(name, {version})` | `"files": {"publicFiles": true}` |
 | The store's words in other languages | — (read by the Chest) | `"translations": {"fr": {title, description, role_labels}}` |
@@ -629,7 +629,9 @@ that needs a default currency keeps its own setting.
   will be sent once your Chest can send them"); ask `mail.available()` /
   `webhooks.available()` before offering what needs them.
 - **Tell members with notifications, never mail** (owner's decision, 6
-  October 2026). `mail.send` refuses a member (`invalid_recipient`). The
+  October 2026). `mail.send` refuses a member (`invalid_recipient`): by
+  `{member}`, by `mbr_…`, and — the Chest knows them — by their own
+  address, whatever its case (a former member's address is outside). The
   Chest mails members their notifications by their own choice: no digest,
   no reminder mail, no "email me" setting in a tool. Give every notice
   `translations: { fr: … }` from the tool's French catalogue, a `path` and
@@ -642,10 +644,25 @@ that needs a default currency keeps its own setting.
   says so. Document each outside mail in the tool's README ("Mail to people
   outside the company": recipient, purpose, when, content, attachments,
   Reply-To).
+- **No fixed caps; paces** (owner, brief/09). Mail has no daily number:
+  beyond the Chest's pace a message waits `"queued"`, never refused.
+  `matchEmails` slows down (`RateLimited`) beyond ten new addresses a
+  member a day; webhooks and checks have no number (`"webhooks": true`,
+  `"checks": true`; a studio.1 `{max}` bounds nothing): new webhook
+  addresses are paced (`RateLimited`), deliveries beyond the hour wait
+  `"pending"`, probes are spread. Catch `RateLimited` and go on later;
+  never show "3 of 200" or "the day's emails are used".
+- **A visitor's key is the Chest's.** `visitors.visitor(request)` reads
+  `Chest-Visitor` (an HMAC under a key only the Chest holds); keep it, never
+  `visitors.address()`. It changes if the Chest rotates its key: it names a
+  visitor within a flow, not forever. In tests,
+  `chest.visitorHeaders(address)` plays the front.
 - **Keep `chest.json` 0.7's.** `"chest": "0.7"`; a 0.7 Chest refuses a key
   it does not know: the proposals' keys go in `chest.proposals.json` (the
   studio's `scripts/check-manifest.mjs` checks it; `chest check` judges
-  `chest.json`).
+  `chest.json`). `build.static` covers neither 0.7.0's routes nor the
+  proposals' `/chest-webhooks` and `/chest-checks` (check-manifest refuses
+  it).
 - **The Chest is one object.** `import { chest } from
   "@argentic/chest-sdk/chest"`: 0.7.0's members (throw `not_in_chest`
   outside a Chest) and the studio's `tools`, `theme()`, `todayIn()`. Never
@@ -670,7 +687,10 @@ that needs a default currency keeps its own setting.
   defaults); a test's member may leave out `language` and `timeZone` (type
   `FakeMember`): the Chest's are given. `fakeChest({ mail: { connected:
   false } })` is the mail connector absent, `mail: { replyTo }` the
-  company's reply address; `chest.outbox` what was sent;
+  company's reply address, `mail: { pace: { burst, perMinute } }` the
+  pace (`perDay` is gone: it throws); `chest.outbox` what was sent (beyond
+  the pace, `"queued"`); `chest.visitorHeaders(address)` a visitor's
+  request headers;
   `chest.notifications` keeps each item in the member's language (0.7.0's).
 
 ## Pitfalls of the proposals
@@ -685,5 +705,9 @@ that needs a default currency keeps its own setting.
 | `fakeChest` throws "the Chest has no currency" | `chest: { currency }`: gone in 0.7.0; keep the tool's own currency setting. |
 | `fakeChest` throws "storage is {publicFiles}" | `storage: { publicUploads }`: a visitor's upload is 0.7.0's `files.uploadUrl("folder/", { public: true, types })`. |
 | `who.groups` is `null` | 0.7.0's groups overage: the member is in more groups than an assertion carries; read them with `members.get(who.id)`. |
-| `ChestError` `invalid_recipient` from `mail.send` | A member (`{member}` or `mbr_…`) as a recipient: tell them with `notifications.notify` instead. |
+| `ChestError` `invalid_recipient` from `mail.send` | A member (`{member}`, `mbr_…`, or a member's own address) as a recipient: tell them with `notifications.notify` instead. |
+| `visitors.visitor()` is always `"unknown"` | No `Chest-Visitor` header: a Chest (or the lab's front) that does not give the key yet, or a test that set only `chest-visitor-address` — use `chest.visitorHeaders(address)`. The SDK never computes a key from the address. |
+| `fakeChest` throws "mail.perDay is gone" | No daily number since studio.2: `mail: { pace: { burst, perMinute } }`. |
+| `check-manifest` warns `{"max"} bounds nothing` | `"webhooks": true`, `"checks": true` in `chest.proposals.json` (studio.2). |
+| `check-manifest`: build.static covers /chest-webhooks or /chest-checks | A static prefix (`/`, `/chest-`, …) over a proposal's delivery route: serve built files under `/_next/static/`. |
 | `chest.tools.get(name)` is null for an installed tool | Its address is not an https origin (a local `http://` one included). |

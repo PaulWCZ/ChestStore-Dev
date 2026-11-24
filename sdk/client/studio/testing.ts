@@ -1,9 +1,10 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect as connectSocket, isIP, type AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { member as memberOf, memberIdPattern, type Member } from "../src/member.js";
 import { forget } from "../src/members.js";
+import { matchLimits } from "./members.js";
 import { sign, type Channel } from "../src/signed.js";
 import { fakeChest as officialFakeChest, signAssertion as officialSignAssertion, withMember as officialWithMember, type AssertionOptions, type FakeChest as OfficialFakeChest, type FakeChestOptions as OfficialFakeChestOptions, type FakeFormer as OfficialFakeFormer } from "../src/testing.js";
 import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar-rules.js";
@@ -99,8 +100,9 @@ export type FakeWebhooks = {
   // How a target (by id, or by its whole address before it is added)
   // answers from now on; 200 by default.
   respond(target: string, answer: FakeWebhookAnswer): void;
-  // The time of every pending retry comes: each delivery "retrying" is
-  // attempted once more. Says how many were attempted.
+  // The time of every pending retry comes: each delivery "retrying" — and
+  // each one the pace held back ("pending") — is attempted once more. Says
+  // how many were attempted.
   retry(): Promise<number>;
 };
 // A choice as a test names it: what theme() answers, without its scope
@@ -111,7 +113,8 @@ export type FakeTheme = { all?: FakeThemeChoice | null; tools?: Record<string, F
 // A message the tool sent to people outside, as the fake Chest's outbox
 // keeps it: replyTo is the Reply-To it went with — the tool's, or the
 // company's reply address (mail.replyTo) — absent when there was none.
-export type FakeMail = { id: string; messageId: string; from: string; fromName: string | null; to: string[]; cc: string[]; subject: string; text: string; html?: string; replyTo?: string; attachments: { name: string; type: string; size: number }[]; key?: string; status: "sent" | "bounced" | "complained" };
+// "queued": beyond the pace, until sendAt (then "sent").
+export type FakeMail = { id: string; messageId: string; from: string; fromName: string | null; to: string[]; cc: string[]; subject: string; text: string; html?: string; replyTo?: string; attachments: { name: string; type: string; size: number }[]; key?: string; status: "queued" | "sent" | "bounced" | "complained"; sendAt?: string };
 // An event of the calendar as the fake Chest keeps it.
 export type FakeCalendarEvent = KeptEvent;
 type Target = string | ((request: Request) => Response | Promise<Response>);
@@ -135,8 +138,9 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
   // The Chest's ceiling per visitor's address across the tools, an hour
   // (visitors.count).
   visitors?: { perAddressHour?: number };
-  // Checks run by the Chest (chest.proposals.json "checks": {max}).
-  checks?: { max: number };
+  // Checks run by the Chest ("checks": true; a studio.1 {max} bounds
+  // nothing).
+  checks?: true | { max?: number };
   // Whether the Chest delivers mail and webhooks (mail.available,
   // webhooks.available): "ready" by default; also chest.delivery.
   delivery?: Partial<FakeDelivery>;
@@ -150,8 +154,10 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
   // as delivery.mail "not_connected". replyTo: the company's reply address
   // set with the connector, the Reply-To of every message that names none
   // ("contact@<domain>" by default; null: none set). domain: the
-  // company's (company.test); messages go from no-reply@<domain>.
-  mail?: { connected?: boolean; replyTo?: string | null; domain?: string; perDay?: number; suppressed?: string[] };
+  // company's (company.test); messages go from no-reply@<domain>. pace:
+  // mail.limits.pace's; beyond it, "queued" until sendAt. A member's
+  // email is refused (invalid_recipient).
+  mail?: { connected?: boolean; replyTo?: string | null; domain?: string; pace?: { burst?: number; perMinute?: number }; suppressed?: string[] };
   // The calendar bridge (with "calendar" in capabilities): the Chest's
   // domain in UIDs, the tool's title in each event's category, the name of
   // the feed ("Atelier Martin" gives "Chest — Atelier Martin"; the Chest's
@@ -163,13 +169,14 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
   // The files the Chest's front serves under /_chest/theme/ (the
   // catalogue's fonts, a brand's fonts and logo), by path below it.
   themeFiles?: Record<string, { data: Uint8Array | string; type?: string }>;
-  // Webhooks (chest.proposals.json "webhooks": {max}). resolve plays DNS (a
+  // Webhooks ("webhooks": true; a studio.1 max bounds nothing). resolve
+  // plays DNS (a
   // host name → the address it resolves to, "nxdomain": none; a name left
   // out resolves to a public address); deliver, when given, receives each
   // POST the Chest would make (a test's own receiver), otherwise every
   // target answers 200 until chest.webhooks.respond() says otherwise; to is
   // where webhook.disabled is posted (also chest.webhooks.to).
-  webhooks?: { max: number; resolve?: Record<string, string>; deliver?: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string }) => Promise<Response | number>; to?: Target };
+  webhooks?: { max?: number; resolve?: Record<string, string>; deliver?: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string }) => Promise<Response | number>; to?: Target };
   // The hosts the tool declares (chest.json "network") and who answers for
   // each — "graph.microsoft.com", "*.icloud.com" for every name below it,
   // "*" for any host. While the fake runs, the tool's plain fetch() goes as
@@ -236,6 +243,10 @@ export type FakeChest = Omit<OfficialFakeChest, "members"> & {
   tools: Record<string, { teamUrl: string; publicUrl: string | null }>;
   installTool(name: string, addresses?: FakeToolAddresses | true): void;
   removeTool(name: string): void;
+  // visitorHeaders plays the front for a visitor at this address:
+  // Chest-Visitor-Address and Chest-Visitor (an HMAC under a secret drawn
+  // at each run), with extra headers.
+  visitorHeaders(address: string, extra?: Record<string, string>): Headers;
 };
 
 // completed is a test's member as the Chest would send them: the Chest's
@@ -274,7 +285,7 @@ export function withMember<R extends Request | IncomingMessage>(request: R, memb
 export type { AssertionOptions, FakeAi, FakeAiCall, FakeAiModel, FakeAiReply, FakeChannelRule, FakeDocument, FakeDocumentOpen, FakeEmits, FakeEmitted, FakeEvent, FakeFeed, FakeFile, FakeFolder, FakeFolders, FakeFoldersOptions, FakeGroup, FakeNotification, FakeOpen, FakePublished, FakeRealtime, FakeRealtimeOptions, FakeRun, FakeSent } from "../src/testing.js";
 
 // The bounds the studio's fakes keep (0.7.0's own are in its fake).
-const callsPerMinute = 600, matchPerCall = 200, matchPerDay = 5000;
+const callsPerMinute = 600, matchPerCall = 200;
 
 function send(response: ServerResponse, status: number, value?: unknown, headers: Record<string, string> = {}): void {
   if (value === undefined) return void response.writeHead(status, headers).end();
@@ -384,7 +395,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   if (options.network) checkNetwork(options.network);
   const givenReply = options.mail?.replyTo;
   if (givenReply !== undefined && givenReply !== null && !isAddress(givenReply)) throw new Error("fakeChest: mail.replyTo is an email address, or null");
-  if (options.mail && Object.keys(options.mail).some(k => !["connected", "replyTo", "domain", "perDay", "suppressed"].includes(k))) throw new Error("fakeChest: mail is {connected, replyTo, domain, perDay, suppressed} (mailboxes and received mail are gone: the Chest receives no mail)");
+  if (options.mail && Object.hasOwn(options.mail, "perDay")) throw new Error("fakeChest: mail.perDay is gone (0.7.0-studio.2): no daily number, the Chest paces — mail: {pace: {burst, perMinute}}");
+  if (options.mail && Object.keys(options.mail).some(k => !["connected", "replyTo", "domain", "pace", "suppressed"].includes(k))) throw new Error("fakeChest: mail is {connected, replyTo, domain, pace, suppressed} (mailboxes and received mail are gone: the Chest receives no mail)");
   if (options.storage && Object.keys(options.storage).some(k => k !== "publicFiles")) throw new Error("fakeChest: storage is {publicFiles} (a visitor's upload is 0.7.0's files.uploadUrl(folder, {public: true}))");
   if (options.chest && Object.hasOwn(options.chest, "currency")) throw new Error("fakeChest: the Chest has no currency (0.7.0): a tool keeps its own");
   for (const name of Object.keys(options.tools ?? {})) if (!toolNamePattern.test(name)) throw new Error(`fakeChest: ${JSON.stringify(name)} is not a tool's name (chest.json "name")`);
@@ -430,7 +442,11 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     tools: {},
     installTool: () => {},
     removeTool: () => {},
+    visitorHeaders: (address: string, extra: Record<string, string> = {}) => new Headers({ ...extra, "chest-visitor-address": address, "chest-visitor": createHmac("sha256", visitorKey).update(`${tool}|${address}`).digest("base64url").slice(0, 22) }),
   } as unknown as FakeChest;
+  // The Chest's own key for visitors' keys (visitors.visitor): drawn at
+  // each run, never in the tool's environment.
+  const visitorKey = randomBytes(32);
   for (const name of Object.keys(official) as (keyof OfficialFakeChest)[]) {
     if (name === "close") continue;
     Object.defineProperty(chest, name, {
@@ -465,12 +481,13 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     if (!options.checks) return send(response, 404, { error: "not_found" });
     if (request.method === "GET") return send(response, 200, { checks: chest.checks });
     if (request.method !== "PUT") return send(response, 404, { error: "not_found" });
-    const raw = await body(request, 16 << 10);
+    // No number of checks: the Chest paces its probes instead.
+    const raw = await body(request, 4 << 20);
+    if (raw === null) return send(response, 413, { error: "too_large" });
     let c: Record<string, unknown>;
-    try { c = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_checks" }); }
+    try { c = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_checks" }); }
     const given = c["checks"];
     if (!Array.isArray(given)) return send(response, 400, { error: "invalid_checks" });
-    if (given.length > options.checks.max) return send(response, 429, { error: "quota_exceeded" });
     chest.checks = given as FakeChest["checks"];
     send(response, 200, { checks: chest.checks });
   }
@@ -574,7 +591,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   }
   hooks.respond = (target, answer) => void answers.set(target, answer);
   hooks.retry = async () => {
-    const due = hooks.deliveries.filter(d => d.status === "retrying");
+    const due = hooks.deliveries.filter(d => d.status === "retrying" || (d.status === "pending" && d.nextAttemptAt !== null));
+    hookHour = { start: 0, count: 0 };
     for (const d of due) await attempt(d);
     return due.length;
   };
@@ -587,7 +605,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       try { const v = JSON.parse(raw?.toString() ?? "") as unknown; return v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null; } catch { return null; }
     };
     // Proposal (0.3.0-studio.16): whether the Chest would deliver, without sending.
-    if (url.pathname === "/webhooks/status" && request.method === "GET") return send(response, 200, { state: chest.delivery.webhooks, targets: hooks.targets.length, max: hookOptions.max });
+    if (url.pathname === "/webhooks/status" && request.method === "GET") return send(response, 200, { state: chest.delivery.webhooks, targets: hooks.targets.length, max: null });
     // Paused by the owner: nothing is added or sent.
     if (chest.delivery.webhooks === "suspended" && request.method === "POST" && (url.pathname === "/webhooks" || url.pathname === "/webhooks/send")) return send(response, 409, { error: "suspended" });
     if (url.pathname === "/webhooks" && request.method === "GET") return send(response, 200, { targets: hooks.targets.map(shownTarget) });
@@ -595,9 +613,10 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const given = await readBody();
       // The Chest checks what the SDK checked: the same rules.
       if (!given || checkWebhookInput(given).length > 0) return send(response, 400, { error: "invalid_target" });
-      if (hooks.targets.length >= hookOptions.max) return send(response, 429, { error: "quota_exceeded" });
+      // No number of targets; new ones are paced (an add resolves and
+      // calls an address someone typed): slow down, try again later.
       if (!live(hookAdds, 3_600_000, now)) hookAdds = { start: now, count: 0 };
-      if (hookAdds.count >= webhookLimits.addsPerHour) return send(response, 429, { error: "quota_exceeded" }, wait(hookAdds, 3_600_000, now));
+      if (hookAdds.count >= webhookLimits.addsPerHour) return send(response, 429, { error: "rate_limited" }, wait(hookAdds, 3_600_000, now));
       const fullUrl = given["url"] as string, kind = given["kind"] as WebhookKind;
       if (resolveHost(new URL(fullUrl).hostname) !== "ok") return send(response, 422, { error: "address_refused" });
       hookAdds.count++;
@@ -627,15 +646,20 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         if (t.state === "disabled") return { id, skip: "disabled" as const };
         return { id, target: t };
       });
-      const count = plan.filter(p => "target" in p).length;
+      // Never refused for how many: beyond the hour's pace, a delivery
+      // waits in the queue (pending, its turn at nextAttemptAt).
       if (!live(hookHour, 3_600_000, now)) hookHour = { start: now, count: 0 };
-      if (hookHour.count + count > webhookLimits.deliveriesPerHour) return send(response, 429, { error: "quota_exceeded" }, wait(hookHour, 3_600_000, now));
-      hookHour.count += count;
+      const turn = new Date(hookHour.start + 3_600_000).toISOString();
+      const heldBack = new Set<string>();
       const answer: { deliveries: { id: string; target: string }[]; skipped: { target: string; reason: string }[] } = { deliveries: [], skipped: [] };
       for (const p of plan) {
         if ("skip" in p) { answer.skipped.push({ target: p.id, reason: p.skip! }); continue; }
         if ("existing" in p) { answer.deliveries.push({ id: p.existing!.id, target: p.id }); continue; }
         const d: FakeWebhookDelivery = { id: hookId("whd_"), target: p.id, event: message["event"] as string, key, status: "pending", attempts: 0, responseStatus: null, lastError: null, createdAt: new Date(now).toISOString(), deliveredAt: null, nextAttemptAt: null, text: message["text"] as string, ...(message["data"] ? { data: message["data"] as Record<string, unknown> } : {}), request: null };
+        if (hookHour.count >= webhookLimits.deliveriesPerHour) {
+          d.nextAttemptAt = turn;
+          heldBack.add(d.id);
+        } else hookHour.count++;
         hooks.deliveries.push(d);
         hookKeys.set(p.id + "\u0000" + key, d);
         answer.deliveries.push({ id: d.id, target: p.id });
@@ -645,7 +669,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       // outcome right after send().
       for (const p of answer.deliveries) {
         const d = hooks.deliveries.find(x => x.id === p.id)!;
-        if (d.status === "pending") await attempt(d);
+        if (d.status === "pending" && !heldBack.has(d.id)) await attempt(d);
       }
       return send(response, 200, answer);
     }
@@ -718,19 +742,36 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const suppressed = new Set((mailOptions.suppressed ?? []).map(a => a.toLowerCase()));
   // What a key answered, for 24 hours, and who it went to.
   const sentKeys = new Map<string, { answer: Record<string, unknown>; recipients: string; at: number }>();
-  const mailDay: Window = { start: 0, count: 0 };
+  // The pace: a bucket of burst messages, filled perMinute a minute; a
+  // message without one waits its turn after those already waiting.
+  const pace = { burst: mailOptions.pace?.burst ?? 100, perMinute: mailOptions.pace?.perMinute ?? 10 };
+  let paceTokens = pace.burst, paceAt = Date.now(), paceTail = 0;
+  const paced = (now: number): number | null => {
+    paceTokens = Math.min(pace.burst, paceTokens + ((now - paceAt) / 60_000) * pace.perMinute);
+    paceAt = now;
+    if (paceTokens >= 1 && paceTail <= now) {
+      paceTokens -= 1;
+      return null;
+    }
+    paceTail = Math.max(paceTail, now) + 60_000 / pace.perMinute;
+    return paceTail;
+  };
+  const due = (m: FakeMail): FakeMail => {
+    if (m.status === "queued" && m.sendAt !== undefined && Date.parse(m.sendAt) <= Date.now()) m.status = "sent";
+    return m;
+  };
   const newId = (prefix: string) => prefix + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
   const mailKeys = new Set(["to", "cc", "subject", "text", "html", "from_name", "reply_to", "attachments", "key"]);
   async function mailRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
     if (!capabilities.has("mail")) return send(response, 404, { error: "not_found" });
     // Whether the Chest would deliver, without sending; the company's reply address.
     if (url.pathname === "/mail/status" && request.method === "GET") {
-      const left = Math.max(0, (mailOptions.perDay ?? 500) - (live(mailDay, 86_400_000, Date.now()) ? mailDay.count : 0));
-      return send(response, 200, { send: chest.delivery.mail, remaining_today: left, reply_to: replyTo() });
+      return send(response, 200, { send: chest.delivery.mail, remaining_today: null, reply_to: replyTo() });
     }
     const one = /^\/mail\/messages\/(msg_[a-z2-7]{26})$/u.exec(url.pathname);
     if (request.method === "GET" && one) {
-      const m = chest.outbox.find(x => x.id === one[1]);
+      const found = chest.outbox.find(x => x.id === one[1]);
+      const m = found ? due(found) : undefined;
       return m ? send(response, 200, { id: m.id, status: m.status, at: new Date().toISOString() }) : send(response, 404, { error: "not_found" });
     }
     if (request.method !== "POST" || url.pathname !== "/mail/messages") return send(response, 404, { error: "not_found" });
@@ -756,6 +797,11 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     };
     const to = addresses(m["to"]), cc = addresses(m["cc"] ?? []);
     if (to === "member" || cc === "member") return send(response, 400, { error: "invalid_recipient" });
+    // The Chest knows its members' addresses: a member is told with a
+    // notification, never mailed by their address (a former member is
+    // outside the company now).
+    const theirs = new Set(chest.members.flatMap(x => x.email === undefined ? [] : [x.email.trim().toLowerCase()]));
+    if (to && cc && [...to, ...cc].some(a => theirs.has(a.trim().toLowerCase()))) return send(response, 400, { error: "invalid_recipient" });
     if (!to || !cc || to.length < 1 || to.length + cc.length > 50) return send(response, 400, { error: "invalid_address" });
     // What the Chest checks whatever the SDK did (a tool that bypassed it):
     // headers that cannot be split, attachments it can send.
@@ -779,8 +825,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const allowed = [...to, ...cc].filter(a => !suppressed.has(a.toLowerCase()));
     if (allowed.length === 0) return send(response, 422, { error: "suppressed" });
     const now = Date.now();
-    if (live(mailDay, 86_400_000, now) && mailDay.count >= (mailOptions.perDay ?? 500)) return send(response, 429, { error: "quota_exceeded" }, wait(mailDay, 86_400_000, now));
-    count(mailDay, 86_400_000, now, 1);
+    // Never refused for how many: beyond the pace, it waits its turn.
+    const sendAt = paced(now);
     const attachments = (given as Record<string, unknown>[]).map(a => typeof a["file"] === "string"
       ? { name: String(a["name"] ?? a["file"]), type: chest.files.get(a["file"])!.type, size: chest.files.get(a["file"])!.data.byteLength }
       : { name: String(a["name"]), type: String(a["type"]), size: Buffer.from(String(a["content"]), "base64").byteLength });
@@ -797,7 +843,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       ...(reply !== null ? { replyTo: reply } : {}),
       attachments,
       ...(typeof key === "string" ? { key } : {}),
-      status: "sent",
+      status: sendAt === null ? "sent" : "queued",
+      ...(sendAt !== null ? { sendAt: new Date(sendAt).toISOString() } : {}),
     };
     chest.outbox.push(kept);
     const answer = { id, message_id: kept.messageId, status: "queued" };
@@ -894,6 +941,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // ---- Members: matchEmails, leftAt ----
   let window = 0, calls = 0;
   const matchDay: Window = { start: 0, count: 0 }, matchedToday = new Set<string>();
+  let matchPacedAt = -Infinity;
   const readJson = async (request: IncomingMessage, limit: number): Promise<Record<string, unknown> | null> => {
     const raw = await body(request, limit);
     try {
@@ -917,7 +965,15 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         matchedToday.clear();
       }
       const fresh = asked.filter(e => !matchedToday.has(e));
-      if (matchedToday.size + fresh.length > matchPerDay) return send(response, 429, { error: "quota_exceeded" }, wait(matchDay, 86_400_000, now));
+      // The day's new addresses at full speed: ten for each member of the
+      // Chest, 1,000 at least; beyond, a call with new addresses a minute
+      // (rate_limited: slow down) — a list of guesses goes slowly, a real
+      // list goes through.
+      const allowance = Math.max(matchLimits.minimumPerDay, matchLimits.perMemberPerDay * chest.members.length);
+      if (fresh.length > 0 && matchedToday.size + fresh.length > allowance) {
+        if (now - matchPacedAt < 60_000) return send(response, 429, { error: "rate_limited" }, { "Retry-After": String(Math.max(1, Math.ceil((matchPacedAt + 60_000 - now) / 1000))) });
+        matchPacedAt = now;
+      }
       for (const e of fresh) matchedToday.add(e);
       matchDay.count = matchedToday.size;
       const matches = asked.flatMap(e => {

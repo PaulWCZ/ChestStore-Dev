@@ -37,14 +37,17 @@ function checkId(id: unknown): string {
 //   for (const d of devices) d.member = ids[d.user] ?? null;
 //
 // Matching is on the whole address, whatever its case, after trimming
-// spaces; the member's sign-in address only (no alias). Bounds: 200
-// addresses a call (the SDK sends any number, 200 at a time), counted in
-// the 600 calls a minute of members (RateLimited), and 5,000 distinct
-// addresses a day per tool (QuotaExceeded: a tool cannot walk a directory
-// of guesses; the same address again the same day is free). The Chest
-// journals each call (count, not the addresses). What is not an address
-// is never sent, and never matches.
-export const matchLimits = { perCall: 200, perDay: 5000 } as const;
+// spaces; the member's sign-in address only (no alias). What is not an
+// address is never sent, and never matches. The Chest journals each call
+// (count, not the addresses).
+//
+// Bounds: 200 addresses a call (the SDK sends any number), in the 600
+// calls a minute of members. No daily number (0.7.0-studio.2): new
+// addresses at full speed up to ten a member of the Chest a day (1,000 at
+// least), then one call with new ones a minute (RateLimited) — matching is
+// an oracle, and a list of guesses must not reveal what members.email
+// guards (README, "matchEmails").
+export const matchLimits = { perCall: 200, perMemberPerDay: 10, minimumPerDay: 1000 } as const;
 const looseAddress = /^[^\s@]{1,64}@[^\s@]{1,253}$/u;
 
 // matchEmails says which of these addresses are members who have the tool:

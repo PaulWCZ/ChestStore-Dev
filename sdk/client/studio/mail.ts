@@ -8,7 +8,9 @@ import { idempotencyKey } from "./keys.js";
 // - Mail to members is never a tool's job. A tool tells a member with a
 //   notification (notifications.notify, notifications.broadcast); the Chest
 //   itself mails members their notifications, by each member's choice.
-//   send refuses a member as a recipient ({member} or an "mbr_…").
+//   send refuses a member as a recipient: {member}, an "mbr_…", or (the
+//   Chest knows them) a member's own address, any case. A former
+//   member is outside: mailed.
 // - The Chest never receives mail: no mailbox, no inbound message, no reply
 //   thread, no POST /chest-mail. A tool that wants replies from the public
 //   lets them go to the company's own address (Reply-To): they land in the
@@ -27,7 +29,7 @@ import { idempotencyKey } from "./keys.js";
 //   "mail": { "send": true }
 //
 //   import * as mail from "@argentic/chest-sdk/mail";
-//   const can = await mail.available();          // {ok, reason, remainingToday, replyTo}
+//   const can = await mail.available();          // {ok, reason, replyTo}
 //   await mail.send({ to: "client@example.com", subject: "Your booking on 3 November", text, attachments: [{ name: "booking.ics", type: "text/calendar", content: ics }], key: `booking:${id}:recap` });
 //
 // What the Chest does: it sends through the company's provider, from the
@@ -40,9 +42,10 @@ import { idempotencyKey } from "./keys.js";
 // credential. status(id) is how a tool learns that a message bounced:
 // nothing is posted to the tool.
 //
-// Bounds: 500 messages a day per tool (the owner may raise it), 50
-// recipients a message, 10 MiB a message with its attachments, 998
-// characters a subject line.
+// No daily number (0.7.0-studio.2: no fixed caps): a pace (limits.pace,
+// 100 at once then 10 a minute); beyond, a message waits "queued", never
+// refused — the company's domain is protected from a tool gone wrong. A
+// message: 50 recipients, 10 MiB, a 998-character subject (README).
 
 // A recipient: an email address, as a string. Never a member (notify them).
 export type Address = string;
@@ -83,7 +86,7 @@ export type Status = { id: string; status: "queued" | "sent" | "delivered" | "bo
 // and its digest; null when it is not a key.
 export { idempotencyKey };
 
-export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500 } as const;
+export const limits = { recipients: 50, size: 10 << 20, subject: 998, pace: { burst: 100, perMinute: 10 } } as const;
 export const messageIdPattern = /^msg_[a-z2-7]{26}$/u;
 const address = /^[^\s\p{Cc}@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
 // The keys a message may have; anything else (mailbox, thread, inReplyTo,
@@ -99,8 +102,8 @@ export function isAddress(value: unknown): value is string {
 }
 
 // recipients reads to or cc: addresses only. A member — {member: "mbr_…"}
-// or the identifier itself — is refused with invalid_recipient: members
-// are told with notifications, and the Chest mails them by their choice.
+// or the identifier itself — is refused with invalid_recipient (a
+// member's address: by the Chest, which knows them).
 function recipients(value: unknown): string[] {
   if (value === undefined) return [];
   const list: unknown[] = Array.isArray(value) ? value : [value];
@@ -120,11 +123,11 @@ const headerSafe = (s: string) => !/[\u0000-\u0008\u000a-\u001f\u007f\u0085\u202
 
 // send asks the Chest to send one message to people outside the company;
 // it answers once the message is queued (sending is the Chest's). Errors:
-// ChestError invalid_recipient (a member: notify them), invalid_address,
+// ChestError invalid_recipient (a member, by id or by their address:
+// notify them), invalid_address,
 // invalid_message, suppressed (every recipient refuses email: bounced or
 // complained), key_conflict (409: the key was used within 24 hours for
-// other recipients — nothing sent), TooLarge, QuotaExceeded (the day's
-// messages), Unavailable (the owner has not connected the company's mail
+// other recipients — nothing sent), TooLarge, Unavailable (the owner has not connected the company's mail
 // provider, the Chest stopped sending for now, or it did not answer), and
 // CapabilityNotGranted when the version does not declare "mail" or the
 // Chest has no mail. Ask available() first to say why on a page; whatever
@@ -204,10 +207,9 @@ export async function status(id: string): Promise<Status | null> {
 //                    provider — "Ask your Chest's owner to connect email";
 //   "suspended"      the Chest stopped sending for now (the provider
 //                    refuses it, the owner paused the tool's mail);
-//   "quota"          the day's messages are used — "Emails go out again
-//                    tomorrow".
-// remainingToday is what is left of the day's messages (null when the
-// Chest does not say). replyTo is the company's reply address the owner
+//   "quota"          only from a studio.1 Chest (a day's number); kept
+//                    so studio.1 code compiles.
+// remainingToday is null on a studio.2 Chest (no day's number). replyTo is the company's reply address the owner
 // set with the connector — where replies to the tool's mails land when the
 // tool gives no replyTo — to show on a page ("Replies go to
 // contact@atelier-martin.fr"); null when the owner set none (replies then

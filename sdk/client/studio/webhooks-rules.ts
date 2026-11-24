@@ -78,13 +78,12 @@ export const webhookEventPattern = /^[a-z][a-z0-9_.-]{0,63}$/u;
 export const keyPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 export const secretPattern = /^whsec_[A-Za-z0-9_-]{43}$/u;
 export const limits = {
-  // The manifest's max: 1 to 1,000 targets.
-  targets: 1000,
-  // New targets an hour (a public subscription form is bounded by it too).
+  // No number of targets (studio.2). New targets an hour, then
+  // RateLimited (an add calls a typed address: unpaced, a scanner).
   addsPerHour: 60,
-  // Deliveries an hour, per tool (a send to 50 targets is 50).
+  // Deliveries an hour at once; beyond, "pending" in turn, never refused.
   deliveriesPerHour: 1000,
-  // Targets a send.
+  // Targets one call carries (send() makes as many calls as needed).
   perSend: 500,
   text: 4000,
   label: 80,
@@ -100,12 +99,13 @@ export const limits = {
   overlap: 86400,
 } as const;
 
-// checkManifest lists what is wrong with a manifest's "webhooks" (none: []).
+// checkManifest lists what is wrong with a manifest's "webhooks" (none:
+// []): true; studio.1's {"max": N} is read and bounds nothing.
 export function checkManifest(value: unknown): string[] {
+  if (value === true) return [];
   const o = value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-  if (!o || Object.keys(o).some(k => k !== "max")) return ['"webhooks" is {"max": 1 to 1000}'];
-  const max = o["max"];
-  return typeof max === "number" && Number.isInteger(max) && max >= 1 && max <= limits.targets ? [] : ['"webhooks": max is 1 to 1000'];
+  const max = o?.["max"];
+  return o && Object.keys(o).every(k => k === "max") && typeof max === "number" && Number.isInteger(max) && max >= 1 ? [] : ['"webhooks" is true'];
 }
 
 // The addresses a delivery never goes to (IANA special-purpose registries):

@@ -52,7 +52,7 @@ const studio = {
   mail: ["available", "idempotencyKey", "isAddress", "limits", "messageIdPattern", "send", "status"],
   calendar: ["ics", "keyPattern", "limits", "list", "pick", "put", "putMany", "remove", "uidOf"],
   webhooks: ["add", "available", "checkUrl", "deliveryIdPattern", "enable", "eventIdPattern", "handle", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "send", "targetIdPattern", "verify", "webhookEventPattern"],
-  visitors: ["address", "addressHeader", "checkForm", "count", "formToken", "language", "visitor"],
+  visitors: ["address", "addressHeader", "checkForm", "count", "formToken", "language", "visitor", "visitorHeader", "visitorPattern"],
   checks: ["checkIdPattern", "checkPattern", "configure", "handle", "limits", "list", "verify"],
 };
 const expected = Object.fromEntries([...new Set([...Object.keys(official), ...Object.keys(studio)])].map(sub => [sub, [...(official[sub] ?? []), ...(studio[sub] ?? [])].sort()]));

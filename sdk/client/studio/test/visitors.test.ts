@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { fakeChest } from "../testing.js";
 import * as visitors from "../visitors.js";
@@ -21,7 +22,7 @@ test("a form's token: ours, not too fast, not too old", async () => {
   }
 });
 
-test("the visitor's address and key: the front's Chest-Visitor-Address only, hashed with the tool", () => {
+test("the visitor's address: the front's Chest-Visitor-Address only", () => {
   // X-Forwarded-For is the visitor's own words: never read.
   assert.equal(visitors.address(new Headers({ "x-forwarded-for": "203.0.113.9" })), null);
   assert.equal(visitors.visitor(new Headers({ "x-forwarded-for": "203.0.113.9" })), "unknown");
@@ -29,13 +30,45 @@ test("the visitor's address and key: the front's Chest-Visitor-Address only, has
   assert.equal(visitors.address(from("203.0.113.9")), "203.0.113.9");
   assert.equal(visitors.address(new Headers()), null);
   assert.equal(visitors.address(from("<script>")), null);
-  assert.equal(visitors.visitor(new Headers()), "unknown");
-  assert.equal(visitors.visitor(from("203.0.113.9")).length, 22);
-  assert.notEqual(visitors.visitor(from("203.0.113.9")), visitors.visitor(from("198.51.100.4")));
   // A Request, and a headers object that has a field named "headers" of its own (Next's headers()).
   assert.equal(visitors.address(new Request("http://tool.test/", { headers: from("203.0.113.9") })), "203.0.113.9");
   const nextLike = { headers: { "chest-visitor-address": "nope" }, get: (name: string) => from("203.0.113.9").get(name) };
   assert.equal(visitors.address(nextLike), "203.0.113.9");
+});
+
+test("the visitor's key is the Chest's (an HMAC under a key the tool never holds): stable within a run, not the hash of the address", async () => {
+  // Without the front's key, nobody in particular — even with an address.
+  assert.equal(visitors.visitor(new Headers()), "unknown");
+  assert.equal(visitors.visitor(from("203.0.113.9")), "unknown", "the tool never computes a key from the address");
+  assert.equal(visitors.visitor(new Headers({ "chest-visitor": "short" })), "unknown");
+  assert.equal(visitors.visitor(new Headers({ "chest-visitor": "a".repeat(21) + "!" })), "unknown");
+  const fake = await fakeChest({ tool: "quotes" });
+  let first: string;
+  try {
+    const ip = "203.0.113.9";
+    first = visitors.visitor(fake.visitorHeaders(ip));
+    assert.match(first, visitors.visitorPattern);
+    assert.equal(visitors.visitor(fake.visitorHeaders(ip)), first, "stable within a run");
+    assert.equal(visitors.visitor(new Request("http://tool.test/", { headers: fake.visitorHeaders(ip) })), first);
+    assert.notEqual(visitors.visitor(fake.visitorHeaders("198.51.100.4")), first);
+    assert.equal(visitors.address(fake.visitorHeaders(ip)), ip, "the front still names the address for counting");
+    // Not studio.1's unsalted hash: a tool that hashed every IPv4 would not find it.
+    for (const tool of ["quotes", ""]) assert.notEqual(first, createHash("sha256").update(`${tool}|${ip}`).digest("base64url").slice(0, 22));
+    // Brute force over addresses, as a tool could do it, finds nothing:
+    // every candidate it can compute differs from the key.
+    const candidates = new Set<string>();
+    for (let a = 0; a < 256; a++) for (let b = 0; b < 32; b++) candidates.add(createHash("sha256").update(`quotes|203.0.${b + 100}.${a}`).digest("base64url").slice(0, 22));
+    assert.equal(candidates.has(first), false);
+  } finally {
+    await fake.close();
+  }
+  // Another run (a new key): another value — the key is the Chest's alone.
+  const again = await fakeChest({ tool: "quotes" });
+  try {
+    assert.notEqual(visitors.visitor(again.visitorHeaders("203.0.113.9")), first);
+  } finally {
+    await again.close();
+  }
 });
 
 test("counting: per visitor, per hour for everyone, and the Chest's ceiling per address across names", async () => {
