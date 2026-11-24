@@ -480,9 +480,10 @@ export const actions = {
   // visitor and for everyone, counted only once the call passed its own
   // checks (a refusal gives its count back). --------------------------------
 
-  // One CV from a visitor, for an open job: an address on the host the
-  // page is on (the company's own domain once connected), whose answer to
-  // the browser is a claim (Proposal (studio): files.publicUploadUrl).
+  // One CV from a visitor, for an open job: a path on the host the page is
+  // on (the company's own domain once connected, a site that frames it),
+  // whose answer to the browser is the name the Chest gave the file (SDK
+  // 0.7.0's visitors' uploads).
   // Without public uploads on this Chest: cv_off — the form asks for a
   // link instead.
   publicCvUpload: publicAction({ slug: field.text({ max: 80 }), ...upload }, async ({ slug, type, size }, { charge }): Promise<{ url: string }> => {

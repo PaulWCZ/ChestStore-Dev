@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import * as attachments from "../src/lib/attachments.ts";
 import * as mailer from "../src/lib/mailer.ts";
@@ -71,10 +71,15 @@ test("a request's link is counted per hour and per use: a flood on one link neve
   await assert.rejects(tickets.linkGuard(sql, one.id, "download", next), refused("limit"));
 });
 
-test("a Chest that takes no visitors' files: the public pages know it before offering any, a grant says so plainly", async () => {
+test("a Chest that takes no visitors' files (files not granted): the public pages know it before offering any, a grant says so plainly", async () => {
   const { sql } = database;
-  assert.equal(await attachments.publicUploadsOn(), false);
-  await assert.rejects(attachments.visitorGrant(sql, {}, "image/png", 10), refused("files_off"));
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
+  try {
+    assert.equal(await attachments.publicUploadsOn(Date.now() + 3_600_000), false);
+    await assert.rejects(attachments.visitorGrant(sql, {}, "image/png", 10), refused("files_off"));
+  } finally {
+    await bare.close();
+  }
 });
 
 test("replies go by email, in the customer's language, with the link of their request page; without mail, on the page only", async () => {
@@ -108,7 +113,7 @@ test("the inbox: folders, search, assignment to people who answer, the bell and 
   const t = await tickets.fromForm(sql, form({ email: "zoe@example.com", subject: "Where is my parcel", message: "Tracking number 4471" }));
   await tell.newTicket({ id: t.id, number: t.number, subject: "Where is my parcel", customerName: "Zoé", customerEmail: "zoe@example.com" }, "Tracking number 4471");
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [camille.id, hugo.id, ines.id].sort());
-  assert.ok(chest.notifications.some(n => n.member === ines.id && shownTo(n, "fr").title === "Nouvelle demande de Zoé"));
+  assert.ok(chest.notifications.some(n => n.member === ines.id && n.title === "Nouvelle demande de Zoé"));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "unassigned")).some(x => x.number === t.number));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "open", "parcel")).some(x => x.number === t.number));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "open", "4471")).some(x => x.number === t.number));

@@ -9,6 +9,7 @@ import { publicOrigin } from "./public-origin.ts";
 import { rememberPublicOrigin } from "./settings.ts";
 import { statusView, type ComponentView, type StatusView } from "./status-view.ts";
 import { maintenancePhase } from "./timeline.ts";
+import { pageZone } from "./page-settings.ts";
 
 // The public API, in the shape of Atlassian Statuspage's public status API
 // (v2: /api/v2/summary.json, status.json, components.json, incidents.json,
@@ -46,7 +47,7 @@ export function indicatorOf(states: State[]): Indicator {
 
 const iso = (d: Date | number | null | undefined) => (d === null || d === undefined ? null : new Date(d).toISOString());
 
-type Context = { origin: string; pageId: string; view: StatusView; now: Date; created: Map<string, Date>; touchedAt: Map<string, Date> };
+type Context = { origin: string; pageId: string; zone: string; view: StatusView; now: Date; created: Map<string, Date>; touchedAt: Map<string, Date> };
 
 // A stable identifier of this page (Statuspage's are 12 characters).
 function pageIdOf(origin: string): string {
@@ -57,7 +58,7 @@ function pageOf(c: Context) {
   const t = catalogue(chestLanguage());
   const company = chest.organization.name;
   const latest = [c.view.updatedAt?.getTime() ?? 0, ...[...c.created.values()].map(d => d.getTime())].reduce((a, b) => Math.max(a, b), 0);
-  return { id: c.pageId, name: company ? company : t.meta.publicPlain, url: c.origin, time_zone: chest.timeZone, updated_at: iso(latest || c.now) };
+  return { id: c.pageId, name: company ? company : t.meta.publicPlain, url: c.origin, time_zone: c.zone, updated_at: iso(latest || c.now) };
 }
 
 // Every visible service and group, in the page's order, flat, as
@@ -169,7 +170,7 @@ function maintenanceStep(u: Update, i: Incident): string {
 }
 
 async function context(sql: Query, now: Date, origin: string): Promise<Context> {
-  const zone = chest.timeZone;
+  const zone = await pageZone(sql);
   const [view, rows, touches] = await Promise.all([
     statusView(sql, zone, now),
     sql<{ id: string; created_at: Date }[]>`select id, created_at from components`,
@@ -180,6 +181,7 @@ async function context(sql: Query, now: Date, origin: string): Promise<Context> 
   return {
     origin,
     pageId: pageIdOf(origin),
+    zone,
     view,
     now,
     created: new Map(rows.map(r => [String(r.id), new Date(r.created_at)])),

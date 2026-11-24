@@ -1,7 +1,6 @@
 import { ToastHost } from "@argentic/chest-app/client";
 import { createElement, type ComponentType } from "react";
 import { useLive } from "../components/keys.ts";
-import { AutoRefresh } from "./AutoRefresh.tsx";
 import { Composer } from "./Composer.tsx";
 import { ContactForm } from "./ContactForm.tsx";
 import { CopyLink } from "./CopyLink.tsx";
@@ -13,6 +12,7 @@ import { HoursBox } from "./HoursBox.tsx";
 import { InboxList } from "./InboxList.tsx";
 import { InboxTools } from "./InboxTools.tsx";
 import { Keys } from "./Keys.tsx";
+import { LivePage } from "./LivePage.tsx";
 import { MineReply } from "./MineReply.tsx";
 import { NewTicket } from "./NewTicket.tsx";
 import { NoticesBox } from "./NoticesBox.tsx";
@@ -43,7 +43,7 @@ function allLive<T extends Record<string, ComponentType<never>>>(list: T): T {
 }
 
 export const islands = allLive({
-  ToastHost, AutoRefresh, Keys, FolderSelect,
+  ToastHost, LivePage, Keys, FolderSelect,
   InboxTools, InboxList, Composer, TicketSide, NewTicket, MineReply, Rate,
   PeriodTabs, ReportTable,
   FormBox, HoursBox, RulesBox, NoticesBox, EmbedBox, TagsBox, RepliesBox, EraseBox,

@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, log, type MemberContext, type View } from "@argentic/chest-app";
 import { PageHeader } from "@argentic/chest-ui/components";
 import { Info, Plus } from "../components/icons.tsx";
@@ -14,13 +13,14 @@ import { impactOf, statusView, touchedNames } from "../lib/status-view.ts";
 import { refreshBadge } from "../lib/tell.ts";
 import { phaseOf, stepOf, titleIn } from "./parts/incident-card.tsx";
 import { incidentTone, stepClass, tone } from "../components/classes.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // Now: what is open, what is planned, and the page as customers see it,
 // with the one thing an editor comes for — "Post an incident" — first.
 export async function overview({ member, locale: language, t, request }: MemberContext): Promise<View> {
   const locale = localeOf(language);
   const sql = db();
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const now = new Date();
   // A visit does what the schedule would (Chest without schedules): the
   // maintenance posts due, a few emails.
@@ -40,7 +40,6 @@ export async function overview({ member, locale: language, t, request }: MemberC
   const upcoming = [...view.maintenanceNow, ...view.maintenanceAhead];
   return { title: t.overview.title, body: (
     <div className="wide stack-l">
-      <Island name="AutoRefresh" props={{ seconds: 30 }} />
       <PageHeader
         size="m"
         className="overview-head"

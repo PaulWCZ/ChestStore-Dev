@@ -14,22 +14,28 @@ import { checkFile, fileName, fileTypes, isFileType, limits, type FileType } fro
 // 1. grant: after the tool's own checks of who asks (a signed form, a
 //    follow-up link, a member who answers), the Chest gives a one-time
 //    upload address for one file of that type and size;
-// 2. the browser sends the file there. A visitor's upload (Proposal
-//    (studio): files.publicUploadUrl, on the public host) answers a claim, never the object's name; a
-//    member's upload answers its name, under uploads/team/;
-// 3. take: with the message, the claims (or names) come back; the tool
-//    trades each claim once (so a visitor can only attach what they sent
-//    themselves), checks the file again and moves it to files/, where the
-//    ticket keeps it. A visitor's upload nobody claims is deleted by the
-//    Chest after a day; a member's, by the nightly cleanup (sweep).
+// 2. the browser sends the file there and is answered its name: the Chest
+//    names it (20 hex characters and an extension), under uploads/public/
+//    for a visitor (SDK 0.7.0: files.uploadUrl(folder, {public: true}),
+//    on whichever address the page is), under uploads/team/ for a member;
+// 3. take: with the message, the names come back; the tool checks each
+//    is one of those folders' names, stats it, checks it again and moves
+//    it to files/, where the ticket keeps it. The move is the trade: a
+//    name taken once is gone from uploads/, so a second message naming it
+//    gets file_missing (and the names are random: a visitor cannot guess
+//    another's). What nobody took — a closed tab, a removed file — is
+//    deleted by the nightly cleanup after a day (sweep): the Chest keeps
+//    a visitor's upload until the tool deletes it.
 export type Kind = "public" | "team";
 export type Stored = { object: string; fileName: string; type: FileType; size: number };
 
 const folder: Record<Kind, string> = { public: "uploads/public/", team: "uploads/team/" };
-const teamName = /^uploads\/team\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u;
-const claimPattern = /^[A-Za-z0-9_-]{16,128}\.claim$/u;
+const uploaded: Record<Kind, RegExp> = {
+  public: /^uploads\/public\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u,
+  team: /^uploads\/team\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u,
+};
 
-// Whether this Chest takes visitors' files (the proposal granted), as its
+// Whether this Chest takes visitors' files (the files capability granted), as its
 // last answer said — kept ten minutes, nothing that must survive a sleep.
 // A public page asks before it offers "Add files" (publicUploadsOn); a
 // grant refused for that reason says so too.
@@ -44,7 +50,7 @@ export async function publicUploadsOn(now = Date.now()): Promise<boolean> {
   const said = known(now);
   if (said !== null) return said;
   try {
-    await files.publicUploadUrl(folder.public, { types: ["image/png"], maxSize: 1, expiresIn: 60, expiresUnclaimedAfter: 60 });
+    await files.uploadUrl(folder.public, { public: true, types: ["image/png"], maxSize: 1, expiresIn: 60 });
     publicUploads = { on: true, at: now };
   } catch (error) {
     if (error instanceof CapabilityNotGranted) publicUploads = { on: false, at: now };
@@ -55,13 +61,14 @@ export async function publicUploadsOn(now = Date.now()): Promise<boolean> {
 }
 
 export async function grant(kind: Kind, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
-  const refused = checkFile(type, size);
+  const refused = checkFile(type, size, kind);
   if (refused) throw new AppError(refused, { max: limits.fileSize >> 20 });
   try {
-    // A visitor's upload is on the public host and answers a claim
-    // (Proposal (studio): files.publicUploadUrl); a member's, 0.4.1's.
+    // A visitor's upload is a path on the page's own address (0.7.0); the
+    // Chest recognises the type by the bytes, so a visitor may not send
+    // plain text (checkFile).
     const options = { types: [type as string], maxSize: limits.fileSize, expiresIn: 900 };
-    const up = kind === "public" ? await files.publicUploadUrl(folder.public, { ...options, expiresUnclaimedAfter: 86400 }) : await files.uploadUrl(folder.team, options);
+    const up = kind === "public" ? await files.uploadUrl(folder.public, { ...options, public: true }) : await files.uploadUrl(folder.team, options);
     if (kind === "public") publicUploads = { on: true, at: Date.now() };
     return { url: up.url, expiresIn: up.expiresIn };
   } catch (error) {
@@ -85,7 +92,7 @@ export async function visitorGrant(sql: Sql, where: { secret?: string }, type: u
   if (where.secret) {
     const ticket = await byLink(sql, where.secret);
     if (!ticket) throw new AppError("not_found");
-    if (checkFile(type, size) === null) await linkGuard(sql, ticket.id, "file");
+    if (checkFile(type, size, "public") === null) await linkGuard(sql, ticket.id, "file");
   } else if (!(await settings(sql)).formOpen) throw new AppError("closed_form");
   return grant("public", type, size);
 }
@@ -103,8 +110,8 @@ export async function requesterGrant(sql: Sql, actor: Member | null, number: unk
   return grant("team", type, size);
 }
 
-// What a form sends about its files: [{ref, name}] — ref is a claim (a
-// visitor) or an object's name (a member); name is the file's own name.
+// What a form sends about its files: [{ref, name}] — ref is the name the
+// Chest gave the upload; name is the file's own name.
 function refs(value: unknown): { ref: string; name: string }[] {
   if (value === undefined || value === null || value === "") return [];
   let list: unknown = value;
@@ -144,19 +151,12 @@ export async function take(kind: Kind, value: unknown): Promise<Stored[]> {
 }
 
 async function takeOne(kind: Kind, ref: string, name: string): Promise<Stored> {
-  let held: { name: string; type: string; size: number } | null;
-  if (kind === "public") {
-    if (!claimPattern.test(ref)) throw new AppError("file_missing");
-    held = await files.claim(ref);
-    if (!held.name.startsWith(folder.public)) throw new AppError("file_missing");
-  } else {
-    if (!teamName.test(ref)) throw new AppError("file_missing");
-    const info = await files.stat(ref);
-    held = info ? { name: ref, type: info.type, size: info.size } : null;
-    if (!held) throw new AppError("file_missing");
-  }
+  if (!uploaded[kind].test(ref)) throw new AppError("file_missing");
+  const info = await files.stat(ref);
+  if (!info) throw new AppError("file_missing");
+  const held = { name: ref, type: info.type, size: info.size };
   const type = held.type.split(";")[0]!.trim().toLowerCase();
-  const refused = !isFileType(type) ? "file_type" : checkFile(type, held.size);
+  const refused = !isFileType(type) ? "file_type" : checkFile(type, held.size, kind);
   if (refused) {
     await files.delete(held.name).catch(() => false);
     throw new AppError(refused, { max: limits.fileSize >> 20 });
@@ -172,16 +172,21 @@ export async function remove(objects: Iterable<string>): Promise<void> {
   for (const object of objects) await files.delete(object).catch(() => false);
 }
 
-// sweep deletes the files members sent but never added to a message (a
-// closed tab, a removed file), after a day. A visitor's are the Chest's.
+// sweep deletes the files visitors and members sent but never added to a
+// message (a closed tab, a removed file, a robot), after a day: a file
+// taken was moved to files/, so whatever is still under uploads/ was never
+// recorded. 0.7.0 keeps a visitor's upload until the tool deletes it (no
+// expiry of its own), so this sweep is the only one.
 export async function sweep(now = new Date()): Promise<number> {
   let gone = 0;
-  let after: string | undefined;
-  for (let page = 0; page < 20; page++) {
-    const { files: list, next } = await files.list({ prefix: folder.team, ...(after ? { after } : {}) });
-    for (const f of list) if (now.getTime() - new Date(f.updated).getTime() > 86400000 && (await files.delete(f.name).catch(() => false))) gone++;
-    if (!next) break;
-    after = next;
+  for (const prefix of [folder.public, folder.team]) {
+    let after: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      const { files: list, next } = await files.list({ prefix, ...(after ? { after } : {}) });
+      for (const f of list) if (now.getTime() - new Date(f.updated).getTime() > 86400000 && (await files.delete(f.name).catch(() => false))) gone++;
+      if (!next) break;
+      after = next;
+    }
   }
   return gone;
 }

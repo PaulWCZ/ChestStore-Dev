@@ -12,14 +12,16 @@ import * as tell from "./tell.ts";
 import { robotAddress } from "../shared/text.ts";
 import * as tickets from "./tickets.ts";
 
-// What Forms tells Support (Proposal (studio): events between tools, once
-// an administrator linked the two): an answer to a form its author mapped
-// to a ticket — "forms.request", version 1 (Forms' README, "With the other
-// tools"):
+// What Forms tells Support (an event between tools, SDK 0.7.0, once the
+// owner approved the link): an answer to a form its author mapped to a
+// ticket — "forms.request". Contract 0.7 carries flat fields of declared
+// kinds only (no object, no list), so the answers come as one text holding
+// a JSON list (Forms' README, "With the other tools"):
 //
-//   { v: 1, form: {id, title}, answer: {id, at, language, path},
-//     subject, details | null, requester: {name, email, member},
-//     fields: [{question, label, value}] }
+//   form: id, formTitle: text, answer: id, language: text?, path: text?,
+//   subject: text?, details: text?, requester: member?,
+//   requesterName: text?, requesterEmail: text?,
+//   fields: text? — JSON [{"label": "…", "value": "…"}]
 //
 // It opens a ticket as the public form does — the rules on arrival, the
 // bell for those who answer, the confirmation with the follow-up link when
@@ -29,7 +31,9 @@ import * as tickets from "./tickets.ts";
 //
 // The data comes from another tool: read as untrusted — every text bounded
 // and cleaned, the address checked, the link back only of a known shape.
-// Anything that names no one to answer is accepted and ignored.
+// Anything that names no one to answer is accepted and ignored. An event
+// whose audience is not everyone (a form only some may read) is not filed:
+// Support's inbox is read by every agent (received()).
 
 // The bounds of what Support keeps from an event (Forms' own are smaller:
 // subject 150, details 8,000, a field's value 1,000).
@@ -53,36 +57,45 @@ function text(value: unknown, max: number): string {
 // One line: every run of spaces or line breaks one space.
 const line = (value: unknown, max: number) => cut(text(value, max * 4).replace(/\s+/gu, " "), max);
 
+// jsonList reads the JSON list a text field carries ([] for anything else:
+// not text, too long, not JSON, not a list).
+function jsonList(value: unknown): unknown[] {
+  if (typeof value !== "string" || value.length > 64 * 1024) return [];
+  try {
+    const list: unknown = JSON.parse(value);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
 // readRequest reads a delivered "forms.request" into what a ticket needs,
 // or null when it cannot be one (another shape, nobody to answer). The
 // language of a request is the answer's, else the Chest's.
 export function readRequest(event: Pick<ToolEvent, "id" | "data">, fallback: Locale): tickets.FormsRequest | null {
   const d = event.data;
   if (typeof event.id !== "string" || event.id.length < 1 || event.id.length > 100) return null;
-  if (typeof d["v"] !== "number" || !Number.isInteger(d["v"]) || d["v"] < 1) return null;
-  const form = object(d["form"]), answer = object(d["answer"]), requester = object(d["requester"]);
-  if (!form || !answer || !requester) return null;
-  const formId = form["id"], answerId = answer["id"];
+  const formId = d["form"], answerId = d["answer"];
   if (typeof formId !== "string" || !idPattern.test(formId) || typeof answerId !== "string" || !idPattern.test(answerId)) return null;
-  const title = line(form["title"], formsLimits.title);
+  const title = line(d["formTitle"], formsLimits.title);
   if (!title) return null;
   // Who to answer: the colleague of a team form, else a customer's address.
-  const member = typeof requester["member"] === "string" && memberPattern.test(requester["member"]) ? requester["member"] : null;
+  const member = typeof d["requester"] === "string" && memberPattern.test(d["requester"]) ? d["requester"] : null;
   let address: string | null = null;
-  if (!member && typeof requester["email"] === "string") {
+  if (!member && typeof d["requesterEmail"] === "string") {
     try {
-      address = email(requester["email"]).toLowerCase();
+      address = email(d["requesterEmail"]).toLowerCase();
     } catch {
       address = null;
     }
   }
   if (!member && !address) return null;
-  const language: Locale = isLocale(answer["language"]) ? answer["language"] : fallback;
-  const path = typeof answer["path"] === "string" && pathPattern.test(answer["path"]) ? answer["path"] : null;
+  const language: Locale = isLocale(d["language"]) ? d["language"] : fallback;
+  const path = typeof d["path"] === "string" && pathPattern.test(d["path"]) ? d["path"] : null;
   // The answers, bounded and cleaned; an answer without a label or a value
   // says nothing.
   const fields: { label: string; value: string }[] = [];
-  for (const raw of Array.isArray(d["fields"]) ? d["fields"].slice(0, formsLimits.fields) : []) {
+  for (const raw of jsonList(d["fields"]).slice(0, formsLimits.fields)) {
     const f = object(raw);
     const label = f ? line(f["label"], formsLimits.label) : "";
     const value = f ? text(f["value"], formsLimits.value) : "";
@@ -116,7 +129,7 @@ export function readRequest(event: Pick<ToolEvent, "id" | "data">, fallback: Loc
     subject,
     body,
     email: address,
-    name: member ? "" : line(requester["name"], limits.name),
+    name: member ? "" : line(d["requesterName"], limits.name),
     member,
     language,
   };
@@ -167,7 +180,14 @@ function shorten(text: string, max: number): string {
 // one address at most), tell those who answer (or the one a rule gave it
 // to), refresh the tiles. A colleague gets no email: Support keeps no
 // address of theirs. Nothing is done twice for one answer.
-export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">): Promise<void> {
+export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data" | "audience">): Promise<void> {
+  // Who may see it (SDK 0.7.0's audience, honoured by the receiver): every
+  // agent reads every ticket, so a request Forms keeps for some people
+  // only is not filed here — never shown to more people than it allows.
+  if (event.audience !== "all") {
+    log.warn("forms.request not filed: its audience is not everyone");
+    return;
+  }
   const fallback = chest.language;
   const request = readRequest(event, isLocale(fallback) ? fallback : "en");
   if (!request) {

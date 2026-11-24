@@ -5,6 +5,7 @@ import { Back, Download, External, Link as LinkIcon, Mail, Phone, Star } from ".
 import { catalogue, localeOf, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 import { candidate as readCandidate, type Activity, type Feedback } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
+import { openDetail, openerOf } from "../lib/sealing.ts";
 import { ofCandidate } from "../lib/interviews.ts";
 import { interviewersOf, settings } from "../lib/jobs.ts";
 import { mailInfo } from "../lib/mail-state.ts";
@@ -48,7 +49,9 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
   const locale = localeOf(ctx.locale);
   const zone = f.timeZone;
   const sql = db();
-  const d = await readCandidate(sql, member, ctx.param("id"));
+  // Notes and feedback are sealed (lib/sealing.ts): opened on this
+  // member's request, after Hiring's own rules chose what they may see.
+  const d = await openDetail(openerOf(ctx.request), await readCandidate(sql, member, ctx.param("id")), t.candidate.sealedText);
   const c = d.candidate;
   const manage = d.access === "manage";
   // Opened by a recruiter: their bell item about them goes, the tile's

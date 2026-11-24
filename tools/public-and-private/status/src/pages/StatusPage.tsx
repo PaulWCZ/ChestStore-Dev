@@ -50,8 +50,11 @@ export async function statusPage(context: PublicContext): Promise<View> {
     <PublicShell context={context} path="/" offerMail={offerUpdates}>
       <StateSprite />
       {/* During an outage the page stays open on a customer's screen: it
-          reads itself again every minute while visible (a cache answers
-          most of these). */}
+          reads itself again every minute while visible and its reader
+          active in the last ten minutes (idle, it stops, and the tool may
+          sleep; a cache answers most of these). Not realtime: SDK 0.7.0's
+          realtime serves members' pages on the team host only — a
+          visitor has no session to join a channel with. */}
       <Island name="AutoRefresh" props={{ seconds: 60 }} />
       <section className={`banner ${tone(view.overall)}`} aria-labelledby="overall">
         <StateIcon state={view.overall} />

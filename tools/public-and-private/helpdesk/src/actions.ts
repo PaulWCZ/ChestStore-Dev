@@ -13,6 +13,7 @@ import * as notices from "./lib/notices.ts";
 import { followUpLink } from "./lib/public-origin.ts";
 import * as rules from "./lib/rules.ts";
 import * as tell from "./lib/tell.ts";
+import { tellRequesters } from "./lib/live.ts";
 import { tellLinkedTools } from "./lib/ticket-events.ts";
 import { robotAddress } from "./shared/text.ts";
 import * as tickets from "./lib/tickets.ts";
@@ -34,7 +35,7 @@ const any: Field<unknown> & { readonly omissible: true } = { omissible: true, re
 // A ticket's number, as people say it.
 const number = field.int({ min: 1, max: 999_999_999 });
 
-// The files of a message: uploads of a member's, or a visitor's claims,
+// The files of a message: uploads of a member's or a visitor's,
 // checked again and kept (src/lib/attachments.ts), deleted again if the
 // message is refused.
 const memberFiles = (list: unknown): tickets.Files => ({ take: () => attachments.take("team", list), drop: attachments.remove });
@@ -77,6 +78,7 @@ export const actions = {
       await tell.answered(done.ticket);
       await tell.colleagueAnswered(done.ticket, member);
       after("badges", () => tell.refreshBadges(sql));
+      after("live", () => tellRequesters(sql, [done.ticket.id]));
       return { delivery: "colleague" as const };
     }
     const s = await tickets.settings(sql);
@@ -136,6 +138,7 @@ export const actions = {
     const t = await tickets.setStatus(sql, member, n, status);
     if (t.status === "closed" || t.status === "spam") await tell.answered(t);
     after("badges", () => tell.refreshBadges(sql));
+    after("live", () => tellRequesters(sql, [t.id]));
     return null;
   }),
   // The customer's address or name, corrected (a typo that makes emails bounce).
@@ -181,6 +184,7 @@ export const actions = {
       if (kind.kind === "status" && (kind.status === "closed" || kind.status === "spam")) await tell.answered({ id: b.id });
     }
     after("badges", () => tell.refreshBadges(sql));
+    if (kind.kind === "status") after("live", () => tellRequesters(sql, done.before.map(b => b.id)));
     return { before: done.before, tag: done.tag?.id ?? null };
   }),
   unbulk: solving({ before: any, tag: field.nullable(given) }, async ({ before, tag }, { member }) => {

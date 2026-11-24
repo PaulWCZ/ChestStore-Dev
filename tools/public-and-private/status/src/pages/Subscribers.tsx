@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { Island, type MemberContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../components/icons.tsx";
@@ -10,6 +9,7 @@ import { queued } from "../lib/mailer.ts";
 import { mailDelivery } from "../lib/settings.ts";
 import { listSubscribers } from "../lib/subscribers.ts";
 import { wall } from "../lib/zone.ts";
+import { pageZone } from "../lib/page-settings.ts";
 
 // Who asked to be told by email or in a chat, whether the Chest sends
 // each now (asked of it: mail.available(), webhooks.available()), and
@@ -17,7 +17,7 @@ import { wall } from "../lib/zone.ts";
 export async function subscribersPage({ member, locale: language, t }: MemberContext): Promise<View> {
   const locale = localeOf(language);
   const sql = db();
-  const zone = chest.timeZone;
+  const zone = await pageZone(db());
   const [list, names, mailing, waiting, chats, chatsWaiting, delivering] = await Promise.all([listSubscribers(sql, member), allComponents(sql, { locale }), mailDelivery(sql), queued(sql), listHooks(sql, member), hooksQueued(sql), hooksDelivery(sql)]);
   const nameOf = new Map(names.map(c => [c.id, c.name]));
   const confirmed = list.filter(s => s.confirmedAt);
@@ -34,7 +34,7 @@ export async function subscribersPage({ member, locale: language, t }: MemberCon
     : mailing.reason === "quota" ? w.mailQuota
     : mailing.state === "paused" ? w.mailPaused
     : mailing.state === "none" ? w.mailNone : w.mailUnknown;
-  const hooksLine = delivering.state === "ok" && delivering.targets !== null && delivering.max !== null ? format(w.hooksOk, { count: delivering.targets, max: delivering.max })
+  const hooksLine = delivering.state === "ok" ? w.hooksOk
     : delivering.state === "paused" ? w.hooksPaused
     : delivering.state === "none" ? w.hooksOff : null;
   const mailWarn = mailing.state === "none" || mailing.state === "paused";

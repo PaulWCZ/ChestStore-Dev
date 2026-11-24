@@ -5,7 +5,7 @@ import { atLeast } from "@argentic/chest-app/testing";
 import { en } from "../src/i18n/en.ts";
 import { fr } from "../src/i18n/fr.ts";
 import { sniffImage } from "../src/lib/brand.ts";
-import { busySnapshot, readBusy } from "../src/lib/busy-snapshot.ts";
+import { busySnapshot, busyData, readBusy } from "../src/lib/busy-snapshot.ts";
 import * as candidates from "../src/lib/candidates.ts";
 import { brandOf, imagePath, retentionWords } from "../src/lib/careers.ts";
 import { countryNames } from "../src/lib/countries.ts";
@@ -33,7 +33,7 @@ before(async () => {
   chest = await fakeChest({
     tool: "hiring", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"],
     former: [{ id: "mbr_paulaaaaaaaaaaaaaaaaaaaaaa", name: "Paul Lefèvre", status: "no_access" }],
-    storage: { publicUploads: true, publicFiles: true },
+    storage: { publicFiles: true },
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://careers.atelier-martin.fr" },
   });
   database = await testDatabase();
@@ -90,11 +90,18 @@ test("busy times another tool tells are read with their bounds; Hiring tells tim
   const now = Date.parse("2026-10-06T08:00:00Z");
   const snap = busySnapshot(hugo.id, [{ start: now + 3600_000, end: now + 7200_000 }], now);
   assert.deepEqual(Object.keys(snap).sort(), ["at", "from", "member", "spans", "to", "v"]);
-  const read = readBusy(snap);
+  // What the event carries (contract 0.7: flat, the spans as JSON text,
+  // instants with seconds), and what a receiver reads back.
+  const data = busyData(snap);
+  assert.deepEqual(Object.keys(data).sort(), ["at", "from", "member", "spans", "to"]);
+  assert.ok(Object.values(data).every(v => typeof v === "string"));
+  assert.match(data.from!, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
+  const read = readBusy(data);
   assert.equal(read?.member, hugo.id);
   assert.equal(read?.spans.length, 1);
-  assert.equal(readBusy({ v: 1, member: hugo.id, spans: "all day" }), null);
-  assert.equal(readBusy({ v: 2 }), null);
+  assert.equal(readBusy({ member: hugo.id, at: data.at, from: data.from, to: data.to, spans: "all day" }), null);
+  assert.equal(readBusy({ ...data, spans: JSON.parse(data.spans!) })?.spans.length, 1, "a list is read too (Booking may send one)");
+  assert.equal(readBusy({}), null);
 });
 
 test("a CV is served to whoever sees the candidate, two at a time at most, inline in a sandbox", async () => {

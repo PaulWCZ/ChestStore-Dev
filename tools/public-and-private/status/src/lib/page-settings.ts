@@ -1,16 +1,45 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
+import { isZone } from "./zone.ts";
 
 // What an editor sets for the public page: the company's website ("Back
-// to atelier-martin.fr") and where customers reach support, and the sites
-// allowed to show the status widget in a frame. Kept in the settings
-// table; every value is checked here, never trusted from a form.
+// to atelier-martin.fr") and where customers reach support, the sites
+// allowed to show the status widget in a frame, and the page's time zone.
+// Kept in the settings table; every value is checked here, never trusted
+// from a form.
+//
+// The time zone: the page's times (incidents, maintenance windows, the
+// history's days, the feeds, the emails, the API's `time_zone`) are written
+// in it; each visitor's browser then shows them on its own clock. null is
+// the company's zone (chest.timeZone, captured once by the Chest, set on
+// no screen): a company whose customers live elsewhere, or whose services
+// run in another zone, chooses one here (SDK 0.7.0: the zone is the tool's
+// business). It never changes the Chest's.
 
-export type PageSettings = { website: string | null; support: string | null; embedSites: string[] };
+export type PageSettings = { website: string | null; support: string | null; embedSites: string[]; timeZone: string | null };
 
-const empty: PageSettings = { website: null, support: null, embedSites: [] };
+const empty: PageSettings = { website: null, support: null, embedSites: [], timeZone: null };
+
+// A time zone this runtime knows by its IANA name ("Europe/Paris"), or
+// null (the company's).
+export function pageTimeZone(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || !isZone(value) || !zoneNames().includes(value)) throw new AppError("invalid");
+  return value;
+}
+let names: string[] | null = null;
+export function zoneNames(): string[] {
+  names ??= [...Intl.supportedValuesOf("timeZone"), ...(Intl.supportedValuesOf("timeZone").includes("UTC") ? [] : ["UTC"])];
+  return names;
+}
+
+// pageZone is the zone the page's times are written in.
+export async function pageZone(sql: Query): Promise<string> {
+  return (await pageSettings(sql)).timeZone ?? chest.timeZone;
+}
 export const maxEmbedSites = 10;
 
 // A web address customers may be sent to: https only (http on localhost,
@@ -74,10 +103,11 @@ export async function pageSettings(sql: Query): Promise<PageSettings> {
     website: safe(() => webAddress(v.website), null),
     support: safe(() => supportAddress(v.support), null),
     embedSites: Array.isArray(v.embedSites) ? v.embedSites.flatMap(s => safe(() => [embedSite(s)], [] as string[])).slice(0, maxEmbedSites) : [],
+    timeZone: safe(() => pageTimeZone(v.timeZone), null),
   };
 }
 
-export async function savePageSettings(sql: Sql, actor: Member | null, input: { website?: unknown; support?: unknown; embedSites?: unknown }): Promise<PageSettings> {
+export async function savePageSettings(sql: Sql, actor: Member | null, input: { website?: unknown; support?: unknown; embedSites?: unknown; timeZone?: unknown }): Promise<PageSettings> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
   const current = await pageSettings(sql);
   const lines = typeof input.embedSites === "string" ? input.embedSites.split(/[\s,]+/u) : Array.isArray(input.embedSites) ? input.embedSites : null;
@@ -85,6 +115,7 @@ export async function savePageSettings(sql: Sql, actor: Member | null, input: { 
     website: input.website === undefined ? current.website : webAddress(input.website),
     support: input.support === undefined ? current.support : supportAddress(input.support),
     embedSites: lines === null ? current.embedSites : [...new Set(lines.filter(l => typeof l !== "string" || l.trim() !== "").map(embedSite))],
+    timeZone: input.timeZone === undefined ? current.timeZone : pageTimeZone(input.timeZone),
   };
   if (next.embedSites.length > maxEmbedSites) throw new AppError("too_many", { max: maxEmbedSites });
   await sql`insert into settings (key, value) values ('page', ${sql.json(next as never)}) on conflict (key) do update set value = excluded.value`;

@@ -20,6 +20,8 @@ import { sourceOf } from "./lib/theme.ts";
 // the identity's own touches (the dark control panel of the header) for
 // the identity only.
 //
+// Every team page is live (LiveTeam: SDK 0.7.0's realtime, no timer).
+//
 // The toasts sit outside the page's main region, under an id: a page met
 // by navigate() keeps them, and a toast's Undo with them ("Incident
 // removed", then Now). A refusal of a form sent without JavaScript comes
@@ -51,6 +53,7 @@ export function MembersLayout({ viewer: { member, t, request }, look, path, noti
           {children}
         </AppShell>
       </div>
+      <Island name="LiveTeam" props={{}} />
       <Island id="toasts" name="ToastHost" props={{ labels: t.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
     </>
   );

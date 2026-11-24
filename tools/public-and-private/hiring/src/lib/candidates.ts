@@ -4,6 +4,7 @@ import { can, jobAccess, roleOf, type JobAccess } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { settings, stagesOf, takesApplications, toJob, type Job, type Stage } from "./jobs.ts";
+import { feedbackContext, noteContext, sealTexts } from "./sealing.ts";
 import {
   answers as readAnswers,
   clean,
@@ -436,10 +437,12 @@ export async function addNote(sql: Sql, actor: Member | null, candidateId: unkno
   if (!actor) throw new AppError("forbidden");
   const text = clean(body, limits.note, { multiline: true });
   const { candidate: c } = await manageable(sql, actor, candidateId);
+  // Sealed by the Chest before it is stored (lib/sealing.ts).
+  const [kept] = await sealTexts([{ value: text, context: noteContext(c.id) }]);
   return sql.begin(async tx => {
     const [count] = await tx<{ n: number }[]>`select count(*)::int as n from notes where candidate_id = ${c.id}`;
     if ((count?.n ?? 0) >= 500) throw new AppError("too_many", { max: 500 });
-    const [row] = await tx<{ id: string; created_at: Date }[]>`insert into notes (candidate_id, author, body) values (${c.id}, ${actor.id}, ${text}) returning id, created_at`;
+    const [row] = await tx<{ id: string; created_at: Date }[]>`insert into notes (candidate_id, author, body) values (${c.id}, ${actor.id}, ${kept!}) returning id, created_at`;
     await touch(tx, c.id);
     return { id: String(row!.id), author: actor.id, body: text, at: row!.created_at.toISOString() };
   });
@@ -468,16 +471,19 @@ export async function giveFeedback(sql: Sql, actor: Member | null, candidateId: 
   const strengths = clean(input.strengths, limits.feedbackText, { multiline: true, optional: true });
   const concerns = clean(input.concerns, limits.feedbackText, { multiline: true, optional: true });
   const recommendation = input.recommendation;
+  // The words are sealed by the Chest before they are stored (lib/sealing.ts).
+  const { candidate: target } = await load(sql, actor, candidateId, true);
+  const [sealedStrengths, sealedConcerns] = await sealTexts([{ value: strengths, context: feedbackContext(target.id, "strengths") }, { value: concerns, context: feedbackContext(target.id, "concerns") }]);
   return sql.begin(async tx => {
-    const { candidate: c } = await load(tx, actor, candidateId, true);
+    const { candidate: c } = await load(tx, actor, target.id, true);
     const [before] = await tx<{ id: string }[]>`select id from feedback where candidate_id = ${c.id} and author = ${actor.id}`;
     const [row] = before
-      ? await tx<Parameters<typeof toFeedback>[0][]>`update feedback set rating = ${rating}, strengths = ${strengths}, concerns = ${concerns}, recommendation = ${recommendation}, updated_at = now() where id = ${before.id} returning id, author, rating, strengths, concerns, recommendation, created_at, updated_at`
-      : await tx<Parameters<typeof toFeedback>[0][]>`insert into feedback (candidate_id, author, rating, strengths, concerns, recommendation) values (${c.id}, ${actor.id}, ${rating}, ${strengths}, ${concerns}, ${recommendation}) returning id, author, rating, strengths, concerns, recommendation, created_at, updated_at`;
+      ? await tx<Parameters<typeof toFeedback>[0][]>`update feedback set rating = ${rating}, strengths = ${sealedStrengths!}, concerns = ${sealedConcerns!}, recommendation = ${recommendation}, updated_at = now() where id = ${before.id} returning id, author, rating, strengths, concerns, recommendation, created_at, updated_at`
+      : await tx<Parameters<typeof toFeedback>[0][]>`insert into feedback (candidate_id, author, rating, strengths, concerns, recommendation) values (${c.id}, ${actor.id}, ${rating}, ${sealedStrengths!}, ${sealedConcerns!}, ${recommendation}) returning id, author, rating, strengths, concerns, recommendation, created_at, updated_at`;
     const askedBy = (await tx<{ requested_by: string }[]>`delete from feedback_requests where candidate_id = ${c.id} and member_id = ${actor.id} returning requested_by`).map(r => r.requested_by).filter(isMemberId).filter(m => m !== actor.id);
     if (!before) await activity(tx, c.id, actor.id, "feedback");
     await touch(tx, c.id);
-    return { feedback: toFeedback(row!), first: !before, askedBy, candidate: c };
+    return { feedback: { ...toFeedback(row!), strengths, concerns }, first: !before, askedBy, candidate: c };
   });
 }
 

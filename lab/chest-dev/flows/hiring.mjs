@@ -1,6 +1,6 @@
 // Hiring, as candidates and the team use it, in a real browser:
 //   node lab/chest-dev/flows/hiring.mjs [port]   (harness with --reset: the sample jobs are there)
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5300);
 const { browser, context, page, origin, publicOrigin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
@@ -276,13 +276,17 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   expect(await page.evaluate(() => document.activeElement?.id) === "start-date", "focus back on the first day");
   expect((await dev()).split("hiring.hired").length === hiredBefore, "nothing published");
   // Corrected and confirmed in one move (kit 0.2.5): the click is not lost.
-  await page.getByLabel(/First day/u).fill("2026-11-02");
+  // A first day three weeks ahead (a fixed date ages into the past).
+  const firstDay = new Date(Date.now() + 21 * 86400000);
+  const firstDayText = firstDay.toISOString().slice(0, 10);
+  const firstDayShown = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(firstDay);
+  await page.getByLabel(/First day/u).fill(firstDayText);
   await page.getByRole("button", { name: "Confirm the hire" }).click();
   await page.waitForSelector(".ck-toast");
   let log = await dev();
   expect(log.includes("hiring.hired") && log.includes("Clara Fontaine"), "hired published");
   await page.reload();
-  expect((await page.locator(".cand-head").innerText()).includes("Starts on 2 November 2026"), "start date shown");
+  expect((await page.locator(".cand-head").innerText()).includes("Starts on " + firstDayShown), "start date shown");
   await page.getByRole("button", { name: "Move to Hired" }).count();
   await page.locator(".cand-actions .menu summary").click();
   await page.getByRole("button", { name: "Move to…" }).click();
@@ -290,7 +294,7 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   log = await dev();
-  expect(log.includes("hiring.hire_cancelled"), "cancel published");
+  expect(log.includes("hiring.hire-cancelled"), "cancel told (hiring.hire-cancelled: 0.7.0 refuses an underscore)");
 });
 
 await step("reach: the job page carries JobPosting data (a data block: no script runs), the feeds and sitemap list the open jobs", async () => {
@@ -546,6 +550,36 @@ await step("add a referral by hand with a CV", async () => {
   expect(await page.locator("iframe.cv-frame").count() === 1, "CV");
 });
 
+await step("a candidate's page left open follows a colleague's note by itself, never on a timer (SDK 0.7.0's realtime); the note is sealed in the database", async () => {
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 }, locale: "en-GB" });
+  try {
+    await other.addCookies([{ name: "dev_member", value: "mbr_sofia" + "a".repeat(21), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+    const watching = await other.newPage();
+    // The referral just added: the page the flow is on.
+    const here = page.url();
+    const candidateId = here.split("/").pop();
+    await watching.goto(here);
+    await watching.waitForTimeout(2000);
+    const reads = [];
+    watching.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+    await watching.waitForTimeout(35000);
+    expect(reads.length === 0, "idle, the page asks the tool nothing (it read itself every 30 s before): " + reads.join(", "));
+    await page.locator("#note").fill("References checked: all good.");
+    await page.getByRole("button", { name: "Add the note" }).click();
+    await watching.waitForSelector(".note-list >> text=References checked: all good.", { timeout: 15000 });
+    expect(reads.length >= 1 && reads.length <= 4, "read again once the Chest said: " + reads.length);
+    const stored = new (await import("postgres")).default(toolDatabase("hiring", port), { max: 1 });
+    try {
+      const [row] = await stored`select body from notes where candidate_id = ${candidateId} order by id desc limit 1`;
+      expect(row.body.startsWith("chest:sealed:") && !row.body.includes("References"), "sealed in the database");
+    } finally {
+      await stored.end();
+    }
+  } finally {
+    await other.close();
+  }
+});
+
 await step("a note, then erase the candidate", async () => {
   await page.locator("#note").fill("Met him at the Lyon furniture fair.");
   await page.getByRole("button", { name: "Add the note" }).click();
@@ -587,8 +621,9 @@ const utcMinute = (day, hhmm) => new Date(Date.parse(`${day}T${hhmm}:00Z`) - par
 await step("Booking says Inès is at a showroom visit: Mathis is never offered that hour, nor lunch; the recruiter sees it as Booking's", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
   const day = weekdayAhead();
-  const from = new Date().toISOString().slice(0, 10) + "T00:00Z";
-  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from, to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, "10:00"), utcMinute(day, "11:00")]] };
+  const from = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
+  // Contract 0.7: flat fields, the spans as JSON text.
+  const data = { member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from, to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z", spans: JSON.stringify([[utcMinute(day, "10:00"), utcMinute(day, "11:00")]]) };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "booking.busy", data: JSON.stringify(data) } });
   await as(context, origin, "camille");
   await english();
@@ -639,7 +674,7 @@ await step("Leave says Inès is off a whole day: Mathis is offered no time that 
   const off = weekdayAfter(weekdayAhead());
   const next = new Date(Date.parse(off + "T12:00:00Z") + 86400000).toISOString().slice(0, 10);
   // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
-  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  const snapshot = (spans, at) => ({ member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00.000Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z", spans: JSON.stringify(spans) });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(off, "00:00"), utcMinute(next, "00:00")]], new Date())) } });
   // Mathis's link (sent in the step before): that day offers nothing.
   const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}\?lang=fr/u.exec(await dev())?.[0];
@@ -735,9 +770,11 @@ await step("the morning schedule: each interviewer finds the day's interviews in
   const r = await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
   expect(r.status() === 303, "schedule: " + r.status());
   const log = await dev();
-  const bell = log.split("<li>").filter(item => item.includes("Interview at 09:00: Karim Haddad"));
+  // SDK 0.7.0: the Chest keeps each item in its reader's language.
+  const items = log.split("<li>");
+  const bell = items.filter(item => item.includes("Interview at 09:00: Karim Haddad"));
   expect(bell.some(item => item.includes("Hugo") && item.includes("/chest/candidates/8")), "Hugo's item, opening Karim's page");
-  expect(bell.some(item => item.includes("Inès") && item.includes('lang="fr"')), "Inès's, with its French words");
+  expect(items.some(item => item.includes("Inès") && /Entretien à 09:00[\u202f\u00a0 ]: Karim Haddad/u.test(item)), "Inès's, with its French words");
   expect(!log.includes("Your interviews today") && !log.includes("Vos entretiens aujourd’hui"), "no morning email");
 });
 

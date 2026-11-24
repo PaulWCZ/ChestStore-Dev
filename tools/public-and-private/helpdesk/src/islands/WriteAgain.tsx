@@ -38,7 +38,7 @@ export function WriteAgain({ secret, filesOn, t }: { secret: string; filesOn: bo
       <label htmlFor="message" className="visually-hidden">{t.public.reply}</label>
       <textarea id="message" name="message" className="field" rows={5} required maxLength={10000} placeholder={t.public.replyPlaceholder} />
       {takesFiles ? (
-        <Attachments files={files} setFiles={setFiles} kind="public" label={t.public.attach} plainTypes={t.public.typesPlain} t={{ files: t.files, errors: t.errors }}
+        <Attachments files={files} setFiles={setFiles} kind="public" label={t.public.attach} plainTypes={t.public.visitorTypesPlain} t={{ files: t.files, errors: t.errors }}
           grant={async (type, size) => {
             const up = await call("visitorUpload", { secret, type, size }, { quiet: true, refresh: false });
             if (!up.ok && up.error === "files_off") setTakesFiles(false);

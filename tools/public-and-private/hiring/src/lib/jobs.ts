@@ -102,7 +102,13 @@ export type PublicImage = { object: string; version: string };
 export type Settings = {
   companyName: string; ownName: string; intro: string; intros: Partial<Record<Locale, string>>; careersOpen: boolean; retentionMonths: number;
   country: string; website: string; accent: Accent; logo: PublicImage | null; photos: PublicImage[];
+  // The currency a new job's salary is in (SDK 0.7.0: the Chest has no
+  // currency, a tool keeps its own): chosen in Settings, else the
+  // country's when Hiring offers it, else the euro. Every job keeps its
+  // own code beside its amounts.
+  currency: Currency;
 };
+const currencyOfCountry: Record<string, Currency> = { GB: "GBP", US: "USD", CH: "CHF", LI: "CHF", CA: "CAD" };
 const defaults = { intro: "", careersOpen: true, retentionMonths: 24, country: "FR", accent: "cobalt" as Accent };
 const isImage = (v: unknown): v is PublicImage => typeof v === "object" && v !== null && typeof (v as PublicImage).object === "string" && (v as PublicImage).object.startsWith("public/") && typeof (v as PublicImage).version === "string";
 
@@ -125,6 +131,7 @@ export async function settings(sql: Query): Promise<Settings> {
     accent: (accents as readonly unknown[]).includes(found["accent"]) ? found["accent"] as Accent : defaults.accent,
     logo: isImage(found["logo"]) ? found["logo"] : null,
     photos: Array.isArray(found["photos"]) ? found["photos"].filter(isImage).slice(0, limits.photos) : [],
+    currency: isCurrency(found["default_currency"]) ? found["default_currency"] : currencyOfCountry[isCountry(found["country"]) ? found["country"] : defaults.country] ?? "EUR",
   };
 }
 
@@ -140,7 +147,7 @@ async function setSetting(sql: Query, key: string, value: unknown): Promise<void
   await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
 }
 
-export type SettingsInput = { companyName?: unknown; intros?: unknown; careersOpen?: unknown; retentionMonths?: unknown; country?: unknown; website?: unknown; accent?: unknown };
+export type SettingsInput = { companyName?: unknown; intros?: unknown; careersOpen?: unknown; retentionMonths?: unknown; country?: unknown; website?: unknown; accent?: unknown; currency?: unknown };
 
 export async function saveSettings(sql: Sql, actor: Member | null, input: SettingsInput): Promise<Settings> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
@@ -159,6 +166,7 @@ export async function saveSettings(sql: Sql, actor: Member | null, input: Settin
   if (months !== undefined && !(retentionChoices as readonly number[]).includes(months)) throw new AppError("invalid");
   if (input.country !== undefined && !isCountry(input.country)) throw new AppError("invalid");
   if (input.accent !== undefined && !(accents as readonly unknown[]).includes(input.accent)) throw new AppError("invalid");
+  if (input.currency !== undefined && !isCurrency(input.currency)) throw new AppError("invalid");
   const website = input.website === undefined ? undefined : webAddress(input.website);
   await sql.begin(async tx => {
     if (companyName !== undefined) await setSetting(tx, "company_name", companyName);
@@ -168,6 +176,7 @@ export async function saveSettings(sql: Sql, actor: Member | null, input: Settin
     }
     if (typeof input.careersOpen === "boolean") await setSetting(tx, "careers_open", input.careersOpen);
     if (months !== undefined) await setSetting(tx, "retention_months", months);
+    if (input.currency !== undefined) await setSetting(tx, "default_currency", input.currency);
     if (input.country !== undefined) await setSetting(tx, "country", input.country);
     if (input.accent !== undefined) await setSetting(tx, "accent", input.accent);
     if (website !== undefined) await setSetting(tx, "website", website);
@@ -280,12 +289,13 @@ export type JobInput = {
   country?: unknown; postalCode?: unknown; street?: unknown; hours?: unknown; closesOn?: unknown; questions?: unknown;
 };
 
-function readJob(input: JobInput) {
+function readJob(input: JobInput, fallbackCurrency: Currency) {
   const title = clean(input.title, limits.title);
   if (!isContract(input.contract) || !isRemote(input.remote)) throw new AppError("invalid");
   const salaryMin = amount(input.salaryMin), salaryMax = amount(input.salaryMax);
   if (salaryMin !== null && salaryMax !== null && salaryMin > salaryMax) throw new AppError("salary_order");
-  const currency = input.salaryCurrency === undefined || input.salaryCurrency === "" ? "EUR" : input.salaryCurrency;
+  // A salary keeps its own currency; left out, the tool's default (Settings).
+  const currency = input.salaryCurrency === undefined || input.salaryCurrency === "" ? fallbackCurrency : input.salaryCurrency;
   const period = input.salaryPeriod === undefined || input.salaryPeriod === "" ? "year" : input.salaryPeriod;
   if (!isCurrency(currency) || !isPeriod(period)) throw new AppError("invalid");
   const language = input.language === undefined ? "en" : input.language;
@@ -329,7 +339,7 @@ async function freeSlug(sql: Query, title: string, except: string | null): Promi
 // sees them in their language until the team renames them.
 export async function createJob(sql: Sql, actor: Member | null, input: JobInput): Promise<Job> {
   if (!actor || !can(actor, "jobs.manage")) throw new AppError("forbidden");
-  const v = readJob(input);
+  const v = readJob(input, (await settings(sql)).currency);
   const [count] = await sql<{ n: number }[]>`select count(*)::int as n from jobs`;
   if ((count?.n ?? 0) >= limits.jobs) throw new AppError("too_many", { max: limits.jobs });
   return sql.begin(async tx => {
@@ -371,7 +381,7 @@ export async function duplicateJob(sql: Sql, actor: Member | null, jobId: unknow
 export async function updateJob(sql: Sql, actor: Member | null, jobId: unknown, input: JobInput): Promise<Job> {
   if (!can(actor, "jobs.manage")) throw new AppError("forbidden");
   const key = id(jobId);
-  const v = readJob(input);
+  const v = readJob(input, (await settings(sql)).currency);
   return sql.begin(async tx => {
     const [current] = await tx<{ state: JobState; title: string }[]>`select state, title from jobs where id = ${key} for update`;
     if (!current) throw new AppError("not_found");

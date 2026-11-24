@@ -12,7 +12,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "sealed"] });
 });
 after(async () => {
   await chest.close();

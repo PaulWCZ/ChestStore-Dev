@@ -187,6 +187,31 @@ await step("an editor posts an incident in one screen; customers, the team and t
   expect((await page.locator("h1").innerText()).includes("Major outage"), "public banner");
 });
 
+await step("the team's Now left open follows an update by itself, never on a timer (SDK 0.7.0's realtime): idle, it asks nothing", async () => {
+  // Léa keeps Now open in her own browser; Tom posts.
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 }, locale: "en-GB" });
+  try {
+    await other.addCookies([{ name: "dev_member", value: "mbr_lea" + "a".repeat(23), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+    const watching = await other.newPage();
+    await watching.goto(origin + "/chest");
+    await watching.waitForTimeout(2000);
+    const reads = [];
+    watching.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+    await watching.waitForTimeout(35000);
+    expect(reads.length === 0, "idle, the page asks the tool nothing (it read itself every 30 s before): " + reads.join(", "));
+    // Tom says the cause is found, on the incident's page.
+    await page.goto(incidentUrl);
+    await page.locator("#update").getByLabel("Identified").check();
+    await page.locator("#update").getByLabel("What is new?").fill("The cause is found.");
+    await page.getByRole("button", { name: "Post the update" }).click();
+    await page.waitForSelector(".ck-toast >> text=Update posted.");
+    await watching.waitForSelector("main .chip.step-identified", { timeout: 15000 });
+    expect(reads.length >= 1 && reads.length <= 4, "read again once the Chest said: " + reads.length);
+  } finally {
+    await other.close();
+  }
+});
+
 await step("the editor posts an update, then resolves (confirmed in a dialog)", async () => {
   await as(context, origin, "tom");
   await english();
@@ -414,6 +439,20 @@ await step("settings: the company's links; import from Statuspage; download ever
   expect((await banner()).includes("https://news.atelier-martin.fr"), "the banner may be framed there at once");
   await saveSites(listed);
   expect(!(await banner()).includes("https://news.atelier-martin.fr"), "a site removed is refused at once");
+  // The page's time zone: the company's until chosen (never the Chest's own).
+  const zoneOf = async () => (await (await page.request.get(publicOrigin + "/api/v2/status.json")).json()).page.time_zone;
+  expect(await zoneOf() === "Europe/Paris", "the company's zone by default");
+  expect((await page.locator("#page-zone option").first().innerText()).includes("Europe/Paris"), "said as the company's");
+  await page.locator("#page-zone").selectOption("America/Toronto");
+  for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
+  await page.locator("#links-title").locator("..").getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".ck-toast >> text=Saved.");
+  expect(await zoneOf() === "America/Toronto", "the API says the page's zone");
+  await page.locator("#page-zone").selectOption("");
+  for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
+  await page.locator("#links-title").locator("..").getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".ck-toast >> text=Saved.");
+  expect(await zoneOf() === "Europe/Paris", "back to the company's");
   const fixtures = join(import.meta.dirname, "..", "..", "..", "tools", "public-and-private", "status", "test", "fixtures");
   await page.setInputFiles("section[aria-labelledby=import-title] input[type=file]", [join(fixtures, "statuspage-components.json"), join(fixtures, "statuspage-incidents.json"), join(fixtures, "statuspage-maintenances.json")]);
   await page.getByRole("button", { name: "Import", exact: true }).click();
@@ -552,9 +591,9 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
   await page.goto(origin + "/chest/subscribers");
   const subs = await page.locator("main").innerText();
   expect(/in a chat or at a web address/iu.test(subs) && subs.includes("hooks.slack.com") && !subs.includes("customerSecret0123456789"), "on Subscribers");
-  // Studio.16: the page asks the Chest whether it delivers (webhooks.available,
-  // mail.available) and says so, with the addresses used of its maximum.
-  expect(/Your Chest delivers these updates: 1 of \d+ addresses used\./u.test(subs), "chats: the Chest delivers, 1 address used: " + subs);
+  // The page asks the Chest whether it delivers (webhooks.available,
+  // mail.available) and says so (studio.2: no number of addresses).
+  expect(subs.includes("Your Chest delivers these updates to chats and web addresses."), "chats: the Chest delivers: " + subs);
   expect(subs.includes("Emails are sent through your Chest."), "email: the Chest sends");
   // Stopped from its own page: the Chest forgets it.
   await context.clearCookies();
