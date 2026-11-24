@@ -72,6 +72,10 @@ test("the agenda: the member's language, the policy, the look as a stylesheet, n
   assert.doesNotMatch(html, /AutoRefresh/u);
   const everyone = await (await get(camille, "/chest?who=all")).text();
   assert.match(everyone, new RegExp(`data-island="LiveAgenda"[^>]*${ines.id}`, "u"), "an administrator's Everyone follows every host");
+  // Each was let in first (agenda_live: src/lib/live.ts): Inès to hers only.
+  const let_in = await database.sql`select host_id, member_id from agenda_live where member_id in (${ines.id}, ${camille.id})`;
+  assert.ok(let_in.some(r => r.host_id === ines.id && r.member_id === camille.id));
+  assert.deepEqual(let_in.filter(r => r.member_id === ines.id).map(r => r.host_id), [ines.id]);
   const anonymous = await app.fetch(new Request(team + "/chest"));
   assert.equal(anonymous.status, 401);
 });

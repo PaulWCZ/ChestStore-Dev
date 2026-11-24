@@ -4,6 +4,7 @@ import type { Sql } from "./db.ts";
 import { catalogue, isLocale } from "../i18n/index.ts";
 import * as mailer from "./mailer.ts";
 import { unpublish } from "./publish.ts";
+import * as live from "./live.ts";
 import { changed, forget } from "./share.ts";
 
 // What Booking does when a member loses access, leaves or is erased (the
@@ -24,6 +25,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql`update hosts set away = true where member_id = ${memberId}`;
   await sql`delete from calendars where member_id = ${memberId}`;
   await forget(sql, memberId);
+  // They follow no agenda live any more (lib/live.ts).
+  await live.forget(sql, memberId);
 }
 
 export async function erase(sql: Sql, memberId: string, now = Date.now()): Promise<Booking[]> {
@@ -34,6 +37,8 @@ export async function erase(sql: Sql, memberId: string, now = Date.now()): Promi
     await tx`update bookings set member_id = 'erased' where member_id = ${memberId}`;
     await tx`update bookings set booked_by = null where booked_by = ${memberId}`;
     await tx`delete from hosts where member_id = ${memberId}`;
+    // Their id goes from who follows agendas live, as reader and as host.
+    await live.forget(tx, memberId, { asHost: true });
     return rows.map(r => String(r.id));
   });
   await forget(sql, memberId);
@@ -52,8 +57,11 @@ async function tellGuests(sql: Sql, list: Booking[]): Promise<void> {
   }
 }
 
-export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.erased"> {
+export function handlers(sql: Sql): events.Handlers<"member.updated" | "access.revoked" | "member.removed" | "member.erased"> {
   return {
+    // Their role changed (an administrator no longer, say): the agendas
+    // they follow live are checked again (lib/live.ts).
+    "member.updated": async event => { if (event.data.changed.includes("role")) await live.forget(sql, event.data.id); },
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": event => leave(sql, event.data.id),
     "member.erased": async event => {

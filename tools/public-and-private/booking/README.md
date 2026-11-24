@@ -328,9 +328,19 @@ character in a text field — a guest's name keeps them in Booking.
 
 - Contract **0.7** (`"chest": "0.7"`; `chest check` says OK). `public: true` (no `csp` permission: no inline script nor style, the Chest's default policy holds); `capabilities`: `database`, `members`
   (names, roles), `notifications`, `realtime` (the agenda left open
-  follows each host's channel `agenda:<member>`, joined by hosts and
-  administrators; feeds of `bookings` and `blocks` carry a row's id only:
-  the page's read decides what the reader sees); `receives`:
+  follows each host's channel `agenda:<host>`; feeds of `bookings` and
+  `blocks` carry a row's id only: the page's read decides what the reader
+  sees). **Only the host and administrators join a host's channel**: the
+  Chest checks the table `agenda_live` at every join (migration 0010, the
+  channel's `join`), where Booking writes a row once it has checked the
+  member sees that agenda (their own; every host's for an administrator,
+  in *Everyone* or on a booking's page). The rows go when the member's
+  role changes, their access is revoked, they leave or are erased (an
+  erased host's id goes too), and the Chest takes them out at once; their
+  page reads itself again and is let in again if still allowed (a new
+  mark: its live island joins again). Another host cannot join
+  `agenda:<host>` to learn when someone else's meetings are booked,
+  moved or cancelled; `receives`:
   `member.*`, `hiring.busy`, `leave.busy`; `emits`: `booking.busy`,
   `booking.confirmed`, `booking.cancelled` with their schemas (above);
   `network`: the four calendar hosts (the owner approves "Can reach

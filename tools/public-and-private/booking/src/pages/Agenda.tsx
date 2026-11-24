@@ -9,6 +9,7 @@ import { can, roleOf } from "../lib/access.ts";
 import * as b from "../lib/booking.ts";
 import * as calendars from "../lib/calendars.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { myPage } from "../lib/my-page.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
@@ -58,7 +59,8 @@ export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
   const elsewhere = own && host ? await b.busyElsewhere(sql, host) : [];
   const stale = host ? (await calendars.calendarsOf(sql, member.id)).find(c => c.stale) : undefined;
   const today = wall(Date.now(), zone).date;
-  const live = await b.followedHosts(sql, member, all);
+  // The agendas followed live: followedHosts checked the member sees each.
+  const live = await admit(sql, await b.followedHosts(sql, member, all), member.id);
   const freeItems: Item[] = [...free].flatMap(([day, windows]) => windows.map(w => ({ kind: "free" as const, at: instantOf(day, w.start, zone), day, start: w.start, end: w.end })));
   const busyItems: Item[] = elsewhere.map(e => ({ kind: "busy" as const, at: instantOf(e.day, e.start, zone), ...e }));
   const items: Item[] = [...list.map(x => ({ kind: "booking" as const, at: x.startsAt, booking: x })), ...blocks.map(x => ({ kind: "block" as const, at: x.start, block: x })), ...freeItems, ...busyItems];

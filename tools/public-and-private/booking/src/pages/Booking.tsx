@@ -6,6 +6,7 @@ import { AppError, notFound, type MemberContext } from "@argentic/chest-app";
 import { format, isLocale, meetingTime, plural, relative, zoneName, localeOf } from "../i18n/index.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
+import { admit } from "../lib/live.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { answerText } from "../lib/questions.ts";
 import { zoneGroups } from "../lib/zones.ts";
@@ -26,6 +27,9 @@ export async function bookingPage({ member, t, locale: given, param }: PageConte
     throw error;
   }
   const host = await b.hostOf(sql, x.memberId);
+  // Its host's agenda, followed live: bookingFor checked the member sees it
+  // (their own, or an administrator).
+  const live = await admit(sql, [x.memberId], member.id);
   const s = await b.settings(sql);
   const zone = host?.zone ?? s.defaultZone;
   const who = await people([x.memberId, ...(x.bookedBy ? [x.bookedBy] : [])]);
@@ -96,7 +100,7 @@ export async function bookingPage({ member, t, locale: given, param }: PageConte
         )}
         {/* Left open, the booking follows the Chest's realtime: a guest who
             moves or cancels it is seen at once (no timer). */}
-        {x.memberId !== "erased" && <Island name="LiveAgenda" props={{ hosts: [x.memberId] }} />}
+        {live.length > 0 && <Island name="LiveAgenda" props={{ hosts: live }} />}
         {upcoming && (
           <section className="card">
             <Island name="CancelMeeting" props={{ id: x.id, guest: x.guestName, t: { booking: t.booking } }} />

@@ -88,11 +88,12 @@
   "realtime": {
     "channels": [
       {
-        "name": "agenda:*",
-        "join": [
-          "admin",
-          "host"
-        ]
+        "name": "agenda:{host}",
+        "join": {
+          "table": "agenda_live",
+          "key": "host_id",
+          "member": "member_id"
+        }
       }
     ],
     "feeds": [

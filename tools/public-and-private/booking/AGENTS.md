@@ -13,7 +13,7 @@ islands, refresh, fields, words, tests).
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest, contract 0.7 (roles `admin`, `host`; public part; `emits` with each type's schema, `receives`; `realtime`: the channel `agenda:*` and the feeds of `bookings` and `blocks`; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the studio proposals it uses (`mail`, `calendar`, `translations`) |
+| `chest.json`, `chest.proposals.json` | Manifest, contract 0.7 (roles `admin`, `host`; public part; `emits` with each type's schema, `receives`; `realtime`: the channel `agenda:{host}`, joined through the table `agenda_live`, and the feeds of `bookings` and `blocks`; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the studio proposals it uses (`mail`, `calendar`, `translations`) |
 | `vendor/` | SDK 0.7.0 + studio proposals (0.7.0-studio.2), the UI kit, `@argentic/chest-app` 0.1.0-studio.12: packed copies, never edited |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, `/api/slots`, `/chest/api/slots`, `/chest/export`, `/b/<secret>/ics`, `/feed/<token>.ics`, `/chest-events`, `/chest-schedules`; `framed`: the public pages' `frame-ancestors` from Settings |
 | `src/actions.ts` | **Every mutation**, by name: the team's (`action`) and the public part's (`publicAction`: `bookTime`, `cancelMine`, `moveMine`) |
@@ -117,7 +117,12 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
 - **A page others change is live through realtime, never a timer**: a
   new table the agenda shows gets a feed in `chest.json` (`"channel":
   "agenda:{member_id}"`, `"columns": ["id"]`: one feed per table, ids
-  only) and its name in `LiveAgenda`'s `useLive`.
+  only) and its name in `LiveAgenda`'s `useLive`. Who may join
+  `agenda:{host}` is the table `agenda_live` (migration 0010,
+  `src/lib/live.ts`): a page that follows an agenda passes
+  `admit(sql, hosts, member.id)` to `LiveAgenda` only once it checked the
+  member sees them; a new way to change that (a role, a host's access)
+  calls `forget`.
 - **Mail goes to guests only** (`src/lib/mailer.ts`, `mail.send` to an
   address). A member is told with a notification (`src/lib/notify.ts`:
   one notice, English words and French `translations`), never a mail.
