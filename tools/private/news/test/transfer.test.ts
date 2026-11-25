@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "@argentic/chest-app";
+import { admit } from "../src/lib/live.ts";
 import * as posts from "../src/lib/posts.ts";
 import { exportAll, fromSlack, headline, importSlack, readSlack, undoImport } from "../src/lib/transfer.ts";
 import { randomBytes } from "node:crypto";
@@ -49,7 +50,10 @@ test("a real Slack export: its channels, top-level messages only, by their autho
   assert.ok(rows.every(r => r.publish_at.getUTCFullYear() === 2016 && r.announced_at !== null), "at their date; nobody told");
   // Again: nothing twice. Then taken back, and it can come again.
   assert.deepEqual((await importSlack(database.sql, asMember(camille), fixture, enrique.id)).added, 0);
+  const [followed] = await database.sql<{ id: string }[]>`select id from posts where import_batch = ${done.batch} limit 1`;
+  await admit(database.sql, String(followed!.id), hugo.id);
   assert.equal(await undoImport(database.sql, asMember(camille), done.batch), 30);
+  assert.equal((await database.sql`select 1 from post_live where post_id = ${followed!.id}`).length, 0, "taken back: nobody follows them live any more");
   assert.equal((await posts.front(database.sql, asMember(hugo), { zone })).posts.length, 0);
   assert.equal((await importSlack(database.sql, asMember(camille), fixture, enrique.id)).added, 30);
   await assert.rejects(importSlack(database.sql, asMember(hugo), fixture, enrique.id), refused("forbidden"));

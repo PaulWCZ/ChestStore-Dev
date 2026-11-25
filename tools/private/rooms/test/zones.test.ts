@@ -10,7 +10,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
-import { partMinutes } from "../src/shared/model.ts";
+import { addDays, nextWorkingDay, partMinutes } from "../src/shared/model.ts";
 
 // SDK 0.7.0: the Chest's zone is the company's, set on no screen. An
 // office in another city keeps its own clock (offices.time_zone, chosen in
@@ -83,7 +83,9 @@ test("9:00 in a room of each office is 9:00 on that office's clock, and reads ba
 
 test("an office that changes its zone keeps its coming bookings at the same time on its clock", async () => {
   const { sql } = database;
-  const d = workday(4);
+  // The working day after the previous test's (workday(4) is the same
+  // Monday as workday(3) when today is a Wednesday).
+  const d = nextWorkingDay(addDays(workday(3), 1), [1, 2, 3, 4, 5]);
   const { bookings } = await rooms.bookRoom(sql, asMember(hugo), { roomId: york.atlas, day: d, start: 600, end: 660, title: "Kept" }, zone);
   // A morning and an afternoon of one person: moved three hours, the
   // morning lands on the afternoon's old place — not a clash.

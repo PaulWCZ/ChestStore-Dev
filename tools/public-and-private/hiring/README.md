@@ -297,8 +297,8 @@ channel's `join`), where Hiring writes a row once it has checked the
 member sees the job — a recruiter every job, an interviewer the jobs they
 are on. The rows go when an interviewer is taken off the job, a member's
 role changes, their access is revoked, they leave or are erased; the
-Chest takes them out at once, and their page, read again (the marks are
-part of its version: never a 304), lets them in again if still allowed.
+Chest takes them out at once, and their page, read again (a count of their
+exits is part of its version: never a 304), lets them in again if still allowed.
 An interviewer never hears when candidates of another job apply, move or
 are written about. Pages that are only forms (a job's settings, editing,
 adding, importing, the settings) are not live.

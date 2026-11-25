@@ -35,9 +35,11 @@ export async function admit(sql: Query, postId: string, memberId: string): Promi
 
 // forget takes the rows out wherever who reads a post may have changed:
 // the Chest then takes those members out of the channels at once.
-export async function forget(sql: Query, which: { post: string } | { member: string }): Promise<void> {
+export async function forget(sql: Query, which: { post: string } | { posts: readonly string[] } | { member: string }): Promise<void> {
   if ("post" in which) await sql`delete from post_live where post_id = ${which.post}`;
-  else await sql`delete from post_live where member_id = ${which.member}`;
+  else if ("posts" in which) {
+    if (which.posts.length > 0) await sql`delete from post_live where post_id in ${sql(which.posts)}`;
+  } else await sql`delete from post_live where member_id = ${which.member}`;
 }
 
 async function publish(channel: string, event: string): Promise<void> {

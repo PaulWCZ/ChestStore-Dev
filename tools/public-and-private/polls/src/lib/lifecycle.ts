@@ -41,8 +41,11 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   });
 }
 
-export function handlers(sql: Sql): events.Handlers<"member.removed" | "member.updated" | "member.erased"> {
+export function handlers(sql: Sql): events.Handlers<"access.revoked" | "member.removed" | "member.updated" | "member.erased"> {
   return {
+    // Losing access changes nothing they made, but they follow no poll live
+    // any more (lib/live.ts): let in again, a page checks again what they see.
+    "access.revoked": event => forget(sql, { member: event.data.id }),
     "member.removed": event => leave(sql, event.data.id),
     // Someone moved between groups: what a group they left asked of them
     // leaves their bell and their tile, and the groups' sizes are read

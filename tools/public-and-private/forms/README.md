@@ -468,7 +468,7 @@ Chest's 512 MiB (310 MiB peak).
   summary. The rows go when the form is unshared with them or put in the
   trash, their role changes, their access is revoked, they leave or are
   erased; the Chest takes them out at once, and their page, read again
-  (the marks are part of its version: never a 304), lets them in again if
+  (a count of their exits is part of its version: never a 304), lets them in again if
   still allowed. A member who cannot open a form never hears its answers
   come.
 - **What a home shows besides** is told by Forms without an id, as
