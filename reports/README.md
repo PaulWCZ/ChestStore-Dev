@@ -8,3 +8,4 @@
 - `06-perseus-starter.md` — the proposed Perseus starter (`starter/` on `app/`) compared with `reference/perseus-starter`, with measurements (brief/08)
 - `07-stack-and-memory.md` — the 18 tools before (Next.js) and after (the studio stack): memory at rest, cold start, image, build (brief/08)
 - `08-sdk-0.7.md` — the 18 tools on SDK 0.7.0 (contract 0.7): currency and zone in the tools, what is impossible or degraded, with the tool and code that prove it, sealed values, realtime, and the needs for the SDK report
+- `09-studio-report.md` — the studio in one report for the owner: what we do, the 18 tools, who sends what to whom, SDK 0.7.0's good and bad points, what it lacks, who needs what
