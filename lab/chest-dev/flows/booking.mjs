@@ -1,9 +1,28 @@
 // Booking, as visitors and hosts use it, in a real browser:
 //   node lab/chest-dev/flows/booking.mjs [port]   (harness with --reset)
-import { as, done, expect, open, step } from "./lib.mjs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import postgres from "postgres";
+import { as, done, expect, open, step, toolDatabase, watchRealtime } from "./lib.mjs";
+
+// The Calendly export of the tests, its days moved so that its first is
+// tomorrow (a fixed date passes; an import skips the past).
+function calendlyFromTomorrow() {
+  const text = readFileSync(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url), "utf8");
+  const days = [...text.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/gu)].map(m => m[1]).sort();
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const shift = Math.round((tomorrow.getTime() - Date.parse(days[0] + "T00:00:00Z")) / 86_400_000);
+  const moved = text.replace(/\b(\d{4}-\d{2}-\d{2})\b/gu, day => new Date(Date.parse(day + "T00:00:00Z") + shift * 86_400_000).toISOString().slice(0, 10));
+  const dir = mkdtempSync(join(tmpdir(), "booking-flow-"));
+  writeFileSync(join(dir, "calendly-scheduled-events.csv"), moved);
+  return { file: join(dir, "calendly-scheduled-events.csv"), remove: () => rmSync(dir, { recursive: true, force: true }) };
+}
 
 const port = Number(process.argv[2] ?? 5100);
-const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
 let guestPage = "";
 // The team's pages speak each member's language (Inès and Camille: French
 // in the cast): these steps read them in English.
@@ -21,10 +40,10 @@ await step("a visitor finds Inès on the company's page and opens a kind of meet
   await page.goto(origin + "/");
   expect((await page.locator("h1").innerText()).includes("Atelier Martin"), "company");
   await page.locator(".host-card", { hasText: "Inès Moreau" }).click();
-  await page.waitForURL(origin + "/ines-moreau");
+  await page.waitForURL(publicOrigin + "/ines-moreau");
   expect((await page.locator(".offers").innerText()).includes("Project call"), "types listed");
   await page.locator(".offer", { hasText: "Project call" }).click();
-  await page.waitForURL(origin + "/ines-moreau/project-call");
+  await page.waitForURL(publicOrigin + "/ines-moreau/project-call");
 });
 
 await step("they pick a day and a time, fill three fields and the host's questions, and are booked (with an email)", async () => {
@@ -38,6 +57,14 @@ await step("they pick a day and a time, fill three fields and the host's questio
   await page.getByLabel("Anything to prepare? (optional)").fill("A kitchen island in oak.");
   // Sent at once, as a browser that fills the fields itself would: not
   // refused (the server waits the seconds left).
+  // An address the browser lets through but mail would not take (two
+  // dots in a row): the server's field.email refuses it in plain words,
+  // the rest of the form kept.
+  await page.getByLabel("Your email address").fill("lucie..garnier@example.com");
+  await page.getByRole("button", { name: "Confirm the booking" }).click();
+  await page.getByText("Check the email address.").first().waitFor();
+  expect((await page.getByLabel("Your name").inputValue()) === "Lucie Garnier", "the form kept");
+  await page.getByLabel("Your email address").fill("lucie@example.com");
   await page.getByRole("button", { name: "Confirm the booking" }).click();
   await page.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
   guestPage = page.url().split("?")[0];
@@ -47,6 +74,8 @@ await step("they pick a day and a time, fill three fields and the host's questio
   expect(text.includes(time), "the time chosen");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Booked: Project call with Inès Moreau"), "confirmation email in the outbox");
+  expect(dev.includes("lucie@example.com") && dev.includes("replies to <code>contact@atelier-martin.test</code>"), "to the guest, replies to the company's address");
+  expect(!dev.includes("New booking: Project call"), "no email copy to the host: the bell tells her");
   expect(dev.includes("What is it for?: A shop or an office"), "the answers in the email and the bell");
   // A video room of its own, and the booking in Inès's Chest calendar.
   expect(/https:\/\/meet\.jit\.si\/atelier-martin-[a-z0-9x]{12}/u.test(text), "a room of its own");
@@ -381,9 +410,15 @@ await step("a host imports the meetings booked in Calendly", async () => {
   await as(context, origin, "camille");
   await english();
   await page.goto(origin + "/chest/settings");
-  await page.getByLabel("The exported file (.csv)").setInputFiles(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url).pathname);
-  await page.getByRole("button", { name: "Import" }).click();
-  await page.waitForSelector(".ck-toast");
+  // The browser reads the file when the form sends it: kept until then.
+  const calendly = calendlyFromTomorrow();
+  try {
+    await page.getByLabel("The exported file (.csv)").setInputFiles(calendly.file);
+    await page.getByRole("button", { name: "Import" }).click();
+    await page.waitForSelector(".ck-toast");
+  } finally {
+    calendly.remove();
+  }
   expect(/bookings? imported/u.test(await page.locator(".ck-toast").innerText()), "imported: " + await page.locator(".ck-toast").innerText());
   await page.goto(origin + "/chest");
   expect((await page.locator(".agenda").innerText()).includes("Marie Leroy"), "on the agenda");
@@ -524,7 +559,8 @@ await step("a host who writes in one language only: every visitor reads the page
 
 // A time of Inès's clock (Paris) as the UTC minute an event carries.
 const parisOffset = day => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" }).formatToParts(new Date(day + "T12:00:00Z")).find(p => p.type === "timeZoneName").value.replace("GMT", "") || 0);
-const utcMinute = (day, minutes) => new Date(Date.parse(day + "T00:00:00Z") + (minutes - parisOffset(day) * 60) * 60000).toISOString().slice(0, 16) + "Z";
+// An instant on the minute, RFC 3339 with its seconds (an event's "time").
+const utcMinute = (day, minutes) => new Date(Date.parse(day + "T00:00:00Z") + (minutes - parisOffset(day) * 60) * 60000).toISOString().slice(0, 16) + ":00Z";
 const minutesOf = text => Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const devText = async () => (await page.request.get(origin + "/_dev")).text();
@@ -565,17 +601,19 @@ await step("Hiring tells Booking Inès has an interview: that hour is not offere
   const day = (await section.getAttribute("aria-labelledby")).slice(2);
   const [startText, endText] = (await section.locator(".meeting.free .time").first().innerText()).split("\n").map(x => x.trim());
   const start = minutesOf(startText), end = Math.min(minutesOf(endText), start + 60);
-  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, start), utcMinute(day, end)]] };
+  // Hiring's snapshot as SDK 0.7.0 carries it: flat fields, the spans as JSON text.
+  const spans = [[utcMinute(day, start), utcMinute(day, end)]];
+  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z", spans: JSON.stringify(spans) };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "hiring.busy", data: JSON.stringify(data) } });
   await page.goto(origin + "/chest");
   const interview = page.locator(`.day[aria-labelledby="d-${day}"] .meeting.elsewhere`, { hasText: "Un entretien dans Recrutement" });
   expect((await interview.innerText()).includes(hhmm(start)), "the interview's hour on her agenda");
   const slots = await (await page.request.get(origin + `/api/slots?host=ines-moreau&type=project-call&from=${day}&to=${day}`)).json();
-  const from = Date.parse(data.spans[0][0]), to = Date.parse(data.spans[0][1]);
+  const from = Date.parse(spans[0][0]), to = Date.parse(spans[0][1]);
   expect(!slots.slots.some(s => Date.parse(s) < to && Date.parse(s) + 30 * 60000 > from), "no time offered across the interview");
   // Booking never tells Hiring back what Hiring told it.
-  const dev = await devText();
-  expect(!dev.includes(`"${data.spans[0][0]}"`), "no echo in what Booking publishes");
+  const dev = (await devText()).replaceAll("&quot;", '"').replaceAll("\\\"", '"');
+  expect(!dev.includes(JSON.stringify(spans[0])), "no echo in what Booking publishes (the interview's span)");
 });
 
 await step("Leave tells Booking Inès is off a whole day: no time is offered that day, her agenda reads « Absent »; « now free » gives the day back", async () => {
@@ -587,7 +625,7 @@ await step("Leave tells Booking Inès is off a whole day: no time is offered tha
   const before = await slotsThatDay();
   expect(before.length > 0, "the day is open before");
   // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
-  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00Z", spans: JSON.stringify(spans) });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(day, 0), utcMinute(next, 0)]], new Date())) } });
   expect((await slotsThatDay()).length === 0, "no time offered on her day off");
   await page.goto(origin + "/chest");
@@ -595,7 +633,7 @@ await step("Leave tells Booking Inès is off a whole day: no time is offered tha
   expect(await row.count() > 0, "« Absent » on her agenda that day");
   expect(await page.locator(`.day[aria-labelledby="d-${day}"] .meeting.free`).count() === 0, "no free stretch left that day");
   // Booking never tells Hiring back what Leave told it.
-  const told = (await devText()).replaceAll("&quot;", '"');
+  const told = (await devText()).replaceAll("&quot;", '"').replaceAll("\\\"", '"');
   expect(!told.includes(`["${utcMinute(day, 0)}","${utcMinute(next, 0)}"]`), "no echo in what Booking publishes");
   // Her leave cancelled: Leave says she is free again; the day comes back as it was.
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([], new Date(Date.now() + 1000))) } });
@@ -616,7 +654,7 @@ await step("a visitor's booking is told to Clients (who, which type, when; never
   const dev = await devText();
   const confirmed = dev.split("<li>").find(li => li.includes("booking.confirmed") && li.includes("Nadia Benali"));
   expect(confirmed, "booking.confirmed published");
-  expect(confirmed.includes("nadia@example.com") && confirmed.includes("&quot;company&quot;:null") && confirmed.includes("Measurement visit at your home") && !confirmed.includes("code 1234"), "the contact and the type, never the note");
+  expect(confirmed.includes("&quot;contactEmail&quot;:&quot;nadia@example.com&quot;") && confirmed.includes("Measurement visit at your home") && !confirmed.includes("code 1234"), "the contact and the type, flat (SDK 0.7.0), never the note");
   expect(dev.split("<li>").some(li => li.includes("booking.busy") && li.includes("mbr_hugo")), "Hugo's busy times told");
 });
 
@@ -642,7 +680,7 @@ await step("four wrong calendar addresses, four plain answers; webcal:// is take
 });
 
 await step("a French visitor in Montréal reads French cities, « Toronto, Montréal » chosen, and « à l’arrivée d’Inès »", async () => {
-  const montreal = await browser.newContext({ locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
+  const montreal = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
   const visitor = await montreal.newPage();
   visitor.on("pageerror", e => problems.push("page: " + e.message));
   await visitor.goto(origin + "/lang/fr?back=/ines-moreau/project-call");
@@ -707,7 +745,7 @@ await step("on a phone Inès's agenda shows her meetings; « Afficher les créne
   expect(!(await page.locator(".free-toggle").isVisible()) && await page.locator(".meeting.free").first().isVisible(), "a computer shows them all");
 });
 
-await step("email is promised only because this Chest sends it (SDK studio.16, mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
+await step("email is promised only because this Chest sends it (mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
   await context.clearCookies();
   await page.goto(origin + "/ines-moreau/project-call");
   await page.waitForSelector(".calendar button.open");
@@ -723,17 +761,47 @@ await step("email is promised only because this Chest sends it (SDK studio.16, m
   await page.goto(origin + "/chest/settings");
   const text = await page.locator("main").innerText();
   expect(!/cannot send email|not connected email|paused email|all of today/u.test(text), "Settings warns of nothing: " + text.slice(0, 200));
+  expect(text.includes("when they reply, it goes to contact@atelier-martin.test"), "Settings says where guests' replies go");
+  expect(!/Email me/u.test(text), "no email-me setting: the member chooses in the Chest");
 });
 
 await step("the company's page speaks the visitor's language, else the Chest's (English here)", async () => {
   const lang = async (headers) => {
-    // A visitor without the harness's cookies.
-    const html = await (await fetch(origin + "/", { headers })).text();
+    // A visitor without the harness's cookies, on the public host (a
+    // redirect from the team host to another origin drops the cookie).
+    const html = await (await fetch(publicOrigin + "/", { headers })).text();
     return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
   };
   expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
   expect((await lang({ "accept-language": "de-DE,de;q=0.9" })) === "en", "a German browser reads the Chest's language");
   expect((await lang({ "accept-language": "de-DE", cookie: "lang=fr" })) === "fr", "the switch wins");
+});
+
+// SDK 0.7.0's realtime: Inès's agenda left open joins agenda:<her id> on
+// the Chest; a booking of hers written (here by the database itself, as
+// any writer would) is a row of the feed "bookings", and the page reads
+// itself again without a reload.
+await step("Inès's agenda left open follows the Chest's realtime: a booking of hers changes, the page shows it without a reload", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "ines");
+  await english();
+  const live = watchRealtime(page);
+  await page.goto(origin + "/chest");
+  const meeting = page.locator("a.meeting").first();
+  await meeting.waitFor();
+  const bookingId = Number(/\/chest\/bookings\/(\d+)/u.exec((await meeting.getAttribute("href")) ?? "")?.[1]);
+  expect(bookingId > 0, "a meeting on the agenda");
+  await live.joined();
+  const sql = postgres(toolDatabase("booking", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update bookings set guest_name = 'Live Renamed Guest' where id = ${bookingId}`;
+  } finally {
+    await sql.end();
+  }
+  await live.received(f => f.op === "msg" && f.event === "bookings.update" && f.payload?.id === bookingId);
+  await page.locator("a.meeting", { hasText: "Live Renamed Guest" }).waitFor({ timeout: 10000 });
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("bookings.update"), "the Chest published the feed's row (/_dev, Realtime)");
 });
 
 await browser.close();

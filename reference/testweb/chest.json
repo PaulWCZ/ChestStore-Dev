@@ -1,9 +1,14 @@
 {
-  "chest": "0.5",
+  "chest": "0.6",
   "name": "testweb",
   "title": "Server test bench",
   "description": "The web server that exercises the tool contract of a Chest.",
   "icon": "chest/icon.svg",
+  "description_file": "chest/description.md",
+  "previews": [
+    "chest/overview.png",
+    "chest/details.png"
+  ],
   "roles": [
     "reader",
     "editor"

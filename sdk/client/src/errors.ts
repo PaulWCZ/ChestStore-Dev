@@ -20,10 +20,9 @@ export class CapabilityNotGranted extends ChestError {
   }
 }
 
-// The call would take the tool beyond what its Chest gives it: for files,
-// their total (1 GiB unless its manifest asks more) or their count (10,000
-// objects); for notifications, 1,000 recipients an hour, 100 items per member
-// a day or 600 badge writes a minute. A refused call changes nothing.
+// The call would take the tool beyond what its Chest gives it: for
+// notifications, 1,000 recipients an hour, 100 items per member a day or
+// 600 badge writes a minute. A refused call changes nothing.
 export class QuotaExceeded extends ChestError {
   constructor() {
     super("quota_exceeded", 429, "the Chest refused: the tool's quota would be exceeded");
@@ -43,6 +42,16 @@ export class RateLimited extends ChestError {
 export class TooLarge extends ChestError {
   constructor() {
     super("too_large", 413, "the Chest refused: the object is too large");
+  }
+}
+
+// The server of the Chest has no more room for its tools' files — they share
+// its workload volume, no tool has a quota of its own —: nothing was kept.
+// Its owner frees space or takes a larger server; the tool says the file
+// could not be kept, and may try again later.
+export class StorageFull extends ChestError {
+  constructor() {
+    super("storage_full", 507, "the Chest refused: its server's workload volume is full");
   }
 }
 
@@ -95,5 +104,47 @@ export class AiModelNotAllowed extends ChestError {
 export class AiRefused extends ChestError {
   constructor() {
     super("content_refused", 422, "the AI provider refused the content of the request");
+  }
+}
+
+// A call on a member's request — opening a sealed value, reaching folders
+// of Files for them — needs a member on the request: none came with it, or
+// their ticket expired (a request lasts 60 seconds). A public page, a
+// schedule or an event opens nothing.
+export class MemberRequired extends ChestError {
+  constructor() {
+    super("member_required", 401, "the Chest refused: this is done only on the request of a member");
+  }
+}
+
+// The member may not do this: they lost the tool since the request began,
+// or the value was sealed for roles they do not hold.
+export class NotAllowed extends ChestError {
+  constructor() {
+    super("not_allowed", 403, "the Chest refused: this member may not do this");
+  }
+}
+
+// The sealed value does not open: it was altered, it is another tool's, or
+// it was sealed in another context.
+export class SealedInvalid extends ChestError {
+  constructor() {
+    super("sealed_invalid", 400, "the sealed value does not open: altered, another tool's or of another context");
+  }
+}
+
+// The Chest was restored and its sealed data waits for the owner's recovery
+// code: nothing is sealed or opened until they enter it (Settings).
+export class SealedLocked extends ChestError {
+  constructor() {
+    super("sealed_locked", 503, "the Chest's sealed data is locked until its owner enters the recovery code");
+  }
+}
+
+// The key of this tool's sealed values is lost for good (the Chest key and
+// its recovery code both): its sealed values never open again.
+export class SealedLost extends ChestError {
+  constructor() {
+    super("sealed_lost", 503, "the key of this tool's sealed values is lost");
   }
 }

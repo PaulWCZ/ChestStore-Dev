@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { leave } from "../lib/lifecycle.ts";
-import { addDays, dayIn } from "../lib/model.ts";
-import { calendarWorks, publishStep, reconcile } from "../lib/step-calendar.ts";
-import * as steps from "../lib/steps.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { leave } from "../src/lib/lifecycle.ts";
+import { addDays, dayIn } from "../src/shared/model.ts";
+import { calendarWorks, publishStep, reconcile } from "../src/lib/step-calendar.ts";
+import * as steps from "../src/lib/steps.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -20,8 +20,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "files", "calendar"], chest: { timeZone: "Europe/Paris" } });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "files", "calendar"], chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -147,7 +147,7 @@ test("a first sync goes in batches of 100 (calendar.putMany, SDK studio.15); the
 
 test("a Chest without the calendar: the steps stand, the tool knows it", async () => {
   const { sql } = database;
-  const other = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "files"] });
+  const other = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "files"] });
   try {
     const { step } = await steps.addStep(sql, asMember(ines), null, { text: "Somewhere", due: day, time: "08:00" });
     await publishStep(sql, step.id);

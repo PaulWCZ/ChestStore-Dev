@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import { readFileSync } from "node:fs";
 import * as members from "@argentic/chest-sdk/members";
+import { connect } from "@argentic/chest-sdk/realtime/client";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as comments from "../lib/comments.ts";
-import { normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { fromMarkdown } from "../lib/markdown.ts";
-import { linkParts } from "../lib/model.ts";
-import * as pages from "../lib/pages.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as tell from "../lib/tell.ts";
-import * as watching from "../lib/watching.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import * as comments from "../src/lib/comments.ts";
+import { normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { admit, lockChanged, onScreen } from "../src/lib/live.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import { linkParts } from "../src/lib/model.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as watching from "../src/lib/watching.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -24,7 +27,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -158,7 +161,7 @@ test("a new comment tells the page's author, earlier commenters and watchers —
   const key = `comments:${p.id}`;
   const told = itemsOf(ines.id, key);
   assert.equal(told.length, 1);
-  assert.equal(told[0]!.title, "Hugo Bernard a commenté « Expenses »"); // Inès reads French
+  assert.equal((told[0]!).title, "Hugo Bernard a commenté «\u202fExpenses\u202f»"); // Inès reads French
   assert.equal(told[0]!.body, "Is the limit per day?");
   assert.equal(told[0]!.path, `/chest/pages/${p.id}#comment-${first.comment.id}`);
   assert.equal(itemsOf(hugo.id, key).length, 0);
@@ -251,11 +254,11 @@ test("leaving stops watching; an erasure signs comments 'Former member'", async 
   const p = await newPage(s.id, ines, "Onboarding");
   await watching.setWatching(sql, asMember(lea), p.id, true);
   await comments.addComment(sql, asMember(lea), p.id, "Add the badge step.");
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: lea.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: lea.id } }, POST), 204);
   assert.equal((await sql`select count(*)::int as n from page_watchers where member_id = ${lea.id}`)[0]!["n"], 0);
   assert.equal((await comments.comments(sql, asMember(ines), p.id))[0]!.author, lea.id);
   const erasure = "era_" + "e".repeat(26);
-  assert.equal(await chest.emit({ type: "member.erased", data: { id: lea.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.erased", data: { id: lea.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
   const [c] = await comments.comments(sql, asMember(ines), p.id);
   assert.equal(c!.author, "erased");
   assert.equal(c!.body, "Add the badge step.");
@@ -274,7 +277,7 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   const c = await comments.addComment(sql, asMember(tom), p.id, "@Hugo Bernard can you check the bikes? cc @Léa Dubois");
   const told = await tell.commented(sql, asMember(tom), c.page, c.comment, [hugo.id, lea.id, tom.id]);
   assert.deepEqual(itemsOf(hugo.id, `mention:${p.id}`).length, 1);
-  assert.equal(itemsOf(lea.id, `mention:${p.id}`)[0]?.title, "Tom Walker vous a mentionné sur « Parking »");
+  assert.equal((itemsOf(lea.id, `mention:${p.id}`)[0]!).title, "Tom Walker vous a mentionné sur «\u202fParking\u202f»");
   assert.equal(itemsOf(tom.id, `mention:${p.id}`).length, 0); // never oneself
   // Inès, the author, gets the usual item; Hugo is not told twice.
   assert.equal(itemsOf(ines.id, `comments:${p.id}`).length, 1);
@@ -288,4 +291,131 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   const { ids } = await pages.deletePage(sql, asMember(ines), p.id);
   await tell.forget(sql, ids);
   assert.equal(itemsOf(hugo.id, `mention:${p.id}`).length, 0);
+});
+
+// The page re-reads itself only when its stamp changed (src/islands/Page.tsx,
+// LivePage, at each realtime event): a comment, an edit, a lock change it; nothing else does.
+test("a page's stamp changes with what its reader sees, not otherwise; the tree's branches come on demand", async () => {
+  const { sql } = database;
+  const s = await spaces.createSpace(sql, asMember(tom), { name: "Stamps " + Math.random() });
+  const p = await pages.createPage(sql, asMember(tom), { spaceId: s.id, title: "Stamped" });
+  const child = await pages.createPage(sql, asMember(tom), { spaceId: s.id, parentId: p.id, title: "Inside" });
+  const first = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.equal(await pages.pageStamp(sql, asMember(hugo), p.id), first, "nothing changed");
+  await comments.addComment(sql, asMember(lea), p.id, "A question");
+  const second = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.notEqual(second, first, "a comment");
+  await editing.startEditing(sql, asMember(tom), p.id);
+  assert.notEqual(await pages.pageStamp(sql, asMember(hugo), p.id), second, "someone edits it");
+  await assert.rejects(pages.pageStamp(sql, asMember(nora), p.id), /not_found/u);
+  const nodes = await pages.tree(sql, asMember(hugo), [s.id]);
+  assert.deepEqual(pages.shownTree(nodes, null).map(n => [n.title, n.more]), [["Stamped", true]], "the top, saying it holds more");
+  assert.deepEqual(pages.shownTree(nodes, p.id).map(n => n.title), ["Stamped", "Inside"], "the current page's branch");
+  assert.deepEqual((await pages.branchOf(sql, asMember(hugo), p.id)).map(n => [n.id, n.more]), [[child.id, false]]);
+});
+
+// Who is in page_live, as the Chest reads it at each join (a snapshot the
+// tests take after the wiki wrote it: the fake's check is synchronous).
+let tickets = new Set<string>();
+const snapshot = async () => {
+  tickets = new Set((await database.sql<{ page_id: string; member_id: string }[]>`select page_id, member_id from page_live`).map(r => `${r.page_id}|${r.member_id}`));
+};
+const membership = (table: string, key: string, member: string) => table === "page_live" && tickets.has(`${key}|${member}`);
+
+test("a comment: who has the page on screen (realtime's watching) is not told again; a mention always is", async () => {
+  const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
+  const live = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "realtime"], realtime: { ...realtime, membership } });
+  const screen = connect({ url: live.realtime.url(ines.id) });
+  try {
+    const { sql } = database;
+    const s = await openSpace("Live " + Math.random());
+    const p = await newPage(s.id, ines, "Parking");
+    // Inès, the page's author, has it open (LivePage: let in, joined, focused).
+    await admit(sql, p.id, ines.id);
+    await snapshot();
+    let joined = false;
+    screen.channel(`page:${p.id}`).onJoined(() => { joined = true; });
+    screen.focus(`page:${p.id}`);
+    for (let i = 0; i < 300 && !(joined && (await onScreen([ines.id], p.id)).has(ines.id)); i++) await new Promise(r => setTimeout(r, 10));
+    assert.deepEqual([...await onScreen([ines.id, hugo.id, "erased"], p.id)], [ines.id]);
+    const first = await comments.addComment(sql, asMember(hugo), p.id, "Where do visitors park?");
+    assert.deepEqual(await tell.commented(sql, asMember(hugo), first.page, first.comment), [], "on screen: she sees it arrive");
+    const named = await comments.addComment(sql, asMember(hugo), p.id, "@Inès?");
+    assert.deepEqual(await tell.commented(sql, asMember(hugo), named.page, named.comment, [ines.id]), [ines.id], "a mention names her: told");
+    // The lock's changes are published, without payload.
+    await lockChanged(p.id);
+    assert.deepEqual(live.realtime.published.map(e => [e.channel, e.event, e.payload]), [[`page:${p.id}`, "page.lock", null]]);
+  } finally {
+    screen.close();
+    await live.close();
+  }
+  // Without realtime: nothing thrown, nobody on screen.
+  await lockChanged("1");
+  assert.equal((await onScreen([ines.id], "1")).size, 0);
+});
+
+// The page's channel is the Chest's to open, from page_live (chest.json's
+// "join"): only who the wiki checked reads the page; their row goes when
+// that may have changed, and the Chest takes them out at once.
+test("a page's live channel: only its readers join it; a change of audience, groups, place or the trash takes them out", async () => {
+  const { sql } = database;
+  const { realtime } = JSON.parse(readFileSync("chest.json", "utf8"));
+  assert.deepEqual(realtime.channels, [{ name: "page:{id}", join: { table: "page_live", key: "page_id", member: "member_id" }, presence: true }]);
+  const live = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "realtime"], realtime: { ...realtime, membership } });
+  const pages_ = { hr: "" };
+  const screens = [hugo, tom].map(m => connect({ url: live.realtime.url(m.id) }));
+  try {
+    // A space kept to Sales (Hugo, Inès): Tom (Tech) never reads its pages.
+    const hr = await spaces.createSpace(sql, asMember(ines), { name: "Sales only " + Math.random(), visibility: "groups", groups: [groups.sales] });
+    const p = await newPage(hr.id, ines, "Commissions");
+    pages_.hr = p.id;
+    const hugoTicket = await admit(sql, p.id, hugo.id);
+    assert.equal(await admit(sql, p.id, hugo.id), hugoTicket, "let in once: the same mark");
+    // Tom cannot even be let in: the page is not his to read.
+    await assert.rejects(pages.pageStamp(sql, asMember(tom), p.id), /not_found/u);
+    await snapshot();
+    const outcome = (screen: ReturnType<typeof connect>) => new Promise<string>(resolve => {
+      const ch = screen.channel(`page:${p.id}`);
+      ch.onJoined(() => resolve("joined"));
+      ch.onRefused(code => resolve(code));
+    });
+    assert.equal(await outcome(screens[1]!), "forbidden", "Tom is refused: no presence, no lock, no rows of that page");
+    assert.equal(await outcome(screens[0]!), "joined", "Hugo reads it: he joins");
+    const rows = async () => (await sql<{ member_id: string }[]>`select member_id from page_live where page_id = ${p.id} order by member_id`).map(r => r.member_id);
+    // The space's audience changes: everyone in it is checked again.
+    await spaces.updateSpace(sql, asMember(ines), hr.id, { name: "Renamed " + Math.random() });
+    assert.deepEqual(await rows(), [hugo.id], "a new name changes nobody's access");
+    await spaces.updateSpace(sql, asMember(ines), hr.id, { groups: [groups.sales, groups.tech] });
+    assert.deepEqual(await rows(), [], "other groups: let in again at the next read");
+    // pageStamp lets the reader in again, with a new mark (never a 304).
+    const stamp = await pages.pageStamp(sql, asMember(hugo), p.id);
+    assert.deepEqual(await rows(), [hugo.id]);
+    assert.notEqual(await admit(sql, p.id, hugo.id), hugoTicket, "a new mark: the page's island joins again");
+    assert.equal(await pages.pageStamp(sql, asMember(hugo), p.id), stamp);
+    // Their groups or role change (member.updated): their rows go; a name does not.
+    await admit(sql, p.id, tom.id);
+    const deliver = async (changed: ("name" | "groups" | "role")[], who = hugo) => {
+      const status = await live.deliver({ type: "member.updated", data: { id: who.id, changed } }, request => POST(request));
+      assert.equal(status, 204);
+    };
+    await deliver(["name"]);
+    assert.deepEqual(await rows(), [hugo.id, tom.id].sort());
+    await deliver(["groups"]);
+    assert.deepEqual(await rows(), [tom.id]);
+    await deliver(["role"], tom);
+    assert.deepEqual(await rows(), []);
+    // Moved to another space; put in the trash: out.
+    await admit(sql, p.id, hugo.id);
+    const other = await openSpace("Elsewhere " + Math.random());
+    const child = await pages.createPage(sql, asMember(ines), { spaceId: hr.id, parentId: p.id, title: "Rates" });
+    await admit(sql, child.id, hugo.id);
+    await pages.movePage(sql, asMember(ines), p.id, { spaceId: other.id, parentId: null });
+    assert.equal((await sql`select 1 from page_live where page_id in (${p.id}, ${child.id})`).length, 0, "the page and its subpages");
+    await admit(sql, p.id, hugo.id);
+    await pages.deletePage(sql, asMember(ines), p.id);
+    assert.deepEqual(await rows(), []);
+  } finally {
+    for (const screen of screens) screen.close();
+    await live.close();
+  }
 });

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import * as b from "../lib/booking.ts";
-import * as calendars from "../lib/calendars.ts";
-import { freeWindows } from "../lib/slots.ts";
-import { cleanLanguages, cleanTypeTexts, localizeType, localizeWelcome, pageLanguage, pageLanguages } from "../lib/texts.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as b from "../src/lib/booking.ts";
+import * as calendars from "../src/lib/calendars.ts";
+import { freeWindows } from "../src/lib/slots.ts";
+import { cleanLanguages, cleanTypeTexts, localizeType, localizeWelcome, pageLanguage, pageLanguages } from "../src/lib/texts.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";

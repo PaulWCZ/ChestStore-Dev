@@ -67,3 +67,23 @@ Weak: the manager value (approval, team view, margin) is thin. The timer's proje
 7. "Not invoiced" report plus mark invoiced; Quotes link via events — M
 8. Copy fixes (forbidden, empty member, three add buttons, double arrows) — S
 9. Searchable project picker in the timer — S
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Timesheets's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.5,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **138.8 → 64.7 MiB**;
+  image 458 → 29 MiB; first members' page 676 →
+  573 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: a hand-off to Quotes offered and sent only when Quotes is installed **and** linked (`events.receivers`); rates frozen on a handed-off entry; reads before a change locked, so a save in flight never lands in what was just invoiced (race tests on PostgreSQL); members see a money budget as a share only; the Friday reminder skips weeks before a person's start; pages re-read only when their tab comes back (`bbd615b`).
+- **Pending**: It vendors package studio.5 (the others studio.6).

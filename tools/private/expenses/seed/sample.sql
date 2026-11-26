@@ -2,7 +2,7 @@
 -- month of expenses of a small company, the ids of the studio's dev harness
 -- (lab/chest-dev). Receipts are named here but the harness holds no file:
 -- the pages show a PDF icon for them; photos come from the browser flows.
-update categories set cap_cents = 6000 where key = 'meals';
+update categories set cap_cents = 6000, cap_currency = 'EUR' where key = 'meals';
 insert into approvers (member_id, approver_id) values
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'), ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'), ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
 insert into vehicles (member_id, kind, power, electric) values
@@ -96,11 +96,14 @@ insert into history (expense_id, actor, kind, detail, at) values
 -- tolls and parking, a trip abroad in pounds, a flat rate, a hotel's nights.
 update expenses set base_cents = amount_cents, base_currency = currency where base_cents is null and currency = 'EUR';
 insert into settings (key, value) values ('setupDone', 'true'), ('payer', '"Atelier Roux SARL"'), ('bankLocale', '"fr"');
+-- Bank details in the tool's old format ("v0.", before the Chest sealed
+-- them: SQL cannot seal): the nightly cleanup has the Chest seal them.
 insert into bank_accounts (owner, iban, last4, country, bic, holder, updated_by, updated_at) values
   ('company', 'v0.FR1420041010050500013M02606', '2606', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-01 10:00:00+02'),
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7630006000011234567890189', '0189', 'FR', 'AGRIFRPP', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-06-02 10:00:00+02'),
   ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'v0.DE89370400440532013000', '3000', 'DE', null, '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', '2026-09-24 18:00:00+02'),
-  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'v0.GB82WEST12345698765432', '5432', 'GB', 'NWBKGB2L', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-05-12 10:00:00+02');
+  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'v0.GB82WEST12345698765432', '5432', 'GB', 'NWBKGB2L', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-05-12 10:00:00+02'),
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7610107001011234567890129', '0129', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-28 11:00:00+02');
 insert into member_accounts (member_id, account) values ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '421BERNARD'), ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', '421WALKER');
 insert into rates (currency, rate_micro, updated_by) values ('GBP', 1165300, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
 update expenses set guest_names = '{"M. Garnier (Garnier & Fils)"}' where id = 1;

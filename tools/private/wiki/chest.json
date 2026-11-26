@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "wiki",
   "title": "Wiki",
   "description": "Write down how the company works — handbook, policies, how-tos — and find any answer in seconds.",
@@ -17,10 +17,47 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
     "member.*"
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "page:{id}",
+        "join": {
+          "table": "page_live",
+          "key": "page_id",
+          "member": "member_id"
+        },
+        "presence": true
+      }
+    ],
+    "feeds": [
+      {
+        "table": "pages",
+        "channel": "page:{id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "page_comments",
+        "channel": "page:{page_id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "reviews",
+      "cron": "40 7 * * 1-5"
+    }
   ],
   "build": {
     "runtime": "node",
@@ -29,7 +66,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

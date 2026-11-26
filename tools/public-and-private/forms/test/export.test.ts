@@ -1,22 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Answer } from "../lib/answers.ts";
-import { cell, toCsv } from "../lib/csv.ts";
-import { exportRows } from "../lib/export.ts";
-import type { Form } from "../lib/forms.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import type { Definition } from "../lib/model.ts";
-import type { Person } from "../lib/people.ts";
-import { nps, summarise } from "../lib/summary.ts";
+import type { Answer } from "../src/lib/answers.ts";
+import { cell, toCsv } from "../src/lib/csv.ts";
+import { exportRows, summaryRows } from "../src/lib/export.ts";
+import type { Form } from "../src/lib/forms.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import type { Definition } from "../src/shared/model.ts";
+import type { Person } from "../src/lib/people.ts";
+import { nps, summarise } from "../src/shared/summary.ts";
 import { form, opts, q } from "./support/fixtures.ts";
+import { statsOf } from "./support/stats.ts";
 
 test("CSV: a byte-order mark, quotes where needed, and no cell a spreadsheet would run", () => {
   const csv = toCsv([["Name", "Note"], ["=HYPERLINK(\"http://evil\")", "+1"], ["  @SUM(A1)", "-2"], ["\tTab", "line\nbreak"], [3.5, -4]], ",");
   assert.ok(csv.startsWith("﻿"));
   const lines = csv.slice(1).split("\r\n");
-  assert.equal(lines[1], `"'=HYPERLINK(""http://evil"")",'+1`);
-  assert.equal(lines[2], "'  @SUM(A1),'-2");
+  // A phone number or a signed number typed as text runs nothing: kept.
+  assert.equal(lines[1], `"'=HYPERLINK(""http://evil"")",+1`);
+  assert.equal(lines[2], "'  @SUM(A1),-2");
   assert.equal(lines[3], `'\tTab,"line\nbreak"`.replace("\n", "\n"));
+  // Phone numbers stay as typed; a sign before anything else is still guarded.
+  const more = toCsv([["+33 6 12 34 56 78", "-1+cmd|' /C calc'!A0", "+1 (555) 010-9999", "+SUM(1)"]], ";").slice(1).split("\r\n")[0];
+  assert.equal(more, "+33 6 12 34 56 78;'-1+cmd|' /C calc'!A0;+1 (555) 010-9999;'+SUM(1)");
   assert.ok(csv.includes("\r\n3.5,-4\r\n"), "numbers stay numbers");
   assert.equal(cell(3.5, ";"), "3,5", "a French spreadsheet reads a decimal comma");
   assert.equal(cell("a;b", ";"), '"a;b"');
@@ -32,7 +37,7 @@ function setup(anonymous: boolean) {
   v2.pages[0]!.questions[0]!.title = "Favourite colour";
   const versions = new Map([[1, v1], [2, v2]]);
   const [red, blue] = colour.options!.map(o => o.id) as [string, string];
-  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null, sent: [] });
+  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null, sent: [], hidden: {} });
   const answers = [
     a("aaaaaaaaaaaaaaaa", 1, { [colour.id]: { ids: [red] }, [score.id]: 10, [gone.id]: "=cmd" }, anonymous ? null : "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", anonymous ? null : "2026-09-20T10:00:00Z"),
     a("bbbbbbbbbbbbbbbb", 2, { [colour.id]: { ids: [blue] }, [score.id]: 3 }, null, anonymous ? null : "2026-09-21T10:00:00Z"),
@@ -54,7 +59,8 @@ test("the export: the latest wording, removed questions marked, labels not ids, 
 
 test("an anonymous form's export is its summary: counts and shares, never one person's row", () => {
   const { f, versions, answers } = setup(true);
-  const rows = exportRows({ form: f, answers, versions, t: catalogue("fr"), locale: "fr", zone: "Europe/Paris", names: new Map() });
+  assert.equal(f.anonymous, true);
+  const rows = summaryRows({ stats: statsOf(answers, versions), versions, t: catalogue("fr") });
   assert.deepEqual(rows[0], ["Question", "Réponse", "Nombre", "Part (%)"]);
   assert.deepEqual(rows[1], ["Réponses", "", 3, ""]);
   assert.ok(rows.some(r => r[0] === "Favourite colour" && r[1] === "Red" && r[2] === 2));
@@ -66,7 +72,7 @@ test("an anonymous form's export is its summary: counts and shares, never one pe
 
 test("the summary: bars across versions, averages, and the NPS", () => {
   const { versions, answers, colour, score } = setup(false);
-  const s = summarise(versions, answers, { yes: "Yes", no: "No", other: "Other" });
+  const s = summarise(versions, statsOf(answers, versions), { yes: "Yes", no: "No", other: "Other" });
   const c = s.find(x => x.column.question.id === colour.id)!;
   assert.equal(c.column.question.title, "Favourite colour");
   assert.deepEqual(c.stat.type === "bars" && c.stat.bars.map(b => [b.label, b.count, b.share]), [["Red", 2, 66.7], ["Blue", 1, 33.3]]);

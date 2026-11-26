@@ -1,22 +1,120 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "helpdesk",
   "title": "Support",
   "description": "Answer your customers together: a contact form, one shared inbox, replies and notes.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["admin", "agent", "viewer"],
-  "role_labels": { "admin": "Administrator", "agent": "Agent", "viewer": "Viewer" },
+  "roles": [
+    "admin",
+    "agent",
+    "viewer"
+  ],
+  "role_labels": {
+    "admin": "Administrator",
+    "agent": "Agent",
+    "viewer": "Viewer"
+  },
   "public": true,
-  "csp": "tool",
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications",
+    "realtime"
+  ],
+  "receives": [
+    "member.*",
+    "forms.request",
+    "status.incident"
+  ],
+  "emits": {
+    "helpdesk.ticket.solved": {
+      "description": "A support request is solved",
+      "data": {
+        "ticket": "id",
+        "assignee": "member?"
+      }
+    },
+    "helpdesk.ticket.reopened": {
+      "description": "A solved support request is reopened",
+      "data": {
+        "ticket": "id"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "desk",
+        "join": [
+          "admin",
+          "agent",
+          "viewer"
+        ]
+      },
+      {
+        "name": "mine:{member}"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "tickets",
+        "channel": "desk",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "messages",
+        "channel": "desk",
+        "columns": [
+          "id",
+          "ticket_id"
+        ]
+      },
+      {
+        "table": "ticket_tags",
+        "channel": "desk",
+        "columns": [
+          "ticket_id",
+          "tag_id"
+        ]
+      },
+      {
+        "table": "tags",
+        "channel": "desk",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "incidents",
+        "channel": "desk",
+        "columns": [
+          "source_id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "15 3 * * *"
+    },
+    {
+      "name": "late",
+      "cron": "*/15 * * * *"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": [
+      "/assets/"
+    ]
   }
 }

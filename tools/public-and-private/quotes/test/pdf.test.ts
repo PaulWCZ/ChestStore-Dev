@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { deflateSync } from "node:zlib";
 import { test } from "node:test";
-import type { Line } from "../lib/documents.ts";
-import type { Buyer, Seller } from "../lib/parties.ts";
-import { pdfFileName, renderPdf, type PdfInput } from "../lib/pdf/document.ts";
-import { ImageError, readImage } from "../lib/pdf/image.ts";
-import { textWidth, winAnsi, wrap } from "../lib/pdf/writer.ts";
-import { crc32 } from "../lib/zip.ts";
+import type { Line } from "../src/lib/documents.ts";
+import type { Buyer, Seller } from "../src/shared/parties.ts";
+import { pdfFileName, renderPdf, type PdfInput } from "../src/pdf/document.ts";
+import { ImageError, readImage } from "../src/pdf/image.ts";
+import { textWidth, winAnsi, wrap } from "../src/pdf/writer.ts";
+import { crc32 } from "../src/lib/zip.ts";
 import { pageCount, pdfText } from "./support/pdf.ts";
 
 const seller: Seller = {

@@ -1,0 +1,62 @@
+[
+ {
+  "path": "/chest",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/bookings/2",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/ines-moreau",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/ines-moreau/project-call",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/b/demoGuestLinkForTheScreens000000",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest/types",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/hours",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/hugo-bernard/measurement",
+  "public": true,
+  "language": "fr"
+ },
+ {
+  "path": "/chest?who=all",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/camille-martin/discovery",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "ines",
+  "language": "fr"
+ }
+]

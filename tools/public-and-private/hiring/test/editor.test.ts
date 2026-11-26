@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fromEditor, parse, toHtml, type EditorNode } from "../lib/rich-text.ts";
+import { fromEditor, parse, toHtml, type EditorNode } from "../src/shared/rich-text.ts";
 
 // A small DOM, as the browser's editor gives it.
 const text = (value: string): EditorNode => ({ nodeType: 3, nodeName: "#text", textContent: value, childNodes: [] });

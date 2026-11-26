@@ -1,8 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import type { Sql } from "../../lib/db.ts";
-import { en } from "../../lib/i18n/en.ts";
-import * as jobs from "../../lib/jobs.ts";
-import { stageLabel, type Named } from "../../lib/stages.ts";
+import type { Sql } from "../../src/lib/db.ts";
+import { en } from "../../src/i18n/en.ts";
+import * as jobs from "../../src/lib/jobs.ts";
+import { stageLabel, type Named } from "../../src/shared/stages.ts";
 
 // A stage's name as an English reader sees it.
 export const label = (s: Named) => stageLabel(s, en.jobSettings.defaults);

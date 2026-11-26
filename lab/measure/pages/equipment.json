@@ -1,0 +1,82 @@
+[
+ {
+  "path": "/chest",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/items",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/items/2",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/items/39",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/items/42",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/inventory/1",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/labels?category=1",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/items?category=6",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/items/7",
+  "member": "sofia",
+  "language": "fr"
+ }
+]

@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { busySnapshot } from "../lib/busy-snapshot.ts";
-import { shareBusy } from "../lib/busy.ts";
-import { addDays } from "../lib/calendar.ts";
-import { putAll, state, sync, type Row } from "../lib/leave-calendar.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { keepInLine } from "../lib/share.ts";
-import { instants, zoned } from "../lib/spans.ts";
-import { setApprover } from "../lib/staff.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { busyData, busySnapshot } from "../src/lib/busy-snapshot.ts";
+import { shareBusy } from "../src/lib/busy.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { putAll, state, sync, type Row } from "../src/lib/leave-calendar.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { keepInLine } from "../src/lib/share.ts";
+import { instants, zoned } from "../src/lib/spans.ts";
+import { setApprover } from "../src/lib/staff.ts";
+import { declaredEmits } from "./support/emits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -25,10 +26,10 @@ const zone = "Europe/Paris";
 before(async () => {
   database = await testDatabase({ timeZone: zone });
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({
+  chest = await fakeChest({ network: {},
     tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone },
     capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Leave", company: "Atelier Martin" },
-    emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 1,
+    emits: declaredEmits,
   });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
@@ -41,8 +42,10 @@ after(async () => {
   await database.close();
 });
 
-const busyOf = (member: string) => chest.published.filter(e => e.type === "leave.busy" && e.data["member"] === member);
-const utc = (d: Date) => d.toISOString().slice(0, 16) + "Z";
+const busyOf = (member: string) => chest.emitted.filter(e => e.type === "leave.busy" && e.data["member"] === member);
+const utc = (d: Date) => d.toISOString().slice(0, 16) + ":00Z";
+// The spans travel as JSON text (an event's fields are flat, SDK 0.5+).
+const spansOf = (e: { data: Record<string, unknown> }) => JSON.parse(String(e.data["spans"])) as string[][];
 
 test("a day in Paris as instants: midnight and noon, summer and winter, and across the change of the clocks", () => {
   assert.equal(zoned("2026-03-02", 12, zone).toISOString(), "2026-03-02T11:00:00.000Z");
@@ -82,7 +85,9 @@ test("his busy times go to Booking: whole days in Paris as UTC minutes, times on
   const monday = quietMonday(21);
   assert.deepEqual(Object.keys(e!.data).sort(), ["at", "from", "member", "spans", "to", "v"]);
   assert.equal(e!.data["v"], 1);
-  assert.deepEqual(e!.data["spans"], [[utc(zoned(monday, 0, zone)), utc(zoned(addDays(monday, 5), 0, zone))]]);
+  assert.equal(e!.subject, hugo.id);
+  assert.deepEqual(e!.audience, { members: [hugo.id], roles: ["hr", "manager", "employee"] });
+  assert.deepEqual(spansOf(e!), [[utc(zoned(monday, 0, zone)), utc(zoned(addDays(monday, 5), 0, zone))]]);
   const text = JSON.stringify(e!.data);
   assert.doesNotMatch(text, /Lisbon|paid|approved|ines/iu);
   // Said once: nothing changed, nothing told again.
@@ -100,7 +105,7 @@ test("a half day is noon to midnight in the calendar and in the busy times", asy
   const e = chest.calendar.get(`leave:${r.id}`)!;
   assert.ok("start" in e);
   assert.deepEqual([new Date(e.start).toISOString(), new Date(e.end).toISOString()], [zoned(day, 12, zone).toISOString(), zoned(addDays(day, 1), 0, zone).toISOString()]);
-  const spans = busyOf(hugo.id).at(-1)!.data["spans"] as string[][];
+  const spans = spansOf(busyOf(hugo.id).at(-1)!);
   assert.equal(spans.length, 2);
   assert.deepEqual(spans[1], [utc(zoned(day, 12, zone)), utc(zoned(addDays(day, 1), 0, zone))]);
 });
@@ -111,7 +116,7 @@ test("an approval taken back, a refusal, a cancellation: the event goes, the bus
   await requests.reopen(sql, asMember(ines), week1!.id);
   await keepInLine(sql);
   assert.equal(chest.calendar.has(`leave:${week1!.id}`), false);
-  assert.equal((busyOf(hugo.id).at(-1)!.data["spans"] as unknown[]).length, 1);
+  assert.equal(spansOf(busyOf(hugo.id).at(-1)!).length, 1);
   await requests.decide(sql, asMember(ines), week1!.id, { verdict: "refuse", reason: "Stock-taking" });
   // Hugo cancels the half day; Inès confirms.
   assert.equal(await requests.cancel(sql, asMember(hugo), half!.id), "asked");
@@ -119,7 +124,7 @@ test("an approval taken back, a refusal, a cancellation: the event goes, the bus
   await keepInLine(sql);
   assert.equal(chest.calendar.size, 0);
   const told = busyOf(hugo.id).length;
-  assert.deepEqual(busyOf(hugo.id).at(-1)!.data["spans"], []);
+  assert.deepEqual(spansOf(busyOf(hugo.id).at(-1)!), []);
   await keepInLine(sql);
   assert.equal(busyOf(hugo.id).length, told, "free is said once");
 });
@@ -148,7 +153,7 @@ test("a first sync puts many at once (100 a call), and only what changed after",
   // Busy: only the 90 days ahead, merged, times only.
   await shareBusy(sql);
   const snapshot = busyOf(lea.id).at(-1)!.data;
-  assert.deepEqual(snapshot, { ...busySnapshot(lea.id, rows.map(d => ({ start: zoned(d, 0, zone).getTime(), end: zoned(addDays(d, 1), 0, zone).getTime() })), Date.parse(String(snapshot["at"]))) });
+  assert.deepEqual(snapshot, { ...busyData(busySnapshot(lea.id, rows.map(d => ({ start: zoned(d, 0, zone).getTime(), end: zoned(addDays(d, 1), 0, zone).getTime() })), Date.parse(String(snapshot["at"])))) });
 });
 
 test("one event the Chest refuses in a batch: the others are put and recorded, the refused one never recorded as put", async () => {
@@ -182,7 +187,7 @@ test("remote work is not an absence: neither 'Off' in the feed nor busy for Book
 test("erased: the events go, and what was told of them is forgotten", async () => {
   const { sql } = database;
   const event = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: lea.id, erasure: "era_" + "e".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal([...chest.calendar.values()].filter(e => e.members[0] === lea.id).length, 0);
   assert.equal((await sql`select 1 from shared_busy where member_id = ${lea.id}`).length, 0);
 });
@@ -190,14 +195,14 @@ test("erased: the events go, and what was told of them is forgotten", async () =
 test("a Chest without the calendar: nothing fails, the home stops promising it, asked again in the morning", async () => {
   const { sql } = database;
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, calendar: false });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, calendar: false });
   const monday = quietMonday(63);
   const r = await requests.createRequest(sql, asMember(tom), { typeId: sick, start: monday, startHalf: "am", end: monday, endHalf: "pm" });
   await keepInLine(sql);
   assert.equal(await state(sql), "off");
   assert.deepEqual(await sync(sql), { put: 0, removed: 0 }, "not asked again within the hour");
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
   await sync(sql, { recheck: true });
   assert.equal(await state(sql), "on");
   assert.ok(chest.calendar.has(`leave:${r.id}`));

@@ -27,10 +27,9 @@ begin
   insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', 'Bonjour, la lampe Arco que j''ai reçue hier a le pied fêlé. Je joins une photo. Pouvez-vous l''échanger ? Merci, Jean', now() - interval '3 hours');
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, created_at, updated_at, waiting_since)
-  values (nextval('ticket_numbers'), 'Invoice for order 4471', 'open', 'accounts@lumiere-hotels.example', 'Sarah Klein', 'email', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'en', now() - interval '6 days', now() - interval '6 days', now() - interval '6 days') returning id into t;
+  values (nextval('ticket_numbers'), 'Invoice for order 4471', 'open', 'accounts@lumiere-hotels.example', 'Sarah Klein', 'form', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'en', now() - interval '6 days', now() - interval '6 days', now() - interval '6 days') returning id into t;
   insert into ticket_tags (ticket_id, tag_id) values (t, invoice);
-  insert into messages (ticket_id, kind, body, created_at, email_id, mail_from, html) values (t, 'customer', E'Hello,\n\nCould you send the invoice for order 4471 with our VAT number FR12 345678901? Our accounts portal is https://pay.lumiere-hotels.example/suppliers.\n\nThank you.\nSarah Klein, Lumière Hotels\n\nOn Mon, 21 Sep 2026 at 10:02, Atelier Martin <support@atelier-martin.test> wrote:\n> Your order 4471 has shipped.\n> Camille', now() - interval '6 days', '<a1@lumiere-hotels.example>', 'accounts@lumiere-hotels.example',
-    '<p>Hello,</p><p>Could you send the invoice for order <b>4471</b> with our VAT number <b>FR12 345678901</b>? Our accounts portal is <a href="https://pay.lumiere-hotels.example/suppliers" rel="noopener noreferrer nofollow">pay.lumiere-hotels.example</a>.</p><p>Thank you.<br>Sarah Klein, Lumière Hotels</p><blockquote><p>Your order 4471 has shipped.<br>Camille</p></blockquote>');
+  insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', E'Hello,\n\nCould you send the invoice for order 4471 with our VAT number FR12 345678901? Our accounts portal is https://pay.lumiere-hotels.example/suppliers.\n\nThank you.\nSarah Klein, Lumière Hotels', now() - interval '6 days');
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, assignee, created_at, updated_at)
   values (nextval('ticket_numbers'), 'When will my table be delivered?', 'waiting', 'marie.leroy@example.com', 'Marie Leroy', 'form', encode(sha256(convert_to('demoFollowUpLinkForTheScreens000', 'UTF8')), 'hex'), 'en', ines, now() - interval '2 days', now() - interval '20 hours') returning id into t;
@@ -51,17 +50,17 @@ begin
   update tickets set rating = 'good', rated_at = now() - interval '7 days' where id = t;
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, created_at, updated_at, priority, waiting_since)
-  values (nextval('ticket_numbers'), 'Wrong address on today''s delivery', 'open', 'n.faure@example.com', 'Nicolas Faure', 'email', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'fr', now() - interval '40 minutes', now() - interval '40 minutes', 'urgent', now() - interval '40 minutes') returning id into t;
-  insert into messages (ticket_id, kind, body, created_at, email_id) values (t, 'customer', 'Bonjour, le transporteur doit livrer mon canapé cet après-midi mais l''adresse est l''ancienne : 12 rue des Lilas. La bonne est 4 avenue Foch, Lyon. Pouvez-vous le prévenir ? Nicolas Faure', now() - interval '40 minutes', '<b7@example.com>');
+  values (nextval('ticket_numbers'), 'Wrong address on today''s delivery', 'open', 'n.faure@example.com', 'Nicolas Faure', 'form', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'fr', now() - interval '40 minutes', now() - interval '40 minutes', 'urgent', now() - interval '40 minutes') returning id into t;
+  insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', 'Bonjour, le transporteur doit livrer mon canapé cet après-midi mais l''adresse est l''ancienne : 12 rue des Lilas. La bonne est 4 avenue Foch, Lyon. Pouvez-vous le prévenir ? Nicolas Faure', now() - interval '40 minutes');
   insert into ticket_tags (ticket_id, tag_id) values (t, delivery);
 
   -- A request whose answer bounced: the customer mistyped their address.
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, assignee, created_at, updated_at, bounce)
   values (nextval('ticket_numbers'), 'Assembly instructions for the shelf', 'waiting', 'lucas.m@exmaple.com', 'Lucas Moreau', 'form', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'en', hugo, now() - interval '1 day', now() - interval '20 hours',
-    jsonb_build_object('permanent', true, 'reason', '550 5.1.1 The email account that you tried to reach does not exist', 'at', now() - interval '20 hours', 'recipient', 'lucas.m@exmaple.com')) returning id into t;
+    jsonb_build_object('permanent', true, 'reason', 'bounced', 'at', now() - interval '20 hours', 'recipient', 'lucas.m@exmaple.com')) returning id into t;
   insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', 'Hello, the instructions for the Oslo shelf were not in the box. Could you send them? Lucas', now() - interval '1 day');
   insert into messages (ticket_id, kind, author, body, created_at, delivery, mail_id, bounce) values (t, 'reply', hugo, 'Hello Lucas, here they are as a PDF. Hugo', now() - interval '20 hours', 'email', 'msg_aaaaaaaaaaaaaaaaaaaaaaaaaa',
-    jsonb_build_object('permanent', true, 'reason', '550 5.1.1 The email account that you tried to reach does not exist', 'at', now() - interval '20 hours', 'recipient', 'lucas.m@exmaple.com'));
+    jsonb_build_object('permanent', true, 'reason', 'bounced', 'at', now() - interval '20 hours', 'recipient', 'lucas.m@exmaple.com'));
 
   -- A colleague's IT request (a team form of Forms): Nora has no role in
   -- Support; she reads Inès's answer in My requests (/chest/mine).

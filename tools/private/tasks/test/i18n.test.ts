@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { catalogue, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { en } from "../src/i18n/en.ts";
+import { catalogue, format, locales, plural, publicLocale } from "../src/i18n/index.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.

@@ -1,0 +1,52 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/1",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/polls/4",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/3",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/10",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/new?kind=survey&preset=pulse",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/p/maisonleroykickoffxyzabcde",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest/polls/11",
+  "member": "sofia",
+  "language": "en"
+ }
+]

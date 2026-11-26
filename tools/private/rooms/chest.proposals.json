@@ -1,19 +1,8 @@
 {
   "calendar": true,
-  "groups": "read",
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "quarter",
-      "cron": "*/15 * * * *"
-    }
-  ],
-  "receives": [
-    "leave.approved",
-    "leave.cancelled"
-  ],
   "translations": {
     "fr": {
       "title": "Salles",

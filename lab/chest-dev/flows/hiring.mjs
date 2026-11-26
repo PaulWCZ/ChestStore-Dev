@@ -1,12 +1,13 @@
 // Hiring, as candidates and the team use it, in a real browser:
 //   node lab/chest-dev/flows/hiring.mjs [port]   (harness with --reset: the sample jobs are there)
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5300);
-const { browser, context, page, origin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 page.on("pageerror", e => console.log("  [pageerror at " + page.url() + "] " + e.message.slice(0, 40)));
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+let chosenLink = null;
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 
 async function fillApplication(name, email, file) {
@@ -58,11 +59,11 @@ await step("the careers page lists the open jobs, in English and in French", asy
   const titles = await page.locator(".job-row-title").allTextContents();
   expect(titles.length === 3 && titles.includes("Senior furniture designer") && !titles.includes("Summer workshop intern"), "jobs: " + titles.join("|"));
   await page.getByRole("link", { name: "Français" }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(publicOrigin + "/");
   expect((await page.locator("h1").innerText()).includes("Rejoignez Atelier Martin"), "French title");
   expect((await page.locator(".lede").innerText()).startsWith("Nous dessinons"), "French intro on the French page");
   await page.getByRole("link", { name: "English" }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(publicOrigin + "/");
 });
 
 await step("a candidate applies with a PDF CV and lands on the thank-you page; a confirmation email leaves", async () => {
@@ -76,6 +77,17 @@ await step("a candidate applies with a PDF CV and lands on the thank-you page; a
   await page.waitForURL(/\/thanks\?mailed=1$/u, { timeout: 15000 });
   expect((await page.locator("main").innerText()).includes("We also sent you a confirmation by email."), "mailed");
   expect((await dev()).includes("We received your application — Senior furniture designer"), "confirmation in the outbox");
+});
+
+await step("an address the browser lets through but mail would not take is refused in plain words; what was typed stays", async () => {
+  await page.goto(origin + "/senior-furniture-designer/apply");
+  // Two dots in a row: the server's field.email refuses it.
+  await fillApplication("Paul Martin", "paul..martin@example.com", null);
+  await page.getByRole("button", { name: "Send my application" }).click();
+  await page.waitForSelector("p.error");
+  expect((await page.locator("p.error").first().innerText()).includes("This email address does not look right"), "the address refused");
+  expect((await page.getByLabel("Full name").inputValue()) === "Paul Martin", "kept");
+  expect(!page.url().includes("/thanks"), "not filed");
 });
 
 await step("a file that says PDF but is not one is refused; what was typed stays", async () => {
@@ -264,13 +276,17 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   expect(await page.evaluate(() => document.activeElement?.id) === "start-date", "focus back on the first day");
   expect((await dev()).split("hiring.hired").length === hiredBefore, "nothing published");
   // Corrected and confirmed in one move (kit 0.2.5): the click is not lost.
-  await page.getByLabel(/First day/u).fill("2026-11-02");
+  // A first day three weeks ahead (a fixed date ages into the past).
+  const firstDay = new Date(Date.now() + 21 * 86400000);
+  const firstDayText = firstDay.toISOString().slice(0, 10);
+  const firstDayShown = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(firstDay);
+  await page.getByLabel(/First day/u).fill(firstDayText);
   await page.getByRole("button", { name: "Confirm the hire" }).click();
   await page.waitForSelector(".ck-toast");
   let log = await dev();
   expect(log.includes("hiring.hired") && log.includes("Clara Fontaine"), "hired published");
   await page.reload();
-  expect((await page.locator(".cand-head").innerText()).includes("Starts on 2 November 2026"), "start date shown");
+  expect((await page.locator(".cand-head").innerText()).includes("Starts on " + firstDayShown), "start date shown");
   await page.getByRole("button", { name: "Move to Hired" }).count();
   await page.locator(".cand-actions .menu summary").click();
   await page.getByRole("button", { name: "Move to…" }).click();
@@ -278,14 +294,14 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   log = await dev();
-  expect(log.includes("hiring.hire_cancelled"), "cancel published");
+  expect(log.includes("hiring.hire-cancelled"), "cancel told (hiring.hire-cancelled: 0.7.0 refuses an underscore)");
 });
 
-await step("reach: the job page carries JobPosting data (with the nonce), the feeds and sitemap list the open jobs", async () => {
+await step("reach: the job page carries JobPosting data (a data block: no script runs), the feeds and sitemap list the open jobs", async () => {
   const html = await (await page.request.get(origin + "/senior-furniture-designer")).text();
-  const m = /<script type="application\/ld\+json" nonce="([^"]+)">([^<]+)<\/script>/u.exec(html);
-  expect(m, "JSON-LD with a nonce");
-  const data = JSON.parse(m[2]);
+  const m = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(html);
+  expect(m, "JSON-LD");
+  const data = JSON.parse(m[1]);
   for (const key of ["title", "description", "datePosted", "hiringOrganization", "jobLocation"]) expect(data[key], "JobPosting " + key);
   expect(/index, follow/u.test(html), "indexable");
   const indeed = await (await page.request.get(origin + "/jobs.xml")).text();
@@ -296,23 +312,20 @@ await step("reach: the job page carries JobPosting data (with the nonce), the fe
   expect((await (await page.request.get(origin + "/robots.txt")).text()).includes("Disallow: /chest"), "robots");
 });
 
-await step("write to a candidate from a template; her answer lands on her page", async () => {
+await step("write to a candidate from a template; the email and the page say her answer goes to the company's inbox", async () => {
   await page.goto(origin + "/chest/candidates/7");
+  expect((await page.locator("#emails ~ .hint").first().innerText()).includes("Candidates’ replies go to contact@atelier-martin.test, your company’s usual inbox — not to this page."), "the page says where answers go");
   await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#write-template").selectOption({ label: "Ask when they are free" });
   expect((await page.locator("#write-text").inputValue()).startsWith("Hello Emma,"), "template filled");
+  expect((await page.locator("#write-hint").innerText()).includes("not to this page"), "the form says it too");
   await page.locator("dialog[open]").getByRole("button", { name: "Send" }).click();
   await page.waitForSelector(".ck-toast");
   expect((await page.locator(".ck-toast").innerText()).includes("Sent to Emma Lefort"), "sent");
   const log = await dev();
-  expect(log.includes("jobs+tc7-"), "reply address is the candidate's thread");
-  const id = /<option value="(msg_[a-z2-7]+)">Reply to “Your application — Senior furniture designer” \(emma\.lefort@example\.com\)/u.exec(log)?.[1];
-  expect(id, "the message in the outbox");
-  const r = await page.request.post(origin + "/_dev/receive", { form: { mailbox: "jobs", reply: id, from: "emma.lefort@example.com", fromName: "Emma Lefort", subject: "x", text: "Thursday at 10 works for me. Emma", back: "/_dev" }, maxRedirects: 0 });
-  expect(r.status() === 303, "delivered");
-  await page.reload();
-  expect((await page.locator(".mails").innerText()).includes("Thursday at 10 works for me"), "her answer in the conversation");
-  expect((await page.locator(".timeline").innerText()).includes("They answered by email"), "in the history");
+  const item = log.split("<li>").find(x => x.includes("<b>Your application — Senior furniture designer</b>") && x.includes("emma.lefort@example.com"));
+  expect(item && item.includes("replies to <code>contact@atelier-martin.test</code>"), "Reply-To: the company's address");
+  expect(item.includes("To answer, reply to this email: it goes to Atelier Martin."), "the email's last line says where a reply goes");
 });
 
 await step("invite to an interview: busy times shown, .ics emailed, interviewers' calendars have it", async () => {
@@ -358,6 +371,7 @@ await step("the candidate chooses her own interview time from a link: free times
   expect((await page.locator(".meetings").first().innerText()).includes("Waiting for them to choose"), "the link waits on her page");
   const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}/u.exec(await dev())?.[0];
   expect(link, "the link is in the email");
+  chosenLink = link;
   // The candidate, not signed in, in her browser.
   await context.clearCookies();
   await english();
@@ -383,6 +397,30 @@ await step("the candidate chooses her own interview time from a link: free times
   expect(!history.includes("Waiting for them to choose"), "no longer waiting");
 });
 
+await step("the candidate gives her time back: another time from the same link, then she calls the interview off; the team hears both", async () => {
+  expect(chosenLink, "a booked link from the step before");
+  await context.clearCookies();
+  await english();
+  const at = chosenLink.replace(/^https?:\/\/[^/]+/u, origin);
+  await page.goto(at);
+  await page.getByRole("button", { name: "Choose another time" }).click();
+  await page.waitForSelector("h1 >> text=/choose a time/");
+  await page.locator(".pick-time").nth(2).click();
+  await page.getByRole("button", { name: /^Confirm /u }).click();
+  await page.waitForSelector("h1 >> text=Your interview is booked");
+  await page.getByRole("link", { name: "Call off the interview" }).click();
+  await page.waitForSelector("h1 >> text=/Call off your interview of/");
+  await page.getByRole("button", { name: "Yes, call it off" }).click();
+  await page.waitForSelector("h1 >> text=Your interview is called off");
+  const log = await dev();
+  expect(log.includes("gave back their interview time") && log.includes("called off their interview"), "the team's bell");
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/1");
+  const history = await page.locator("main").innerText();
+  expect(history.includes("to choose another") && history.includes("Called off the interview of"), "in her history");
+});
+
 await step("one place for the careers brand: with the Chest's brand, Hiring's colour and logo step aside and Settings says where it comes from; a team theme never dresses the careers page", async () => {
   await as(context, origin, "camille");
   await english();
@@ -398,11 +436,11 @@ await step("one place for the careers brand: with the Chest's brand, Hiring's co
   try {
     await context.clearCookies();
     await page.goto(origin + "/?fresh=theme");
-    expect((await page.locator("html").getAttribute("data-look")) === "own", "candidates see Hiring's own look");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "own", "candidates see Hiring's own look");
     await as(context, origin, "camille");
     await english();
     await page.goto(origin + "/chest/settings");
-    expect((await page.locator("html").getAttribute("data-look")) === "catalogue", "the team wears the company's theme");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "catalogue", "the team wears the company's theme");
     expect((await page.locator("main").innerText()).includes("Colour"), "without a brand, Hiring's colour is the careers page's");
   } finally {
     await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
@@ -474,6 +512,7 @@ await step("export everything as a ZIP; a candidate's own data", async () => {
 
 await step("write a job, publish it: it is on the careers page", async () => {
   await page.goto(origin + "/chest/jobs/new");
+  expect((await page.locator(".questions-editor").innerText()).includes("Never ask about age, family, origin, health or religion: the law forbids it."), "what not to ask, said where questions are written");
   await page.getByLabel("Job title").fill("Wood finisher");
   await page.getByLabel("Team").fill("Workshop");
   await page.getByLabel("Place", { exact: true }).fill("Lyon");
@@ -509,6 +548,36 @@ await step("add a referral by hand with a CV", async () => {
   await page.waitForURL(/\/chest\/candidates\/\d+$/u, { timeout: 15000 });
   expect((await page.locator(".cand-head").innerText()).includes("Added by Camille Martin"), "added by");
   expect(await page.locator("iframe.cv-frame").count() === 1, "CV");
+});
+
+await step("a candidate's page left open follows a colleague's note by itself, never on a timer (SDK 0.7.0's realtime); the note is sealed in the database", async () => {
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 }, locale: "en-GB" });
+  try {
+    await other.addCookies([{ name: "dev_member", value: "mbr_sofia" + "a".repeat(21), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+    const watching = await other.newPage();
+    // The referral just added: the page the flow is on.
+    const here = page.url();
+    const candidateId = here.split("/").pop();
+    await watching.goto(here);
+    await watching.waitForTimeout(2000);
+    const reads = [];
+    watching.on("request", r => { if (new URL(r.url()).pathname.startsWith("/chest")) reads.push(r.url()); });
+    await watching.waitForTimeout(35000);
+    expect(reads.length === 0, "idle, the page asks the tool nothing (it read itself every 30 s before): " + reads.join(", "));
+    await page.locator("#note").fill("References checked: all good.");
+    await page.getByRole("button", { name: "Add the note" }).click();
+    await watching.waitForSelector(".note-list >> text=References checked: all good.", { timeout: 15000 });
+    expect(reads.length >= 1 && reads.length <= 4, "read again once the Chest said: " + reads.length);
+    const stored = new (await import("postgres")).default(toolDatabase("hiring", port), { max: 1 });
+    try {
+      const [row] = await stored`select body from notes where candidate_id = ${candidateId} order by id desc limit 1`;
+      expect(row.body.startsWith("chest:sealed:") && !row.body.includes("References"), "sealed in the database");
+    } finally {
+      await stored.end();
+    }
+  } finally {
+    await other.close();
+  }
 });
 
 await step("a note, then erase the candidate", async () => {
@@ -552,8 +621,9 @@ const utcMinute = (day, hhmm) => new Date(Date.parse(`${day}T${hhmm}:00Z`) - par
 await step("Booking says Inès is at a showroom visit: Mathis is never offered that hour, nor lunch; the recruiter sees it as Booking's", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
   const day = weekdayAhead();
-  const from = new Date().toISOString().slice(0, 10) + "T00:00Z";
-  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from, to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, "10:00"), utcMinute(day, "11:00")]] };
+  const from = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
+  // Contract 0.7: flat fields, the spans as JSON text.
+  const data = { member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from, to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z", spans: JSON.stringify([[utcMinute(day, "10:00"), utcMinute(day, "11:00")]]) };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "booking.busy", data: JSON.stringify(data) } });
   await as(context, origin, "camille");
   await english();
@@ -604,7 +674,7 @@ await step("Leave says Inès is off a whole day: Mathis is offered no time that 
   const off = weekdayAfter(weekdayAhead());
   const next = new Date(Date.parse(off + "T12:00:00Z") + 86400000).toISOString().slice(0, 10);
   // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
-  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  const snapshot = (spans, at) => ({ member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00:00.000Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z", spans: JSON.stringify(spans) });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(off, "00:00"), utcMinute(next, "00:00")]], new Date())) } });
   // Mathis's link (sent in the step before): that day offers nothing.
   const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}\?lang=fr/u.exec(await dev())?.[0];
@@ -693,23 +763,19 @@ await step("a candidate's own data carries the files sent to her (the offer lett
   expect(/emails\/\d+\/Offer letter\.pdf/u.test(all) && /emails\/\d+\/Contract\.pdf/u.test(all), "and in the full export");
 });
 
-await step("the morning schedule: each interviewer gets the day's interviews by email, in their language (their email choice applied by the Chest)", async () => {
+await step("the morning schedule: each interviewer finds the day's interviews in the bell, in their language — no email from Hiring", async () => {
   // The sample has Karim Haddad's interview at 09:00 this morning, Paris
   // time, with Hugo and Inès — seeded relative to Paris's day, so this
   // step holds at any hour.
   const r = await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
   expect(r.status() === 303, "schedule: " + r.status());
   const log = await dev();
-  const mail = log.split("<li>").find(item => item.includes("<b>Your interviews today</b>"));
-  expect(Boolean(mail) && mail.includes("hugo@example.test") && mail.includes("09:00 — Karim Haddad") && mail.includes("/chest/candidates/8"), "Hugo's morning email, with the time, the name and the link");
-  // Run again (a retry): still one email for him today.
-  await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
-  const again = await dev();
-  expect(again.split("<b>Your interviews today</b>").length - 1 === 1, "one a day");
-  // Every interviewer on it gets theirs in their own language: Inès reads French.
-  const ines = again.split("<li>").find(item => item.includes("<b>Vos entretiens aujourd’hui</b>"));
-  expect(Boolean(ines) && ines.includes("ines@example.test") && ines.includes("Bonjour Inès") && ines.includes("09:00 — Karim Haddad"), "Inès's, in French");
-  expect(again.split("<b>Vos entretiens aujourd’hui</b>").length - 1 === 1, "one for her too");
+  // SDK 0.7.0: the Chest keeps each item in its reader's language.
+  const items = log.split("<li>");
+  const bell = items.filter(item => item.includes("Interview at 09:00: Karim Haddad"));
+  expect(bell.some(item => item.includes("Hugo") && item.includes("/chest/candidates/8")), "Hugo's item, opening Karim's page");
+  expect(items.some(item => item.includes("Inès") && /Entretien à 09:00[\u202f\u00a0 ]: Karim Haddad/u.test(item)), "Inès's, with its French words");
+  expect(!log.includes("Your interviews today") && !log.includes("Vos entretiens aujourd’hui"), "no morning email");
 });
 
 await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {

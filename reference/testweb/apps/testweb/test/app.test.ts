@@ -5,6 +5,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { maxWakeDelay, wakeDelay } from "../src/wake.js";
 import { createApp, version } from "../src/app.js";
 import type { Database, Probe, ProbeTarget, Schema, Session } from "../src/database.js";
 import type { Files, LinkOptions, BoundsProbe, UploadOptions } from "../src/files.js";
@@ -282,6 +283,18 @@ test("files are listed and read by a member, put and removed by who writes, and 
   assert.equal((await call("/chest/api/bounds-probe", reader, { method: "POST" })).status, 403);
   assert.deepEqual(await (await call("/chest/api/bounds-probe", owner, { method: "POST" })).json(), { tooLarge: 413, written: 16 });
   assert.equal((await call("/chest/api/bounds-probe", owner)).status, 405);
+});
+
+test("the laboratory's slow wake is kept in the tool's own files, read at start, and removed by 0", async () => {
+  const ask = (who: Member, body: unknown): Promise<Response> => call("/chest/api/wake-delay", who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal(await wakeDelay(files), 0);
+  assert.equal((await ask(reader, { seconds: 8 })).status, 403);
+  for (const seconds of [-1, 1.5, maxWakeDelay + 1, "8"]) assert.equal((await ask(editor, { seconds })).status, 400, String(seconds));
+  assert.equal((await call("/chest/api/wake-delay", editor)).status, 405);
+  assert.equal((await ask(editor, { seconds: 8 })).status, 204);
+  assert.equal(await wakeDelay(files), 8);
+  assert.equal((await ask(editor, { seconds: 0 })).status, 204);
+  assert.equal(await wakeDelay(files), 0);
 });
 
 test("the members of the tool are read from the Chest: the page, the member asserted, a search, one, a lookup, the groups", async () => {

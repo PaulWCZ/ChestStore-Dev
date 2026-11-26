@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { addDays, bic, clean, day, documentNumber, email, frenchVatNumber, iban, luhn, prefix, siren, siret, slug, vatNumber } from "../lib/model.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { email } from "../src/lib/email.ts";
+import { addDays, bic, clean, day, documentNumber, frenchVatNumber, iban, luhn, prefix, siren, siret, slug, vatNumber } from "../src/shared/model.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -31,7 +32,14 @@ test("IBAN by its key, BIC by its shape, email by its shape", () => {
   assert.equal(bic("AGRIFRPPXXX"), "AGRIFRPPXXX");
   assert.throws(() => bic("AGRI"), refused("bic_invalid"));
   assert.equal(email(" a@b.fr "), "a@b.fr");
-  assert.throws(() => email("a@b"), refused("email_invalid"));
+  assert.throws(() => email("a@b"), refused("invalid_email"));
+  // The package's rule: a display name, an IP literal, two dots refused;
+  // the domain lower-cased; nothing (or spaces) is no address.
+  assert.throws(() => email("Ana <ana@example.com>"), refused("invalid_email"));
+  assert.throws(() => email("ana@[192.0.2.1]"), refused("invalid_email"));
+  assert.throws(() => email("ana..b@example.com"), refused("invalid_email"));
+  assert.equal(email(" Ana.B@Example.FR "), "Ana.B@example.fr");
+  assert.equal(email("  "), "");
 });
 
 test("numbers, prefixes, dates and texts", () => {

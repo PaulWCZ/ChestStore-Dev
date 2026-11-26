@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import * as entries from "../lib/entries.ts";
-import * as handoff from "../lib/handoff.ts";
-import * as projects from "../lib/projects.ts";
-import { foundEntries, report } from "../lib/reports.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import * as entries from "../src/lib/entries.ts";
+import * as handoff from "../src/lib/handoff.ts";
+import * as projects from "../src/lib/projects.ts";
+import * as rates from "../src/lib/rates.ts";
+import manifest from "../chest.json" with { type: "json" };
+import { foundEntries, report } from "../src/lib/reports.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -18,10 +20,19 @@ let chest: FakeChest;
 // The fake Chest's day (its zone, UTC, is the test database's too).
 const monday = mondayOf(todayIn("UTC"));
 const from = addDays(monday, -14), to = addDays(monday, -8);
+// How many tools receive the hand-offs: 0.7.0's fake Chest checks each emit
+// against chest.json's schema and keeps it (chest.emitted), but answers
+// every one "written for 0 tools" — it cannot play an installed Quotes. The
+// tests play it around the SDK's emit (handoff.outbox), the emit itself
+// still going to the fake.
+let receiving = 1;
+const sdkEmit = handoff.outbox.emit;
+handoff.outbox.emit = async (...args) => ({ ...(await sdkEmit(...args)), receivers: receiving });
+const emitted = () => chest.emitted;
 before(async () => {
   database = await testDatabase();
   process.env["CHEST_TOOL"] = "timesheets";
-  chest = await fakeChest({ members: everyone, emits: ["timesheets.billable", "timesheets.billable_cancelled"], receivers: 1 });
+  chest = await fakeChest({ members: everyone, emits: manifest.emits, receives: manifest.receives });
 });
 after(async () => {
   await chest.close();
@@ -44,18 +55,19 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   assert.deepEqual((await handoff.sendable(sql, m, from, to)).map(s => [s.projectName, s.minutes, s.cents, s.entries]), [["Site vitrine", 240, 36000, 3]]);
   const sent = await handoff.sendBillable(sql, m, { projectId: site.id, from, to });
   assert.deepEqual([sent.entries, sent.minutes, sent.receivers], [3, 240, 1]);
-  const event = chest.published.at(-1)!;
+  const event = emitted().at(-1)!;
   assert.equal(event.type, "timesheets.billable");
   const [made] = await sql<{ sent_at: Date }[]>`select sent_at from handoffs where id = ${sent.handoff}`;
   assert.equal(event.key, `timesheets:billable:${sent.handoff}:${made!.sent_at.getTime()}`, "the key carries when it was made");
-  assert.equal(event.occurredAt, made!.sent_at.toISOString(), "occurredAt: when it was made (studio.16)");
+  assert.equal(event.subject, `handoff:${sent.handoff}`, "in order per hand-off");
+  assert.equal(event.occurredAt, made!.sent_at.toISOString(), "occurredAt: when it was made");
+  assert.equal(event.audience, undefined, "who sees the draft is Quotes' rule");
   const data = event.data as unknown as handoff.Billable;
-  assert.equal(data.version, 1);
-  assert.deepEqual(data.project, { id: site.id, name: "Site vitrine" });
-  assert.equal(data.client?.name, "Boulangerie Durand");
-  assert.deepEqual(data.period, { from, to });
+  assert.deepEqual([data.project, data.projectName, data.clientName, data.from, data.to], [site.id, "Site vitrine", "Boulangerie Durand", from, to]);
   assert.deepEqual([data.currency, data.minutes, data.amount, data.entries], ["EUR", 240, 36000, 3]);
-  assert.deepEqual(data.lines.map(l => [l.label, l.minutes, l.rate, l.amount, l.entries]), [["Design", 120, 9000, 18000, 2], ["Développement", 120, 9000, 18000, 1]]);
+  const lines = JSON.parse(data.lines) as handoff.BillableLine[];
+  assert.deepEqual(lines.map(l => [l.label, l.minutes, l.rate, l.amount, l.entries]), [["Design", 120, 9000, 18000, 2], ["Développement", 120, 9000, 18000, 1]]);
+  assert.equal(data.path, `/chest/projects/${site.id}`);
   assert.ok(!JSON.stringify(data).includes("Hugo"), "people are never named in the event");
   // Sent: never twice; locked while it waits; nothing left to send.
   assert.deepEqual(await handoff.sendable(sql, m, from, to), []);
@@ -65,10 +77,10 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   // Taken back: free again, Quotes told; sent again, a new hand-off.
   await assert.rejects(handoff.cancelHandoff(sql, asMember(hugo), sent.handoff), refused("forbidden"));
   await handoff.cancelHandoff(sql, m, sent.handoff);
-  assert.deepEqual(chest.published.at(-1)!.type, "timesheets.billable_cancelled");
+  assert.deepEqual([emitted().at(-1)!.type, emitted().at(-1)!.data, emitted().at(-1)!.subject], ["timesheets.billable-cancelled", { handoff: sent.handoff }, `handoff:${sent.handoff}`]);
   const [gone] = await sql<{ cancelled_at: Date }[]>`select cancelled_at from handoffs where id = ${sent.handoff}`;
-  assert.equal(chest.published.at(-1)!.key, `timesheets:billable:${sent.handoff}:${made!.sent_at.getTime()}:cancelled`);
-  assert.equal(chest.published.at(-1)!.occurredAt, gone!.cancelled_at.toISOString());
+  assert.equal(emitted().at(-1)!.key, `timesheets:billable:${sent.handoff}:${made!.sent_at.getTime()}:cancelled`);
+  assert.equal(emitted().at(-1)!.occurredAt, gone!.cancelled_at.toISOString());
   await assert.rejects(handoff.cancelHandoff(sql, m, sent.handoff), refused("handoff_state"));
   await entries.updateEntry(sql, asMember(hugo), a.id, { projectId: site.id, taskId: design!.id, day: from, minutes: 60, note: "Maquettes" });
   const again = await handoff.sendBillable(sql, m, { projectId: site.id, from, to });
@@ -76,6 +88,9 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   assert.equal(again.minutes, 210);
   // Quotes answers: the time is invoiced (rates written on it), once.
   const answer = { type: "quotes.invoiced" as const, source: "quotes", data: { handoff: again.handoff, invoice: "F2026-014", path: "/chest/invoices/14" } };
+  // The same type told by another tool (types name no tool): nothing.
+  assert.equal(await chest.deliver({ ...answer, source: "crm" }, POST), 204);
+  assert.equal((await sql<{ n: number }[]>`select count(*)::int as n from entries where handoff_id = ${again.handoff} and invoiced_at is not null`)[0]!.n, 0);
   assert.equal(await chest.deliver(answer, POST), 204);
   assert.equal(await chest.deliver(answer, POST), 204);
   const rows = await sql<{ n: number }[]>`select count(*)::int as n from entries where handoff_id = ${again.handoff} and invoiced_at is not null and rates_fixed and bill_rate_cents = 9000`;
@@ -86,8 +101,8 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   // Time after the period, and non-billable time, were never part of it.
   assert.equal((await sql<{ h: string | null }[]>`select handoff_id::text as h from entries where id = ${later.id}`)[0]!.h, null);
   // An answer for no hand-off, or malformed, changes nothing.
-  assert.equal(await handoff.invoiced(sql, { handoff: "999999" }), false);
-  assert.equal(await handoff.invoiced(sql, { handoff: "x; drop table" }), false);
+  assert.equal(await handoff.invoiced(sql, { data: { handoff: "999999" } }), false);
+  assert.equal(await handoff.invoiced(sql, { data: { handoff: "x; drop table" } }), false);
 });
 
 test("the notes' search: the report, the entries found and the CSV follow it; a member finds only their own", async () => {
@@ -119,13 +134,113 @@ test("after a restore, a hand-off id given again to other time still reaches Quo
   const again = await handoff.sendBillable(sql, m, { projectId: shop.id, from, to });
   assert.equal(again.handoff, first.handoff, "the same id, other time");
   assert.equal(again.minutes, 90);
-  assert.equal(chest.published.filter(e => e.type === "timesheets.billable" && (e.data as { handoff: string }).handoff === first.handoff).length, 2, "published, not refused as the first one's key");
+  assert.equal(emitted().filter(e => e.type === "timesheets.billable" && (e.data as { handoff: string }).handoff === first.handoff).length, 2, "emitted, not refused as the first one's key");
 });
 
-test("occurredAt is given when the Chest would take it: not ahead of this clock, not older than 24 hours less five minutes", () => {
+test("Quotes not there, or the link not approved: a hand-off that reaches no tool is undone and nothing is locked", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { name: "Non relié", rateCents: 5000 });
+  const e = await entries.addEntry(sql, asMember(hugo), { projectId: p.id, day: from, minutes: 30 });
+  receiving = 0;
+  try {
+    await assert.rejects(handoff.sendBillable(sql, m, { projectId: p.id, from, to }), refused("quotes_unavailable"));
+    const [row] = await sql<{ h: string | null; fixed: boolean }[]>`select handoff_id::text as h, rates_fixed as fixed from entries where id = ${e.id}`;
+    assert.deepEqual([row!.h, row!.fixed], [null, false], "the time stays free, its rates unwritten");
+    assert.equal((await sql`select 1 from handoffs where project_id = ${p.id}`).length, 0);
+  } finally {
+    receiving = 1;
+  }
+  // Quotes installed (the studio's chest.tools), or a Chest that does not
+  // say which tools it has (0.7.0 itself): the panel offers it; a Chest
+  // that says Quotes is not there: the panel says so.
+  assert.equal(handoff.reachable(), false);
+  chest.installTool("quotes");
+  assert.equal(handoff.reachable(), true);
+  chest.removeTool("quotes");
+  const urls = process.env["CHEST_TOOL_URLS"];
+  delete process.env["CHEST_TOOL_URLS"];
+  try {
+    assert.equal(handoff.reachable(), true);
+  } finally {
+    process.env["CHEST_TOOL_URLS"] = urls;
+  }
+});
+
+test("names with a format character (a joiner inside an emoji, a byte-order mark from an import) still reach Quotes: the Chest refuses those in a text field", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { newClient: "\u{FEFF}Café Lumière", name: "Équipe 👩\u{200D}💻", rateCents: 6000, tasks: ["Réunions\u{200B}"] });
+  await entries.addEntry(sql, asMember(hugo), { projectId: p.id, taskId: p.tasks[0]!.id, day: from, minutes: 60 });
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  assert.equal(sent.entries, 1);
+  const data = emitted().at(-1)!.data as unknown as handoff.Billable;
+  assert.deepEqual([data.projectName, data.clientName, (JSON.parse(data.lines) as { label: string }[])[0]!.label], ["Équipe 👩💻", "Café Lumière", "Réunions"]);
+  assert.ok(!/\p{Cf}/u.test(JSON.stringify(data)));
+  const [kept] = await sql<{ name: string }[]>`select name from projects where id = ${p.id}`;
+  assert.equal(kept!.name, "Équipe 👩\u{200D}💻", "the name itself is kept as typed");
+});
+
+test("an invoice Quotes shows to some members only: its number and link are shown to them alone", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { name: "Confidentiel", rateCents: 5000 });
+  await entries.addEntry(sql, asMember(hugo), { projectId: p.id, day: from, minutes: 30 });
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  assert.equal(await chest.deliver({ type: "quotes.invoiced", source: "quotes", audience: [camille.id], data: { handoff: sent.handoff, invoice: "F2026-099", path: "/chest/invoices/99" } } as never, POST), 204);
+  const seenBy = async (who: typeof camille) => (await handoff.recentHandoffs(sql, asMember(who))).find(h => h.id === sent.handoff)!;
+  assert.deepEqual([(await seenBy(camille)).invoiced, (await seenBy(camille)).invoiceRef], [true, "F2026-099"]);
+  // Another manager, outside the event's audience: invoiced, without its number.
+  const other = { ...camille, id: "mbr_" + "othermanager" + "a".repeat(14) };
+  const theirs = (await handoff.recentHandoffs(sql, asMember(other))).find(h => h.id === sent.handoff)!;
+  assert.deepEqual([theirs.invoiced, theirs.invoiceRef, theirs.invoiceLink], [true, "", null]);
+});
+
+test("a hand-off writes its rates on its entries: a rate raised after it changes neither its amounts nor Quotes' invoice; taken back, they follow the rates again", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { name: "Taux figés", rateCents: 6000 });
+  await entries.addEntry(sql, asMember(ines), { projectId: p.id, day: from, minutes: 60 });
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  // The rate goes up from the first day of the period: the waiting time keeps 60.
+  await rates.setRate(sql, m, { kind: "bill", projectId: p.id, cents: 9000, from });
+  const amount = async () => (await report(sql, m, { from, to, projectId: p.id })).cents;
+  assert.equal(await amount(), 6000);
+  const [w] = await sql<{ fixed: boolean; by: boolean; rate: number }[]>`select rates_fixed as fixed, handoff_fixed as by, bill_rate_cents::int as rate from entries where handoff_id = ${sent.handoff}`;
+  assert.deepEqual([w!.fixed, w!.by, w!.rate], [true, true, 6000]);
+  // Taken back: the rates the hand-off wrote are forgotten (the new one applies).
+  await handoff.cancelHandoff(sql, m, sent.handoff);
+  assert.equal(await amount(), 9000);
+  const [freed] = await sql<{ fixed: boolean; by: boolean }[]>`select rates_fixed as fixed, handoff_fixed as by from entries where project_id = ${p.id}`;
+  assert.deepEqual([freed!.fixed, freed!.by], [false, false]);
+  // Sent again at 90, the rate drops to 70 meanwhile: Quotes' answer
+  // invoices it at the 90 the invoice was made with.
+  const again = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  assert.equal((JSON.parse((emitted().at(-1)!.data as unknown as handoff.Billable).lines) as handoff.BillableLine[])[0]!.rate, 9000);
+  await rates.setRate(sql, m, { kind: "bill", projectId: p.id, cents: 7000, from });
+  assert.equal(await handoff.invoiced(sql, { data: { handoff: again.handoff, invoice: "F-1" }, audience: "all" }), true);
+  const [done] = await sql<{ rate: number; by: boolean }[]>`select bill_rate_cents::int as rate, handoff_fixed as by from entries where project_id = ${p.id}`;
+  assert.deepEqual([done!.rate, done!.by], [9000, false]);
+  assert.equal(await amount(), 9000);
+});
+
+test("one rounding rule: each entry's amount to the cent, then added — the report, the CSV rows and the hand-off's lines agree", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  // 7 minutes at 1.00 an hour: 11.67 cents each, 12 once rounded.
+  const p = await projects.createProject(sql, m, { name: "Arrondis", rateCents: 100 });
+  for (let i = 0; i < 3; i++) await entries.addEntry(sql, asMember(hugo), { projectId: p.id, day: addDays(from, i), minutes: 7 });
+  assert.equal((await report(sql, m, { from, to, projectId: p.id })).cents, 36);
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  const data = emitted().at(-1)!.data as unknown as handoff.Billable;
+  assert.deepEqual([data.amount, (JSON.parse(data.lines) as handoff.BillableLine[])[0]!.amount], [36, 36]);
+  await handoff.cancelHandoff(sql, m, sent.handoff);
+});
+
+test("occurredAt is given when the Chest would take it: not ahead of this clock, not older than 72 hours less five minutes", () => {
   const now = Date.parse("2026-10-01T10:00:00Z");
   assert.deepEqual(handoff.occurred(new Date(now - 1000), now), { occurredAt: new Date(now - 1000) });
   assert.deepEqual(handoff.occurred(new Date(now + 1000), now), {}, "the database's clock ahead: without it");
-  assert.deepEqual(handoff.occurred(new Date(now - 24 * 3600_000 + 60_000), now), {}, "within the margin");
-  assert.deepEqual(handoff.occurred(new Date(now - 23 * 3600_000), now), { occurredAt: new Date(now - 23 * 3600_000) });
+  assert.deepEqual(handoff.occurred(new Date(now - 72 * 3600_000 + 60_000), now), {}, "within the margin");
+  assert.deepEqual(handoff.occurred(new Date(now - 71 * 3600_000), now), { occurredAt: new Date(now - 71 * 3600_000) });
 });

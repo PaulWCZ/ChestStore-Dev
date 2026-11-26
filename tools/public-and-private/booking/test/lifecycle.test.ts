@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as b from "../lib/booking.ts";
+import * as b from "../src/lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { builtServer, type Handler } from "./support/server.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The built server's routes (/chest-schedules, /chest-events).
+let POST: Handler;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {} });
+  POST = await builtServer();
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {} });
 });
 after(async () => {
   await chest.close();
@@ -40,7 +43,7 @@ test("leaving: the page takes no new booking; the bookings stay; access given ag
   const { sql } = database;
   const made = await bookSomething(hugo);
   const event = { type: "member.removed" as const, id: "evt_" + "c".repeat(26), data: { id: hugo.id } };
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal(await b.publicHost(sql, "hugo-bernard"), null);
   assert.equal((await b.bookingsByIds(sql, [made.id]))[0]!.status, "confirmed");
   await openHost(sql, asMember(hugo), first);
@@ -52,8 +55,8 @@ test("an erasure deletes the page, cancels future meetings, tells each guest, an
   const made = await bookSomething(ines);
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "b".repeat(26), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal(await b.hostOf(sql, ines.id), null);
   const [after] = await b.bookingsByIds(sql, [made.id]);
   assert.equal(after!.status, "cancelled");

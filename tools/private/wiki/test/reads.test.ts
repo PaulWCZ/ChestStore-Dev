@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { fromMarkdown } from "../lib/markdown.ts";
-import * as pages from "../lib/pages.ts";
-import * as reads from "../lib/reads.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as tell from "../lib/tell.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reads from "../src/lib/reads.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -22,7 +22,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -52,7 +52,7 @@ test("editors ask everyone who reads the space; each is told once, confirms, and
   assert.equal(told, 4);
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
   assert.ok(chest.notifications.every(n => n.key === `read:${p.id}`));
-  assert.ok(chest.notifications.find(n => n.member === lea.id)!.title.startsWith("Camille Martin vous demande de lire"));
+  assert.ok((chest.notifications.find(n => n.member === lea.id)!).title.startsWith("Camille Martin vous demande de lire"));
   // Hugo sees it on his home page, confirms version 1; it leaves his home page and his bell.
   assert.deepEqual((await reads.toRead(sql, asMember(hugo))).map(r => r.id), [p.id]);
   assert.deepEqual(await reads.confirm(sql, asMember(hugo), p.id), { version: 1 });
@@ -117,9 +117,9 @@ test("an erasure removes a person's confirmations and signs the request 'erased'
   await reads.confirm(sql, asMember(lea), p.id);
   const erasure = "era_" + "e".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "f".repeat(26), data: { id: lea.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal((await sql`select count(*)::int as n from page_reads where member_id = ${lea.id}`)[0]!["n"], 0);
   const ev2 = { type: "member.erased" as const, id: "evt_" + "g".repeat(26), data: { id: camille.id, erasure: "era_" + "h".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(ev2, POST), 204);
+  assert.equal(await chest.deliver(ev2, POST), 204);
   assert.equal((await sql`select read_asked_by from pages where id = ${p.id}`)[0]!["read_asked_by"], "erased");
 });

@@ -1,110 +1,62 @@
-// Checks a tool folder the way a Chest checks a source archive before it
-// builds it (reference/contract/application-contract.md, "Building from
-// source", "Tool names", "Server tools"), plus the studio's own rules. The
-// real `chest check` does not exist yet: this is what it should catch.
+// The studio's own checks of a tool folder, beside the Chest's: run
+// `node scripts/chest-check.mjs <tool>` (0.7.0's `chest check`, the Chest's
+// own code) for chest.json, the repository, the migrations — this script
+// does not judge them again. It checks what chest check cannot know:
+//
+// - chest.proposals.json: the manifest keys of the SDK working copy's
+//   proposals (sdk/, "Studio proposals"), which a Chest of contract 0.7
+//   would refuse in chest.json (it refuses any key it does not know): mail
+//   (to people outside, {"send": true} only), calendar, files
+//   ({"publicFiles": true}), checks, webhooks, translations — their
+//   grammar, and how they fit the chest.json beside them;
+// - that chest.proposals.json no longer holds what 0.7.0 made official
+//   (emits, receives, the capability "members.groups", files.publicUploads),
+//   with the move to make;
+// - that chest.json holds none of the proposals, is written for the
+//   contract the studio builds on ("chest": "0.7"), and holds nothing the
+//   studio dropped ("version", "group.*", files.quota);
+// - that build.static leaves the proposals' delivery routes to the tool
+//   (/chest-webhooks, /chest-checks), as chest check does for 0.7.0's own
+//   (/chest/, /_chest/, /chest-events/, /chest-schedules/,
+//   /chest-actions/): a static prefix over one would serve a file where
+//   the Chest posts, and the deliveries would never reach the tool;
+// - the studio's rules beyond the contract: the package's scripts, no
+//   dependency outside the folder, the docs every tool carries, no import
+//   that leaves the folder.
 //
 //   node scripts/check-manifest.mjs tools/private/<name> [more folders…]
 //   node scripts/check-manifest.mjs --all
 //
-// Exit code 1 when any folder has an error. Where the contract does not give
-// an exact grammar (role identifiers), the rule used is marked "assumed".
+// Exit code 1 when any folder has an error.
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-// The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations", "checks", "calendar", "groups", "webhooks"]);
-const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
-const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
-const checksPath = join(dirname(schedulesPath), "checks.js");
-const checksApi = existsSync(checksPath) ? await import(pathToFileURL(checksPath).href) : null;
-const webhooksPath = join(dirname(schedulesPath), "webhooks.js");
-const webhooksApi = existsSync(webhooksPath) ? await import(pathToFileURL(webhooksPath).href) : null;
-
-const topKeys = new Set(["version", "name", "title", "description", "icon", "preview", "roles", "role_labels", "public", "csp", "capabilities", "receives", "network", "env", "files", "build"]);
-const buildKeys = new Set(["runtime", "install", "command", "start", "port", "static"]);
-const capabilityOrder = ["database", "files", "members", "members.email", "notifications"];
-const reservedEnv = /^(CHEST_.*|PORT|NODE_.*|NPM_.*|HOME|PATH|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)$/u;
-// Control (C0, C1) and invisible formatting characters (sourcefile.ValidText).
+// The tool contract the studio's tools are written for: the SDK working
+// copy's (sdk/contract, 0.7.0's bytes), which chest check applies.
+const contract = JSON.parse(readFileSync(join(root, "sdk", "contract", "contract.json"), "utf8"));
+const contractVersion = contract.contract.version ?? contract.contract;
+// The keys the SDK working copy proposes for the manifest, and those of the
+// tool contract 0.7, which belong in chest.json.
+const proposalKeys = new Set(["mail", "files", "translations", "checks", "calendar", "webhooks"]);
+// Keys the working copy proposed once and dropped, with the move to make.
+const droppedKeys = {
+  groups: '"groups": "read" is the capability "members.groups" of contract 0.7: write it in chest.json\'s "capabilities" (with "members")',
+  mailboxes: 'mailboxes are gone: the Chest receives no mail (owner\'s decision, 2026-10-06) — replies from the public go to the company\'s address (Reply-To)',
+  emits: '"emits" is official in contract 0.7: move it to chest.json as {"<type>": {"description", "data": {field: kind}}} — two to four dotted words of a-z, 0-9 and dashes (no underscore), each field typed (id, text, number, boolean, time, date, member, members, "?" for optional)',
+  receives: '"receives" is official in contract 0.7: move the types to chest.json\'s "receives" (beside "member.*"); "group.*" is gone (joining or leaving a group is member.updated naming "groups")',
+  capabilities: 'the capability "members.groups" is official in contract 0.7: move it to chest.json\'s "capabilities" (with "members")',
+};
+const officialKeys = new Set(contract.manifest.keys.map(k => k.key).filter(k => !k.includes(".")));
+const studioDist = join(root, "sdk", "dist", "studio");
+const load = async name => existsSync(join(studioDist, name)) ? import(pathToFileURL(join(studioDist, name)).href) : null;
+const checksApi = await load("checks-rules.js");
+const webhooksApi = await load("webhooks-rules.js");
+// The routes the proposals' deliveries are posted to (checks.handle,
+// webhooks.handle), which build.static must not cover.
+const proposalRoutes = ["/chest-webhooks/", "/chest-checks/"];
 const invisible = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/u;
-const scriptName = /^[a-z0-9][a-z0-9:_-]{0,63}$/u;
-const label = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/u;
-const size = { icon: 64 << 10, preview: 512 << 10, manifest: 16 << 10 };
-
-function checkHost(entry) {
-  if (entry === "*") return true;
-  const name = entry.startsWith("*.") ? entry.slice(2) : entry;
-  if (name.length > 253 || name.endsWith(".") || name !== name.toLowerCase()) return false;
-  const labels = name.split(".");
-  if (labels.length < 2 || !labels.every(l => label.test(l)) || /^[0-9]+$/u.test(labels.at(-1))) return false;
-  if (name === "localhost" || name.endsWith(".localhost")) return false;
-  return true;
-}
-
-// pngSize reads the dimensions of a PNG from its IHDR chunk; jpegSize from
-// its first SOF marker.
-function imageSize(bytes, kind) {
-  if (kind === "png") {
-    if (bytes.length < 24 || bytes.toString("latin1", 1, 4) !== "PNG" || bytes.toString("latin1", 12, 16) !== "IHDR") return null;
-    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
-  }
-  if (kind === "jpg") {
-    if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
-    let at = 2;
-    while (at + 9 < bytes.length) {
-      if (bytes[at] !== 0xff) return null;
-      const marker = bytes[at + 1];
-      const length = bytes.readUInt16BE(at + 2);
-      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return { width: bytes.readUInt16BE(at + 7), height: bytes.readUInt16BE(at + 5) };
-      at += 2 + length;
-    }
-    return null;
-  }
-  if (kind === "webp") return bytes.toString("latin1", 0, 4) === "RIFF" && bytes.toString("latin1", 8, 12) === "WEBP" ? { width: 0, height: 0 } : null;
-  return null;
-}
-
-function checkSvg(text) {
-  const problems = [];
-  const body = text.replace(/^\uFEFF?\s*(<\?xml[^>]*\?>\s*)?/u, "").replace(/<!--[\s\S]*?-->/gu, "");
-  if (!/^<svg[\s>]/u.test(body.trimStart())) problems.push("its root is not <svg>");
-  if (/<!DOCTYPE/iu.test(text)) problems.push("it has a DOCTYPE");
-  if (/<script/iu.test(text)) problems.push("it has a script");
-  if (/\son[a-z]+\s*=/iu.test(text)) problems.push("it has an on* handler");
-  if (/href\s*=/iu.test(text)) problems.push("it has an href");
-  if (/<use[\s>/]/iu.test(text)) problems.push("it has <use>");
-  if (/<image[\s>/]/iu.test(text)) problems.push("it has <image>");
-  if (/<foreignObject/iu.test(text)) problems.push("it has <foreignObject>");
-  if (/url\(/iu.test(text)) problems.push("it has url(");
-  if (/<text[\s>]/iu.test(text)) problems.push("it has <text> (studio rule: no text in the icon)");
-  return problems;
-}
-
-// duplicateKeys scans JSON text and names every key repeated in one object.
-function duplicateKeys(text) {
-  const found = [];
-  const stack = [];
-  let expectKey = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === "{") { stack.push(new Set()); expectKey = true; }
-    else if (c === "[") { stack.push(null); }
-    else if (c === "}" || c === "]") { stack.pop(); }
-    else if (c === ",") { expectKey = stack.at(-1) instanceof Set; }
-    else if (c === '"') {
-      let j = i + 1, value = "";
-      while (j < text.length && text[j] !== '"') { if (text[j] === "\\") { value += text[j + 1]; j += 2; } else value += text[j++]; }
-      if (expectKey && stack.at(-1) instanceof Set) {
-        if (stack.at(-1).has(value)) found.push(value);
-        stack.at(-1).add(value);
-        expectKey = false;
-      }
-      i = j;
-    }
-  }
-  return found;
-}
 
 function walk(dir, visit, skip) {
   for (const name of readdirSync(dir)) {
@@ -122,153 +74,51 @@ export function checkTool(folder) {
   const error = message => errors.push(message);
   const at = path => join(folder, path);
 
-  for (const required of ["chest.json", "package.json", "package-lock.json"]) if (!existsSync(at(required))) error(`${required} is missing at the root`);
-  if (!existsSync(at("chest.json"))) return { errors, warnings };
-
-  const raw = readFileSync(at("chest.json"));
-  if (raw.length > size.manifest) error(`chest.json is ${raw.length} bytes: 16 KiB at most`);
-  const text = raw.toString("utf8");
-  // Duplicate keys are refused: JSON.parse keeps the last, so find them by hand.
-  for (const key of duplicateKeys(text)) error(`duplicate key "${key}"`);
+  if (!existsSync(at("chest.json"))) {
+    error("chest.json is missing at the root (chest check says the rest)");
+    return { errors, warnings };
+  }
   let manifest;
   try {
-    manifest = JSON.parse(text);
+    manifest = JSON.parse(readFileSync(at("chest.json"), "utf8"));
   } catch (e) {
-    error(`chest.json is not JSON: ${e.message}`);
+    error(`chest.json is not JSON: ${e.message} (chest check says the rest)`);
     return { errors, warnings };
   }
   if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) {
     error("chest.json is not an object");
     return { errors, warnings };
   }
-  for (const key of Object.keys(manifest)) if (!topKeys.has(key)) error(`unknown key "${key}"`);
-  if (manifest.version !== 2) error('version 2 expected: declare "version": 2');
-
-  const name = manifest.name;
-  if (typeof name !== "string" || name.length > 48 || !/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) || ["login", "node"].includes(name)) error(`name "${name}" is not a tool name (a host label of at most 48 lowercase letters, digits and single interior hyphens)`);
-  else if (basename(folder) !== name) warnings.push(`the folder is "${basename(folder)}" but the tool is "${name}"`);
-
-  for (const [key, max] of [["title", 48], ["description", 160]]) {
-    const value = manifest[key];
-    if (value === undefined) {
-      warnings.push(`no ${key}: the store shows the name alone`);
-      continue;
-    }
-    if (typeof value !== "string" || value.length === 0 || [...value].length > max || invisible.test(value)) error(`${key} must be 1 to ${max} characters, without control or invisible characters`);
+  // What only the studio knows about chest.json: where a proposal's key
+  // goes, the contract the studio builds on, and what it dropped.
+  for (const key of Object.keys(manifest)) {
+    if (key === "version") error(`chest.json: "version" is the contract before 0.4 — write "chest": "${contractVersion}" instead`);
+    else if (key === "groups") error(`chest.json: ${droppedKeys.groups}`);
+    else if (proposalKeys.has(key) && !officialKeys.has(key)) error(`chest.json: "${key}" is a proposal of the SDK working copy — move it to chest.proposals.json (a ${contractVersion} Chest refuses a key it does not know)`);
   }
-
-  // Images: chest/<name>.svg|png for the icon, chest/<name>.png|jpg|webp for the preview.
-  for (const [key, kinds] of [["icon", ["svg", "png"]], ["preview", ["png", "jpg", "webp"]]]) {
-    const value = manifest[key];
-    if (value === undefined) {
-      warnings.push(`no ${key}`);
-      continue;
-    }
-    const match = typeof value === "string" ? /^chest\/[A-Za-z0-9._-]+\.([a-z]+)$/u.exec(value) : null;
-    if (!match || !kinds.includes(match[1])) {
-      error(`${key} must be chest/<file>.${kinds.join("|")}`);
-      continue;
-    }
-    if (!existsSync(at(value))) {
-      error(`${key} ${value} is missing`);
-      continue;
-    }
-    const bytes = readFileSync(at(value));
-    if (bytes.length > size[key]) error(`${key} is ${bytes.length} bytes: ${size[key] >> 10} KiB at most`);
-    if (match[1] === "svg") for (const problem of checkSvg(bytes.toString("utf8"))) error(`${key} SVG refused: ${problem}`);
-    else {
-      const dims = imageSize(bytes, match[1]);
-      if (!dims) error(`${key} is not a ${match[1].toUpperCase()}`);
-      else if (dims.width > 4096 || dims.height > 4096) error(`${key} is ${dims.width}×${dims.height}: 4096 px at most`);
-    }
+  if (manifest.chest !== undefined && manifest.chest !== contractVersion) error(`chest.json: "chest" is "${manifest.chest}" — the studio's tools are written for the contract of the SDK working copy: "chest": "${contractVersion}" (SDK ${contractVersion}.x)`);
+  if (Array.isArray(manifest.receives) && manifest.receives.some(e => typeof e === "string" && e.startsWith("group."))) error('chest.json: receives "group.*" is no event of contract 0.7 — joining or leaving a group is member.updated naming "groups"');
+  if (manifest.files !== undefined && manifest.files !== null && typeof manifest.files === "object") {
+    if ("publicFiles" in manifest.files) error('chest.json: files.publicFiles is a proposal — move it to chest.proposals.json ("files": {"publicFiles": true}); 0.7\'s "files" is {"maxObject"}');
+    if ("publicUploads" in manifest.files) error('chest.json: files.publicUploads is gone — a visitor\'s upload is 0.7.0\'s files.uploadUrl("folder/", {public: true, types}) with "public": true, no key');
+    if ("quota" in manifest.files) error('chest.json: files.quota is gone in contract 0.7 (no quota: the tools share the server\'s volume) — keep "maxObject" only');
   }
-
-  // Roles: identifiers from strongest to weakest (grammar assumed: the
-  // contract refers to the package parser; the Chest shows at most 16).
-  const roles = manifest.roles;
-  if (roles !== undefined) {
-    if (!Array.isArray(roles) || roles.length > 16 || !roles.every(r => typeof r === "string" && /^[a-z][a-z0-9_-]{0,31}$/u.test(r)) || new Set(roles).size !== roles.length) error("roles must be 1 to 16 distinct identifiers (assumed grammar ^[a-z][a-z0-9_-]{0,31}$), strongest first");
-  } else warnings.push("no roles: every member has the same rights");
-  if (manifest.role_labels !== undefined) {
-    const labels = manifest.role_labels;
-    if (labels === null || typeof labels !== "object" || Array.isArray(labels) || Object.keys(labels).length === 0) error("role_labels must be a non-empty object");
-    else for (const [role, word] of Object.entries(labels)) {
-      if (!Array.isArray(roles) || !roles.includes(role)) error(`role_labels names "${role}", which roles does not declare`);
-      if (typeof word !== "string" || word.length < 1 || [...word].length > 40 || word.trim() !== word || invisible.test(word)) error(`role label of "${role}" must be 1 to 40 printable characters, no space at either end`);
-    }
-  }
-
-  if (manifest.public !== undefined && typeof manifest.public !== "boolean") error("public must be true or false");
-  if (manifest.csp !== undefined && (manifest.csp !== "tool" || manifest.public !== true)) error('csp is only "tool", and only with public: true');
-
-  const capabilities = manifest.capabilities ?? [];
-  if (!Array.isArray(capabilities) || !capabilities.every(c => capabilityOrder.includes(c)) || new Set(capabilities).size !== capabilities.length) error(`capabilities must be distinct entries among ${capabilityOrder.join(", ")}`);
-  else if (capabilities.includes("members.email") && !capabilities.includes("members")) error("members.email needs members");
-  if (manifest.receives !== undefined) {
-    if (!Array.isArray(manifest.receives) || manifest.receives.length !== 1 || manifest.receives[0] !== "member.*") error('receives is only ["member.*"]');
-    else if (!capabilities.includes("members")) error('receives ["member.*"] needs the capability members');
-  }
-  if (manifest.files !== undefined) {
-    const files = manifest.files;
-    const amount = v => typeof v === "string" && /^[1-9][0-9]* (MiB|GiB)$/u.test(v) ? Number(v.split(" ")[0]) * (v.endsWith("GiB") ? 1024 : 1) : null;
-    if (!capabilities.includes("files")) error("files needs the capability files");
-    if (files === null || typeof files !== "object" || Object.keys(files).some(k => !["quota", "maxObject"].includes(k))) error('files is {"quota", "maxObject"} only');
-    else {
-      const quota = files.quota === undefined ? 1024 : amount(files.quota);
-      const object = files.maxObject === undefined ? 32 : amount(files.maxObject);
-      if (quota === null || quota < 100 || quota > 100 * 1024) error("files.quota is 100 MiB to 100 GiB, whole MiB or GiB");
-      if (object === null || object < 1 || object > 512) error("files.maxObject is 1 to 512 MiB");
-    }
-  }
-  if (manifest.network !== undefined) {
-    const network = manifest.network;
-    if (!Array.isArray(network) || network.length < 1 || network.length > 32 || new Set(network).size !== network.length) error("network is 1 to 32 distinct entries");
-    else {
-      for (const entry of network) if (typeof entry !== "string" || !checkHost(entry)) error(`network entry "${entry}" is not a host name, *.domain or *`);
-      if (network.includes("*") && network.length > 1) error("network * stands alone");
-      for (const entry of network) for (const other of network) if (entry !== other && other.startsWith("*.") && (entry === other || entry.endsWith(other.slice(1)))) error(`network entry "${entry}" is covered by "${other}"`);
-    }
-  }
-  if (manifest.env !== undefined) {
-    const env = manifest.env;
-    if (!Array.isArray(env) || env.length < 1 || env.length > 32 || new Set(env).size !== env.length) error("env is 1 to 32 distinct names");
-    else for (const v of env) if (typeof v !== "string" || !/^[A-Z_][A-Z0-9_]{0,63}$/u.test(v) || reservedEnv.test(v)) error(`env name "${v}" is invalid or set by the Chest`);
-  }
-
-  const build = manifest.build;
-  let pkg = null;
-  try {
-    pkg = JSON.parse(readFileSync(at("package.json"), "utf8"));
-  } catch {
-    if (existsSync(at("package.json"))) error("package.json is not JSON");
-  }
-  if (build === null || typeof build !== "object") error("build is required");
-  else {
-    for (const key of Object.keys(build)) if (!buildKeys.has(key)) error(`unknown key "build.${key}"`);
-    if (build.runtime !== "node") error('build.runtime is "node"');
-    if (build.install !== "npm ci") error('build.install is exactly "npm ci"');
-    const script = (command, key, allowStart) => {
-      if (allowStart && command === "npm start") return "start";
-      const m = typeof command === "string" ? /^npm run (\S+)$/u.exec(command) : null;
-      if (!m || !scriptName.test(m[1])) {
-        error(`build.${key} is ${allowStart ? '"npm start" or ' : ""}"npm run <script>", never a shell command`);
-        return null;
+  // build.static: chest check refuses 0.7.0's own routes; the proposals'
+  // are the studio's to protect. A prefix covers a route when the route
+  // starts with it ("/", "/chest-") or it lies below the route
+  // ("/chest-checks/assets/").
+  const statics = manifest.build !== null && typeof manifest.build === "object" ? manifest.build.static : undefined;
+  if (Array.isArray(statics)) {
+    for (const prefix of statics) {
+      if (typeof prefix !== "string") continue;
+      const lower = prefix.toLowerCase();
+      for (const route of proposalRoutes) {
+        if (route.startsWith(lower) || lower.startsWith(route) || lower === route.slice(0, -1)) error(`chest.json: build.static "${prefix}" covers ${route.slice(0, -1)}, where the Chest posts a proposal's deliveries (${route === "/chest-webhooks/" ? "webhooks.handle" : "checks.handle"}) — serve built files under a prefix of their own (/_next/static/)`);
       }
-      return m[1];
-    };
-    const scripts = pkg?.scripts ?? {};
-    if (build.command !== undefined) {
-      const s = script(build.command, "command", false);
-      if (s && !scripts[s]) error(`package.json has no script "${s}" (build.command)`);
     }
-    const start = script(build.start, "start", true);
-    if (start && !scripts[start]) error(`package.json has no script "${start}" (build.start)`);
-    if (!Number.isInteger(build.port) || build.port < 1024 || build.port > 65535) error("build.port is 1024 to 65535");
-    if (build.static !== undefined && (!Array.isArray(build.static) || build.static.length > 4 || !build.static.every(p => typeof p === "string" && /^\/[a-z0-9._-]+(\/[a-z0-9._-]+)*\/$/u.test(p) && !p.split("/").some(seg => seg === "." || seg === "..") && !p.startsWith("/chest/") && !p.startsWith("/_chest/")))) error("build.static is at most 4 prefixes like /_next/static/, never /chest/ nor /_chest/");
   }
+  const roles = manifest.roles;
 
-  // Proposals of the SDK working copy: keys a Chest does not accept yet,
-  // kept in chest.proposals.json so chest.json stays installable today.
   if (existsSync(at("chest.proposals.json"))) {
     let proposals = null;
     try {
@@ -277,33 +127,30 @@ export function checkTool(folder) {
       error(`chest.proposals.json is not JSON: ${e.message}`);
     }
     if (proposals) {
-      for (const key of Object.keys(proposals)) if (!proposalKeys.has(key)) error(`chest.proposals.json: unknown proposal key "${key}"`);
-      const eventName = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
-      if (proposals.emits !== undefined && (!Array.isArray(proposals.emits) || proposals.emits.length > 32 || !proposals.emits.every(e => typeof e === "string" && eventName.test(e) && e.startsWith(manifest.name + ".")))) error(`chest.proposals.json: emits is up to 32 event names "${manifest.name}.<name>"`);
-      // "group.*": the Chest's group events, with "groups": "read".
-      const toolEvents = Array.isArray(proposals.receives) ? proposals.receives.filter(e => e !== "group.*") : [];
-      if (proposals.receives !== undefined && (!Array.isArray(proposals.receives) || proposals.receives.length > 32 || !toolEvents.every(e => typeof e === "string" && eventName.test(e) && !e.startsWith(manifest.name + ".") && !e.startsWith("group.") && !e.startsWith("member.")))) error("chest.proposals.json: receives is up to 32 event names of other tools (<tool>.<name>), and \"group.*\"");
-      if (Array.isArray(proposals.receives) && proposals.receives.includes("group.*") && proposals.groups !== "read") error('chest.proposals.json: receives "group.*" needs "groups": "read"');
-      // The Chest's groups: "groups": "read" — “Sees your Chest's groups and who is in them”.
-      if (proposals.groups !== undefined) {
-        if (proposals.groups !== "read") error('chest.proposals.json: groups is "read"');
-        else if (!(manifest.capabilities ?? []).includes("members")) error("chest.proposals.json: groups needs the capability members");
+      for (const key of Object.keys(proposals)) {
+        // files is both: 0.7's (maxObject) in chest.json, the proposal's
+        // (public files) here.
+        if (proposalKeys.has(key)) continue;
+        if (Object.hasOwn(droppedKeys, key)) error(`chest.proposals.json: ${droppedKeys[key]}`);
+        else if (officialKeys.has(key)) error(`chest.proposals.json: "${key}" is a key of the tool contract ${contractVersion} — move it to chest.json`);
+        else error(`chest.proposals.json: unknown proposal key "${key}"`);
       }
       // The calendar bridge: "calendar": true — “Adds events to the calendar of the members concerned”.
       if (proposals.calendar !== undefined && proposals.calendar !== true) error('chest.proposals.json: calendar is true');
       if (proposals.files !== undefined) {
         const f = proposals.files;
-        if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicUploads" && k !== "publicFiles") || Object.values(f).some(v => typeof v !== "boolean")) error('chest.proposals.json: files is {"publicUploads": true, "publicFiles": true}');
+        if (f !== null && typeof f === "object" && !Array.isArray(f) && "publicUploads" in f) error('chest.proposals.json: files.publicUploads is gone — a visitor\'s upload is 0.7.0\'s files.uploadUrl("folder/", {public: true, types}); keep {"publicFiles": true} for files served on the public host');
+        else if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicFiles") || f.publicFiles !== true) error('chest.proposals.json: files is {"publicFiles": true}');
         else if (!(manifest.capabilities ?? []).includes("files")) error("chest.proposals.json: files needs the capability files");
-        else if (f.publicUploads && manifest.public !== true) error("chest.proposals.json: public uploads need a public part");
+        else if (manifest.public !== true) error("chest.proposals.json: public files need a public part");
       }
+      // Mail to people outside the company: "mail": {"send": true} —
+      // “Sends emails to people outside your company (customers,
+      // candidates, visitors) through your company's mail provider”.
       if (proposals.mail !== undefined) {
         const m = proposals.mail;
-        if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send" && k !== "mailboxes")) error('chest.proposals.json: mail is {"send": true, "mailboxes": [...]}');
-        else {
-          if (m.send !== undefined && typeof m.send !== "boolean") error("chest.proposals.json: mail.send is true or false");
-          if (m.mailboxes !== undefined && (!Array.isArray(m.mailboxes) || m.mailboxes.length > 4 || !m.mailboxes.every(b => typeof b === "string" && /^[a-z][a-z0-9-]{0,31}$/u.test(b)) || new Set(m.mailboxes).size !== m.mailboxes.length)) error("chest.proposals.json: mail.mailboxes is up to 4 distinct names (lowercase letters, digits, hyphens)");
-        }
+        if (m !== null && typeof m === "object" && !Array.isArray(m) && "mailboxes" in m) error(`chest.proposals.json: mail.${droppedKeys.mailboxes}; mail is {"send": true}`);
+        else if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send") || m.send !== true) error('chest.proposals.json: mail is {"send": true} (mail to people outside the company; members are told with notifications) — leave "mail" out when the tool sends none');
       }
       // The store's words in other languages: {"fr": {"title", "description",
       // "role_labels"}} — the tile and the admin's screens in each member's
@@ -331,24 +178,31 @@ export function checkTool(folder) {
           if (Array.isArray(roles) && manifest.role_labels && (!labels || roles.some(r => manifest.role_labels[r] && !labels[r]))) warnings.push(`translations.${lang}: some roles have no label in this language`);
         }
       }
+      // Checks: "checks": true — “Asks the Chest to check web addresses of
+      // yours”. No number (0.7.0-studio.2): the Chest paces its probes.
       if (proposals.checks !== undefined) {
         if (!checksApi) warnings.push("checks not checked: build sdk/ first (npm run build)");
         else for (const problem of checksApi.checkManifest(proposals.checks)) error(`chest.proposals.json: ${problem}`);
+        if (proposals.checks !== null && typeof proposals.checks === "object" && "max" in proposals.checks) warnings.push('chest.proposals.json: checks {"max"} bounds nothing since 0.7.0-studio.2 (no number of checks: the Chest paces its probes) — write "checks": true');
       }
-      // Webhooks: "webhooks": {"max": N} — “Sends notices to web addresses
-      // your admins or subscribers give, signed by your Chest”.
+      // Webhooks: "webhooks": true — “Sends notices to web addresses your
+      // admins or subscribers give, signed by your Chest”. No number of
+      // addresses (0.7.0-studio.2): new ones and deliveries are paced.
       if (proposals.webhooks !== undefined) {
         if (!webhooksApi) warnings.push("webhooks not checked: build sdk/ first (npm run build)");
         else for (const problem of webhooksApi.checkManifest(proposals.webhooks)) error(`chest.proposals.json: ${problem}`);
-      }
-      if (proposals.schedules !== undefined) {
-        if (!schedulesApi) warnings.push("schedules not checked: build sdk/ first (npm run build)");
-        else for (const problem of schedulesApi.checkSchedules(proposals.schedules)) error(`chest.proposals.json: ${problem}`);
+        if (proposals.webhooks !== null && typeof proposals.webhooks === "object" && "max" in proposals.webhooks) warnings.push('chest.proposals.json: webhooks {"max"} bounds nothing since 0.7.0-studio.2 (no number of addresses: the Chest paces) — write "webhooks": true');
       }
     }
   }
 
   // Studio rules beyond the contract.
+  let pkg = null;
+  try {
+    pkg = JSON.parse(readFileSync(at("package.json"), "utf8"));
+  } catch {
+    // chest check says what is wrong with package.json.
+  }
   if (pkg) {
     for (const s of ["dev", "build", "start", "test"]) if (!pkg.scripts?.[s]) error(`package.json has no "${s}" script (studio rule)`);
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -357,40 +211,7 @@ export function checkTool(folder) {
     }
     if (pkg.dependencies?.["@electric-sql/pglite"]) error("PGlite is a dev dependency only");
   }
-  if (existsSync(at("migrations"))) {
-    const seen = new Set();
-    for (const file of readdirSync(at("migrations"))) {
-      if (!/^[0-9]{4}_[a-z0-9_]+\.sql$/u.test(file)) error(`migrations/${file}: name it NNNN_words.sql`);
-      const number = file.slice(0, 4);
-      if (seen.has(number)) error(`migrations: two files numbered ${number}`);
-      seen.add(number);
-      const sql = readFileSync(at(join("migrations", file)), "utf8");
-      if (/^\s*(begin|commit|rollback)\s*;/imu.test(sql)) error(`migrations/${file}: the Chest runs each file in its own transaction; do not begin or commit`);
-    }
-  }
   for (const doc of ["README.md", "DESIGN.md", "AGENTS.md", "LICENSE"]) if (!existsSync(at(doc))) error(`${doc} is missing (studio rule)`);
-
-  // The archive: no links, no node_modules shipped (they are ignored by git),
-  // under 32 MiB compressed.
-  let total = 0;
-  walk(folder, (path, stat) => {
-    if (stat.isSymbolicLink()) error(`${relative(folder, path)} is a link: an archive refuses links`);
-    if (stat.isFile()) total += stat.size;
-  }, name => ["node_modules", ".next", ".test-dist", ".git"].includes(name));
-  if (total > 200 << 20) error(`the folder holds ${(total / 1048576).toFixed(1)} MiB: the archive would exceed its limits`);
-  else if (total > 32 << 20) warnings.push(`the folder holds ${(total / 1048576).toFixed(1)} MiB uncompressed; the archive limit is 32 MiB compressed`);
-
-  // Nothing points outside the folder: imports that climb out of it.
-  walk(folder, (path, stat) => {
-    if (!stat.isFile() || !/\.(ts|tsx|mjs|js|css)$/u.test(path)) return;
-    const source = readFileSync(path, "utf8");
-    for (const m of source.matchAll(/(?:from\s+|import\s*\(\s*|require\s*\(\s*|@import\s+|url\(\s*)["']([^"']+)["']/gu)) {
-      const target = m[1];
-      if (!target.startsWith(".")) continue;
-      const resolved = resolve(dirname(path), target);
-      if (relative(folder, resolved).startsWith("..")) error(`${relative(folder, path)} imports ${target}, outside the tool's folder`);
-    }
-  }, name => ["node_modules", ".next", ".test-dist", ".git", "vendor"].includes(name));
 
   return { errors, warnings };
 }

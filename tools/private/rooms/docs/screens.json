@@ -31,5 +31,6 @@
   {"name": "visitors", "path": "/chest/visitors", "member": "sofia", "language": "en"},
   {"name": "visitors-fr", "path": "/chest/visitors", "member": "hugo", "language": "fr"},
   {"name": "visitor-form", "path": "/chest/visitors", "member": "sofia", "language": "fr", "actions": [{"click": "button:has-text('Annoncer un visiteur')"}, {"wait": 400}]},
+  {"name": "visitor-form-en", "path": "/chest/visitors", "member": "hugo", "language": "en", "actions": [{"click": "button:has-text('Announce a visitor')"}, {"wait": 300}, {"fill": ["dialog[open] input[type=email]", "paul.durand@client.example"]}, {"wait": 200}]},
   {"name": "import-outlook", "path": "/chest/places", "member": "camille", "language": "fr", "actions": [{"upload": ["section:has(#calendar-title) input[type=file]", "test/fixtures/outlook-atlas.ics"]}, {"wait": 1200}, {"hover": ".import-yours"}], "only": ["desktop"]}
 ]

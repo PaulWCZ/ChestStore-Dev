@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { decideQuote, finalise, getDocument, sendQuote } from "../lib/documents.ts";
-import { addPayment } from "../lib/payments.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { decideQuote, finalise, getDocument, sendQuote } from "../src/lib/documents.ts";
+import { addPayment } from "../src/lib/payments.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -12,8 +12,8 @@ import { camille, everyone, hugo, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -25,8 +25,8 @@ test("leaving changes nothing: the documents are the company's", async () => {
   const { sql } = database;
   const c = await client(sql);
   const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], hugo);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
   assert.equal((await getDocument(sql, asMember(lea), q.id, today)).createdBy, hugo.id);
 });
 
@@ -42,8 +42,8 @@ test("an erasure replaces the person's id everywhere — finalised invoices incl
   const other = await draft(sql, "invoice", c.id, [line("Autre", 1000, 100)], camille);
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "b".repeat(26), data: { id: sofia.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const quote = await getDocument(sql, asMember(lea), q.id, today);
   assert.equal(quote.createdBy, "erased");

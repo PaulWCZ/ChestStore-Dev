@@ -3,27 +3,9 @@
     "send": true
   },
   "files": {
-    "publicUploads": true,
     "publicFiles": true
   },
-  "emits": [
-    "forms.answered",
-    "forms.contact",
-    "forms.request"
-  ],
-  "webhooks": {
-    "max": 200
-  },
-  "schedules": [
-    {
-      "name": "bell",
-      "cron": "*/15 * * * *"
-    },
-    {
-      "name": "cleanup",
-      "cron": "20 3 * * *"
-    }
-  ],
+  "webhooks": true,
   "translations": {
     "fr": {
       "title": "Formulaires",

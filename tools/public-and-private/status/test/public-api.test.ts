@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { api, apiHeaders, indicatorOf } from "../lib/api.ts";
-import { badge } from "../lib/badge.ts";
-import { addComponent, updateComponent } from "../lib/components.ts";
-import * as incidents from "../lib/incidents.ts";
-import { embedSite, pageSettings, savePageSettings, supportAddress, webAddress } from "../lib/page-settings.ts";
-import { AppError } from "../lib/app-error.ts";
+import { api, apiHeaders, indicatorOf } from "../src/lib/api.ts";
+import { badge } from "../src/lib/badge.ts";
+import { addComponent, updateComponent } from "../src/lib/components.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { chest as theChest } from "@argentic/chest-sdk/chest";
+import { embedSite, pageSettings, pageZone, savePageSettings, supportAddress, webAddress } from "../src/lib/page-settings.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, nora } from "./support/members.ts";
@@ -20,7 +21,7 @@ let website = "", checkout = "", payments = "", shop = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -160,10 +161,24 @@ test("page settings: https addresses only, support as an address or an email, em
   assert.equal(embedSite("http://localhost:4000"), "http://localhost:4000");
   for (const bad of ["'self'", "*", "https://*", "https://a.fr/path", "http://a.fr", "https://a.fr; script-src *", "https://a.*.fr", "data:"]) assert.throws(() => embedSite(bad), AppError, bad);
   await savePageSettings(sql, editor, { website: "https://www.atelier-martin.fr", support: "support@atelier-martin.fr", embedSites: "https://www.atelier-martin.fr\nshop.atelier-martin.fr" });
-  assert.deepEqual(await pageSettings(sql), { website: "https://www.atelier-martin.fr/", support: "mailto:support@atelier-martin.fr", embedSites: ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"] });
+  assert.deepEqual(await pageSettings(sql), { website: "https://www.atelier-martin.fr/", support: "mailto:support@atelier-martin.fr", embedSites: ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"], timeZone: null });
   await refuses("forbidden", () => savePageSettings(sql, asMember(nora), { website: "https://x.fr" }));
   await refuses("too_many", () => savePageSettings(sql, editor, { embedSites: Array.from({ length: 11 }, (_, i) => `https://s${i}.fr`).join("\n") }));
   // A value stored by hand that no longer passes is dropped when read.
   await sql`update settings set value = ${sql.json({ website: "javascript:alert(1)", support: null, embedSites: ["'unsafe-inline'", "https://ok.fr"] } as never)} where key = 'page'`;
-  assert.deepEqual(await pageSettings(sql), { website: null, support: null, embedSites: ["https://ok.fr"] });
+  assert.deepEqual(await pageSettings(sql), { website: null, support: null, embedSites: ["https://ok.fr"], timeZone: null });
+});
+
+test("the page's time zone: the company's until an editor chooses another (never the Chest's own); the API says it", async () => {
+  const { sql } = database;
+  const origin = "https://status.atelier-martin.test";
+  assert.equal(await pageZone(sql), "Europe/Paris", "the company's zone by default");
+  assert.equal(((await api("status", { origin })) as { page: { time_zone: string } }).page.time_zone, "Europe/Paris");
+  await savePageSettings(sql, editor, { timeZone: "America/Toronto" });
+  assert.equal(await pageZone(sql), "America/Toronto");
+  assert.equal(((await api("status", { origin })) as { page: { time_zone: string } }).page.time_zone, "America/Toronto");
+  assert.equal(theChest.timeZone, "Europe/Paris", "the Chest’s zone is untouched");
+  for (const bad of ["Mars/Olympus", "Europe/Paris; drop", "x".repeat(80), 42]) await refuses("invalid", () => savePageSettings(sql, editor, { timeZone: bad }));
+  await savePageSettings(sql, editor, { timeZone: "" });
+  assert.equal(await pageZone(sql), "Europe/Paris", "back to the company's");
 });

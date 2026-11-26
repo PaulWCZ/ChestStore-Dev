@@ -2,21 +2,21 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as members from "@argentic/chest-sdk/members";
-import { POST } from "../app/chest-events/route.ts";
-import * as j from "../lib/journeys.ts";
-import { today } from "../lib/zone.ts";
-import { profile, updateJob, updateOwn } from "../lib/profiles.ts";
-import { departedManagers, directory } from "../lib/directory.ts";
-import { createRecord, updateRecord } from "../lib/records.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as j from "../src/lib/journeys.ts";
+import { today } from "../src/lib/zone.ts";
+import { profile, updateJob, updateOwn } from "../src/lib/profiles.ts";
+import { departedManagers, directory } from "../src/lib/directory.ts";
+import { createRecord, updateRecord } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { asMember, opener } from "./support/member.ts";
+import { camille, everyone, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -47,8 +47,8 @@ test("a manager who leaves: their reports keep their place (flagged), their step
   chest.members.splice(chest.members.findIndex(m => m.id === ines.id), 1);
   chest.former.push({ id: ines.id, name: ines.name });
   members.forget();
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   // Hugo and Nora still report to Inès, marked "manager has left": the org
   // chart keeps its branch, with Inès's place drawn as a card of her own.
   for (const who of [hugo, nora]) {
@@ -64,7 +64,7 @@ test("a manager who leaves: their reports keep their place (flagged), their step
   assert.deepEqual(items.map(i => i.assignee), [camille.id, camille.id, nora.id]);
   assert.deepEqual((await j.template(sql, hr, t.id)).items.map(i => [i.role, i.memberId]), [["manager", null], ["hr", null], ["person", null]]);
   assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `journey:${started.id}:todo`));
-  const told = chest.notifications.filter(n => n.key === `left:${ines.id}`);
+  const told = chest.notifications.filter(n => n.key === `left:${ines.id}`).map(seen);
   assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   const body = told.find(n => n.member === camille.id)!.body ?? "";
   assert.match(body, /Hugo Bernard, Nora Petit gardent leur place dans l’organigramme/u);
@@ -99,14 +99,14 @@ test("an erasure deletes their profile and the checklists about them, anonymises
   // Nora worked here: her record keeps what the staff register needs,
   // detached; her emergency contact and address go.
   const rec = await createRecord(sql, hr, { memberId: nora.id });
-  await updateRecord(sql, hr, rec.id, { startDate: "2026-01-05", nationality: "Française", emergencyName: "Paul Petit", address: "1 rue de la Paix" });
+  await updateRecord(sql, hr, rec.id, { startDate: "2026-01-05", nationality: "Française", emergencyName: "Paul Petit", address: "1 rue de la Paix" }, opener(hr));
   // Tom was expected but never started: his record goes.
   const future = await createRecord(sql, hr, { memberId: tom.id });
-  await updateRecord(sql, hr, future.id, { startDate: "2099-01-04" });
+  await updateRecord(sql, hr, future.id, { startDate: "2099-01-04" }, opener(hr));
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: nora.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.equal((await sql`select 1 from profiles where member_id = ${nora.id}`).length, 0);
   assert.equal((await profile(sql, hr, tom.id)).managerId, null);
   assert.equal((await sql`select 1 from journeys where person_id = ${nora.id}`).length, 0);
@@ -122,7 +122,7 @@ test("an erasure deletes their profile and the checklists about them, anonymises
   assert.deepEqual(chest.acknowledged, [erasure]);
   // Tom's erasure: never started, so nothing of his record remains.
   const second = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: tom.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(second, POST), 204);
+  assert.equal(await chest.deliver(second, POST), 204);
   assert.equal((await sql`select 1 from records where id = ${future.id}`).length, 0);
 });
 

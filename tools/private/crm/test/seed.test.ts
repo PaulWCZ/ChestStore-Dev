@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 
+// The fake Chest first: its zone is the database session's (the seed's
+// current_date is the company's day).
 let database: TestDatabase;
-before(async () => { database = await testDatabase(); });
-after(async () => { await database.close(); });
+let chest: FakeChest;
+before(async () => { chest = await fakeChest({ network: {} }); database = await testDatabase(); });
+after(async () => { await database.close(); await chest.close(); });
 
 // The sample client book (screenshots, the dev harness) loads on the
 // schema as it is.

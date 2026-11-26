@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { can, canChangeActivity, canDeleteRecord, canEditDeal, canRemoveFile, canUndoImport, ownsStep, roleOf, type Ability } from "../lib/access.ts";
+import { can, canChangeActivity, canDeleteRecord, canEditDeal, canRemoveFile, canUndoImport, ownsStep, roleOf, type Ability } from "../src/lib/access.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, lea, nora } from "./support/members.ts";
 

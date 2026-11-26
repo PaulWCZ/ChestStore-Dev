@@ -16,39 +16,26 @@ const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const name = manifest.name;
 
 // What each subpath gives at run time (tool contract v2); the root gives them
-// all, files, members, notifications, events and ai as namespaces, never
-// testing. 0.3.1-studio: 0.3.0's names, then the studio's proposals — the
-// names they add to an official module, and their own modules (schedules,
-// mail, calendar, webhooks, visitors, checks), namespaces at the root too.
-const official = {
-  errors: ["AiCapReached", "AiModelNotAllowed", "AiRefused", "AiUnavailable", "CapabilityNotGranted", "ChestError", "QuotaExceeded", "RateLimited", "TooLarge", "Unavailable"],
+// all, sealed, files, folders, members, notifications, events, schedules and ai as namespaces, never
+// testing.
+const expected = {
+  errors: ["AiCapReached", "AiModelNotAllowed", "AiRefused", "AiUnavailable", "CapabilityNotGranted", "ChestError", "MemberRequired", "NotAllowed", "QuotaExceeded", "RateLimited", "SealedInvalid", "SealedLocked", "SealedLost", "StorageFull", "TooLarge", "Unavailable"],
   member: ["groupIdPattern", "languagePattern", "member", "memberIdPattern", "timeZonePattern"],
   chest: ["chest"],
   database: ["databaseUrl"],
+  sealed: ["isSealed", "open", "openMany", "seal", "sealMany"],
   files: ["delete", "get", "list", "move", "put", "stat", "uploadUrl", "url"],
+  folders: ["files", "get", "list", "put", "remove", "uploadUrl", "url"],
   members: ["forget", "get", "groups", "list", "lookup"],
-  notifications: ["badge", "notify", "withdraw"],
-  events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "verify"],
+  notifications: ["badge", "broadcast", "notify", "withdraw"],
+  events: ["acknowledgeErasure", "emit", "erasureIdPattern", "handle", "memorySeen", "verify"],
+  schedules: ["handle", "verify"],
   ai: ["chat", "embed", "models", "usage"],
+  realtime: ["channelPattern", "eventPattern", "online", "presence", "publish", "send"],
   "realtime/client": ["connect", "peerEventPattern"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const studio = {
-  member: ["localeOf", "locales", "mailPreferenceOf"],
-  chest: ["forgetTheme", "readThemeChoice", "readToolUrls", "themeIdPattern", "toolNamePattern"],
-  files: ["claim", "publicUrl"],
-  members: ["matchEmails", "matchLimits"],
-  notifications: ["broadcast"],
-  events: ["occurredAtOf", "occurredLimits", "publish", "receivers", "toolEventPattern"],
-  schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "verify"],
-  mail: ["available", "bouncePattern", "handle", "idempotencyKey", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
-  calendar: ["check", "escapeText", "feed", "foldLine", "ics", "isDay", "keyPattern", "limits", "list", "page", "pick", "put", "putMany", "remove", "uidOf", "unfold"],
-  webhooks: ["add", "available", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
-  visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
-  checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
-};
-const expected = Object.fromEntries([...new Set([...Object.keys(official), ...Object.keys(studio)])].map(sub => [sub, [...(official[sub] ?? []), ...(studio[sub] ?? [])].sort()]));
-const namespaces = ["files", "members", "notifications", "events", "ai", "schedules", "mail", "calendar", "webhooks", "visitors", "checks"];
+const namespaces = ["sealed", "files", "folders", "members", "notifications", "events", "schedules", "ai", "realtime"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing" && sub !== "realtime/client").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");
@@ -80,11 +67,19 @@ try {
     assert.ok(shipped.includes(target.slice(2)), `export target missing from the package: ${target}`);
   }
 
+  // The runtime client stays small: the checker is its own package.
+  assert.ok(packed.size < 256 * 1024, `${name} packs ${packed.size} bytes: the runtime client must stay small`);
+  step("npm pack @argentic/chest-check");
+  const [checkPacked] = JSON.parse(run(npm, ["pack", "--json", "--pack-destination", work], join(root, "check")).replace(/^[^[]*/su, ""));
+  console.log(`${checkPacked.filename}: ${checkPacked.files.length} files, ${checkPacked.size} bytes (unpacked ${checkPacked.unpackedSize})`);
+  assert.deepEqual(checkPacked.files.map(file => file.path).sort(), ["README.md", "check.wasm.gz", "check.wasm.sha256", "dist/cli.js", "package.json"]);
+  assert.equal(checkPacked.version, manifest.version, "the checker is released with the SDK");
+
   step("install the tarball into a throwaway project");
   const consumer = join(work, "consumer");
   mkdirSync(consumer);
   writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "consumer", private: true, type: "module" }) + "\n");
-  run(npm, ["install", "--no-audit", "--no-fund", "--ignore-scripts", "--no-package-lock", tarball], consumer);
+  run(npm, ["install", "--no-audit", "--no-fund", "--ignore-scripts", "--no-package-lock", tarball, join(work, checkPacked.filename)], consumer);
   console.log(`installed ${name} in ${consumer}`);
 
   // The same probe runs from Node and from the bundle: every subpath, its
@@ -104,20 +99,20 @@ try {
     `try { database.databaseUrl(); } catch (error) { refused = error instanceof errors.CapabilityNotGranted && error instanceof root.ChestError; }`,
     `const nobody = modules[${JSON.stringify(name + "/member")}].member(new Request("http://tool.test/chest", { headers: { "chest-member": "a.b.c" } }));`,
     `const testing = modules[${JSON.stringify(name + "/testing")}];`,
-    `const chest = await testing.fakeChest({ members: [{ id: "mbr_" + "a".repeat(26), firstName: "Ada", lastName: "L", name: "Ada L", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" }] });`,
+    `const chest = await testing.fakeChest({ members: [{ id: "mbr_" + "a".repeat(26), firstName: "Ada", lastName: "L", name: "Ada L", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" }], capabilities: ["members", "files", "notifications", "ai", "realtime"], realtime: { channels: [{ name: "everyone" }] } });`,
     `const listed = (await root.members.list()).members.map(m => m.name);`,
     `const delivered = (await root.notifications.notify([chest.members[0].id], { title: "Hello" })).delivered;`,
     `const kept = chest.notifications.map(n => n.title);`,
+    `const published = (await root.realtime.publish("everyone", "hello", { n: 1 })).seq;`,
     `const signed = modules[${JSON.stringify(name + "/member")}].member(testing.withMember(new Request("http://tool.test/chest"), chest.members[0]))?.id;`,
     `const told = [];`,
     `const said = (await root.ai.chat({ model: "default", messages: [{ role: "user", content: "Hi" }] })).text;`,
     `let streamed = "";`,
     `for await (const piece of modules[${JSON.stringify(name + "/ai")}].chat({ model: "fast", messages: [{ role: "user", content: "Hi there" }], stream: true })) streamed += piece.text;`,
     `const calls = chest.ai.map(c => c.path);`,
-    `const studio = [root.chest.currency, (await root.chest.theme()).mode, root.schedules.nextRun("0 9 * * 1", new Date("2026-09-30T00:00:00Z"))?.toISOString(), root.localeOf(chest.members[0].language)];`,
-    `const answered = await chest.emit({ type: "access.revoked", data: { id: chest.members[0].id } }, request => root.events.handle(request, { "access.revoked": e => { told.push(e.data.id); } }).then(status => new Response(null, { status })));`,
+    `const answered = await chest.deliver({ type: "access.revoked", data: { id: chest.members[0].id } }, request => root.events.handle(request, { "access.revoked": e => { told.push(e.data.id); } }).then(status => new Response(null, { status })));`,
     `await chest.close();`,
-    `console.log(JSON.stringify({ names, sameClass: root.ChestError === errors.ChestError, sameFiles: root.files.put === modules[${JSON.stringify(name + "/files")}].put, sameMembers: root.members.list === modules[${JSON.stringify(name + "/members")}].list, sameAi: root.ai.chat === modules[${JSON.stringify(name + "/ai")}].chat, sameMail: root.mail.send === modules[${JSON.stringify(name + "/mail")}].send, studio, refused, nobody, listed, delivered, kept, signed, said, streamed, calls, answered, told }));`,
+    `console.log(JSON.stringify({ names, sameClass: root.ChestError === errors.ChestError, sameFiles: root.files.put === modules[${JSON.stringify(name + "/files")}].put, sameMembers: root.members.list === modules[${JSON.stringify(name + "/members")}].list, sameAi: root.ai.chat === modules[${JSON.stringify(name + "/ai")}].chat, refused, nobody, listed, delivered, kept, published, signed, said, streamed, calls, answered, told }));`,
   ].join("\n") + "\n";
   function verify(output, how) {
     const result = JSON.parse(output);
@@ -131,13 +126,25 @@ try {
     assert.deepEqual(result.listed, ["Ada L"], `${how}: members listed from a fake Chest`);
     assert.deepEqual([result.delivered, result.kept], [["mbr_" + "a".repeat(26)], ["Hello"]], `${how}: a notification delivered by a fake Chest`);
     assert.equal(result.sameAi, true, `${how}: one ai module for the root and /ai`);
+    assert.equal(result.published, 1, `${how}: a live event published to a fake Chest`);
     assert.deepEqual([result.said, result.streamed, result.calls], ["Hi", "Hi there", ["/ai/chat", "/ai/chat"]], `${how}: a chat answered by a fake Chest, whole and streamed`);
     assert.equal(result.signed, "mbr_" + "a".repeat(26), `${how}: an assertion of the testing module reads as its member`);
-    assert.equal(result.sameMail, true, `${how}: one mail module for the root and /mail (a studio proposal)`);
-    assert.deepEqual(result.studio, ["EUR", "own", "2026-10-05T09:00:00.000Z", "en"], `${how}: the studio's chest members, schedules and localeOf on a fake Chest`);
-    assert.deepEqual([result.answered, result.told], [204, ["mbr_" + "a".repeat(26)]], `${how}: an event emitted by a fake Chest handled once`);
+    assert.deepEqual([result.answered, result.told], [204, ["mbr_" + "a".repeat(26)]], `${how}: an event delivered by a fake Chest handled once`);
     for (const specifier of specifiers) console.log(`  ${specifier}: ${result.names[specifier].join(", ")}`);
   }
+
+  step("run chest check, @argentic/chest-check's command, on a tool's repository");
+  const tool = join(work, "tool");
+  mkdirSync(tool);
+  writeFileSync(join(tool, "chest.json"), JSON.stringify({ chest: manifest.version.split(".").slice(0, 2).join("."), name: "tasks", build: { runtime: "node", install: "npm ci", start: "npm start", port: 3000 } }));
+  writeFileSync(join(tool, "package.json"), "{}");
+  writeFileSync(join(tool, "package-lock.json"), "{}");
+  run("git", ["init", "-q"], tool);
+  const bin = join(consumer, "node_modules", ".bin", "chest");
+  const verdict = JSON.parse(run(bin, ["check", tool, "--json"], consumer));
+  assert.deepEqual([verdict.ok, verdict.name, verdict.checker], [true, "tasks", manifest.version.split(".").slice(0, 2).join(".")], "chest check, installed, judges a repository");
+  assert.equal(run(bin, ["--version"], consumer).trim(), manifest.version);
+  console.log(`  chest check: ${verdict.name} would be taken (contract ${verdict.checker})`);
 
   step("import every subpath from Node");
   writeFileSync(join(consumer, "probe.mjs"), probe);
@@ -168,38 +175,37 @@ import { member, type Member } from "${name}/member";
 import { databaseUrl } from "${name}/database";
 import * as files from "${name}/files";
 import type { FileData, FileObject, FilePage } from "${name}/files";
+import { chest as theChest, type Chest } from "${name}/chest";
 import * as members from "${name}/members";
-import { groups, type Group, type Lookup, type MemberPage } from "${name}/members";
+import { groups, type GroupPage, type Lookup, type MemberPage } from "${name}/members";
 import * as notifications from "${name}/notifications";
-import type { BadgeCount, BadgeWrite, Delivery, Notice } from "${name}/notifications";
+import type { Audience, BadgeCount, BadgeWrite, Delivery, Notice } from "${name}/notifications";
 import * as events from "${name}/events";
-import type { ChestEvent, Handlers, MemberErased, Seen } from "${name}/events";
+import type { EmitOptions, Emitted, Handlers, MemberErased, ReceivedEvent, Seen, ToolEvent } from "${name}/events";
 import * as ai from "${name}/ai";
 import type { AiModel, AiUsage, ChatChunk, ChatMessage, ChatResult, ChatTool, Embeddings } from "${name}/ai";
-import { fakeChest, signAssertion, withMember, type FakeAi, type FakeAiCall, type FakeChest, type FakeEvent, type FakeMember, type FakeNotification } from "${name}/testing";
-import { chest, forgetTheme, type ThemeChoice } from "${name}/chest";
-import { localeOf, type Locale, type MailPreference } from "${name}/member";
-import * as mail from "${name}/mail";
-import * as schedules from "${name}/schedules";
-import * as calendar from "${name}/calendar";
-import * as webhooks from "${name}/webhooks";
-import * as visitors from "${name}/visitors";
-import * as checks from "${name}/checks";
+import { fakeChest, signAssertion, withMember, type FakeAi, type FakeAiCall, type FakeChest, type FakeEmitted, type FakeEvent, type FakeNotification } from "${name}/testing";
 
 export function who(request: Request | IncomingMessage): Member | null { return member(request); }
+export function where(): [Chest, string, string | null] { return [theChest, new URL("/chest", theChest.tool.teamUrl).href, theChest.tool.publicUrl]; }
 export const url: string = databaseUrl();
 export async function keep(): Promise<[FileObject, FileData | null, FilePage, boolean, { url: string; expiresIn: number }]> {
   return [await files.put("a.txt", "a", "text/plain"), await files.get("a.txt"), await files.list({ prefix: "a" }), await files.delete("a.txt"), await sdk.files.url("a.txt")];
 }
-export async function team(): Promise<[MemberPage, Member | null, Lookup, Group[]]> {
-  return [await members.list({ q: "a", limit: 10 }), await members.get("mbr_x"), await sdk.members.lookup(["mbr_x"]), await groups.list()];
+export async function team(): Promise<[MemberPage, Member | null, Lookup, GroupPage, string[] | null]> {
+  const page = await groups.list({ limit: 10 });
+  return [await members.list({ q: "a", limit: 10 }), await members.get("mbr_x"), await sdk.members.lookup(["mbr_x"]), await groups.list({ after: page.next ?? "", limit: page.groups[0]?.size ?? 1 }), (await members.get("mbr_x"))?.groups ?? null];
 }
-export async function tell(ids: string[], notice: Notice, counts: BadgeCount[]): Promise<[Delivery, void, boolean, BadgeWrite]> {
-  return [await notifications.notify(ids, notice), await sdk.notifications.withdraw("task:1", ids), await notifications.badge.set("mbr_x", 1), await notifications.badge.setMany(counts)];
+export async function tell(ids: string[], notice: Notice, counts: BadgeCount[], audience: Audience): Promise<[Delivery, void, void, boolean, BadgeWrite]> {
+  return [await notifications.notify(ids, notice), await notifications.broadcast(notice, audience), await sdk.notifications.withdraw("task:1", ids), await notifications.badge.set("mbr_x", 1), await notifications.badge.setMany(counts)];
 }
-export async function receive(request: Request, seen: Seen): Promise<[number, ChestEvent | null]> {
-  const handlers: Handlers = { "member.erased": async (e: MemberErased) => { await events.acknowledgeErasure(e.data.erasure); }, "member.updated": e => { void e.data.changed; } };
-  return [await events.handle(request, handlers, { seen }), await sdk.events.verify(request)];
+export async function receive(request: Request, seen: Seen): Promise<[number, number, ReceivedEvent | null]> {
+  const handlers: Handlers<"member.erased" | "member.updated" | "quote.accepted"> = { "member.erased": async (e: MemberErased) => { await events.acknowledgeErasure(e.data.erasure); }, "member.updated": e => { void e.data.changed; }, "quote.accepted": (e: ToolEvent) => { void e.audience; } };
+  const told = await events.handle(request, { "quote.accepted": async e => { await events.emit("project.created", { project: String(e.data["quote"]) }, { subject: e.subject ?? "p", audience: { members: e.audience === "all" ? [] : e.audience } }); } });
+  return [await events.handle(request, handlers, { seen }), told, await sdk.events.verify(request)];
+}
+export async function tellTools(options: EmitOptions): Promise<Emitted> {
+  return sdk.events.emit("quote.accepted", { quote: "q-1", total: 12.5 }, { ...options, occurredAt: new Date() });
 }
 export async function think(messages: ChatMessage[], tools: ChatTool[], signal: AbortSignal): Promise<[ChatResult, string, Embeddings, AiModel[], AiUsage]> {
   const result: ChatResult = await ai.chat({ model: "default", messages, tools, toolChoice: "auto", responseFormat: { type: "json_object" }, maxTokens: 800, signal });
@@ -219,23 +225,17 @@ export async function testAi(): Promise<FakeAiCall[]> {
   return chest.ai;
 }
 export async function test(someone: Member): Promise<string> {
-  const chest: FakeChest = await fakeChest({ members: [someone], capabilities: ["members", "notifications"] });
+  const chest: FakeChest = await fakeChest({ members: [someone], capabilities: ["members", "notifications"], emits: { "quote.accepted": { description: "A quote is accepted", data: { quote: "id", note: "text?" } } } });
   const sent: FakeNotification[] = chest.notifications;
   const badges: Map<string, number> = chest.badges;
   const request: Request = withMember(new Request("http://tool.test/chest"), someone);
   const event: FakeEvent = { type: "member.erased", data: { id: someone.id, erasure: "era_" + "a".repeat(26), deadline: new Date().toISOString() } };
-  await chest.emit(event, "http://127.0.0.1:1");
+  await chest.deliver(event, "http://127.0.0.1:1");
+  await chest.deliver({ type: "quote.accepted", source: "quotes", audience: [someone.id], subject: "q-1", data: { quote: "q-1" } }, "http://127.0.0.1:1");
+  const emitted: FakeEmitted[] = chest.emitted;
   const acknowledged: string[] = chest.acknowledged;
   await chest.close();
-  return signAssertion(someone, { token: chest.token, tool: chest.tool }) + request.url + sent.length + badges.size + acknowledged.length;
-}
-export async function studio(someone: Member, request: Request): Promise<[string, string, string | null, string | null, ThemeChoice, string, Locale, MailPreference | undefined, mail.MailAvailability, Date | null, string, number, unknown, unknown]> {
-  const bare: FakeMember = { id: someone.id, firstName: "A", lastName: "B", name: "A B", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [] };
-  const fake = await fakeChest({ members: [bare], chest: { organization: "Acme SAS", currency: "CHF" }, schedules: [{ name: "daily", cron: "0 9 * * *" }] });
-  forgetTheme();
-  const result: [string, string, string | null, string | null, ThemeChoice, string, Locale, MailPreference | undefined, mail.MailAvailability, Date | null, string, number, unknown, unknown] = [chest.organization.name, chest.currency, chest.teamUrl, chest.toolLink("forms", "/chest"), await chest.theme(), chest.todayIn(someone.timeZone), localeOf(someone.language), (await members.get(someone.id))?.mailPreference, await mail.available(), schedules.nextRun("0 9 * * *"), visitors.language(request), (await sdk.members.groups.of(someone.id))?.length ?? 0, calendar.limits, [webhooks.limits, checks.limits]];
-  await fake.close();
-  return result;
+  return signAssertion(someone, { token: chest.token, tool: chest.tool }) + request.url + sent.length + badges.size + acknowledged.length + emitted.length;
 }
 export function code(error: unknown): string | null {
   if (error instanceof CapabilityNotGranted || error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof TooLarge || error instanceof Unavailable) return error.code;

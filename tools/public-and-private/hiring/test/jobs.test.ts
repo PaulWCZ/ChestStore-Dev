@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as jobs from "../lib/jobs.ts";
+import * as jobs from "../src/lib/jobs.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { label, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -132,4 +132,28 @@ test("the careers page shows open jobs only, and the salary only when shown", as
   const draft = await jobs.createJob(sql, recruiter(), { title: "Secret plan", contract: "permanent", remote: "onsite" });
   await jobs.removeJob(sql, recruiter(), draft.id);
   await assert.rejects(jobs.job(sql, recruiter(), draft.id), { code: "not_found" });
+});
+
+test("the currency of salaries is Hiring's own (no Chest currency): the latest salary's, else the country's, else the euro, until chosen; each job keeps its own", async () => {
+  const { sql } = database;
+  // Written by earlier tests: salaries in euros — the evidence comes first.
+  assert.equal((await jobs.settings(sql)).currency, "EUR");
+  const pounds = await jobs.createJob(sql, recruiter(), { title: "Paid in pounds", contract: "permanent", remote: "onsite", salaryMin: 40000, salaryCurrency: "GBP" });
+  assert.equal((await jobs.settings(sql)).currency, "GBP", "a company that wrote salaries in pounds keeps pounds (France or not)");
+  const salaried = await sql<{ id: string; salary_min: number | null; salary_max: number | null }[]>`select id, salary_min, salary_max from jobs where salary_min is not null or salary_max is not null`;
+  await sql`update jobs set salary_min = null, salary_max = null`;
+  assert.equal((await jobs.settings(sql)).currency, "EUR", "no salary yet, France: the euro");
+  await jobs.saveSettings(sql, recruiter(), { country: "GB" });
+  assert.equal((await jobs.settings(sql)).currency, "GBP", "the country's when none is chosen");
+  for (const j of salaried) await sql`update jobs set salary_min = ${j.salary_min}, salary_max = ${j.salary_max} where id = ${j.id}`;
+  await jobs.removeJob(sql, recruiter(), pounds.id);
+  await jobs.saveSettings(sql, recruiter(), { currency: "CHF" });
+  assert.equal((await jobs.settings(sql)).currency, "CHF");
+  await assert.rejects(jobs.saveSettings(sql, recruiter(), { currency: "XYZ" }), { code: "invalid" });
+  const plain = await jobs.createJob(sql, recruiter(), { title: "Currency default", contract: "permanent", remote: "onsite", salaryMin: 50000 });
+  assert.equal(plain.salaryCurrency, "CHF", "a new salary takes the tool's default");
+  const own = await jobs.createJob(sql, recruiter(), { title: "Currency own", contract: "permanent", remote: "onsite", salaryMin: 50000, salaryCurrency: "USD" });
+  assert.equal(own.salaryCurrency, "USD", "a job keeps its own code");
+  await jobs.saveSettings(sql, recruiter(), { currency: "EUR", country: "FR" });
+  assert.equal((await jobs.job(sql, recruiter(), own.id)).job.salaryCurrency, "USD", "changing the default changes no job");
 });

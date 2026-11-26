@@ -1,3 +1,4 @@
+import type { FakeNotification } from "@argentic/chest-sdk/testing";
 import type { FakeMember } from "@argentic/chest-sdk/testing";
 
 // The people of the tests (and of the dev harness, lab/chest-dev): ids of
@@ -15,3 +16,10 @@ export const hugo = person("hugo", "Hugo", "Bernard", "member", { groups: [group
 export const lea = person("lea", "Léa", "Dubois", "viewer", { language: "fr", groups: [groups.office] });
 export const nora = person("nora", "Nora", "Petit", null);
 export const everyone = [camille, ines, hugo, lea, nora];
+
+// A notification as its member sees it: the fake Chest keeps each item
+// already in its member's language (the notice's translations; English
+// when it has none in theirs), as the Chest shows it.
+export function seen(n: FakeNotification): { title: string; body?: string } {
+  return { title: n.title, ...(n.body === undefined ? {} : { body: n.body }) };
+}

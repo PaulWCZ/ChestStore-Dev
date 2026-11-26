@@ -9,7 +9,7 @@ Polite and quick — a visitor books in three clicks and three fields.
 ## Tokens
 
 The identity is a **theme of the UI kit** (`@argentic/chest-ui`):
-`defineTheme` in `lib/theme.ts`, identical to the catalogue's
+`defineTheme` in `src/theme.ts`, identical to the catalogue's
 "Appointment card" (`appointment`; `test/theme.test.ts` holds them equal
 and checks every contrast pair of the kit's contract, light and dark).
 Every colour lives there; the CSS names only contract tokens, so the
@@ -30,7 +30,7 @@ company may give Booking any other look (see README, "Looks").
 | `--font-display` / `--font-body` | Young Serif / Figtree | | titles, times, the month / everything else |
 | `--radius-s/m/l` | 8 / 14 / 22 px, pills | | soft cards, round days, pill buttons |
 
-Booking's own tokens (`app/tokens.css`) are aliases of those: `--free*` →
+Booking's own tokens (`src/tokens.css`) are aliases of those: `--free*` →
 `--ok*`, `--today*` → `--wait*`, `--c-<colour>` → `--cat-N` (a type keeps
 its family in every look), `--edge` (1.5 px, or the theme's thicker line)
 and the mark's mint (a `color-mix`, decoration only).
@@ -60,13 +60,13 @@ and the mark's mint (a `color-mix`, decoration only).
   setting: the kit's `Switch`), date fields, time lists, file picker,
   empty states, avatars and badges are the kit's components; tags take
   the theme's `--radius-chip`, restyled lightly by
-  `app/globals.css` ("The kit's components, fitted to Booking's pages").
+  `src/styles.css` ("The kit's components, fitted to Booking's pages").
 
 ## Icon
 
-`components/mark.tsx` draws the card in the look's colours (accent card,
+`src/components/mark.tsx` draws the card in the look's colours (accent card,
 ink rings, a mint tick). `chest/icon.svg`: a plum calendar card with two rings and a mint tick in a
-circle. `app/icon.svg` is the same, smaller.
+circle. `public/assets/icon.svg` is the same, smaller.
 
 ## Why
 
@@ -88,8 +88,8 @@ the only signal: free days are also buttons, taken ones are disabled).
     { "name": "Apricot", "value": "#974503" }
   ],
   "fonts": {
-    "display": { "family": "Young Serif", "file": "public/fonts/young-serif-latin-400-normal.woff2", "weight": 400 },
-    "body": { "family": "Figtree", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 450 }
+    "display": { "family": "Young Serif", "file": "public/assets/fonts/young-serif-latin-400-normal.woff2", "weight": 400 },
+    "body": { "family": "Figtree", "file": "public/assets/fonts/figtree-latin-wght-normal.woff2", "weight": 450 }
   },
   "specimen": "Tuesday 29 September at 10:00 — you are booked."
 }

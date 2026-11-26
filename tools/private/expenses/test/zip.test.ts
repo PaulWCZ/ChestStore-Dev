@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { crc32, ZipWriter } from "../lib/zip.ts";
+import { crc32, ZipWriter } from "../src/lib/zip.ts";
 
 // Reads an archive back by its central directory, checking each entry's
 // local header and CRC: what any unzip does.

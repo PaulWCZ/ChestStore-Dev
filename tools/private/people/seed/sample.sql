@@ -7,7 +7,7 @@ insert into profiles (member_id, title, team, office, manager_id, phone, pronoun
   ('mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Office manager', 'Office', 'Paris', null, '+33 1 84 60 12 01', 'she/her',
    'I keep the office running: contracts, suppliers, the building, and the people who arrive and leave. Come and see me for anything that does not fit elsewhere.',
    array['Contracts', 'Suppliers', 'Payroll questions', 'The building'], date '2017-02-06', '04-18'),
-  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'HR assistant', 'Office', 'Paris', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '+33 1 84 60 12 02', '',
+  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'HR assistant', 'Office', 'Paris', 'mbr_paulaaaaaaaaaaaaaaaaaaaaaa', '+33 1 84 60 12 02', '',
    'Onboarding, leave requests and training. I speak Italian and English.',
    array['Onboarding', 'Training', 'Leave'], date '2023-01-09', null),
   ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Head of sales', 'Sales', 'Lyon', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '+33 6 12 45 78 90', 'elle',
@@ -24,6 +24,13 @@ insert into profiles (member_id, title, team, office, manager_id, phone, pronoun
   ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'Developer', 'Tech', 'Remote', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', '+44 7700 900123', 'he/him',
    'Backend and data. Based in Bristol, in Paris one week a month.',
    array['Databases', 'Reports', 'English'], date '2024-03-04', null);
+
+-- Paul Lefèvre, the office coordinator, left three weeks ago (the
+-- harness's former member): Sofia still reports to him, marked, until HR
+-- names someone else — the org chart keeps his place ("Has left").
+insert into profiles (member_id, title, team, office, manager_id, start_date, left_at) values
+  ('mbr_paulaaaaaaaaaaaaaaaaaaaaaa', 'Office coordinator', 'Office', 'Paris', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', date '2018-03-05', now() - interval '21 days');
+update profiles set manager_left = true where member_id = 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa';
 
 -- The two examples: their names (phrase) and steps speak each reader's language.
 insert into templates (kind, name, phrase, created_by, created_at) values

@@ -72,3 +72,23 @@ Used on 2026-09-28/29 in the harness (port 7300, `--prod --reset`), as Hugo (sal
 8. Attachments via Chest files; structured address + SIREN/VAT on companies, sent in `crm.deal.won`. **M**
 9. Activities/notes import; "export everything" ZIP. **M**
 10. Email capture (BCC) as soon as the SDK mail proposal ships. **L**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Clients's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **147 → 72.1 MiB**;
+  image 462 → 32 MiB; first members' page 919 →
+  409 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: the board's counts and totals per stage and currency from SQL, each column its first 100 cards (island props under 256 KB at 2,000 deals); amounts typed as people write them ("€12 500", "12k"), the importer following the file's decimal mark; imported deals in `chest.currency`; two moves of one deal locked (race test); CSV formulas neutralised without mangling phones; a "Who may download the lists" setting (`c969373`, flow `83f8290`).
+- **Pending**: Page versions are off (its counter could answer a stale 304) until the package's change stamp lands (studio.7, under way): every refresh renders the page meanwhile.

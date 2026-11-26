@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-06T00:54:11.210Z",
+  "node": "v24.21.0",
+  "rounds": 15,
+  "rests": 5,
+  "idle": 30,
+  "summary": [
+    {
+      "name": "A",
+      "cold_ms_node": {
+        "median": 174,
+        "min": 109,
+        "max": 392
+      },
+      "cold_ms_npm": {
+        "median": 339,
+        "min": 200,
+        "max": 634
+      },
+      "rest_mib": {
+        "rss": 75.3,
+        "uss": 23.8,
+        "pss": 27.1,
+        "runs": [
+          75.2,
+          75.5,
+          75.4,
+          75.3,
+          75.2
+        ]
+      }
+    },
+    {
+      "name": "A'",
+      "cold_ms_node": {
+        "median": 179,
+        "min": 125,
+        "max": 536
+      },
+      "cold_ms_npm": {
+        "median": 357,
+        "min": 228,
+        "max": 745
+      },
+      "rest_mib": {
+        "rss": 70.4,
+        "uss": 18.4,
+        "pss": 21.9,
+        "runs": [
+          70.2,
+          70.4,
+          70.5,
+          70.6,
+          70.3
+        ]
+      }
+    },
+    {
+      "name": "B",
+      "cold_ms_node": {
+        "median": 193,
+        "min": 137,
+        "max": 481
+      },
+      "cold_ms_npm": {
+        "median": 396,
+        "min": 228,
+        "max": 858
+      },
+      "rest_mib": {
+        "rss": 74.5,
+        "uss": 22.7,
+        "pss": 26.9,
+        "runs": [
+          74.7,
+          74.6,
+          74.2,
+          74.3,
+          74.5
+        ]
+      }
+    }
+  ]
+}

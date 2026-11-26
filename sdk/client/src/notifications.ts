@@ -1,32 +1,51 @@
 import { ask as chest, json, refusal } from "./api.js";
 import { ChestError, Unavailable } from "./errors.js";
-import { locales, memberIdPattern, type Locale } from "./member.js";
+import { rolePattern } from "./eventrules.js";
+import { groupIdPattern, languagePattern, memberIdPattern } from "./member.js";
 
 // Counters and notifications inside the Chest, for a server tool whose
 // chest.json declares "capabilities": ["notifications"]: a badge is a count
 // shown on the tool's tile for one member; a notification is an item in a
 // member's inbox that opens a page of the tool. Only members who have access
-// to the tool receive them; nothing leaves the Chest (no email, no push).
+// to the tool receive them. The tool sends nothing else: members may get
+// mails of their notifications, as each of them chooses — the Chest's
+// service. A notice may say the same in other languages: each member reads
+// the one of theirs (member.language), the tool's own otherwise. Nothing is
+// refused for its pace: beyond ten at once to a member, then one every six
+// minutes, the Chest folds a tool's notices into one grouped item of that
+// member's inbox ("37 new notifications", the latest shown) — the call
+// still succeeds, nothing is lost.
 //
 //   import * as notifications from "@argentic/chest-sdk/notifications";
 //   const { delivered, skipped } = await notifications.notify(ids, { title: "New task", path: "/chest/tasks/42", key: "task:42" });
+//   await notifications.broadcast({ title: "New poll", translations: { fr: { title: "Nouveau sondage" } }, path: "/chest/polls/7" }, { to: { groups: ["grp_…"] }, except: [author] });
 //   await notifications.withdraw("task:42");                // the task is done: its items go
 //   const shown = await notifications.badge.set("mbr_…", 3); // false: no access
 //   await notifications.badge.setMany([{ memberId: "mbr_…", count: 0 }]);
 //
 // Text is plain: the Chest removes control characters, interprets neither
 // Markdown nor HTML, keeps line breaks in body. A member who muted the tool
-// counts as delivered: the tool never learns it. Errors: CapabilityNotGranted
-// (403), QuotaExceeded (429: 1,000 recipients an hour, 100 items per member a
-// day, 600 badge writes a minute), Unavailable (503, or the Chest not
-// reached), ChestError otherwise (invalid_id, invalid_title, invalid_text,
-// invalid_path, invalid_key, invalid_count, invalid_body 400).
+// counts as delivered: the tool never learns it. Badges are a state, the
+// last write wins. Errors: CapabilityNotGranted (403), Unavailable (503, or
+// the Chest not reached), ChestError otherwise — only a malformed or
+// oversized call
+// (invalid_id, invalid_role, invalid_title, invalid_text, invalid_path,
+// invalid_key, invalid_language, invalid_count, invalid_body 400).
 
-// What a notification says: title (1 to 80 characters), body (280 at most),
-// path (the page of the tool it opens, under /chest; /chest when not said)
-// and key (a name of the tool's: an item of the same key for the same member
-// is replaced, and withdraw removes it).
-export type Notice = { title: string; body?: string; path?: string; key?: string };
+// The words of a notification in one language: title (1 to 80 characters)
+// and body (280 at most).
+export type Words = { title: string; body?: string };
+// What a notification says: its words in the tool's own language, path (the
+// page of the tool it opens, under /chest; /chest when not said), key (a
+// name of the tool's: an item of the same key for the same member is
+// replaced, and withdraw removes it) and translations: the same words in
+// other languages, by language tag ("fr"), each member reading theirs.
+export type Notice = Words & { path?: string; key?: string; translations?: Record<string, Words> };
+// Whom a broadcast reaches: every member who has the tool, or with to those
+// in any of its groups or holding any of its roles — a group the tool does
+// not see, or a role it does not declare, reaches no one —, but those of
+// except (the author, those who already answered).
+export type Audience = { to?: { groups?: string[]; roles?: string[] }; except?: Iterable<string> };
 // Who got it and who not, each identifier once in the order given: skipped
 // are identifiers the Chest does not know and members without access.
 export type Delivery = { delivered: string[]; skipped: string[] };
@@ -36,10 +55,10 @@ export type BadgeCount = { memberId: string; count: number };
 // order given.
 export type BadgeWrite = { set: string[]; skipped: string[] };
 
-// The bounds of a Chest.
-const maxMembers = 500, maxTitle = 80, maxBody = 280, maxPath = 512, maxCount = 9999;
-// A key names the items it replaces and withdraw removes: never hashed
-// nor cut (a longer one is refused, invalid_key) — build it from ids.
+// The bounds of a Chest on a call's texts and counts, and the roles a tool
+// declares. No count bounds the members a call names: the Chest takes as
+// many as its team holds, and refuses a body beyond (invalid_body).
+const maxTitle = 80, maxBody = 280, maxPath = 512, maxCount = 9999, toolRoles = 16;
 const keyPattern = /^[a-z0-9._:-]{1,64}$/u;
 // What the Chest removes from a title before keeping it: control characters
 // and the characters that reorder text.
@@ -62,10 +81,10 @@ function checkId(id: unknown): string {
   if (typeof id !== "string" || !memberIdPattern.test(id)) throw new ChestError("invalid_id", 400, "invalid member identifier");
   return id;
 }
-// checkIds reads 1 to 500 member identifiers, as given.
+// checkIds reads member identifiers, one at least, as given.
 function checkIds(ids: Iterable<string>): string[] {
   const all = [...ids];
-  if (all.length < 1 || all.length > maxMembers) throw new ChestError("invalid_body", 400, "1 to 500 member identifiers");
+  if (all.length < 1) throw new ChestError("invalid_body", 400, "one member identifier at least");
   return all.map(checkId);
 }
 function checkKey(key: unknown): string {
@@ -97,72 +116,60 @@ function partition(answer: unknown, first: string, second: string, asked: string
   return [[...one], [...two]];
 }
 
-// notify puts one item in the inbox of each member who has the tool, among
-// 1 to 500 identifiers (each counted once). A link to path, on the tool's
-// team host, opens it. With a key, the member's item of that key is replaced:
-// new text, new time, first and unread again.
-export async function notify(memberIds: Iterable<string>, notice: Notice): Promise<Delivery> {
-  const members = checkIds(memberIds);
-  const { title, body, path, key } = notice;
+// checkWords reads a title and a body as the Chest bounds them.
+function checkWords(words: unknown): Words {
+  const { title, body } = (words ?? {}) as Partial<Words>;
   if (typeof title !== "string" || length(title) < 1 || length(title) > maxTitle || title.replace(removed, "").trim() === "") throw new ChestError("invalid_title", 400, "a title is 1 to 80 characters");
   if (body !== undefined && (typeof body !== "string" || length(body) > maxBody)) throw new ChestError("invalid_text", 400, "a body is 280 characters at most");
-  const command = { members, title, ...(body ? { body } : {}), ...(path !== undefined ? { path: checkPath(path) } : {}), ...(key !== undefined ? { key: checkKey(key) } : {}) };
-  const response = await ask("POST", "/notifications", command);
+  return { title, ...(body ? { body } : {}) };
+}
+
+// command is a notice as the Chest reads it.
+function command(notice: Notice): Record<string, unknown> {
+  const { path, key, translations } = notice;
+  const other: Record<string, Words> = {};
+  for (const [language, words] of Object.entries(translations ?? {})) {
+    if (!languagePattern.test(language)) throw new ChestError("invalid_language", 400, "a language is a tag such as fr");
+    other[language] = checkWords(words);
+  }
+  return { ...checkWords(notice), ...(path !== undefined ? { path: checkPath(path) } : {}), ...(key !== undefined ? { key: checkKey(key) } : {}), ...(translations !== undefined ? { translations: other } : {}) };
+}
+
+// notify puts one item in the inbox of each member who has the tool, among
+// the identifiers given (each counted once), in their language. A link to
+// path, on the tool's team host, opens it. With a key, the member's item of
+// that key is replaced: new text, new time, first and unread again.
+export async function notify(memberIds: Iterable<string>, notice: Notice): Promise<Delivery> {
+  const members = checkIds(memberIds);
+  const response = await ask("POST", "/notifications", { members, ...command(notice) });
   await expect(response, 200);
   const [delivered, skipped] = partition(await json(response), "delivered", "skipped", members);
   return { delivered, skipped };
 }
 
-// Proposal (studio): broadcast — one item for everyone who has the tool (or
-// those of some roles or groups), each in their language, in one call. The
-// Chest resolves the members, picks each one's message by their language
-// (member.language; English when the tool wrote none in it), and delivers in the background. Before:
-// a tool listed its members page by page, grouped them by language, and hit
-// the 1,000 recipients an hour after a thousand people (News, Polls).
-//
-//   await notifications.broadcast({
-//     messages: { en: { title: "Please read: we move on 2 November" }, fr: { title: "À lire : nous déménageons le 2 novembre" } },
-//     path: "/chest/posts/4", key: "post:4",
-//   });
-//
-// Quota: 30 broadcasts an hour per tool, not counted in recipients an hour;
-// each member still gets at most 100 items a day. to: roles and groups
-// (either matches); none: everyone with the tool; except: up to 500 members
-// left out (the author, those who already answered). Answers how many
-// members were told.
-export type Message = { title: string; body?: string };
-export type Broadcast = { messages: { en: Message } & Partial<Record<Locale, Message>>; path?: string; key?: string; to?: { roles?: string[]; groups?: string[] }; except?: string[] };
-
-const rolePattern = /^[a-z][a-z0-9_-]{0,31}$/u, groupPattern = /^grp_[a-z2-7]{26}$/u;
-
-function checkMessage(m: unknown): Message {
-  const o = m !== null && typeof m === "object" && !Array.isArray(m) ? (m as Record<string, unknown>) : null;
-  const title = o?.["title"], body = o?.["body"];
-  if (!o || Object.keys(o).some(k => k !== "title" && k !== "body")) throw new ChestError("invalid_body", 400, "a message is {title, body}");
-  if (typeof title !== "string" || length(title) < 1 || length(title) > maxTitle || title.replace(removed, "").trim() === "") throw new ChestError("invalid_title", 400, "a title is 1 to 80 characters");
-  if (body !== undefined && (typeof body !== "string" || length(body) > maxBody)) throw new ChestError("invalid_text", 400, "a body is 280 characters at most");
-  return { title, ...(body ? { body: body as string } : {}) };
-}
-
-export async function broadcast(b: Broadcast): Promise<{ delivered: number }> {
-  const given = b?.messages as Record<string, unknown> | undefined;
-  if (!given || typeof given !== "object" || !("en" in given) || Object.keys(given).some(k => !(locales as readonly string[]).includes(k))) throw new ChestError("invalid_body", 400, "messages: en, and other languages of the Chest");
-  const messages = Object.fromEntries(Object.entries(given).map(([k, m]) => [k, checkMessage(m)]));
-  const roles = b.to?.roles, groups = b.to?.groups;
-  if (roles !== undefined && (!Array.isArray(roles) || roles.length > 16 || !roles.every(r => typeof r === "string" && rolePattern.test(r)))) throw new ChestError("invalid_body", 400, "roles: up to 16 role identifiers");
-  if (groups !== undefined && (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupPattern.test(g)))) throw new ChestError("invalid_body", 400, "groups: up to 64 group identifiers");
-  if (b.except !== undefined && (!Array.isArray(b.except) || b.except.length > maxMembers)) throw new ChestError("invalid_body", 400, "except: up to 500 member identifiers");
-  const except = b.except?.map(checkId);
-  const command = { messages, ...(except && except.length > 0 ? { except } : {}), ...(b.path !== undefined ? { path: checkPath(b.path) } : {}), ...(b.key !== undefined ? { key: checkKey(b.key) } : {}), ...(roles || groups ? { to: { ...(roles ? { roles } : {}), ...(groups ? { groups } : {}) } } : {}) };
-  const response = await ask("POST", "/notifications/broadcast", command);
-  await expect(response, 200);
-  const answer = (await json(response)) as { delivered?: unknown } | null;
-  if (!answer || typeof answer.delivered !== "number" || !Number.isInteger(answer.delivered) || answer.delivered < 0) throw new Unavailable();
-  return { delivered: answer.delivered };
+// broadcast puts one item, in their language, in the inbox of every member
+// who has the tool now — or of those the audience names —, the Chest
+// resolving who they are: the tool needs not see its members. It never says
+// how many received it. Each recipient counts in the quotas, all or none.
+export async function broadcast(notice: Notice, audience: Audience = {}): Promise<void> {
+  const { to } = audience;
+  let target: { groups?: string[]; roles?: string[] } | undefined;
+  if (to !== undefined) {
+    const groups = to.groups === undefined ? undefined : [...to.groups], roles = to.roles === undefined ? undefined : [...to.roles];
+    if (!groups?.length && !roles?.length) throw new ChestError("invalid_body", 400, "to names groups or roles: leave it out for everyone");
+    if ((roles?.length ?? 0) > toolRoles) throw new ChestError("invalid_body", 400, "16 roles at most: those the tool declares");
+    if (groups && !groups.every(g => typeof g === "string" && groupIdPattern.test(g))) throw new ChestError("invalid_id", 400, "invalid group identifier");
+    if (roles && !roles.every(r => typeof r === "string" && rolePattern.test(r))) throw new ChestError("invalid_role", 400, "invalid role");
+    target = { ...(groups?.length ? { groups } : {}), ...(roles?.length ? { roles } : {}) };
+  }
+  const except = audience.except === undefined ? undefined : [...audience.except];
+  except?.forEach(checkId);
+  const response = await ask("POST", "/notifications/broadcast", { ...command(notice), ...(target ? { to: target } : {}), ...(except?.length ? { except } : {}) });
+  await expect(response, 204);
 }
 
 // withdraw removes the items of that key, from every member or from those
-// named (1 to 500): the thing they were about is done. It never says what
+// named: the thing they were about is done. It never says what
 // existed.
 export async function withdraw(key: string, memberIds?: Iterable<string>): Promise<void> {
   const command = { key: checkKey(key), ...(memberIds !== undefined ? { members: checkIds(memberIds) } : {}) };
@@ -181,10 +188,10 @@ export const badge = {
     await expect(response, 200);
     return partition(await json(response), "set", "skipped", [memberId])[0].length === 1;
   },
-  // setMany sets 1 to 500 badges, a member at most once.
+  // setMany sets badges, one at least, a member at most once.
   async setMany(counts: Iterable<BadgeCount>): Promise<BadgeWrite> {
     const all = [...counts];
-    if (all.length < 1 || all.length > maxMembers) throw new ChestError("invalid_body", 400, "1 to 500 badges");
+    if (all.length < 1) throw new ChestError("invalid_body", 400, "one badge at least");
     const badges = all.map(b => {
       if (b === null || typeof b !== "object") throw new ChestError("invalid_body", 400, "a badge is {memberId, count}");
       return { member: checkId(b.memberId), count: checkCount(b.count) };

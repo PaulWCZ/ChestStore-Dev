@@ -6,8 +6,11 @@ import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, identityOf, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
-import { themeStyle } from "@argentic/chest-ui/runtime";
-import { currentLook, identity } from "../lib/theme.ts";
+import { atLeast } from "@argentic/chest-app/testing";
+import { lookCss } from "@argentic/chest-ui/runtime";
+import { currentLook, identity, ownLook, pageLook } from "../src/theme.ts";
+
+atLeast(6);
 
 const root = join(import.meta.dirname, "..");
 
@@ -23,17 +26,19 @@ test("the identity is the catalogue's Receipt theme, exactly", () => {
   assert.equal(identity.id, "receipt");
 });
 
-test("its fonts are the tool's own files, served at /fonts", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
+test("its fonts are the tool's own files, served at /assets/fonts", async () => {
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
-  assert.match(themeStyle(identity), /url\(\/fonts\/public-sans-latin-wght-normal\.woff2\)/u);
-  assert.match(themeStyle(identity), /url\(\/fonts\/jetbrains-mono-latin-wght-normal\.woff2\)/u);
+  assert.match(lookCss(ownLook()), /url\(\/assets\/fonts\/public-sans-latin-wght-normal\.woff2\)/u);
+  assert.match(lookCss(ownLook()), /url\(\/assets\/fonts\/jetbrains-mono-latin-wght-normal\.woff2\)/u);
+  // Outside /chest (an error page), the tool's own look, as a stylesheet.
+  assert.equal((await pageLook(false)).css, lookCss(ownLook()));
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
-  const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
+  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
     let look = await currentLook();
     assert.equal(look.source, "catalogue");
@@ -60,7 +65,7 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
   const found: string[] = [];
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public"].includes(name)) return [];
     return statSync(path).isDirectory() ? walk(path) : path.endsWith(".css") ? [path] : [];
   });
   for (const file of walk(root)) {
@@ -75,10 +80,10 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
 // does not set would silently fall back to nothing.
 test("every custom property the stylesheets read is a contract token or a tool token", async () => {
   const { allTokens } = await import("@argentic/chest-ui/contract");
-  const own = readFileSync(join(root, "app", "tokens.css"), "utf8");
+  const own = readFileSync(join(root, "src", "tokens.css"), "utf8");
   const defined = new Set([...allTokens.map(t => t.startsWith("--") ? t : "--" + t), ...[...own.matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!)]);
   const missing: string[] = [];
-  for (const file of ["app/tokens.css", "app/globals.css"]) {
+  for (const file of ["src/tokens.css", "src/styles.css"]) {
     const css = readFileSync(join(root, file), "utf8");
     for (const m of css.matchAll(/var\((--[\w-]+)/gu)) if (!defined.has(m[1]!)) missing.push(`${file}: ${m[1]}`);
   }

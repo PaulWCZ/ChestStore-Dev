@@ -36,7 +36,8 @@ count, by category:
 - **Partly (about 8):** the rest of the private tools.
 - **Not at all (4):** Support, Booking, Hiring and Status. These are the
   public-facing tools, all blocked by the same platform gaps: email, calendar
-  and custom domains.
+  and custom domains. *(October 2026: custom domains now exist on the
+  Chest; email and calendar remain — see "October 2026" below.)*
 
 The office suite, chat and video are usually a French SME's biggest per-seat
 spend, and none of them can run on the Chest today. **The pitch must say
@@ -97,16 +98,16 @@ today's Chest, email-dependent verdicts stay "not yet".
 | Goals | Perdoo / OKR sheet, once the Chest sends email: yes · Lattice: no, by design | 6.5 → 8.5 | 8 → 8.5 |
 | Leave | Not yet, close (email to approvers, calendar) | 5 → 7.5 | 8 → 8.5 |
 | People | Not yet (was "no"); an HR record and staff register now exist | 4 → 7 | 8 → 8.5 |
-| Expenses | Refunds by transfer: yes · company cards: not yet | 5 → 7.5 | 7 → 8 |
-| Timesheets | Toggl/Clockify: yes · Harvest: not yet (invoicing from time) | 5 → 7.5 | 8 → 8 |
+| Expenses | Refunds by transfer: yes · company cards: not yet | 5 → 7.5 | 144 → 95 |
+| Timesheets | Toggl/Clockify: yes · Harvest: not yet (invoicing from time) | 5 → 7.5 | 154 → 94 |
 | Equipment | Yes for SMEs · IT teams with device sync: not yet | 6 → 8.5 | 8 → 8.5 |
 | Clients | 3–10 person teams without email sync: yes · otherwise not yet | 5 → 7 | 7.5 → 8 |
 | Quotes | Not yet (no transmission to the company's approved e-invoicing platform, PA; online acceptance being built) | 4 → 6.5 | 7.5 → 8 |
-| Support | Not yet (email on a real Chest) — 8/10 once it ships | 4.5 → 6 | 8 → 8 |
-| Booking | Close for individual pages; not yet (email, embedding) | 3.5 → 6.5 | 8 → 8 |
-| Forms | Internal forms: yes · website forms: not yet (owner email, embedding) | 6 → 7.5 | 7 → 8 |
-| Rooms | Desks and presence: nearly · meeting rooms: no (no Google/Outlook two-way) | 5 → 7 | 7 → 8 |
-| Hiring | Teamtailor: not yet · Welcome to the Jungle: no (its audience) | 4 → 6.5 | 7 → 8 |
+| Support | Not yet (email on a real Chest) — 8/10 once it ships | 4.5 → 6 | 143 → 95 |
+| Booking | Close for individual pages; not yet (email, embedding) | 3.5 → 6.5 | 150 → 105 |
+| Forms | Internal forms: yes · website forms: not yet (owner email, embedding) | 6 → 7.5 | 149 → 96 |
+| Rooms | Desks and presence: nearly · meeting rooms: no (no Google/Outlook two-way) | 5 → 7 | 152 → 100 |
+| Hiring | Teamtailor: not yet · Welcome to the Jungle: no (its audience) | 4 → 6.5 | 143 → 97 |
 | Status | Not yet (custom domain, subscribers' channels) | 5 → 7 | 8 → 8.5 |
 
 **The pitch, honestly (round 2).** The critic's proposed sentence (store
@@ -179,6 +180,73 @@ did not, several of them serious:
 **Round-3 fixes** started at once on all 18 tools, security and privacy
 first. `PROGRESS.md` records what the lead has verified.
 
+## October 2026: after the move to the new stack (2026-10-06)
+
+Between 5 and 6 October every tool left Next.js for the studio's stack
+(Hono, React rendered on the server with islands, Vite, through the
+studio's package `@argentic/chest-app`; SDK 0.4.1-studio.4, contract 0.4;
+`reports/06-perseus-starter.md`). All 18 pass `chest check`. Each tool was
+then **reviewed by an independent agent** — code, security, scale, the
+public part under abuse — and **every verdict was "good, with fixes"**.
+The fixes are merged for all 18 tools. Each tool's file now ends with a dated section, "October 2026:
+after the move to the new stack": the review's verdict, what was fixed
+(with the commits), what is pending, and the tool's measurements. These
+sections are drawn from the commits, READMEs and measurements, **not from
+a new hands-on round**: the scores of rounds 1–3 stand.
+
+- **Memory at rest down by a third, the first page twice as fast**
+  (`reports/07-stack-and-memory.md`, quiet-window run of 6–7 October:
+  PSS of the whole process tree with `npm start`, the same pages before
+  and after, median of 5 rests): 134–173 MiB on Next.js → 93–105 MiB,
+  −24 to −45 % per tool (the server alone: 111–143 → 62–75 MiB); first
+  200 635–833 → 319–487 ms; images 455–514 → 27–40 MiB; `npm ci` and the
+  build now fit 512 MiB and one CPU where Next.js was killed. _(An earlier
+  draft of this section gave 119–156 → 65–79 MiB from the first, noisier
+  runs, mixing the tree and the server alone; replaced.)_
+- **The owner's mail decisions (7 October)**: no tool mails a member any
+  more — every such mail is a notification in English and French, which
+  the Chest mails by each member's choice; no inbound mail (Support's
+  email-to-ticket and Hiring's applications by email are gone; Support's
+  agents paste an emailed reply with "Their email"); nine tools still
+  mail people outside the company (SDK report §4.2). Each tool was
+  reviewed again for this and fixed; verdicts below are unchanged except
+  where the old one cited email.
+- **Custom domains exist** (brief/08): the address blocker is gone for
+  Status, Booking, Support, Hiring, Forms and Quotes. Verdicts change only
+  where the domain was the reason: Status's "Not yet (custom domain,
+  subscriber channels)" becomes "Not yet (subscriber channels, the framed
+  banner, shared fate with the Chest)"; the others keep their verdicts,
+  for the other reasons their files give (email above all).
+- **What the reviews found that only the Chest can fix** — now in the SDK
+  report §4.17, with the tool that proves each: one cookieless robot can
+  close a public form for everybody for the day (Hiring, Forms, Support,
+  Status, Booking: the visitor's address and bot protection are a
+  blocker); builders and admins read People's HR records; public
+  downloads and exports pass whole through the tool's memory (Support,
+  Hiring, News); no public page can be framed (Booking, Support, Status,
+  Forms).
+
+| Tool | Cancel tomorrow? (October) | Review | Fixes | PSS at rest, tree, MiB (07) |
+|---|---|---|---|---|
+| Tasks | as round 3 | good, with fixes | merged | 154 → 103 |
+| Wiki | as round 3 | good, with fixes | merged | 155 → 102 |
+| News | as round 3 | good, with fixes | merged | 143 → 100 |
+| Polls | as round 3 | good, with fixes | merged | 152 → 99 |
+| Goals | as round 3 | good, with fixes | merged; page versions on the package's change log | 149 → 101 |
+| Leave | as round 3 | good, with fixes | merged | 134 → 102 |
+| People | as round 3 | good, with fixes | merged; builders reading HR records is the Chest's (SDK report §4.17) | 144 → 95 |
+| Expenses | as round 3 | good, with fixes | merged | 127 → 68 |
+| Timesheets | as round 3 | good, with fixes | merged | 139 → 65 |
+| Equipment | as round 3 | good, with fixes | merged | 154 → 95 |
+| Clients | as round 3 | good, with fixes | merged; page versions on the package's change log | 149 → 97 |
+| Quotes | as round 3 (the acceptance page may now be on the company's domain) | good, with fixes | merged | 138 → 97 |
+| Support | as round 3 (domain gone; no inbound mail by decision — replies pasted by hand) | good, with fixes | merged | 137 → 65 |
+| Booking | as round 3 (domain gone; embedding and the host's calendar, now only the feed, stay) | good, with fixes | merged | 140 → 79 |
+| Rooms | as round 3 | good, with fixes | merged | 119 → 65 |
+| Hiring | as round 3 (domain gone; reach stays; no applications by email, by decision) | good, with fixes | merged | 135 → 67 |
+| Status | **Not yet — subscriber channels, the framed banner, shared fate (no longer the domain)** | good, with fixes | merged | 173 → 96 |
+| Forms | as round 3 (domain gone; embedding stays) | good, with fixes | merged | 137 → 67 |
+
 ## What blocks the pitch, by who can fix it
 
 ### The platform (the Chest and the SDK): no tool can fix these alone
@@ -194,8 +262,13 @@ first. `PROGRESS.md` records what the lead has verified.
 3. **Reaching people outside the Chest tab:** web push and a daily email
    digest of the bell. Today approvals, assignments and Important news wait
    in a bell nobody opens.
-4. **Custom domains for public hosts** (`status.`, `careers.`, `book.`,
-   `support.`). This is required to replace any public-facing SaaS.
+4. ~~**Custom domains for public hosts**~~ (`status.`, `careers.`, `book.`,
+   `support.`). **Done on the Chest** (brief/08: since late September; the
+   SDK's `chest.tool.publicUrl` gives the address). In its place, two gaps
+   the October reviews made plain: **the visitor's address and bot
+   protection** — one robot can close a public form for the day — and
+   **framing** a public page in the company's website (Booking, Support,
+   Status, Forms). Both are in the SDK report, §4.17.
 5. **Seeing the Chest's groups.** A tool open to everyone cannot target "the
    Sales team" today (News, Polls). This needs a `groups` capability.
 6. **E-invoicing.** Quotes needs a way to hand invoices to the company's

@@ -60,7 +60,7 @@ confirmation; nobody is ever booked twice.
   booked in ("Visite du showroom" for Inès, who reads French, for an
   English and a French guest alike), the guest's language as a small tag
   ("EN") when it is not the reader's; the same on a booking's page, in the
-  bell, the Chest's calendar, the host's email copy and the CSV (a *Guest's
+  bell, the Chest's calendar and the CSV (a *Guest's
   language* column). The coming week's **busy times from elsewhere** show
   as grey rows within the host's hours — "Busy · In your Google calendar
   16:00–17:00", "An interview in Hiring", "Off" (a day of leave, told by
@@ -135,18 +135,21 @@ confirmation; nobody is ever booked twice.
   at most), *Cancel* with an optional word.
 - **Emails to the guest** (Proposal *mail*): confirmation with the
   calendar file and their answers, new time, cancellation, and a reminder
-  the day before (Proposal *schedules*). The host hears of bookings, moves
-  and cancellations in the Chest's bell, in their language and time zone
-  (a new booking's bell shows the note and the answers, as far as it fits).
+  the day before (Proposal *schedules*); their replies go to the
+  company's address (see *Mail to people outside the company*). The host
+  hears of bookings, moves and cancellations in the Chest's bell — a
+  guest's, or a colleague's who manages every booking (with who did
+  it) — in their language and time zone (a new booking's bell shows the note and
+  the answers, as far as it fits); the Chest mails it to them if they
+  chose so in the Chest — Booking itself never emails a member.
 - **A host books for a customer** (*New booking*: a type, a free time —
   the minimum notice aside —, the guest's name and email; they get the
   usual confirmation and link) and **moves a meeting** (*Move this
   meeting*: the guest is emailed the new time).
 - **Each booking in the host's Chest calendar** (Proposal *calendar*): put
   when booked or moved, removed when cancelled or erased, titled in each
-  reader's language. With email, the host also gets each booking with its
-  calendar file (Settings, on by default), which a calendar app adds at
-  once — the Chest's feed is read by Google hours later.
+  reader's language. Calendar apps read the Chest's feed at their own
+  pace (Google: hours); the Bookings page and the bell are at once.
 - **On the company's website**: an administrator lists the websites
   allowed to show the booking pages (their `frame-ancestors`) and copies
   a frame code, or a button code that opens the page.
@@ -205,7 +208,9 @@ or confirm their hours.
 | `/lang/<code>` | The public part's language switch |
 | `/chest`, `/chest/bookings/<id>`, `/chest/new`, `/chest/types…`, `/chest/hours`, `/chest/settings`, `/chest/export` | The team's part |
 | `/chest/api/slots` | The free times a host sees (booking for a guest, moving a meeting) |
-| `/chest-events`, `/chest-jobs/<name>` | Deliveries from the Chest (signed) |
+| `/chest-events`, `/chest-schedules` | Deliveries from the Chest (signed): the members' lifecycle and other tools' events; the runs of `chest.json`'s schedules |
+| `/chest/look.css`, `/look.css` | The look of the team's and of the public pages, a stylesheet (src/theme.ts) |
+| `POST /chest/actions/<name>`, `POST /actions/<name>` | The team's and the public part's actions (`src/actions.ts`) |
 
 ## Looks
 
@@ -220,45 +225,49 @@ the company's own. **The public pages** (a host's page, a guest's booking,
 that button) wear the company's brand when it has one and Booking's own
 identity otherwise — never a catalogue theme chosen for the team, never
 the Chest's sheet (kit 0.2.3, `surface: "public"`). The look is resolved on
-the server (`lib/theme.ts`, `lib/look.ts`, `chest.theme()`), written in one `<style>` with the page's nonce; every
+the server (`src/theme.ts`, `chest.theme()`) and served as a stylesheet of its own — `/chest/look.css` for the team's pages, `/look.css` for the public ones, linked with its hash, never an inline `<style>`; every
 text stays readable (WCAG AA) in every look. Screens:
 `docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
 
 ## With the other tools
 
-Through the *events between tools* proposal (`chest.proposals.json`
-`"emits"` and `"receives"`), once an admin of the Chest linked Booking to
-another tool — the Chest's decision, never the tool's. Publishing is a
-courtesy: when the Chest cannot take an event (not linked, not granted,
-its hourly quota), the booking stands and nothing is said. Every event
-carries `v: 1`; a receiver ignores a version it does not know.
+Through SDK 0.7.0's **events between tools** (`chest.json` `"emits"`, each
+type with the schema of its data, and `"receives"`): the owner approves
+each link ("Booking → Clients: A booking is made or moved") — the Chest's
+decision, never the tool's. Telling is a courtesy: when the Chest cannot
+take an event (no link, not granted, unreachable), the booking stands and
+nothing is said. An event's data is **flat** (the Chest's kinds: `id`,
+`text`, `number`, `time`, `member`…): no nested object, no list but a list
+of members, so a list of times travels as JSON text. Every event still
+carries `v: 1` (a new shape would be a new type, `booking.confirmed.v2`).
 
-**What Booking publishes**
+**What Booking tells**
 
-| Event | When | Key (the Chest's 24-hour de-duplication) |
+| Event | When | Subject · key (the Chest's 72-hour idempotency) · audience |
 |---|---|---|
-| `booking.busy` | A host's busy times changed: a booking made, moved, cancelled or erased, a time blocked or freed, a calendar connected, disconnected or read (schedule `calendars`, every 15 minutes: only what changed), and once a day as the window moves on | `busy:<member>:<ms>:<hash>` |
-| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:<guest email>:confirmed:<moves>` (its data is the same each time it is told: `at` is when it was made or last moved, as recorded) |
-| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:<guest email>:cancelled` (`at`: when it was cancelled) |
+| `booking.busy` | A host's busy times changed: a booking made, moved, cancelled or erased, a time blocked or freed, a calendar connected, disconnected or read (schedule `calendars`, every 15 minutes: only what changed), and once a day as the window moves on | the host · `busy:<member>:<ms>:<hash>` · everyone (times only) |
+| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>` · `booking:<id>:<guest>:confirmed:<moves>` (`<guest>`: 16 hex of the SHA-256 of their address — a key is an identifier, never an address) · its host and the administrators (`{members: [host], roles: ["admin"]}`) |
+| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>` · `booking:<id>:<guest>:cancelled` · the same (administrators only once the host was erased) |
 
 `booking.busy` — for Hiring (its candidates never pick a time a host
 already gave away); the same shape as Hiring's `hiring.busy`
-(`lib/busy-snapshot.ts`):
+(`lib/busy-snapshot.ts`), declared `v` number, `member` member, `at`,
+`from`, `to` time, `spans` text:
 
 ```json
 { "v": 1, "member": "mbr_…", "at": "2026-09-29T21:04:12.345Z",
-  "from": "2026-09-29T00:00Z", "to": "2026-12-28T00:00Z",
-  "spans": [["2026-09-30T08:00Z", "2026-09-30T09:00Z"]] }
+  "from": "2026-09-29T00:00:00Z", "to": "2026-12-28T00:00:00Z",
+  "spans": "[[\"2026-09-30T08:00:00Z\",\"2026-09-30T09:00:00Z\"]]" }
 ```
 
 Times only — never a guest, a type, a title or a place. A snapshot of the
 host's own busy times (confirmed bookings with their buffers, times
 blocked, their Google/Outlook/Apple calendars) from the start of today
-(UTC) to 90 days later, merged, on the minute; at most 300 spans (past
-them, `to` stops where the first one left out starts: nothing unknown is
-claimed free). It replaces whatever the receiver holds from Booking for
-that member between `from` and `to`; `at` orders snapshots (delivery is
-at least once, in no set order: keep one only if newer). Booking never
+(UTC) to 90 days later, merged, on the minute; at most 300 spans (about
+15 KB, within the Chest's 16 KiB; past them, `to` stops where the first
+one left out starts: nothing unknown is claimed free). It replaces
+whatever the receiver holds from Booking for that member between `from`
+and `to`; `at` orders snapshots (keep one only if newer). Booking never
 tells again what another tool told it.
 
 `booking.confirmed` and `booking.cancelled` — for Clients (the CRM: a
@@ -267,54 +276,76 @@ booked prospect becomes a contact with the meeting on their timeline):
 ```json
 { "v": 1, "booking": "42", "status": "confirmed", "at": "2026-09-29T21:04:12.345Z",
   "host": "mbr_…", "start": "2026-10-06T08:00:00.000Z", "end": "2026-10-06T09:00:00.000Z",
-  "type": { "id": "3", "name": { "en": "Project call", "fr": "Appel projet" } }, "kind": "video",
-  "contact": { "name": "Sarah Klein", "email": "sarah@example.com", "phone": null, "company": null, "language": "en" },
-  "source": "page", "moves": 0, "path": "/chest/bookings/42" }
+  "type": "3", "typeName": "Project call", "typeNameFr": "Appel projet", "kind": "video",
+  "contactName": "Sarah Klein", "contactEmail": "sarah@example.com", "contactPhone": null,
+  "contactLanguage": "en", "source": "page", "moves": 0, "path": "/chest/bookings/42" }
 ```
 
+Declared: `v` number, `booking` id, `status` text, `at` `start` `end`
+time, `host` member?, `type` id?, `typeName` `typeNameFr` text, `kind`
+text, `contactName` `contactEmail` text, `contactPhone` text?,
+`contactLanguage` text, `source` text, `moves` number, `path` text;
+`booking.cancelled` adds `cancelledBy` text? (`guest` or `host`).
 `at` is when the booking was made, last moved (`bookings.moved_at`) or
 cancelled — as recorded, never the time of telling: a retry of the same
-key carries the same data, so the Chest takes it as the same event (it
-refuses a key reused for other data, SDK studio.15). `booking.cancelled`
-is the same with `"status": "cancelled"` and
-`"cancelledBy": "guest" | "host"`; `host` is null once the host was
+key carries the same data, so the Chest takes it as the same event (a key
+reused for other data is `key_reused`). `host` is null once the host was
 erased. `kind`: `place`, `phone`, `video` or `ask`; `source`: `page` (a
-visitor), `host` (a host for them), `import`. `company` is null: the form
-does not ask it (a host may ask it as one of their questions; answers are
-not sent). Never the guest's note, their answers or their link. `path`
-opens the booking for a member who may see it:
-`chest.toolLink("booking", path)`.
+visitor), `host` (a host for them), `import`. The guest is not a member:
+their name and address are text (a member would be an id). Never the
+guest's note, their answers or their link. `path` is the booking's page in
+Booking (`/chest/bookings/42`) — a path, never an origin.
 
 What a receiver (Clients) does: declare `"receives": ["booking.confirmed",
 "booking.cancelled"]`; on each, find or create the contact by
-`contact.email` (lower-cased) and keep one meeting per `booking` id —
+`contactEmail` (lower-cased) and keep one meeting per `booking` id —
 created on the first `confirmed`, its time replaced by a later
 `confirmed` (more `moves`), marked cancelled by `cancelled`, which is
 final (a cancelled booking never comes back; a `confirmed` arriving after
-it is ignored). Idempotent: the same event may come twice. The contact is
-personal data brought into the CRM by the link the admin made; erasing a
-guest in Booking does not erase them in Clients (the CRM's own erasure
-does).
+it is ignored). Idempotent: the same event may come twice; a subject's
+events come in order. **Show it only to its audience**: the event says
+which of Clients' members may see it (its host and the administrators
+Clients shares with Booking), or `"all"`. The contact is personal data
+brought into the CRM by the link the owner approved; erasing a guest in
+Booking does not erase them in Clients (the CRM's own erasure does).
 
 **What Booking hears**
 
 | Event | From | Does |
 |---|---|---|
-| `hiring.busy` | Hiring: the interviews a member is on (the `booking.busy` shape) | Those times are not offered (`busyOf`), and show on the host's agenda as "An interview in Hiring". Kept per tool and member, the latest snapshot only (`told_busy`, `told_spans`); forgotten when the member leaves or is erased |
+| `hiring.busy` | Hiring: the interviews a member is on (the `booking.busy` shape: spans as JSON text, or a list from a teller of before) | Those times are not offered (`busyOf`), and show on the host's agenda as "An interview in Hiring" — only when the event's audience lets the host see it (kept in `told_busy.audience`; the times are never offered either way). Kept per tool (the Chest's `source`) and member, the latest snapshot only (`told_busy`, `told_spans`); forgotten when the member leaves or is erased |
 | `leave.busy` | Leave: the days a member is off — approved leave, whole days in the Chest's time zone (the same shape; Leave's README, "With the other tools") | The same handler (`takeBusy`): no time is offered those days, and the host's agenda shows them as "Off" ("Absent") — never the kind of leave, which Leave never sends. A later snapshot ("now free": empty `spans`) gives the days back; Hiring's interviews, kept apart, stay |
+
+A type names no tool in 0.7.0: each is read **only from the tool its
+first word names** (`hiring.busy` from Hiring, `leave.busy` from Leave —
+the `source` the Chest stamps); another tool's is accepted and ignored.
+`v: 1` as Hiring sends it, or no `v` from a teller that declares none
+(another `v` is another shape, ignored). What Booking tells is cleaned for the Chest: no format
+character (an emoji's zero-width joiner, a zero-width space) nor control
+character in a text field — a guest's name keeps them in Booking.
 
 ## On a Chest
 
-- `public: true`, `csp: "tool"`; `capabilities`: `database`, `members`
-  (names, roles), `notifications`; `receives: ["member.*"]`; `network`:
-  the four calendar hosts (the owner approves "Can reach
-  calendar.google.com", …). Nothing else leaves the tool. Proposals:
-  `emits` (`booking.busy`, `booking.confirmed`, `booking.cancelled`) and
-  `receives` (`hiring.busy`, `leave.busy`), README "With the other
-  tools". The owner approves "Tells other tools when a host is busy
-  (times only), when a booking is made, moved or cancelled (who, which
-  type, when)", "Is told by Hiring when a member is in an interview" and
-  "Is told by Leave when a host is off".
+- Contract **0.7** (`"chest": "0.7"`; `chest check` says OK). `public: true` (no `csp` permission: no inline script nor style, the Chest's default policy holds); `capabilities`: `database`, `members`
+  (names, roles), `notifications`, `realtime` (the agenda left open
+  follows each host's channel `agenda:<host>`; feeds of `bookings` and
+  `blocks` carry a row's id only: the page's read decides what the reader
+  sees). **Only the host and administrators join a host's channel**: the
+  Chest checks the table `agenda_live` at every join (migration 0010, the
+  channel's `join`), where Booking writes a row once it has checked the
+  member sees that agenda (their own; every host's for an administrator,
+  in *Everyone* or on a booking's page). The rows go when the member's
+  role changes, their access is revoked, they leave or are erased (an
+  erased host's id goes too), and the Chest takes them out at once; their
+  page reads itself again and is let in again if still allowed (a new
+  mark: its live island joins again). Another host cannot join
+  `agenda:<host>` to learn when someone else's meetings are booked,
+  moved or cancelled; `receives`:
+  `member.*`, `hiring.busy`, `leave.busy`; `emits`: `booking.busy`,
+  `booking.confirmed`, `booking.cancelled` with their schemas (above);
+  `network`: the four calendar hosts (the owner approves "Can reach
+  calendar.google.com", …). Nothing else leaves the tool. Proposals
+  (`chest.proposals.json`): `mail`, `calendar`, `translations`.
 - **Other calendars' addresses are secrets**: kept to read them, shown
   again only as their host and file name, deleted when the host
   disconnects one, loses access, leaves or is erased.
@@ -332,83 +363,148 @@ does).
   Chest's migration role may create it is to be confirmed (see the SDK
   report).
 
+
+## Mail to people outside the company
+
+Booking emails only its guests — people outside the company. A host is
+never emailed by Booking: they are told in the Chest's bell, and the
+Chest mails them their notifications by their own choice (each one, once
+or twice a day, or off; off per tool), set in the Chest, not here.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The guest | Confirmation | They book (or a host books for them) | Type, host, time in their zone, where, their answers, pay link if any, the link to change or cancel | `booking.ics` (`METHOD:PUBLISH`) | The company's address (the connector's default) |
+| The guest | New time | The guest or the host moves it | Type, host, new time, where, the link | `booking.ics` (same UID, higher `SEQUENCE`) | The company's address |
+| The guest | Cancellation | The guest or the host cancels it (or the host is erased) | Time, the host's word if any, where to book again | `booking.ics` (`METHOD:CANCEL`) | The company's address |
+| The guest | Reminder | About a day before (schedule `reminders`, hourly) | Type, host, time, where, the link | — | The company's address |
+
+Sent through the Chest's mail connector (studio proposal, not built yet):
+`mail.send` with the guest's address, in the language the guest booked in,
+signed "{host} — {company}". Each mail says "A question? Reply to this
+email": replies reach the company's usual inbox, not Booking. When the
+connector is absent or paused (`mail.available()` not ok), nothing is
+lost: the booking is made, the guest's page shows the booking with *Add
+to my calendar* first and says no email goes out, the host's toast says
+"tell them yourself", and Settings says why in plain words.
+
+**Changed on 6 October 2026** (the owner's mail decisions): the host's
+email copy with the calendar file and its *Email me* switch in Settings
+are gone. The host is told in the bell at the same moments — a guest
+books, moves or cancels; a colleague who manages every booking moves or
+cancels theirs (with who did it); a booking reassigned to them — and has
+every booking in the Chest's calendar. What the host loses: the copy put
+the meeting in their calendar app at once, while a calendar app reads
+the Chest's calendar at its own pace (Google: every few hours, up to a
+day); Settings says so under the calendar, and the Bookings page and the
+bell are always up to date. Guest mails need no special flag any more;
+the bell is one notice with its French translation.
+The `hosts.email_me` column is no longer read and stays so that the
+previous version keeps working during a rolling update (it is
+`not null default true`: new hosts need nothing from this version); a
+later version drops it (`alter table hosts drop column email_me`) once
+no instance runs 0.2.0.
+
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
-`vendor/`. The member's `language` and the Chest's `organization.name`,
-`timeZone` and `language` are the released 0.3.0; what follows is not in
-it yet.
+Built on SDK **0.7.0** + the studio's proposals (`0.7.0-studio.2`, a packed
+copy in `vendor/`) and `@argentic/chest-app` `0.1.0-studio.12`, tool
+contract 0.7. From 0.7.0 itself: the member (`language`, `timeZone`:
+where their browser is), the Chest's `organization.name`, `timeZone` (the
+company's, captured once — the default zone of new hosts, which an
+administrator may change in Booking's Settings; each host keeps their own
+zone), the tool's addresses, schedules, notifications with
+`translations`, events between tools with schemas and audiences, and
+realtime. **No timer refreshes a page**: the agenda and a booking's page
+follow the Chest's realtime and the tool sleeps while they stay open.
 
-- **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`).
-  Without it the tool works: the guest keeps their page's link (shown
-  after booking), and Settings says guests get no email. The pages ask
-  the Chest first (`mail.available()`, studio.16): the booking form's email
-  field, *New booking* and Settings promise an email only when the Chest
-  would send it now, and Settings says why not in the owner's terms (no
-  mail on this Chest, email not connected, paused, the day's emails used).
-  Every email's key carries its recipient, and each event's key the guest
-  (studio.16): after a restore from a backup, a booking's id can name
-  another guest's meeting.
-- **Scheduled tasks** — **Proposal (studio)**: `reminders` (hourly) and
-  `cleanup` (nightly). Without them, no reminder is sent and bookings are
-  kept until an administrator erases them.
-- **Photos on the public host**: the Chest's photo links work on the team
-  host only; public pages show initials.
-- **The Chest's addresses** — **Proposal (studio)** (`chest.publicUrl`,
-  `chest.teamUrl`): the public host's address; on a Chest that does not
-  give it yet, the address is derived from the request (remembered for
-  emails sent by a schedule). The company's name (an administrator may
-  name it otherwise for visitors) and the default time zone of new hosts
-  are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
-- **The visitor's address** for the booking form's counters is read from
-  `X-Forwarded-For`, assumed set by the Chest's front.
-- **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
-  `"calendar": true`): each booking in its host's Chest calendar feed.
-  Without it, the tool's own private feed (Settings) remains.
-- **Schedule `calendars`** (every 15 minutes) reads the hosts' other
-  calendars; without schedules, they are read when a visitor opens a
-  booking page (10 minutes at most between reads) and on demand.
-- **Declared network** (real contract, `network`): the calendars are read
-  with plain `fetch`, which follows the Chest's proxy through
-  `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5 in the Chest's image; the tool's
-  `engines` allow Node 22 for local work, where fetch goes out directly).
-  Tests answer the declared hosts with `fakeChest({ network })` (SDK
-  studio.15: a read, a 404, a redirect between declared hosts, a refused
-  host). The local harness runs the tool in its own process and does not
-  route its `fetch`, so a successful read is shown by the tests
-  (`test/busy.test.ts`, `test/jobs.test.ts`), not by the flow.
-- **Members' email choice** — **Proposal (studio.15)**: `mail.send`
-  applies each member's choice (all, a daily digest, none). The guest's
-  confirmation, a move and a cancellation are marked `transactional` (a
-  guest who is a member of the Chest gets them whatever they chose); the
-  reminder and the host's own notice honour the choice, beside the
-  host's "Email me" setting.
+**What Booking cannot do on a 0.7.0 Chest, and why** (the studio's
+proposals still run in its tests and harness; on a real 0.7 Chest those
+calls are refused and the tool falls back as said):
+
+- **Email guests** — `mail` is a **proposal** (`chest.proposals.json`:
+  `send`): 0.7.0 has no mail to people outside the company (its
+  connector to the company's provider is not built). Without it the tool
+  works: the guest keeps their page's link (shown after booking), the
+  pages ask the Chest first (`mail.available()`) and promise an email only
+  when it would be sent, Settings says why not in the owner's terms, and
+  the host's toast says "tell them yourself". Every email's key carries
+  its recipient. Settings shows where guests' replies go
+  (`mail.available().replyTo`).
+- **Each booking in the host's Chest calendar** — `calendar` is a
+  **proposal**: 0.7.0 has no calendar feed. Without it, the tool's own
+  private feed (Settings: `/feed/<token>.ics`) remains.
+- **Per-visitor limits on the public forms** — the visitor's key is a
+  **proposal** (`Chest-Visitor`, an HMAC of their address under a key only
+  the Chest holds, read by `visitors.visitor()`): 0.7.0's front gives the
+  tool no address of a visitor. The public writes are bounded by the
+  package (`publicAction({ bound })`): a form token that serves once, for
+  its action only, and lasts two hours, a proof of work on `bookTime`
+  (it stops robots that run no JavaScript; a native script pays about a
+  millisecond — reasoned, not measured — so the budgets below are what
+  hold), the field only robots fill, and budgets a day per visitor (the
+  Chest's key, else a `chest_v` cookie of the browser's) and for everyone
+  — bookings (10 / 1,000) and changes (20 / 1,000) apart — spent only once
+  a request is valid. Changes also have a budget per guest's link (20 a
+  day). **On 0.7.0** every visitor is unknown to the tool: a robot that
+  drops its cookie can spend the day's budget for everyone and close the
+  booking pages until the next day. The visitor's key is the fix.
+- **The store's words in French** — `translations` is a **proposal**:
+  0.7.0's `title`, `description` and `role_labels` have one language;
+  a French member sees the tile and the role names in English.
+- **Live public pages**: realtime is for members (a page on the team
+  host); a visitor's page of free times is as read when it opened. A time
+  taken meanwhile is refused when they confirm ("taken": pick another),
+  never booked twice.
 - **Being shown in another website**: the Chest's front adds
-  `frame-ancestors 'none'` to every public response, even with `csp:
-  "tool"` (contract, "Public host", `FloorCSP`), and two policies combine,
-  so **the frame code cannot work on a Chest today**: the Chest needs a
-  permission that lets an administrator allow the company's websites
-  (see the SDK report). The button code works today.
+  `frame-ancestors 'none'` to every public response, and two policies
+  combine, so **the frame code cannot work on a Chest today** unless the
+  owner allows the company's sites (0.7.0 lets the owner list them in the
+  tool's Public tab; not checked against a running Chest). The button code
+  works.
 - **Free/busy by OAuth** (Google, Microsoft): the secret iCal address is
   a first step; a connector held by the Chest would read free/busy in
   seconds without a secret address (SDK report).
-- **Events between tools** — **Proposal (studio)** (`emits`,
-  `receives`): without them, Hiring does not see the hosts' busy times,
-  Clients hears of no booking, and Booking does not see Hiring's
-  interviews nor Leave's days off; bookings work the same.
+- **Photos on the public host**: the Chest's photo links work on the team
+  host only; public pages show initials.
+
+Also used, from 0.7.0: **scheduled tasks** (`reminders` hourly, `cleanup`
+nightly, `calendars` every 15 minutes; each run handled once,
+`chest_events`); the **declared network** (the calendars are read with
+plain `fetch`, which follows the Chest's proxy through
+`NODE_USE_ENV_PROXY=1`; tests answer the declared hosts with
+`fakeChest({ network })`; the local harness does not route the tool's
+`fetch`, so a successful read is shown by the tests, not by the flow).
 
 ## Develop
 
+Hono and React rendered on the server, a few islands in the browser, built
+by Vite — the studio's starter, its machinery the package
+`@argentic/chest-app` (`vendor/`). `AGENTS.md` says where things are.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build
+npm run dev       # rebuilds on every change and restarts the server
+npm run build     # tsc, then the browser's files and the server (dist/)
+npm test          # tsc, the server built into dist/test, then test/*.test.*:
+                  # PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --port 5100`
+In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --prod --port 5100`
 (the `/_dev` page shows the outbox, the bell, and runs the schedules),
 `node lab/chest-dev/flows/booking.mjs 5100`,
 `node lab/chest-dev/screens.mjs tools/public-and-private/booking --port 5100`.
+
+## Measured
+
+`lab/measure/` (6 October 2026, Node 24.21, the studio's 4-CPU container;
+12 pages of `lab/measure/pages/booking.json`, then 30 s at rest, median of
+5; results in `lab/measure/results/after-hono/booking.json`), Next.js 16
+before → this stack: memory at rest (PSS of the tree, `npm` included)
+140 → 79 MiB, the server alone 119 → 58 MiB PSS (176 → 117 MiB RSS);
+first page after a cold start 679 → 369 ms; image 461 → 31 MiB; the build
+fits the Chest's 512 MiB / 1 CPU container (it did not: OOM), peak
+255 MiB PSS, 1.4 s.
 
 ## What it does not do (yet)
 
@@ -423,8 +519,9 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
   (Leave sends noon to midnight, or midnight to noon) blocks that half
   only; a host still marks a day off in Hours by hand when they do not
   use Leave.
-- **Clients** (the CRM) receives `booking.confirmed` only once its own
-  receiver is built (its tool, not this one): the contract is above.
+- **Clients** (the CRM) reads `booking.confirmed` in the flat shape above
+  (SDK 0.7.0); a receiver still reading the nested shape of before
+  (`contact.email`, `type.name`) must move to it.
   Bookings imported from Calendly are not told to Clients (they are
   history); their changes are.
 - **Collective meetings** (two hosts who must both be free) and team

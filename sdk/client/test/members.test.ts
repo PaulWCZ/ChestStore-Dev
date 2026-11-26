@@ -90,12 +90,27 @@ test("lookup asks 200 identifiers at a time, each once, and keeps the answers a 
   members.forget();
   reply = () => ({ status: 200, value: { members: [], former: [], unknown: [] } });
   await assert.rejects(members.lookup([camille.id]), Unavailable);
+  // Someone who lost access keeps their name; without one, it is not the Chest's.
+  reply = () => ({ status: 200, value: { members: [], former: [{ id: id("rose"), name: "Rose Lemaire", status: "no_access" }], unknown: [] } });
+  assert.deepEqual((await members.lookup([id("rose")])).former, [{ id: id("rose"), name: "Rose Lemaire", status: "no_access" }]);
+  members.forget();
+  for (const former of [{ id: id("rose"), status: "no_access" }, { id: id("rose"), name: "Rose", status: "left" }, { id: id("rose"), name: "Rose", status: "erased" }]) {
+    reply = () => ({ status: 200, value: { members: [], former: [former], unknown: [] } });
+    await assert.rejects(members.lookup([id("rose")]), Unavailable, JSON.stringify(former));
+  }
 });
 
-test("groups are those that give the tool", async () => {
-  reply = () => ({ status: 200, value: { groups: [{ id: nord, name: "Nord", members: [camille.id] }] } });
-  assert.deepEqual(await members.groups.list(), [{ id: nord, name: "Nord", members: [camille.id] }]);
+test("groups are those the tool sees, a page at a time, as the Chest answers them", async () => {
+  reply = () => ({ status: 200, value: { groups: [{ id: nord, name: "Nord", size: 3 }], next: "Y3Vyc29y" } });
+  assert.deepEqual(await members.groups.list(), { groups: [{ id: nord, name: "Nord", size: 3 }], next: "Y3Vyc29y" });
   assert.equal(seen.at(-1)?.url, "/groups");
+  await members.groups.list({ after: "Y3Vyc29y", limit: 50 });
+  assert.equal(seen.at(-1)?.url, "/groups?after=Y3Vyc29y&limit=50");
+  await assert.rejects(members.groups.list({ limit: 501 }), (e: unknown) => e instanceof ChestError && e.code === "invalid_query");
+  for (const shape of [{ groups: [{ id: nord, name: "Nord" }], next: null }, { groups: [{ id: nord, name: "Nord", size: -1 }], next: null }, { groups: [] }]) {
+    reply = () => ({ status: 200, value: shape });
+    await assert.rejects(members.groups.list(), Unavailable);
+  }
 });
 
 test("the Chest's refusals are errors the tool tests; an answer of another shape is Unavailable", async () => {

@@ -1,0 +1,817 @@
+{
+ "tool": "rooms",
+ "label": "before-next16",
+ "source": "/home/user/wt/before/tools/private/rooms",
+ "date": "2026-10-05T23:32:01.094Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "d88a05f 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.11,
+   "five": 0.61,
+   "fifteen": 0.98
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 46.1,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 7.5,
+    "rssMiB": 419,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.5,
+    "rssMiB": 142,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.3,
+    "rssMiB": 141,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.3,
+    "rssMiB": 142,
+    "command": "next-server (v1"
+   }
+  ],
+  "atEnd": {
+   "one": 0.32,
+   "five": 0.39,
+   "fifteen": 0.76
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 30.6,
+    "rssMiB": 116,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 30.1,
+    "rssMiB": 107,
+    "command": "headless_shell"
+   },
+   {
+    "cpu": 21.6,
+    "rssMiB": 87,
+    "command": "headless_shell"
+   },
+   {
+    "cpu": 19.6,
+    "rssMiB": 78,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 8.5,
+    "rssMiB": 68,
+    "command": "npm start"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 12.8,
+  "apparentMiB": 12.2,
+  "files": 214
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 5303,
+  "peakRssMiB": 561.7,
+  "peakPssMiB": 509.5,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "mean": 0.18,
+   "max": 0.18
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 8936,
+  "peakRssMiB": 741.9,
+  "peakPssMiB": 689.5,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1231.3,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.25,
+   "max": 0.25
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 137,
+   "signal": null,
+   "ms": 32406,
+   "peakRssMiB": 635,
+   "peakPssMiB": 530,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 1
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.51,
+    "max": 0.59
+   },
+   "tail": "\n> chest-rooms@0.1.0 build\n> NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack\n\nGenerating route types...\n✓ Types generated successfully\n▲ Next.js 16.3.6 (webpack)\n✓ Running next.config.ts took 37ms\n- Experiments (use with caution):\n  · cpus: 1\n  · serverActions\n  ⨯ webpackBuildWorker\n  ✓ webpackMemoryOptimizations\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 15.0s\n  Skipping validation of types\n  Finished TypeScript config validation in 4ms ...\n  Collecting page data using 1 worker ...\n  Generating static pages using 1 worker (0/6) ...\n  Generating static pages using 1 worker (1/6) \r\n  Generating static pages using 1 worker (2/6) \r\n  Generating static pages using 1 worker (4/6) \r\n✓ Generating static pages using 1 worker (6/6) in 311ms\n  Finalizing page optimization ...\n  Collecting build traces ...\nKilled\n",
+   "fits": false
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 14069,
+   "peakRssMiB": 1029.5,
+   "peakPssMiB": 924.3,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 930.7,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 0.96,
+    "max": 0.97
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 5.1,
+  "apparentMiB": 4.2,
+  "files": 199,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 460.5
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/rooms.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/desks",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/rooms",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/places",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/places/export",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/visitors",
+    "member": "sofia",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 282.7,
+    "firstMs": 741.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.97
+   },
+   {
+    "portMs": 252.4,
+    "firstMs": 693.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.89
+   },
+   {
+    "portMs": 332,
+    "firstMs": 800.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.76
+   },
+   {
+    "portMs": 316.6,
+    "firstMs": 817.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.67
+   },
+   {
+    "portMs": 320.8,
+    "firstMs": 722.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.57
+   },
+   {
+    "portMs": 300.9,
+    "firstMs": 768.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.48
+   },
+   {
+    "portMs": 355.3,
+    "firstMs": 813,
+    "statuses": [
+     200
+    ],
+    "load": 0.4
+   },
+   {
+    "portMs": 295.3,
+    "firstMs": 729.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.34
+   },
+   {
+    "portMs": 343.3,
+    "firstMs": 826.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.35
+   },
+   {
+    "portMs": 362,
+    "firstMs": 809.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.29
+   }
+  ],
+  "port": {
+   "median": 318.70000000000005,
+   "min": 252.4,
+   "max": 362
+  },
+  "first200": {
+   "median": 784.5999999999999,
+   "min": 693.6,
+   "max": 826.2
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 244.7,
+     "pss": 134.1
+    },
+    "peakMiB": {
+     "rss": 260.5,
+     "pss": 149.9,
+     "cgroup": 132.4
+    },
+    "afterRequestsMiB": {
+     "rss": 260.5,
+     "pss": 149.9
+    },
+    "restMiB": {
+     "rss": 229.2,
+     "pss": 118.6,
+     "pssAnon": 95.3,
+     "pssFile": 23.2,
+     "cgroupAnon": 95.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 18.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 160.4,
+      "pssMiB": 100.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 77669,
+      "ms": 47
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 46735,
+      "ms": 32.7
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 62096,
+      "ms": 74.5
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 41394,
+      "ms": 32.7
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 60110,
+      "ms": 26.6
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 38762,
+      "ms": 42.1
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 42079,
+      "ms": 22.3
+     }
+    ],
+    "load": {
+     "mean": 0.19,
+     "max": 0.23
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245.6,
+     "pss": 134.9
+    },
+    "peakMiB": {
+     "rss": 261.8,
+     "pss": 151,
+     "cgroup": 133.8
+    },
+    "afterRequestsMiB": {
+     "rss": 261.8,
+     "pss": 151
+    },
+    "restMiB": {
+     "rss": 229.9,
+     "pss": 119.2,
+     "pssAnon": 95.9,
+     "pssFile": 23.2,
+     "cgroupAnon": 95.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 18.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161,
+      "pssMiB": 100.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 77669,
+      "ms": 43.9
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 46735,
+      "ms": 32.8
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 62096,
+      "ms": 45.9
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 41394,
+      "ms": 32.5
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 60110,
+      "ms": 24
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 38762,
+      "ms": 29.5
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 42079,
+      "ms": 21.2
+     }
+    ],
+    "load": {
+     "mean": 0.09,
+     "max": 0.11
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245,
+     "pss": 134.3
+    },
+    "peakMiB": {
+     "rss": 259.4,
+     "pss": 148.7,
+     "cgroup": 131.3
+    },
+    "afterRequestsMiB": {
+     "rss": 259.4,
+     "pss": 148.7
+    },
+    "restMiB": {
+     "rss": 227.7,
+     "pss": 117,
+     "pssAnon": 93.8,
+     "pssFile": 23.2,
+     "cgroupAnon": 93.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 18
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.1,
+      "pssMiB": 98.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 77669,
+      "ms": 42.4
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 46735,
+      "ms": 29.9
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 62096,
+      "ms": 36.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 41394,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 60110,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 38762,
+      "ms": 46.5
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 42079,
+      "ms": 24.8
+     }
+    ],
+    "load": {
+     "mean": 0.1,
+     "max": 0.13
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245.9,
+     "pss": 135.1
+    },
+    "peakMiB": {
+     "rss": 261.8,
+     "pss": 151,
+     "cgroup": 133.4
+    },
+    "afterRequestsMiB": {
+     "rss": 261.8,
+     "pss": 151
+    },
+    "restMiB": {
+     "rss": 230.2,
+     "pss": 119.4,
+     "pssAnon": 96.3,
+     "pssFile": 23.2,
+     "cgroupAnon": 96.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.7,
+      "pssMiB": 17.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.6,
+      "pssMiB": 101.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 77669,
+      "ms": 59.9
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 46735,
+      "ms": 43.9
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 62096,
+      "ms": 83
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 41394,
+      "ms": 33.1
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 60110,
+      "ms": 38.6
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 38762,
+      "ms": 35.9
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 42079,
+      "ms": 24.3
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 244.7,
+     "pss": 133.8
+    },
+    "peakMiB": {
+     "rss": 261.3,
+     "pss": 150.5,
+     "cgroup": 133.2
+    },
+    "afterRequestsMiB": {
+     "rss": 261.3,
+     "pss": 150.5
+    },
+    "restMiB": {
+     "rss": 230,
+     "pss": 119.2,
+     "pssAnon": 96.1,
+     "pssFile": 23.2,
+     "cgroupAnon": 96,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 18
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.3,
+      "pssMiB": 101.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 77669,
+      "ms": 53.9
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 46735,
+      "ms": 75
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 62096,
+      "ms": 44.1
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 41394,
+      "ms": 27.9
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 60110,
+      "ms": 50.9
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 38762,
+      "ms": 27.3
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 42079,
+      "ms": 24.1
+     }
+    ],
+    "load": {
+     "mean": 0.35,
+     "max": 0.41
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 229.9,
+    "min": 227.7,
+    "max": 230.2
+   },
+   "pss": {
+    "median": 119.2,
+    "min": 117,
+    "max": 119.4
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 261.3,
+    "min": 259.4,
+    "max": 261.8
+   },
+   "pss": {
+    "median": 150.5,
+    "min": 148.7,
+    "max": 151
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 162.9,
+    "min": 160.9,
+    "max": 163.5
+   },
+   "pss": {
+    "median": 101.1,
+    "min": 99,
+    "max": 101.5
+   }
+  }
+ }
+}

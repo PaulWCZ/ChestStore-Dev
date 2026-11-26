@@ -1,22 +1,155 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "hiring",
   "title": "Hiring",
   "description": "Publish your jobs on your careers page, Google and Indeed, and hire together: one board per job, CVs, emails, interviews.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["recruiter", "interviewer"],
-  "role_labels": { "recruiter": "Recruiter", "interviewer": "Interviewer" },
+  "roles": [
+    "recruiter",
+    "interviewer"
+  ],
+  "role_labels": {
+    "recruiter": "Recruiter",
+    "interviewer": "Interviewer"
+  },
   "public": true,
-  "csp": "tool",
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications",
+    "realtime",
+    "sealed"
+  ],
+  "receives": [
+    "member.*",
+    "booking.busy",
+    "leave.busy"
+  ],
+  "emits": {
+    "hiring.hired": {
+      "description": "A candidate is hired",
+      "data": {
+        "candidate": "id",
+        "name": "text",
+        "job": "text",
+        "team": "text?",
+        "place": "text?",
+        "startDate": "date?",
+        "hiredBy": "member"
+      }
+    },
+    "hiring.hire-cancelled": {
+      "description": "A hire is taken back",
+      "data": {
+        "candidate": "id"
+      }
+    },
+    "hiring.busy": {
+      "description": "A member's interviews change: their busy times",
+      "data": {
+        "v": "number",
+        "member": "member",
+        "at": "time",
+        "from": "time",
+        "to": "time",
+        "spans": "text"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "job:{id}",
+        "join": {
+          "table": "job_live",
+          "key": "job_id",
+          "member": "member_id"
+        }
+      }
+    ],
+    "feeds": [
+      {
+        "table": "jobs",
+        "channel": "job:{id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "stages",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "candidates",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "notes",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "feedback",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "messages",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "interviews",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "interview_requests",
+        "channel": "job:{job_id}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "25 3 * * *"
+    },
+    {
+      "name": "outbox",
+      "cron": "*/15 * * * *"
+    },
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": [
+      "/assets/"
+    ]
   }
 }

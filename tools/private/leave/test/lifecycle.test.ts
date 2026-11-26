@@ -1,18 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as balances from "../lib/balances.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setApprover, setEndDate, staffRow } from "../lib/staff.ts";
-import { AppError } from "../lib/app-error.ts";
-import { today } from "../lib/today.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import * as balances from "../src/lib/balances.ts";
+import { settleAfterLastDay } from "../src/lib/last-day.ts";
+import { forgetSeen } from "../src/lib/lifecycle.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setApprover, setEndDate, staffRow } from "../src/lib/staff.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { today } from "../src/lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { addDays, holidaysBetween } from "../lib/calendar.ts";
+import { addDays, holidaysBetween } from "../src/shared/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -22,7 +24,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
 });
 after(async () => {
@@ -38,13 +40,13 @@ test("someone who leaves: their waiting requests are cancelled, their approved l
   const past = addDays(quietMonday(0), -28);
   const approved = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: ines.id, ...week(past) });
   const waiting = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(addDays(monday, 21)) });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, POST), 204);
   assert.equal((await requests.request(sql, asMember(camille), waiting.id)).status, "cancelled");
   assert.equal((await requests.request(sql, asMember(camille), approved.id)).status, "approved");
   assert.deepEqual((await requests.history(sql, asMember(camille), waiting.id)).map(s => [s.kind, s.actor]), [["asked", ines.id], ["left", "chest"]]);
   assert.equal((await staffRow(sql, hugo.id)).approverId, null);
   // Delivered again: nothing changes.
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
 });
 
 test("approved leave after the last day no longer counts: cancelled, its days back, HR told (the final balance 14.75 → 15.25)", async () => {
@@ -56,7 +58,7 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   const left = async () => (await balances.balancesOf(sql, [sofia.id])).get(sofia.id)!.find(b => b.typeId === paid)!.left;
   assert.equal(await left(), 14.75);
   chest.notifications.length = 0;
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
   assert.equal((await staffRow(sql, sofia.id)).endDate, today());
   assert.equal((await requests.request(sql, asMember(camille), half.id)).status, "cancelled");
   assert.deepEqual((await requests.history(sql, asMember(camille), half.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id], ["after_last_day", "chest"]]);
@@ -64,12 +66,12 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   const back = (await balances.ledger(sql, asMember(camille), sofia.id)).find(l => l.kind === "returned");
   assert.deepEqual(back && { days: back.days, reasonKey: back.reasonKey, requestId: back.requestId }, { days: 0.5, reasonKey: "afterLastDay", requestId: half.id });
   // HR is told, in HR's language; nothing shows on the calendar any more.
-  const told = chest.notifications.find(n => n.member === camille.id);
+  const told = seen(chest.notifications.find(n => n.member === camille.id));
   assert.match(told?.title ?? "", /^Départ de Sofia Rossi( \(ancien membre\))?[\u202f ]: les congés après son dernier jour ne comptent plus$/u);
   assert.equal(told?.path, `/chest/people/${sofia.id}`);
   assert.ok(!(await requests.between(sql, asMember(camille), wednesday, wednesday)).some(e => e.id === half.id));
   // Delivered again: nothing is given back twice.
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
   assert.equal(await left(), 15.25);
 });
 
@@ -107,8 +109,8 @@ test("an erasure: the person disappears, the days of HR's records stay, signed '
   await balances.adjust(sql, asMember(camille), { memberId: tom.id, typeId: paid, days: 2, reason: "Tom's seniority days" });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: tom.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   const [row] = await sql`select member_id, note, reason, days::float as days, status from requests where id = ${r.id}`;
   assert.deepEqual({ ...row }, { member_id: "erased", note: null, reason: null, days: 5, status: "approved" });
   const lines = await sql`select member_id, kind, days::float as days, reason from ledger where request_id = ${r.id} or reason is null and member_id = 'erased' order by id`;
@@ -124,4 +126,21 @@ test("an erasure: the person disappears, the days of HR's records stay, signed '
 test("an event not signed by the Chest is refused", async () => {
   const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
+});
+
+test("every way of setting a last day settles the leave after it in the same transaction (settleAfterLastDay)", async () => {
+  const { sql } = database;
+  const monday = quietMonday(140);
+  const after = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: tom.id, ...week(monday) });
+  const settled = await sql.begin(tx => settleAfterLastDay(tx, tom.id, addDays(monday, -1), camille.id));
+  assert.deepEqual(settled.cancelled, [after.id]);
+  assert.deepEqual(settled.cut, []);
+  assert.equal((await requests.request(sql, asMember(camille), after.id)).status, "cancelled");
+});
+
+test("deliveries older than the Chest's retries are forgotten (the morning run), newer ones kept", async () => {
+  const { sql } = database;
+  await sql`insert into chest_events (id, handled_at) values ('old-delivery', now() - interval '31 days'), ('new-delivery', now())`;
+  assert.ok(await forgetSeen(sql) >= 1);
+  assert.deepEqual((await sql`select id from chest_events where id in ('old-delivery', 'new-delivery')`).map(r => r["id"]), ["new-delivery"]);
 });

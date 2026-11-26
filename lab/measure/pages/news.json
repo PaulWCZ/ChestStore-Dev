@@ -1,0 +1,77 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/4",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/3",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/9",
+  "member": "nora",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/posts/5",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/new",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/new?kind=event",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/8",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/10",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=bikes",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=demenagement",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/transfer",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/propose",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/proposals",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/posts/11",
+  "member": "ines",
+  "language": "fr"
+ }
+]

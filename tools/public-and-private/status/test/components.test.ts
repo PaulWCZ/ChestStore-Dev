@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addComponent, allComponents, moveComponent, putBack, removeComponent, shownComponents, tree, updateComponent } from "../lib/components.ts";
-import { openIncident } from "../lib/incidents.ts";
-import { statusView } from "../lib/status-view.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComponent, allComponents, moveComponent, putBack, removeComponent, shownComponents, tree, updateComponent } from "../src/lib/components.ts";
+import { openIncident } from "../src/lib/incidents.ts";
+import { statusView } from "../src/lib/status-view.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, nora } from "./support/members.ts";
@@ -15,7 +15,7 @@ let chest: FakeChest;
 const editor = asMember(camille);
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();

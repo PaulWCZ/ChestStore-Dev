@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { addComment, comments, editComment, removeComment, restoreComment } from "../lib/comments.ts";
-import { closeCycle, createCycle, deleteCycle, reopenCycle, setCurrent, updateCycle } from "../lib/cycles.ts";
-import { addKeyResult, archiveKeyResult, checkIn, undoCheckIn, updateKeyResult } from "../lib/key-results.ts";
-import { nextQuarter, quarterOf } from "../lib/model.ts";
-import { archiveObjective, carryOver, createObjective, readObjective, restoreObjective, saveRetro, updateObjective } from "../lib/objectives.ts";
-import { cycleObjectives, cycles, objectiveById, ownedBy, waitingCounts } from "../lib/read.ts";
-import { addAllGroups, addGroupTeam, addTeam, archiveTeam, renameTeam, saveSettings, settings, teams } from "../lib/teams.ts";
-import { clockAt } from "../lib/tell.ts";
-import { today } from "../lib/time.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComment, comments, editComment, removeComment, restoreComment } from "../src/lib/comments.ts";
+import { closeCycle, createCycle, deleteCycle, reopenCycle, setCurrent, updateCycle } from "../src/lib/cycles.ts";
+import { addKeyResult, archiveKeyResult, checkIn, undoCheckIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { nextQuarter, quarterOf } from "../src/lib/model.ts";
+import { archiveObjective, carryOver, createObjective, readObjective, restoreObjective, saveRetro, updateObjective } from "../src/lib/objectives.ts";
+import { cycleObjectives, cycles, objectiveById, ownedBy, waitingCounts } from "../src/lib/read.ts";
+import { addAllGroups, addGroupTeam, addTeam, archiveTeam, renameTeam, saveSettings, settings, teams } from "../src/lib/teams.ts";
+import { clockAt } from "../src/lib/tell.ts";
+import { defaultCurrency, saveCurrency } from "../src/lib/money.ts";
+import { today } from "../src/lib/time.ts";
 import { asMember } from "./support/member.ts";
 import { camille, groups, hugo, ines, nora, sofia } from "./support/members.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
@@ -265,4 +266,27 @@ test("comments: everyone with a role writes; authors edit theirs; authors and ad
   await restoreComment(sql, sofiaM, comment.id);
   const list = await comments(sql, company.id);
   assert.deepEqual(list.map(c => [c.body, c.edited]).at(-1), ["Can the workshop help with deliveries?", true]);
+});
+
+test("money: the Chest has none — a new money key result starts in the tool's default currency, or keeps the one chosen; changing the default changes none", async () => {
+  const { sql } = w.database;
+  const [cycle] = (await cycles(sql)).filter(c => c.current);
+  const goal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
+  assert.equal(await defaultCurrency(sql), "EUR");
+  await assert.rejects(saveCurrency(sql, hugoM, "GBP"), refused("forbidden"));
+  await assert.rejects(saveCurrency(sql, admin, "XYZ"), refused("invalid"));
+  const euros = await addKeyResult(sql, inesM, goal.id, { title: "Revenue (EUR)", kind: "money", start: "0", target: "1000" });
+  const yen = await addKeyResult(sql, inesM, goal.id, { title: "Revenue in Japan", kind: "money", start: "0", target: "500000", currency: "JPY" });
+  await assert.rejects(addKeyResult(sql, inesM, goal.id, { title: "Bad", kind: "money", target: "1", currency: "XYZ" }), refused("invalid"));
+  assert.equal(await saveCurrency(sql, admin, "gbp"), "GBP");
+  const pounds = await addKeyResult(sql, inesM, goal.id, { title: "Revenue (GBP)", kind: "money", start: "0", target: "800" });
+  const byId = async (id: string) => (await objectiveById(sql, goal.id, clockAt(), null))!.keyResults.find(k => k.id === id)!.currency;
+  assert.deepEqual([await byId(euros.id), await byId(yen.id), await byId(pounds.id)], ["EUR", "JPY", "GBP"], "each keeps its own");
+  // Edited without a currency: it keeps its own; with one: that one.
+  await updateKeyResult(sql, inesM, euros.id, { kind: "money", target: "2000" });
+  assert.equal(await byId(euros.id), "EUR");
+  await updateKeyResult(sql, inesM, euros.id, { kind: "money", target: "2000", currency: "CHF" });
+  assert.equal(await byId(euros.id), "CHF");
+  await saveCurrency(sql, admin, "EUR");
+  for (const k of [euros, yen, pounds]) await archiveKeyResult(sql, inesM, k.id, true);
 });

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "crm",
   "title": "Clients",
   "description": "Companies, contacts and deals in one place, and never forget to call back.",
@@ -17,13 +17,117 @@
   },
   "capabilities": [
     "database",
+    "files",
     "members",
     "notifications",
-    "files"
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "forms.contact",
+    "booking.confirmed",
+    "booking.cancelled"
   ],
+  "emits": {
+    "crm.deal.won": {
+      "description": "A deal is won: its title, amount and currency, client and contact",
+      "data": {
+        "deal": "id",
+        "title": "text",
+        "amount": "number?",
+        "currency": "text",
+        "owner": "member?",
+        "companyRef": "id?",
+        "companyName": "text?",
+        "companyAddress": "text?",
+        "companyPostcode": "text?",
+        "companyCity": "text?",
+        "companyCountry": "text?",
+        "companySiren": "text?",
+        "companyVat": "text?",
+        "companyEmail": "text?",
+        "contactName": "text?",
+        "contactEmail": "text?"
+      }
+    },
+    "crm.deal.reopened": {
+      "description": "A won deal is reopened",
+      "data": {
+        "deal": "id"
+      }
+    }
+  },
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 7 * * 1-5"
+    }
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "team"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "stages",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "companies",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "contacts",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "deals",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "activities",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "steps",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "attachments",
+        "channel": "team",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "booked_meetings",
+        "channel": "team",
+        "columns": [
+          "booking"
+        ]
+      }
+    ]
+  },
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -31,7 +135,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

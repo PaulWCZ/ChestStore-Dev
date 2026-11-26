@@ -18,8 +18,8 @@ terminal, made plain enough for a salesperson between two meetings.
     { "name": "Today", "value": "#9a5200" }
   ],
   "fonts": {
-    "display": { "family": "IBM Plex Sans", "file": "public/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 600 },
-    "body": { "family": "IBM Plex Mono", "file": "public/fonts/ibm-plex-mono-latin-500-normal.woff2", "weight": 500 }
+    "display": { "family": "IBM Plex Sans", "file": "public/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 600 },
+    "body": { "family": "IBM Plex Mono", "file": "public/assets/fonts/ibm-plex-mono-latin-500-normal.woff2", "weight": 500 }
   },
   "specimen": "Head office fit-out — €48,500 · Proposal 50%"
 }
@@ -29,13 +29,13 @@ terminal, made plain enough for a salesperson between two meetings.
 
 Clients' look is **"Sales desk"**, a theme of the UI kit's token contract
 (`@argentic/chest-ui`, `ui/tokens/CONTRACT.md`): `defineTheme` in
-`lib/theme.ts`, the very same source as the catalogue's `sales-desk` theme
+`src/theme.ts`, the very same source as the catalogue's `sales-desk` theme
 (`test/theme.test.ts` holds the two equal, and every contrast pair of the
 contract, light and dark). Every colour lives there; the CSS names only
 contract tokens (`--bg`, `--surface`, `--ink`, `--ink-2`, `--accent`,
 `--accent-text`, `--accent-line`, `--ok`/`--wait`/`--danger` and their
 `-soft`/`-ink`, `--cat-1…8`, `--font-body`, `--font-mono`, `--radius-s/m/l`…).
-`app/tokens.css` keeps the tool's own names, each defined from contract
+`src/tokens.css` keeps the tool's own names, each defined from contract
 tokens, never from a colour:
 
 | Tool token | Is | Use |
@@ -56,15 +56,15 @@ hairline was 1.9:1 and is gone).
 The company may give Clients any other look in its Chest — a catalogue
 theme, or its own brand (then its logo stands where the mark is,
 `BrandMark`) — with the same features; the look is resolved on the server
-(`currentLook`) and written as one `<style>` with the page's nonce
-(`app/layout.tsx`). Screens: `docs/screens/*-chest-*`, `*-theme-*`,
+(`currentLook`) and served as a stylesheet of its own, `/chest/look.css` (no inline style)
+(`src/layout.tsx`, `src/theme.ts`). Screens: `docs/screens/*-chest-*`, `*-theme-*`,
 `*-brand-*`.
 
 **Type**: IBM Plex Sans (400–700) for words; **IBM Plex Mono** (400–600,
 `tabular-nums`) for every figure — amounts, dates, counts, column totals —
 and for the small spaced capital labels (`.label-mono`: *NEXT STEP*,
 *HISTORY*, *OWNER*) that give the tool its terminal touch. Both OFL-1.1,
-self-hosted (`public/fonts/`, the kit writes their `@font-face` from the
+self-hosted (`public/assets/fonts/`, the kit writes their `@font-face` from the
 theme). Sizes 12–36 px; body 15 px.
 
 **Spacing** 4 · 8 · 12 · 16 · 24 · 32 · 48 px. **Radii** small: 3, 6,
@@ -109,7 +109,7 @@ buttons 36 px in dense places.
   library, the same bars as *My day*.
 - **Timeline**: a thin vertical rule, round icons tinted by kind, what
   people wrote in a bordered block, what the tool recorded as a sentence.
-- From the UI kit, in Sales desk's precision (`app/globals.css` restyles a
+- From the UI kit, in Sales desk's precision (`src/styles.css` restyles a
   few `ck-` classes: square-cut badges, mono spaced capitals in table
   headers): the **shell** (sections as labelled tabs; a row of their own
   under the header on a phone), **toasts** with an Undo that tells the
@@ -124,7 +124,7 @@ buttons 36 px in dense places.
 
 ## Icon
 
-`chest/icon.svg` (and `app/icon.svg`, `components/mark.tsx`): three white
+`chest/icon.svg` (and `public/assets/icon.svg`, `src/components/mark.tsx`): three white
 bars narrowing like a pipeline in an electric blue square, ending on a green
 dot — a deal won. No text; readable at 24 px on light and dark tiles (the
 blue square carries its own contrast).

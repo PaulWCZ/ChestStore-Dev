@@ -98,8 +98,23 @@ function tool(folder, kind) {
       ...(entry ? lookOf(entry) : guessLook(name)),
     };
   });
-  const fonts = Object.entries(show.fonts ?? {}).filter(([, f]) => f?.file && existsSync(join(folder, f.file)));
+  for (const [which, f] of Object.entries(show.fonts ?? {})) {
+    if (!f?.file) continue;
+    const found = fontFile(folder, f.file);
+    if (!found) console.warn(`${relative(root, folder)}: DESIGN.md's ${which} font ${f.file} not found (the card shows the system font)`);
+    else if (found !== f.file) console.warn(`${relative(root, folder)}: DESIGN.md's ${which} font ${f.file} has moved to ${found} (update DESIGN.md)`);
+    f.file = found;
+  }
+  const fonts = Object.entries(show.fonts ?? {}).filter(([, f]) => f?.file);
   return { folder, kind, manifest, show, personality, why, icon, pairs, fonts, updated: statSync(join(folder, "chest.json")).mtime };
+}
+
+// A font named by DESIGN.md, or the same file where the tools serve their
+// assets since the move off Next.js (public/assets/fonts/, earlier public/fonts/).
+function fontFile(folder, file) {
+  if (existsSync(join(folder, file))) return file;
+  const name = file.split("/").pop();
+  return ["public/assets/fonts", "public/fonts", "src/assets/fonts"].map(d => `${d}/${name}`).find(c => existsSync(join(folder, c))) ?? null;
 }
 
 const kinds = [["private", "Team tools", "Behind the Chest's sign-in: the company's intranet."], ["public-and-private", "Tools with a public part", "A private side for the team, a public side for customers, candidates, visitors."]];

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { defaultHours, frenchHolidays, parseHours, readHours, stamp, workMinutes, zoned, type Hours } from "../lib/hours.ts";
-import { decide, matches } from "../lib/rules.ts";
-import { baseSubject, linkify, robotAddress, splitQuoted } from "../lib/text.ts";
+import { defaultHours, frenchHolidays, parseHours, readHours, stamp, workMinutes, zoned, type Hours } from "../src/shared/hours.ts";
+import { decide, matches } from "../src/lib/rules.ts";
+import { linkify, robotAddress } from "../src/shared/text.ts";
 
 const paris = "Europe/Paris";
 
@@ -38,14 +38,7 @@ test("France's public holidays follow Easter", () => {
   assert.ok(frenchHolidays(2027).includes("2027-03-29"), "Easter Monday 2027");
 });
 
-test("an email's quoted history folds away; web addresses become links; subjects compare without Re: and [#n]", () => {
-  const gmail = "Thanks, it works now.\n\nOn Mon, 28 Sep 2026 at 10:02, Atelier Martin <support@atelier.fr>\nwrote:\n> Try this.\n> Hugo";
-  assert.deepEqual(splitQuoted(gmail), { main: "Thanks, it works now.", quoted: "On Mon, 28 Sep 2026 at 10:02, Atelier Martin <support@atelier.fr>\nwrote:\n> Try this.\n> Hugo" });
-  assert.equal(splitQuoted("Merci !\nLe lun. 28 sept. 2026 à 10:02, Atelier <support@atelier.fr> a écrit :\n> Essayez ceci.").main, "Merci !");
-  assert.equal(splitQuoted("Ok\n\nFrom: Atelier\nSent: Monday\nTo: me\nSubject: x\n\nold").main, "Ok");
-  assert.equal(splitQuoted("Ok\n> quoted\n> more").main, "Ok");
-  assert.deepEqual(splitQuoted("> only a quote"), { main: "> only a quote", quoted: "" });
-  assert.deepEqual(splitQuoted("A line\nwith > inside\nand text"), { main: "A line\nwith > inside\nand text", quoted: "" });
+test("web addresses become links", () => {
   assert.deepEqual(linkify("See https://atelier.fr/faq, or (https://x.fr/a_(b)). Bye"), [{ text: "See " }, { text: "https://atelier.fr/faq", url: "https://atelier.fr/faq" }, { text: ", or (" }, { text: "https://x.fr/a_(b)", url: "https://x.fr/a_(b)" }, { text: "). Bye" }]);
   assert.deepEqual(linkify("javascript:alert(1) and http://"), [{ text: "javascript:alert(1) and http://" }]);
   // The team's side: email addresses and phone numbers as mailto: and tel: links; order numbers and dates stay text.
@@ -55,8 +48,6 @@ test("an email's quoted history folds away; web addresses become links; subjects
   assert.deepEqual(linkify("Order 123456789 on 2026-09-29, n°00012345678, 02.10.2026", { contacts: true }), [{ text: "Order 123456789 on 2026-09-29, n°00012345678, 02.10.2026" }]);
   assert.deepEqual(linkify("https://a.fr/x?mail=a@b.fr", { contacts: true }), [{ text: "https://a.fr/x?mail=a@b.fr", url: "https://a.fr/x?mail=a@b.fr" }]);
   assert.deepEqual(linkify("Call 06 12 34 56 78"), [{ text: "Call 06 12 34 56 78" }], "only on the team's side");
-  assert.equal(baseSubject("RE: TR : Fwd: Broken  lamp [#1042]"), "broken lamp");
-  assert.equal(baseSubject("Re: Broken lamp"), baseSubject("broken lamp"));
   assert.ok(robotAddress("no-reply@shop.fr") && robotAddress("MAILER-DAEMON@x.org") && robotAddress("noreply+123@x.org"));
   assert.ok(!robotAddress("anna@x.org") && !robotAddress("replyguy@x.org"));
 });

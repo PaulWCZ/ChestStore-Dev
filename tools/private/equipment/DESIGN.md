@@ -9,12 +9,12 @@ and nothing frightening.
 ## The identity is a theme
 
 "Tool crib" is a theme of the store's UI kit: `defineTheme` in
-`lib/theme.ts`, value for value the kit's catalogue theme `labels`
+`src/theme.ts`, value for value the kit's catalogue theme `labels`
 (`test/theme.test.ts` holds the two equal), checked against every pair of
 the token contract (WCAG AA, light and dark). A company may give Equipment
 another look — a catalogue theme or its brand — and the tool follows: its
 stylesheets name only contract tokens, and its own tokens
-(`app/tokens.css`) are made of them:
+(`src/tokens.css`) are made of them:
 
 | Tool token | Made of | Use |
 |---|---|---|
@@ -38,7 +38,7 @@ plain band and the mark's tag keeps only its thin edge.
 
 Type: **IBM Plex Sans** (variable) for everything people read, **IBM Plex
 Mono** for what is printed or stamped — asset tags, serial numbers, section
-headings, status stamps (OFL-1.1, self-hosted in `public/fonts/`). 16 px
+headings, status stamps (OFL-1.1, self-hosted in `public/assets/fonts/`). 16 px
 body. Spacing 4, 8, 12, 16, 24, 32, 48 px. Radii 4, 6, 10 px (labels are
 nearly square). Shadows: a label's thin drop. Motion: 120 and 240 ms, none
 with reduced motion.
@@ -103,7 +103,7 @@ white.
     { "name": "Utility orange", "value": "#c2410c" },
         { "name": "Ink", "value": "#1b1f22" }
   ],
-  "fonts": { "display": { "family": "IBM Plex Sans Variable", "file": "public/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 650 }, "body": { "family": "IBM Plex Mono", "file": "public/fonts/ibm-plex-mono-latin-400-normal.woff2", "weight": 400 } },
+  "fonts": { "display": { "family": "IBM Plex Sans Variable", "file": "public/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 650 }, "body": { "family": "IBM Plex Mono", "file": "public/assets/fonts/ibm-plex-mono-latin-400-normal.woff2", "weight": 400 } },
   "specimen": "EQ-0042 · MacBook Pro 14″ — with Inès since 9 Oct."
 }
 ```

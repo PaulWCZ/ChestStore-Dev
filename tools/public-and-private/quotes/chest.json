@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "quotes",
   "title": "Quotes & invoices",
   "description": "Quotes, invoices with the legal numbering and Factur-X, reminders, accountant exports. Keep your approved platform (PA) to send e-invoices.",
@@ -18,18 +18,77 @@
     "viewer": "Viewer"
   },
   "public": true,
-  "csp": "tool",
   "capabilities": [
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "crm.deal.won",
+    "crm.deal.reopened",
+    "timesheets.billable",
+    "timesheets.billable-cancelled"
   ],
+  "emits": {
+    "quotes.invoiced": {
+      "description": "The invoice of a hand-off from Timesheets is issued",
+      "data": {
+        "handoff": "id",
+        "invoice": "text",
+        "path": "text",
+        "by": "member?"
+      }
+    }
+  },
+  "realtime": {
+    "channels": [
+      {
+        "name": "documents"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "documents",
+        "channel": "documents",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "payments",
+        "channel": "documents",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "quote_answers",
+        "channel": "documents",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
   "network": [
     "recherche-entreprises.api.gouv.fr"
+  ],
+  "schedules": [
+    {
+      "name": "badges",
+      "cron": "50 6 * * *"
+    },
+    {
+      "name": "followup",
+      "cron": "10 7 * * *"
+    },
+    {
+      "name": "archive",
+      "cron": "30 4 1 * *"
+    }
   ],
   "build": {
     "runtime": "node",
@@ -38,7 +97,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

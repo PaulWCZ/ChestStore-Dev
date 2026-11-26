@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "goals",
   "title": "Goals",
   "description": "Agree on what matters this quarter: company and team objectives, key results, weekly check-ins, progress for all to see.",
@@ -16,10 +16,72 @@
   "capabilities": [
     "database",
     "members",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "crm.deal.won",
+    "crm.deal.reopened",
+    "tasks.card.done",
+    "tasks.card.reopened",
+    "helpdesk.ticket.solved",
+    "helpdesk.ticket.reopened",
+    "hiring.hired",
+    "hiring.hire-cancelled"
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "objective:{key}",
+        "join": {
+          "table": "objective_live",
+          "key": "objective_key",
+          "member": "member_id"
+        }
+      }
+    ],
+    "feeds": [
+      {
+        "table": "objectives",
+        "channel": "objective:{live_key}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "key_results",
+        "channel": "objective:{live_key}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "check_ins",
+        "channel": "objective:{live_key}",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "comments",
+        "channel": "objective:{live_key}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "reminder",
+      "cron": "45 8 * * 5"
+    },
+    {
+      "name": "week",
+      "cron": "50 6 * * 1"
+    }
   ],
   "build": {
     "runtime": "node",
@@ -28,7 +90,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

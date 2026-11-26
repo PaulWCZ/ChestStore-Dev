@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { answerText, asked, check, matches, prefill, read, walk } from "../lib/logic.ts";
-import { END, type Definition } from "../lib/model.ts";
+import { field } from "@argentic/chest-app";
+import { answerText, asked, check, matches, prefill, read, walk } from "../src/shared/logic.ts";
+import { END, type Definition } from "../src/shared/model.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 
 // The logic engine: which questions are asked, which page comes next, and
@@ -80,6 +81,7 @@ test("each kind reads its answer strictly", () => {
   assert.deepEqual(read(q("long", "l"), "line one\r\nline two"), { value: "line one\nline two" });
   assert.deepEqual(read(q("email", "e"), "a@b.co"), { value: "a@b.co" });
   assert.deepEqual(read(q("email", "e"), "not an email"), { error: "email" });
+  assert.deepEqual(read(q("email", "e"), " Ana.B@Example.COM "), { value: "Ana.B@example.com" });
   assert.deepEqual(read(q("phone", "p"), "+33 6 12 34 56 78"), { value: "+33 6 12 34 56 78" });
   assert.deepEqual(read(q("phone", "p"), "call me"), { error: "phone" });
   assert.deepEqual(read(q("number", "n", { min: 1, max: 10 }), "3,5"), { value: 3.5 });
@@ -145,4 +147,25 @@ test("an answer as text: labels, Yes/No, file names", () => {
   assert.equal(answerText(q("yesno", "y"), false, words), "No");
   assert.equal(answerText(q("file", "f"), { file: "answers/1/x.pdf", name: "cv.pdf", type: "application/pdf", size: 3 }, words), "cv.pdf");
   assert.equal(answerText(q("number", "n"), 4.5, words), "4.5");
+});
+
+// The rule is the package's (readEmail, from /client: no copy here): an
+// email question answers what the server's field.email() answers.
+test("an email question reads an address with the package's rule, as field.email() does on the server", () => {
+  const rule = field.email();
+  const cases = [
+    "a@b.co", " Ana.B@Example.COM ", "élodie@exemple.fr", "a+tag@sub.example.org", "x@münchen.de",
+    "not an email", "a@b", "a b@example.com", "Ana <ana@example.com>", "<a@example.com>", "\"a\"@example.com",
+    "a..b@example.com", ".a@example.com", "a.@example.com", "a@[192.0.2.1]", "a@192.0.2.1", "a@-x.com", "a@x-.com",
+    "a@example.com\u202e", "a\u200b@example.com", "a@example.com\nBcc: x@y.z", "a@@example.com", "@example.com", "x".repeat(65) + "@example.com",
+  ];
+  for (const typed of cases) {
+    let expected: string | null;
+    try {
+      expected = rule.read(typed);
+    } catch {
+      expected = null;
+    }
+    assert.deepEqual(read(q("email", "e"), typed), expected === null ? { error: "email" } : { value: expected }, JSON.stringify(typed));
+  }
 });

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { allowanceCents, checkScale, tripCents, type Scale } from "../lib/scale.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { allowanceCents, checkScale, tripCents, type Scale } from "../src/shared/scale.ts";
 
 // The scale the migration ships (2025 distances), read from the SQL itself.
 const sql = readFileSync(join(import.meta.dirname, "..", "migrations", "0001_expenses.sql"), "utf8");

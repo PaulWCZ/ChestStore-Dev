@@ -8,15 +8,15 @@ the quarter: where the summit is, how far we climbed, who carries what.
 ## Tokens — the identity is a theme
 
 Goals' identity, **Trail map**, is a theme of the store's UI kit
-(`@argentic/chest-ui`): `defineTheme` in `lib/theme.ts` holds every colour,
+(`@argentic/chest-ui`): `defineTheme` in `src/theme.ts` holds every colour,
 font, corner and motion of the tool, light and dark, and the catalogue's
 `trail` theme is the very same source (`test/theme.test.ts` holds them
 equal and checks every contrast pair of the kit's contract, WCAG AA, in
 both modes). The page's look is resolved per request (`currentLook()`:
 the company's choice in its Chest, else Trail map) and written by
-`<ThemeStyle>` in `app/layout.tsx`, one `<style>` with the page's nonce.
-The CSS names only the contract's tokens; `app/tokens.css` holds Goals'
-own few, defined from them:
+`pageLook()` as a stylesheet of its own (`/chest/look.css`, its address
+the hash of its text: no inline style). The CSS names only the contract's
+tokens; `src/tokens.css` holds Goals' own few, defined from them:
 
 | Goals' idea | Trail map (light / dark) | Token now |
 |---|---|---|
@@ -24,7 +24,7 @@ own few, defined from them:
 | the main button | `#1f4a3f` / `#e6dcc4` | `--accent`, `--accent-ink`, `--accent-line` |
 | on track · at risk · off track | `#2e6b45` · `#8a5a00` · `#a8321f` | the states `--ok` · `--wait` · `--danger` (+ `-soft`, `-ink`) |
 | the sunrise (check-in, the waiting list's edge) | `#bf4f1d` / `#f08a4b` | `--sunrise` = `--cat-3` (the palette's orange slot), `--sunrise-soft`/`-ink` its soft ground and label |
-| the header, the map's dark margin (the Trail map only) | forest `#17302a` / `#0b1210` | `--top-bg`, `--top-ink` = `--inverse` / `--inverse-ink` under `[data-look="own"]`; in any other look the kit's normal header (`--surface`, `--ink`) |
+| the header, the map's dark margin (the Trail map only) | forest `#17302a` / `#0b1210` | `--top-bg`, `--top-ink` = `--inverse` / `--inverse-ink` added to the look's stylesheet in Goals' own look only (`ownHeader`, `src/theme.ts`); in any other look the kit's normal header (`--surface`, `--ink`) |
 | the current tab's mark | the marker pen | `--top-mark` = `--inverse-signal` on the band (kit 0.2.3, measured in every theme and mode); `--accent-line` on the kit's header |
 | contour lines | — | `--contour`, `--top-contour`: `color-mix(in oklab, …)`, decoration only |
 | the chart's line | — | `--accent-line` (3:1 on every ground) |
@@ -53,7 +53,7 @@ longer hides what is at risk; the chip beside it keeps the word and shape.
 
 **Type**: *Barlow Semi Condensed* 600 (display: titles, big numbers, small
 uppercase map labels) — the lettering of trail signs — and *Work Sans*
-(everything else), both OFL-1.1, self-hosted in `public/fonts/`; tabular
+(everything else), both OFL-1.1, self-hosted in `public/assets/fonts/` (served at `/assets/fonts/`); tabular
 figures everywhere. 16 px body. **Shape**: 1 px lines, radii 6/10/14 px,
 soft shadows; pills for confidence. **Space**: 4, 8, 12, 16, 24, 32, 48.
 **Motion**: 120 and 260 ms (bars grow, toasts rise), none with reduced
@@ -63,7 +63,7 @@ motion.
 
 The store's UI kit (`@argentic/chest-ui/components`) gives the shell and
 the common pieces, restyled only where Goals' identity asks (the dark
-header with its contour lines, in `app/globals.css`): the app shell with
+header with its contour lines, in `src/styles.css`): the app shell with
 labelled tabs (a row of their own on a phone), the toasts (*Undo* that
 tells the truth; *Sent* for a reminder), dialogs that never lose what was
 typed, `Confirm` before deleting an empty cycle, people pickers (owners,
@@ -109,8 +109,8 @@ people, in black and white, and to a screen reader.
     { "name": "Brick", "value": "#a8321f" }
   ],
   "fonts": {
-    "display": { "family": "Barlow Semi Condensed", "file": "public/fonts/barlow-semi-condensed-latin-600-normal.woff2", "weight": 600 },
-    "body": { "family": "Work Sans", "file": "public/fonts/work-sans-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Barlow Semi Condensed", "file": "public/assets/fonts/barlow-semi-condensed-latin-600-normal.woff2", "weight": 600 },
+    "body": { "family": "Work Sans", "file": "public/assets/fonts/work-sans-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Win 20 new customers in Lyon — 45%, at risk"
 }

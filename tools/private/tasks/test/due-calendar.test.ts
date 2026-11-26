@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { calendarWorks, sync } from "../lib/due-calendar.ts";
-import { en } from "../lib/i18n/en.ts";
-import { addDays } from "../lib/repeat.ts";
-import { chestToday } from "../lib/clock.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { calendarWorks, sync } from "../src/lib/due-calendar.ts";
+import { en } from "../src/i18n/en.ts";
+import { addDays } from "../src/shared/repeat.ts";
+import { chestToday } from "../src/lib/clock.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea } from "./support/members.ts";
@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Tasks", company: "Atelier" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Tasks", company: "Atelier" } });
 });
 after(async () => {
   await chest.close();
@@ -124,7 +124,7 @@ test("a private board: only the people who see it get its dates, marked private"
 
 test("a Chest without the calendar: nothing breaks, the tool stops promising it", async () => {
   const { sql } = database;
-  const bare = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"], calendar: false });
+  const bare = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications"], calendar: false });
   try {
     const { b, todo } = await setup();
     const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");

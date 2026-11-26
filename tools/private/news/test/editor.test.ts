@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fromDoc, toDoc, type DocNode } from "../lib/editor-doc.ts";
-import { parse, plain } from "../lib/markdown.ts";
-import { imageRefs, pick, pieces, withNames } from "../lib/model.ts";
+import { fromDoc, toDoc, type DocNode } from "../src/shared/editor-doc.ts";
+import { parse, plain } from "../src/shared/markdown.ts";
+import { imageRefs, pick, pieces, withNames } from "../src/shared/model.ts";
 
 // The composer's editor shows the text formatted; News keeps the text with
 // its few marks. What the editor writes back must read the same.

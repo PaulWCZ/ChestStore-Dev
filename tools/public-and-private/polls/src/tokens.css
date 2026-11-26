@@ -1,0 +1,62 @@
+/* The tool's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity "Confetti" in src/theme.ts, or the
+   theme the company chose — in the stylesheet the tool serves
+   (/chest/look.css, /look.css). Here only what
+   is Polls' alone, always defined from contract tokens, never from a
+   colour, so it follows every theme. */
+:root {
+  /* Chunky shapes: an edge one step thicker than the theme's lines, and
+     the ledge a button stands on (it presses down when tapped). */
+  --edge: calc(var(--border-width) + 1px);
+  --ledge: 4px;
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Bars and columns grow in a little over half a second (0 under reduced
+     motion: --slow is 0 then). */
+  --grow: calc(var(--slow) * 2);
+
+  /* The kinds of poll: categories of the theme's palette (a chip's text on
+     its soft ground is a measured pair). Question 3 (orange, beside coral),
+     date 6 (teal: mint), survey 7 (ochre: the sun). */
+  --kind-choice: var(--cat-3);
+  --kind-choice-soft: var(--cat-3-soft);
+  --kind-choice-ink: var(--cat-3-ink);
+  --kind-date: var(--cat-6);
+  --kind-date-soft: var(--cat-6-soft);
+  --kind-date-ink: var(--cat-6-ink);
+  --kind-survey: var(--cat-7);
+  --kind-survey-soft: var(--cat-7-soft);
+  --kind-survey-ink: var(--cat-7-ink);
+
+  /* The three answers to a date: yes (the ok state), if need be (wait),
+     no (a quiet grey). Each a soft ground and the ink that reads on it. */
+  --yes: var(--ok);
+  --yes-soft: var(--ok-soft);
+  --yes-ink: var(--ok-ink);
+  --maybe: var(--wait);
+  --maybe-soft: var(--wait-soft);
+  --maybe-ink: var(--wait-ink);
+  --no-soft: var(--surface-2);
+  --no-ink: var(--ink-2);
+
+  /* Charts: marks that must be seen (3:1 on the surface). The mint of a
+     meter and of fans, the sun of the top column and of neutrals, coral's
+     ledge for a trend line and for critics. */
+  --mark-yes: var(--cat-6);
+  --mark-sun: var(--cat-7);
+  --mark-coral: var(--accent-line);
+  /* A bar that is not the leading one: decoration, its number is written. */
+  --mark-quiet: color-mix(in oklab, var(--ink) 22%, var(--surface-2));
+
+  /* Guests from outside the Chest (a date poll's link): the sky of the
+     confetti, a category's ink on its soft ground (a measured pair). */
+  --guest-soft: var(--cat-1-soft);
+  --guest-ink: var(--cat-1-ink);
+
+  /* Confetti: decoration only (no text, no meaning). */
+  --confetti-1: var(--accent);
+  --confetti-2: var(--cat-6);
+  --confetti-3: var(--cat-7);
+  --confetti-4: var(--cat-1);
+  --confetti-5: var(--ink);
+}

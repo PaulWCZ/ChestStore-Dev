@@ -1,0 +1,18 @@
+import { DateField, MonthField } from "@argentic/chest-ui/components";
+import { useState } from "react";
+import type { Catalogue } from "../i18n/index.ts";
+
+// The day of the balances file, in the kit's date field (typed in the
+// reader's language, or chosen on a calendar); the form sends it as "on".
+export function OnDay({ today, max, label, hint, labels }: { today: string; max: string; label: string; hint: string; labels: Catalogue["kit"]["date"] }) {
+  const [on, setOn] = useState<string | null>(today);
+  return <DateField id="on" name="on" label={label} hint={hint} value={on} onChange={setOn} today={today} max={max} required labels={labels} />;
+}
+
+// The month of the absences file, in the kit's month field: the month in
+// words in the reader's language, the previous and next one tap away; the
+// form sends it as "month" ("2026-09").
+export function OnMonth({ today, min, max, label, labels }: { today: string; min: string; max: string; label: string; labels: Catalogue["kit"]["date"] }) {
+  const [month, setMonth] = useState(today.slice(0, 7));
+  return <MonthField id="month" name="month" label={label} value={month} onChange={setMonth} today={today} min={min} max={max} labels={labels} />;
+}

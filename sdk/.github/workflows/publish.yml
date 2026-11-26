@@ -1,4 +1,6 @@
-# Publish @argentic/chest-sdk to npm when a tag vX.Y.Z is pushed, through npm
+# Publish @argentic/chest-sdk to npm when a tag vX.Y.Z is pushed (check/,
+# @argentic/chest-check, is private: used from this repository, not
+# published yet — PUBLISHING.md), through npm
 # trusted publishing (OIDC): no NPM_TOKEN, provenance attached. The trusted
 # publisher is configured on npmjs.com for this repository and this file
 # (publish.yml); see PUBLISHING.md.

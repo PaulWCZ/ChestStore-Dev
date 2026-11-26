@@ -28,7 +28,7 @@ Note: the store has **18** tools, not 17. `tools/public-and-private/forms/` has 
 | Doodle / Polly / Officevibe | Polls | **Yes** | Anonymous pulse + date polls in one. No email reminders to non-responders. |
 | Lattice goals / Perdoo | Goals | **Yes for team OKRs** | Deliberately no individual reviews (legal note in Settings — good). |
 | Sellsy / Axonaut invoicing / Henrri | Quotes | **Partly** | Drafts and numbers; the e-invoicing reform needs a certified platform to transmit/receive — the tool says so. |
-| Statuspage / Instatus | Status | **Not yet** (hands-on: `status.md`) | No custom domain, no working notifications without `mail`, no JSON/widget. |
+| Statuspage / Instatus | Status | **Not yet** (hands-on: `status.md`) | No custom domain *(October 2026: now exists)*, no working notifications without `mail`, no JSON/widget. |
 | Typeform / Tally / Google Forms | Forms | **Not judged** | No screenshots; not reviewed here. |
 
 **Honest count:** of 18 categories, a company could cancel about **6 today** (Trello-level tasks, Leave, News, Equipment, Polls, Goals, plus Toggl-level time), **8 partly**, **4 not** (Support, Booking, Hiring, Status) — the four *public-facing* ones, all blocked by the same platform gaps (mail, calendar, custom domain).
@@ -103,7 +103,7 @@ Also duplicated 18 times with one checksum: `auto-refresh.tsx`, `language-switch
 1. **Calendar bridge for the whole Chest** (platform + SDK, M): per-member signed iCal feed URL that tools publish events into (Rooms bookings, desk days, Leave, Booking meetings, Hiring interviews, News events, Tasks due dates) + an `.ics` button everywhere. Without it Rooms, Booking, Leave and Hiring stay islands next to Google/Outlook.
 2. **Ship `mail` send *and* receive on the Chest** (platform, L): unblocks Support, Hiring messaging, Status subscribers, Booking confirmations, CRM email logging — the four "No" rows of the pitch table.
 3. **Reach people outside the Chest tab** (platform, M): web push from the Chest bell (PWA install on phones) and a daily email digest. Approvals (Leave, Expenses), assignments (Tasks) and Important news rot in a bell nobody opens.
-4. **Custom domains for public hosts** (platform, M): `status.`, `careers.`, `book.`, `support.` on the company's domain with automatic certificates. Required to replace any public-facing SaaS.
+4. **Custom domains for public hosts** (platform, M): `status.`, `careers.`, `book.`, `support.` on the company's domain with automatic certificates. Required to replace any public-facing SaaS. *(October 2026: done on the Chest — the owner connects the company's own domain to a tool's public part and the Chest serves its certificate; brief/08, `reports/05-critique.md` "October 2026".)*
 5. **Shared `<PeoplePicker>`** (kit, M) with groups, typeahead, keyboard combobox — replace every native "Choose someone" select.
 6. **Shared `<DateField>` / `<TimeSelect>`** in the tool's language (kit, M); drop native date/time inputs; fixes locale mismatch and small phone targets.
 7. **Undo that tells the truth** (kit + tools, S): toast pauses on hover/focus; no Undo once an email/notification left (or delay the send); French "Annuler l'action" everywhere; fix Timesheets "Rétablir".

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "rooms",
   "title": "Rooms",
   "description": "Book a desk or a meeting room, and see who is in the office which day.",
@@ -19,12 +19,109 @@
     "database",
     "files",
     "members",
-    "members.email",
-    "notifications"
+    "members.groups",
+    "notifications",
+    "realtime"
   ],
   "receives": [
-    "member.*"
+    "member.*",
+    "leave.approved",
+    "leave.cancelled"
   ],
+  "schedules": [
+    {
+      "name": "quarter",
+      "cron": "*/15 * * * *"
+    }
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "office"
+      }
+    ],
+    "feeds": [
+      {
+        "table": "settings",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "offices",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "floors",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "areas",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "rooms",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "desks",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "presence",
+        "channel": "office",
+        "columns": [
+          "member_id",
+          "day"
+        ]
+      },
+      {
+        "table": "desk_bookings",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "room_bookings",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "visits",
+        "channel": "office",
+        "columns": [
+          "id"
+        ]
+      },
+      {
+        "table": "room_attendees",
+        "channel": "office",
+        "columns": [
+          "booking_id",
+          "member_id"
+        ]
+      }
+    ]
+  },
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -32,7 +129,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

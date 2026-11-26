@@ -28,9 +28,9 @@ const boardReady = () => page.waitForFunction(() => {
   const hint = handle && document.getElementById(handle.getAttribute("aria-describedby"));
   return Boolean(hint && hint.textContent.trim());
 }).catch(error => { throw new Error("the board's drag and drop never came alive: " + error.message); });
-// A move is saved when the server answered its action (a POST to the board
-// with Next.js's action header): only then may the page be read again.
-const moveSaved = () => page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/chest/deals" && r.request().headers()["next-action"] !== undefined, { timeout: 60_000 });
+// A move is saved when the server answered its action (the island's call()
+// to /chest/actions/moveDeal): only then may the page be read again.
+const moveSaved = () => page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/chest/actions/moveDeal", { timeout: 60_000 });
 // A dragged card has landed when the copy that follows the pointer is gone
 // (the drop animation is over and the drag has let go of the page).
 const landed = () => page.locator(".deal-card.overlay").waitFor({ state: "detached" });
@@ -61,8 +61,14 @@ await step("a new company warns of a look-alike, then opens its page", async () 
 await step("add a person there, then a deal for her", async () => {
   await page.getByRole("button", { name: "Add a person" }).click();
   await page.getByLabel("Name").fill("Aurélie Masson");
-  await page.getByLabel("Email").fill("a.masson@pharmacie-centrale.fr");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email refuses it in plain words, nothing is added.
+  await page.getByLabel("Email").fill("a.masson@pharmacie-centrale");
   await page.getByLabel("Job title").fill("Pharmacist, owner");
+  await page.getByRole("button", { name: "Add the contact" }).click();
+  await page.getByText("This email address does not look right.").first().waitFor();
+  expect(await page.locator(".mini-list a:has-text('Aurélie Masson')").count() === 0, "nothing added with a wrong address");
+  await page.getByLabel("Email").fill("A.Masson@Pharmacie-Centrale.fr");
   await page.getByRole("button", { name: "Add the contact" }).click();
   await page.waitForSelector(".mini-list a:has-text('Aurélie Masson')");
   await page.getByRole("button", { name: "New deal" }).click();
@@ -204,7 +210,8 @@ await step("Forms tells of someone who filled in the contact form: a new contact
   expect(await line.getByRole("link", { name: "Contact us" }).getAttribute("href") === "https://forms-chest.chest.test/chest/forms/5/answers/flowanswer000001", "the link back to the answer in Forms");
   expect((await page.locator(".timeline").innerText()).includes("Added from the form “Contact us”"), "added from the form");
   const main = await page.locator("main").innerText();
-  expect(main.includes("nina.roux@example.com") && main.includes("Roux Menuiserie"), "email and company");
+  // The address as she wrote it, its domain lower-cased (field.email).
+  expect(main.includes("Nina.Roux@example.com") && main.includes("Roux Menuiserie"), "email and company");
   // The same answer published again (another event id): one line still.
   await deliver(nina);
   await page.reload();
@@ -550,13 +557,54 @@ await step("exports: the deals list as CSV, formulas neutralised", async () => {
   expect(csv.includes("Dispensary counter and shelving,Pharmacie Centrale,Aurélie Masson,14800.50"), "row: " + csv.split("\r\n")[1]);
 });
 
+await step("the currency of new deals: a manager sets it; a new deal takes it, the others keep theirs", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#currency-code").selectOption("CHF");
+  await page.locator("form:has(#currency-code)").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator("#currency-code").inputValue()) === "CHF", "saved");
+  await page.locator("#currency-code").selectOption("EUR");
+  await page.locator("form:has(#currency-code)").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator("#currency-code").inputValue()) === "EUR", "back to EUR");
+  await context.clearCookies({ name: "dev_locale" });
+});
+
+await step("who may download the lists: a viewer may not by default; a manager lets everyone, then takes it back", async () => {
+  // Camille reads French: the page in English for these labels.
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await as(context, origin, "lea");
+  expect((await page.request.get(origin + "/chest/export/companies")).status() === 403, "viewer refused");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#export-who").selectOption("everyone");
+  await page.locator("form:has(#export-who)").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForLoadState();
+  expect((await page.locator("#export-who").inputValue()) === "everyone", "saved");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest/companies");
+  expect(await page.getByRole("link", { name: "Export CSV" }).first().isVisible(), "the viewer's export link");
+  expect((await page.request.get(origin + "/chest/export/companies")).status() === 200, "viewer allowed");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#export-who").selectOption("sales");
+  await page.locator("form:has(#export-who)").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForLoadState();
+  await context.clearCookies({ name: "dev_locale" });
+  await as(context, origin, "hugo");
+});
+
 await step("GDPR: a person's data is exported, then deleted for good", async () => {
   await page.goto(origin + "/chest/contacts?q=masson");
   await page.locator(".row-link", { hasText: "Aurélie Masson" }).click();
   await page.waitForURL(/\/chest\/contacts\/\d+$/u);
   const contactUrl = page.url();
   const data = JSON.parse(await (await page.request.get(contactUrl + "/data")).text());
-  expect(data.contact.email === "a.masson@pharmacie-centrale.fr" && data.deals.length === 1, "export");
+  expect(data.contact.email === "A.Masson@pharmacie-centrale.fr" && data.deals.length === 1, "export");
   expect(data.activities.some(a => a.text.includes("winter season")), "what was written about her");
   await page.getByRole("button", { name: "Erase this person" }).click();
   await page.getByRole("button", { name: "Erase", exact: true }).click();
@@ -785,8 +833,13 @@ await step("seeded names in the reader's language: the sample's fields, tags and
 
 // Booking → Clients (booking.confirmed / booking.cancelled, Booking's
 // README "With the other tools"): the harness plays Booking.
+// The meetings' times as Paris shows them (08:00 and 12:00 UTC: 10:00 and
+// 14:00 in summer, 09:00 and 13:00 in winter).
+const parisTime = d => new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+const firstStart = () => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1, 8, 0));
+const movedStart = () => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2, 12, 0));
 const booked = (booking, extra = {}) => {
-  const start = extra.start ?? new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1, 8, 0));
+  const start = extra.start ?? firstStart();
   return { v: 1, booking, status: "confirmed", at: new Date(Date.now() - 60000).toISOString(), host: "mbr_hugo" + "a".repeat(22), start: start.toISOString(), end: new Date(start.getTime() + 3600000).toISOString(), type: { id: "3", name: { en: "Project call", fr: "Appel projet" } }, kind: "video", contact: { name: "Sarah Klein", email: "Sarah.Klein@example.com", phone: null, company: null, language: "en" }, source: "page", moves: 0, path: "/chest/bookings/" + booking, ...extra };
 };
 const tellBooking = data => page.request.post(origin + "/_dev/deliver", { form: { type: data.status === "cancelled" ? "booking.cancelled" : "booking.confirmed", data: JSON.stringify(data) }, maxRedirects: 0 });
@@ -801,26 +854,26 @@ await step("Booking tells Clients a guest booked Hugo: a contact of Hugo's, the 
   await meetings.waitFor();
   const row = meetings.locator("li", { hasText: "Sarah Klein" });
   const text = await row.innerText();
-  expect(text.includes("Project call") && text.includes("10:00"), "in My day, at 10:00 Paris: " + text);
+  expect(text.includes("Project call") && text.includes(parisTime(firstStart())), "in My day, at 08:00 UTC on the Paris clock: " + text);
   expect(await row.getByRole("link", { name: "Open in Booking" }).getAttribute("href") === "https://booking-chest.chest.test/chest/bookings/9001", "Open in Booking");
   await row.getByRole("link", { name: "Sarah Klein" }).click();
   await page.waitForURL(/\/chest\/contacts\/\d+$/u);
   const line = page.locator(".timeline .event.k-booking");
   await line.waitFor();
   const said = await line.innerText();
-  expect(said.includes("Booked a meeting: Project call") && said.includes("10:00") && said.includes("with you"), "the line: " + said);
+  expect(said.includes("Booked a meeting: Project call") && said.includes(parisTime(firstStart())) && said.includes("with you"), "the line: " + said);
   expect(await line.getByRole("link", { name: "Project call" }).getAttribute("href") === "https://booking-chest.chest.test/chest/bookings/9001", "the type links back to the booking");
   expect((await page.locator(".timeline").innerText()).includes("Added when they booked a meeting"), "added by the booking");
-  expect((await page.locator("main").innerText()).includes("sarah.klein@example.com"), "her email, lower-cased");
-  // Moved to the day after, at 14:00 Paris; told twice; an older move late.
-  const later = booked("9001", { moves: 1, start: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2, 12, 0)) });
+  expect((await page.locator("main").innerText()).includes("Sarah.Klein@example.com"), "her email as she wrote it (field.email)");
+  // Moved to the day after, at 12:00 UTC; told twice; an older move late.
+  const later = booked("9001", { moves: 1, start: movedStart() });
   await tellBooking(later);
   await tellBooking(later);
   await tellBooking(booked("9001"));
   await page.reload();
   expect(await page.locator(".timeline .event.k-booking").count() === 1, "one line");
   const moved = await page.locator(".timeline .event.k-booking").innerText();
-  expect(moved.includes("14:00") && moved.includes("Moved once") && !moved.includes("10:00"), "its time replaced: " + moved);
+  expect(moved.includes(parisTime(movedStart())) && moved.includes("Moved once") && !moved.includes(parisTime(firstStart())), "its time replaced: " + moved);
 });
 
 await step("Booking cancels it: the line says so, My day drops it, and a confirmation after it is ignored", async () => {

@@ -1,0 +1,52 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/calendar",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/new",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/approvals",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/requests/13",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/payroll",
+  "member": "camille",
+  "language": "fr"
+ }
+]

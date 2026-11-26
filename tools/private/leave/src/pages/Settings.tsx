@@ -1,0 +1,37 @@
+import { Island, notFound, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
+import { can } from "../lib/access.ts";
+import { holidays } from "../shared/calendar.ts";
+import { db } from "../lib/db.ts";
+import { formatDay } from "../i18n/index.ts";
+import { today } from "../lib/today.ts";
+import { colors } from "../shared/model.ts";
+import { settings, types } from "../lib/rules.ts";
+
+// The company's rules and its kinds of leave: HR only.
+export async function settingsPage({ member, locale, t }: PageContext<MemberContext>): Promise<View> {
+  if (!can(member, "settings")) return notFound();
+  const sql = db();
+  const [s, all] = await Promise.all([settings(sql), types(sql, { archived: true })]);
+  const year = Number(today().slice(0, 4));
+  const list = holidays(year, { alsace: true }).map(h => ({ key: h.key, name: t.holidays[h.key], day: formatDay(h.day, locale, { weekday: "short", day: "numeric", month: "long" }), alsace: h.key === "goodFriday" || h.key === "stStephen" }));
+  const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, name: formatDay(`2026-${String(i + 1).padStart(2, "0")}-01`, locale, { month: "long" }) }));
+  return {
+    title: t.settings.title,
+    body: (
+      <div className="page">
+        <h1>{t.settings.title}</h1>
+        <Island name="SettingsView" props={{
+          settings: { counting: s.counting, alsace: s.alsace, workedHolidays: s.workedHolidays, periodStartMonth: s.periodStartMonth },
+          holidays: list,
+          months,
+          types: all.map(ty => ({
+            id: ty.id, key: ty.key, name: ty.name ?? "", builtIn: ty.key ? t.types[ty.key] : "", color: ty.color, balance: ty.balance, perYear: ty.perYear, halfDays: ty.halfDays,
+            counting: ty.counting, approval: ty.approval, notes: ty.notes, archived: ty.archived, period: ty.period, periodMonth: ty.periodMonth, unused: ty.unused, overdraw: ty.overdraw, away: ty.away, payrollCode: ty.payrollCode ?? "",
+          })),
+          colors: colors.map(c => ({ key: c, name: t.colors[c] })),
+          t: { settings: t.settings },
+        }} />
+      </div>
+    ),
+  };
+}

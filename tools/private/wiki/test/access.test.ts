@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { can, roleOf, spaceAccess, type Ability } from "../lib/access.ts";
+import { can, roleOf, spaceAccess, type Ability } from "../src/lib/access.ts";
 import { asMember } from "./support/member.ts";
 import { camille, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
 

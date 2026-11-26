@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import { addDays, today, weekday } from "../lib/model.ts";
-import { presenceOf, setPresence } from "../lib/presence.ts";
-import { setRules } from "../lib/settings.ts";
-import { applyUsual, setUsualWeek, usualWeek } from "../lib/usual.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { addDays, today, weekday } from "../src/shared/model.ts";
+import { presenceOf, setPresence } from "../src/lib/presence.ts";
+import { setRules } from "../src/lib/settings.ts";
+import { applyUsual, setUsualWeek, usualWeek } from "../src/lib/usual.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
+import { camille, everyone, groups, hugo, ines, lea, nora, sofia } from "./support/members.ts";
+import * as places from "../src/lib/places.ts";
 import { office, zone } from "./support/places.ts";
 
 let database: TestDatabase;
@@ -118,4 +119,20 @@ test("refusals: no role, a weekday that is not one, a status that is not one, a 
   } finally {
     await sql`update desks set assigned_to = null where id = ${o.desks[3]!}`;
   }
+});
+
+test("a usual desk in an area since kept for a team the person is not in: the days are said, the desk is not booked", async () => {
+  const { sql } = database;
+  await setUsualWeek(sql, asMember(hugo), { days: { 2: "office", 3: "office" }, deskId: o.desks[2] }, zone);
+  assert.ok((await desks.deskBookingsOf(sql, [hugo.id], today(zone), addDays(today(zone), 20))).length > 0);
+  // The area is now kept for the office team (Hugo is in Sales).
+  await places.setAreaGroup(sql, asMember(camille), o.area, groups.office);
+  await sql`delete from desk_bookings`;
+  await sql`delete from presence`;
+  await sql`delete from usual_applied`;
+  assert.ok(await applyUsual(sql, zone) > 0);
+  const said = (await presenceOf(sql, [hugo.id], today(zone), addDays(today(zone), 20))).get(hugo.id);
+  assert.ok(said && [...said.values()].every(s => s.status === "office"), "the days are said");
+  assert.equal((await desks.deskBookingsOf(sql, [hugo.id], today(zone), addDays(today(zone), 20))).length, 0, "no desk in a team's area");
+  await places.setAreaGroup(sql, asMember(camille), o.area, null);
 });

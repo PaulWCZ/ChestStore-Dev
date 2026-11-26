@@ -1,0 +1,588 @@
+{
+ "tool": "ref-perseus-starter",
+ "label": "after-mail",
+ "source": "/home/user/ChestStore-Dev/reference/perseus-starter",
+ "date": "2026-10-07T01:56:50.121Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "a7c54ca 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 0.05,
+   "five": 0.05,
+   "fifteen": 0.06
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 42.8,
+    "rssMiB": 62,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 6.8,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 2.4,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0,
+   "five": 0.03,
+   "fifteen": 0.05
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 100,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 6.7,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.3,
+    "rssMiB": 75,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 52,
+    "command": "environment-man"
+   }
+  ]
+ },
+ "notes": [
+  "vendor/chest-sdk-0.4.1.tgz is not in the source: packed @argentic/chest-sdk@0.4.1 from npm into vendor/"
+ ],
+ "repository": {
+  "diskMiB": 0.4,
+  "apparentMiB": 0.3,
+  "files": 19
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2116,
+  "peakRssMiB": 214.6,
+  "peakPssMiB": 186,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 292,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.05,
+   "five": 0.05,
+   "fifteen": 0.06
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 109.4,
+   "apparentMiB": 103.6,
+   "files": 1715
+  },
+  "pruned": {
+   "diskMiB": 12.8,
+   "apparentMiB": 9.8,
+   "files": 759
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 1272,
+   "peakRssMiB": 239.9,
+   "peakPssMiB": 169.9,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 133.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 0.13,
+    "five": 0.07,
+    "fifteen": 0.07
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 694,
+   "peakRssMiB": 257.5,
+   "peakPssMiB": 185.7,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 144.1,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 0.13,
+    "five": 0.07,
+    "fifteen": 0.07
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 0.2,
+  "apparentMiB": 0.2,
+  "files": 4,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 13.4
+ },
+ "sdk": "0.4.1",
+ "pages": {
+  "source": "lab/measure/pages/ref-perseus-starter.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "camille"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 207,
+    "firstMs": 222.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.13
+   },
+   {
+    "portMs": 177.7,
+    "firstMs": 190.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.11
+   },
+   {
+    "portMs": 202.8,
+    "firstMs": 216.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.09
+   },
+   {
+    "portMs": 194.3,
+    "firstMs": 207.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.08
+   },
+   {
+    "portMs": 200.4,
+    "firstMs": 213.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.06
+   },
+   {
+    "portMs": 187.7,
+    "firstMs": 201.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.05
+   },
+   {
+    "portMs": 194,
+    "firstMs": 207.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.04
+   },
+   {
+    "portMs": 182.8,
+    "firstMs": 195.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.12
+   },
+   {
+    "portMs": 183.3,
+    "firstMs": 196.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.1
+   },
+   {
+    "portMs": 195.7,
+    "firstMs": 208.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.08
+   }
+  ],
+  "port": {
+   "median": 194.15,
+   "min": 177.7,
+   "max": 207
+  },
+  "first200": {
+   "median": 207.5,
+   "min": 190.9,
+   "max": 222.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 134.6,
+     "pss": 66.3
+    },
+    "peakMiB": {
+     "rss": 134.7,
+     "pss": 66.5,
+     "cgroup": 42.4
+    },
+    "afterRequestsMiB": {
+     "rss": 134.7,
+     "pss": 66.5
+    },
+    "restMiB": {
+     "rss": 134.7,
+     "pss": 66.5,
+     "pssAnon": 39.2,
+     "pssFile": 27.3,
+     "cgroupAnon": 39.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.9,
+      "pssMiB": 32.3
+     },
+     {
+      "command": "sh -c node dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node dist/server/main.js",
+      "rssMiB": 66.9,
+      "pssMiB": 33.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 481,
+      "ms": 1.9
+     }
+    ],
+    "load": {
+     "mean": 0.05,
+     "max": 0.06
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 134.4,
+     "pss": 66.2
+    },
+    "peakMiB": {
+     "rss": 134.5,
+     "pss": 66.4,
+     "cgroup": 42.3
+    },
+    "afterRequestsMiB": {
+     "rss": 134.5,
+     "pss": 66.4
+    },
+    "restMiB": {
+     "rss": 134.5,
+     "pss": 66.4,
+     "pssAnon": 39.2,
+     "pssFile": 27.2,
+     "cgroupAnon": 39.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 32.1
+     },
+     {
+      "command": "sh -c node dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node dist/server/main.js",
+      "rssMiB": 67,
+      "pssMiB": 34.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 481,
+      "ms": 2
+     }
+    ],
+    "load": {
+     "mean": 0.07,
+     "max": 0.09
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 134.4,
+     "pss": 66.2
+    },
+    "peakMiB": {
+     "rss": 134.5,
+     "pss": 66.3,
+     "cgroup": 42.3
+    },
+    "afterRequestsMiB": {
+     "rss": 134.5,
+     "pss": 66.3
+    },
+    "restMiB": {
+     "rss": 134.5,
+     "pss": 66.3,
+     "pssAnon": 39.1,
+     "pssFile": 27.2,
+     "cgroupAnon": 39.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 32
+     },
+     {
+      "command": "sh -c node dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node dist/server/main.js",
+      "rssMiB": 67,
+      "pssMiB": 34
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 481,
+      "ms": 2.1
+     }
+    ],
+    "load": {
+     "mean": 0.04,
+     "max": 0.05
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 134.3,
+     "pss": 66.2
+    },
+    "peakMiB": {
+     "rss": 134.4,
+     "pss": 66.3,
+     "cgroup": 42.3
+    },
+    "afterRequestsMiB": {
+     "rss": 134.4,
+     "pss": 66.3
+    },
+    "restMiB": {
+     "rss": 134.4,
+     "pss": 66.3,
+     "pssAnon": 39.1,
+     "pssFile": 27.2,
+     "cgroupAnon": 39.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 32.1
+     },
+     {
+      "command": "sh -c node dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node dist/server/main.js",
+      "rssMiB": 66.9,
+      "pssMiB": 34
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 481,
+      "ms": 1.9
+     }
+    ],
+    "load": {
+     "mean": 0.02,
+     "max": 0.02
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 134.6,
+     "pss": 66.4
+    },
+    "peakMiB": {
+     "rss": 134.7,
+     "pss": 66.5,
+     "cgroup": 42.5
+    },
+    "afterRequestsMiB": {
+     "rss": 134.7,
+     "pss": 66.5
+    },
+    "restMiB": {
+     "rss": 134.7,
+     "pss": 66.5,
+     "pssAnon": 39.3,
+     "pssFile": 27.2,
+     "cgroupAnon": 39.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.8,
+      "pssMiB": 32.2
+     },
+     {
+      "command": "sh -c node dist/server/main.js",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node dist/server/main.js",
+      "rssMiB": 67.1,
+      "pssMiB": 34.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 481,
+      "ms": 1.8
+     }
+    ],
+    "load": {
+     "mean": 0.01,
+     "max": 0.01
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 134.5,
+    "min": 134.4,
+    "max": 134.7
+   },
+   "pss": {
+    "median": 66.4,
+    "min": 66.3,
+    "max": 66.5
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 134.5,
+    "min": 134.4,
+    "max": 134.7
+   },
+   "pss": {
+    "median": 66.4,
+    "min": 66.3,
+    "max": 66.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 68.9,
+    "min": 68.8,
+    "max": 68.9
+   },
+   "pss": {
+    "median": 34.3,
+    "min": 34.2,
+    "max": 34.4
+   }
+  }
+ }
+}

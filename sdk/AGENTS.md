@@ -6,7 +6,7 @@ is the short path and the mistakes to avoid.
 
 ## What it is
 
-A Chest server tool (tool contract v2) is an ordinary web server that runs in
+A Chest server tool (tool contract 0.7) is an ordinary web server that runs in
 a container without network, started by its Chest. The SDK gives it, all
 server-side:
 
@@ -14,14 +14,21 @@ server-side:
 |---|---|---|
 | Who is signed in on this request, the language to speak to them | `member(request)` from `@argentic/chest-sdk/member` | nothing (the Chest sets `CHEST_TOKEN`, `CHEST_TOOL`) |
 | The Chest itself: its organization's name, its time zone and today's date there, its language — on a request or not | `chest` from `@argentic/chest-sdk/chest` | nothing (the Chest sets `CHEST_ORGANIZATION`, `CHEST_TIME_ZONE`, `CHEST_LANGUAGE`) |
+| The tool's own addresses, for links in an email or a feed | `chest.tool.teamUrl`, `chest.tool.publicUrl` from `@argentic/chest-sdk/chest` | nothing (`CHEST_TEAM_URL`, `CHEST_PUBLIC_URL` with `"public": true`) |
+| Will the Chest take this repository? | `npx chest check` (`--json`) from `@argentic/chest-check` | a clone of Chest-SDK (`check/`, not on npm yet), a Git repository |
 | The tool's own PostgreSQL database | `databaseUrl()` from `@argentic/chest-sdk/database` | `"capabilities": ["database"]` in `chest.json` |
-| The tool's private files | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl` from `@argentic/chest-sdk/files` | `"capabilities": ["files"]` in `chest.json` (and `"files": {"quota", "maxObject"}` beyond 1 GiB, 32 MiB per object) |
-| Who else has the tool | `list`, `get`, `lookup`, `groups.list` from `@argentic/chest-sdk/members` | `"capabilities": ["members"]` (`"members.email"` too for addresses) |
+| Sensitive values (an IBAN, a salary, a confidential message) that only members open, never the Data tab, agents or backups | `seal`, `sealMany`, `open`, `openMany`, `isSealed` from `@argentic/chest-sdk/sealed` | `"capabilities": ["sealed"]` (and `"roles"` to seal for some) |
+| The tool's private files | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl` from `@argentic/chest-sdk/files` | `"capabilities": ["files"]` in `chest.json` (and `"files": {"maxObject"}` beyond 32 MiB per object; no quota: the tools share the server's workload volume) |
+| The company's folders of Files the owner gives the tool (receipts, contracts), for a member or for a schedule | `list`, `files`, `get`, `url`, `put`, `uploadUrl`, `remove` from `@argentic/chest-sdk/folders` | `"capabilities": ["folders"]` and `"folders": {"purpose", "level": "view" \| "edit"}` |
+| Who else has the tool | `list`, `get`, `lookup`, `groups.list` from `@argentic/chest-sdk/members` | `"capabilities": ["members"]` (`"members.email"` too for addresses, `"members.groups"` for every group of the Chest — a tool open to everyone that offers “the Sales team”) |
 | Be told when members change, lose access, leave or ask to be erased | `handle`, `verify`, `acknowledgeErasure` from `@argentic/chest-sdk/events` | `"capabilities": ["members"]` and `"receives": ["member.*"]` |
-| Tell members what needs their attention | `notify`, `withdraw`, `badge.set`, `badge.setMany` from `@argentic/chest-sdk/notifications` | `"capabilities": ["notifications"]` |
+| Tell other tools what happened (a quote accepted), and be told what they tell | `emit`, `handle` from `@argentic/chest-sdk/events` | `"emits": {"quote.accepted": {"description", "data": {field: kind}}}` to tell; `"receives": ["quote.accepted"]` to be told |
+| Do work by itself at set times (digests, reminders, purges) | `handle`, `verify` from `@argentic/chest-sdk/schedules` | `"schedules": [{"name", "cron"}]` in `chest.json` |
+| Tell members what needs their attention — some, or everyone who has the tool, or some groups or roles | `notify`, `broadcast`, `withdraw`, `badge.set`, `badge.setMany` from `@argentic/chest-sdk/notifications` | `"capabilities": ["notifications"]` |
 | Call AI models (chat, streamed or not, tools, embeddings) | `chat`, `embed`, `models`, `usage` from `@argentic/chest-sdk/ai` | `"capabilities": ["ai"]` and `"ai": {"monthly", "models", "purpose"}` |
-| Typed errors | `ChestError`, `CapabilityNotGranted`, `TooLarge`, `QuotaExceeded`, `RateLimited`, `Unavailable`, `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused` from `@argentic/chest-sdk/errors` | — |
-| Tests without a Chest | `fakeChest` (and its `emit`, and `chest: {organization, timeZone, language}`), `withMember`, `signAssertion` from `@argentic/chest-sdk/testing` | tests only |
+| Keep the members' pages live (chat, presence, typing, rows as they are written) | `connect` from `@argentic/chest-sdk/realtime/client` **in the browser**; `publish`, `send`, `online`, `presence` from `@argentic/chest-sdk/realtime` on the server | `"capabilities": ["realtime"]` and `"realtime": {"channels", "feeds"}` |
+| Typed errors | `ChestError`, `CapabilityNotGranted`, `TooLarge`, `QuotaExceeded`, `RateLimited`, `StorageFull`, `Unavailable`, `MemberRequired`, `NotAllowed`, `SealedInvalid`, `SealedLocked`, `SealedLost`, `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused` from `@argentic/chest-sdk/errors` | — |
+| Tests without a Chest | `fakeChest` (its `deliver`, `emitted`, `emits`, `run`, its links and uploads, its `folders`, its `realtime`, `chest: {organization, timeZone, language, teamUrl, publicUrl}`), `withMember`, `signAssertion` from `@argentic/chest-sdk/testing` | tests only |
 
 ## Install
 
@@ -35,8 +42,18 @@ Node 22 or later, ESM only, no runtime dependency. TypeScript projects need
 ## Minimal tool
 
 ```jsonc
-// chest.json (repository root)
-{ "capabilities": ["database", "files"] }
+// chest.json (repository root): every key and its rule in contract/README.md
+{
+  "chest": "0.7",
+  "name": "tasks",
+  "capabilities": ["database", "files"],
+  "build": { "runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000 }
+}
+```
+
+```sh
+npm install --save-dev /path/to/Chest-SDK/check   # a clone of this repository, after npm ci there
+npx chest check   # before every push: the Chest's own verdict on the repository
 ```
 
 ```ts
@@ -140,6 +157,84 @@ export async function POST(request: Request) {
 - Never put the route behind your own session or under `/chest`, and never
   read the body before `handle` (it verifies the signature over it).
 
+## Tell other tools, and be told
+
+One tool reacts to what happens in another: a quote accepted in Quotes
+creates a project in Tasks. The publisher declares each type it tells, in a
+sentence, with the fields of its data; the receiver names the types it
+wants, never a tool. The owner approves each link at installation.
+
+```jsonc
+// chest.json of Quotes
+{ "emits": { "quote.accepted": { "description": "A quote is accepted",
+    "data": { "quote": "id", "client": "text", "total": "number", "acceptedBy": "member", "note": "text?" } } } }
+// chest.json of Tasks
+{ "receives": ["member.*", "quote.accepted"] }
+```
+
+```ts
+// Quotes, once the quote is accepted in the database:
+await events.emit("quote.accepted", { quote: q.id, client: q.client, total: q.total, acceptedBy: who.id },
+  { subject: q.id, key: `accepted:${q.id}`, audience: { groups: q.groups } });
+
+// Tasks, in the same POST /chest-events handler as the members' events:
+"quote.accepted": async e => { await createProject(String(e.data["quote"]), e.audience === "all" ? null : e.audience); },
+```
+
+- Data is the declared fields only (kinds `id`, `text`, `number`,
+  `boolean`, `time`, `date`, `member`, `members`, `?` when optional), 16 KiB
+  at most; people as member ids, never names nor addresses.
+- **Honour the audience.** `e.audience` is `"all"` or the list of your
+  members who may see the item in the publisher: show it to them only. Give
+  `audience` to `emit` whenever the item is not for everyone who has your
+  tool.
+- **Key every emit about a thing** (`key`): emit again with the same key
+  after `Unavailable`, never a new one — the Chest tells nobody twice.
+  `subject` keeps a thing's events in order for each receiver.
+- **Read `e.data` defensively**: a publisher's next version may add fields;
+  check each value you use (`String(...)`, `Number(...)`).
+- Emitting from a handler is fine: the cause goes with it by itself and the
+  Chest cuts loops. A tool never receives its own events.
+- A type's data only grows: a new shape is a new type
+  (`quote.accepted.v2`), emitted alongside the old one while receivers move.
+- Test with `fakeChest({ emits })`: `chest.emitted` lists what the tool
+  told, checked as the Chest checks it; `chest.deliver({ type, source,
+  data, audience?, subject? }, tool)` delivers another tool's event.
+
+## Do work at set times
+
+Nothing runs in the tool between requests (an unused tool sleeps): the
+Chest calls it. Declare each schedule; the line is read on the Chest's
+clock (`chest.timeZone`).
+
+```jsonc
+// chest.json
+{ "schedules": [{ "name": "morning", "cron": "30 7 * * 1-5" }] }
+```
+
+```ts
+// app/chest-schedules/route.ts — outside /chest, never behind a session
+import * as schedules from "@argentic/chest-sdk/schedules";
+
+export async function POST(request: Request) {
+  return new Response(null, { status: await schedules.handle(request, {
+    morning: async () => { await remindDueToday(); },
+  }, { seen }) }); // seen: the same {has, add} store as events
+}
+```
+
+- Five fields, numbers, `*`, ranges, lists and steps; 8 schedules at most,
+  each 15 minutes apart at least; no `@daily`, no day names.
+- Answer when the work is done, within 5 minutes. A throw → 500 → the same
+  run (same `run.id`) again after 1, 5, 15 minutes; keep handlers
+  idempotent. A long job: a batch per run, its place kept in the database.
+- A missed time (server stopped) runs once, late; runs never overlap.
+- Per-member hours ("8:00 for each member"): run hourly and select the
+  members whose `timeZone` makes it 8:00.
+- Never put the route behind your own session or under `/chest`, and never
+  read the body before `handle`.
+- Test with `fakeChest().run("morning", request => app(request))`.
+
 ## Use AI models
 
 The Chest's owner connects OpenRouter; the Chest leads the aliases
@@ -189,6 +284,72 @@ const { embeddings } = await ai.embed({ model: "embedding", input: texts }); // 
   `unavailable: "no_connector"` every call `AiUnavailable`; `chest.ai` lists
   the calls.
 
+## Keep pages live
+
+The Chest holds every page's connection; the tool writes rows as always and
+sleeps meanwhile. Declare the channels and the tables whose writes are
+events; no socket code, no token, no polling.
+
+```jsonc
+// chest.json
+{
+  "capabilities": ["database", "realtime"],
+  "realtime": {
+    "channels": [
+      { "name": "everyone", "presence": true },
+      { "name": "room:{id}", "join": { "table": "room_members", "key": "room_id", "member": "member_id" }, "send": true, "presence": true },
+      { "name": "inbox:{member}" }
+    ],
+    "feeds": [{ "table": "messages", "channel": "room:{room_id}", "columns": ["id", "room_id", "author", "text", "created_at"] }]
+  }
+}
+```
+
+```ts
+// In the page's own script (the one SDK module made for the browser)
+import { connect } from "@argentic/chest-sdk/realtime/client";
+const room = connect().channel("room:42");
+room.onJoined(({ replayed }) => replayed || load());   // fetch once joined, unless what was missed came again
+room.on("messages.insert", row => add(row));           // the Chest's events only: dedupe by id
+room.onResync(() => load());
+room.peers.on("typing", (_, from) => showTyping(from)); // other members' messages, apart
+room.peers.send("typing");                             // no dot in the name
+room.presence.track({ active: true });
+```
+
+```ts
+// On the server, for what is not a row
+import * as realtime from "@argentic/chest-sdk/realtime";
+const { online, watching } = await realtime.online(memberIds, { channel: "room:42" }); // notify all but those watching
+await realtime.publish("inbox:" + id, "rooms.changed", { room: 42 });
+```
+
+- Who joins is the manifest's rule, checked by the Chest without the tool:
+  every member, some roles, or a membership table — insert a row to let
+  someone in, delete it to take them out (at once).
+- A feed's columns are sent to everyone in the channel: never list a column
+  some of them may not read; put rows on channels whose members may see them.
+- The database is the truth. A page that comes back is given every row it
+  missed (7 days) and the tool's events of the last 2 minutes, by itself:
+  fetch on `joined` unless `replayed`, and on `resync`; render text, never
+  HTML.
+- The client hides cuts: `status` false only after 3 s away, `closed` only
+  for a member signed out or without access (reload, or say so).
+- Write through the tool's own HTTP routes (`POST /chest/api/…`), which
+  check `member()`; the socket only reads, but for ephemeral `peers.send`.
+- A member's message comes only through `peers.on`, with its sender, never
+  through `on` (the feeds' rows and the tool's publishes); the channel's
+  life is `onJoined`, `onResync`, `onKicked`, `onRefused`, never an event.
+- Call `live.focus(channel)` when a conversation is on screen (`null` when
+  none): `realtime.online(ids, { channel })` then says who is `watching`
+  it — notify the members online but not watching, and those not online.
+- Test with `fakeChest({ capabilities: [..., "realtime"], realtime: { channels, feeds, membership } })`:
+  `chest.realtime.commit("messages", "insert", row)`, `chest.realtime.published`,
+  a page as `connect({ url: chest.realtime.url(memberId) })`, a page away
+  with `drop(memberId)` and `advance(ms)` (the Chest's clock), `signOut`,
+  `full(seconds)` (`full(seconds, "joins")`), `renewals`. `commit` takes the
+  whole row and runs every feed of its table, as the Chest's triggers.
+
 ## Let a member upload a file
 
 The browser sends the bytes to the Chest itself; the tool only authorises one
@@ -216,13 +377,60 @@ const { name } = await sent.json(); // 201 {name, type, size}
 // photos/) before recording it in its database
 ```
 
+## Let a visitor send a file (a CV, a screenshot)
+
+A tool with `"public": true` authorises a visitor's upload from a public
+route, with `public: true`: into a folder, of types the Chest recognises by
+their content (images, PDF, Office and OpenDocument documents, archives).
+
+```ts
+// app/api/apply/upload/route.ts — a public route: no member()
+const up = await files.uploadUrl("applications/", { public: true, types: ["application/pdf"], maxSize: 10 << 20 });
+return Response.json(up); // { url: "/_chest/files/upload/<token>", method: "PUT", expiresIn }
+```
+
+```ts
+// In the browser, on the public page (or the company's site framing it)
+const sent = await fetch(up.url, { method: "PUT", body: file }); // 201 {name, type, size}, 429 slow_down…
+// then post the name with the form; the tool stats it, checks it is under
+// applications/, and records it. Only members ever see the file.
+```
+
 Schema changes go in `migrations/NNNN_name.sql`; the Chest runs them in order
 at install and at every update.
+
+## Reach the company's folders
+
+Files is the company's storage: the owner gives the tool folders, one by
+one, after it is installed (nothing at install). Every call names who acts:
+the member's request — the tool then reaches only what that member also
+sees — or `null` for nobody (a schedule, an event: the tool's grants).
+
+```ts
+// app/chest/api/receipts/route.ts — on a member's request: pass the request
+import * as folders from "@argentic/chest-sdk/folders";
+
+export async function POST(request: Request) {
+  const [receipts] = await folders.list(request);  // only folders this member also sees
+  if (!receipts) return Response.json({ error: "no_folder" }, { status: 409 }); // say: ask the owner to give one
+  const up = await folders.uploadUrl(request, receipts.id, "Taxi.pdf", 48213);
+  return Response.json(up); // the browser PUTs the file to up.url
+}
+```
+
+Never pass `null` on a member's request to “see more”: the member would
+reach through the tool what the owner never shared with them. Folder
+events (`folders.file.added`, `folders.file.removed`) come to
+`/chest-events` with the capability alone.
 
 ## Rules that keep a tool correct
 
 - **Server only.** Never import the SDK in a `"use client"` module or ship it
-  to a browser: it reads secrets from the environment.
+  to a browser: it reads secrets from the environment — but
+  `@argentic/chest-sdk/realtime/client`, made for the browser.
+- **No polling, no socket of your own.** A page that must stay up to date
+  uses realtime: polling keeps the tool awake as long as a tab is open, and
+  the container has no WebSocket server reachable.
 - **Speak the member's language.** In `/chest`, render in `member.language`
   (`"en"`, `"fr"`…; its own default for one it does not speak) and offer no
   language switch there; only public pages keep their own switch.
@@ -242,43 +450,92 @@ at install and at every update.
 - **Store member ids, never names or addresses.** `member.id` (`mbr_…`) is
   stable and the same in every tool of the Chest; names and addresses change.
   Resolve them when rendering with `members.lookup`; a `former` answer is
-  someone who left (“Camille Martin (former member)”).
-- **A member without access does not exist for the tool.** `members.get`
-  answers `null` and `lookup` puts the id in `unknown`, exactly as for an id
-  that was never a member.
+  someone the tool no longer has: `no_access` (“Léa Dubois (no access)”),
+  `former` (“Camille Martin (former member)”) or `erased` (“Former member”).
+- **A member without access is not the tool's to list.** `members.list`
+  and `members.get` see only those who have the tool; `lookup` keeps the
+  name of someone the tool had (`no_access`) so their records keep an
+  author, and answers `unknown` for anyone the tool never had.
+- **Links in an email or a feed come from `chest.tool`.** Where no request
+  tells the host (a scheduled job, a digest), write `new URL(path,
+  chest.tool.teamUrl)` for members, `chest.tool.publicUrl` for visitors; never
+  a host read from a header, never an address stored in the database.
+- **An amount keeps its own currency.** There is no Chest currency: store
+  the ISO 4217 code beside each amount; never ask your own admin for one.
 - **The public host has no member.** The Chest never sends an assertion there;
   public pages must work for anonymous visitors.
 - **Business rules are yours.** The SDK is not a security boundary: the Chest
   enforces capabilities, but who may edit what inside your tool is your code.
 - **`databaseUrl()` is a secret.** Never log it, never send it to a browser.
+- **Seal what must stay between a member and the tool** (an IBAN, a payslip
+  amount, a medical note) with `seal(value, {context, roles?})`, the context
+  the row's kind and key; open it with `open(request, …)` in a `/chest`
+  route, on the member's request, only what the page shows. Never seal what
+  lists, sorts or searches need, never log or forward what you opened.
+  `MemberRequired` means no member is there (a public page, a schedule).
 - **Do not retry an uncertain write.** `Unavailable` means the Chest was not
   reached or did not answer as expected: the write may or may not have
   happened. Re-read before writing again.
 - **Handle `CapabilityNotGranted`.** It is thrown when `chest.json` does not
   declare the capability or the version was not approved; show a clear message
   instead of crashing.
-- **Keep migrations backward compatible.** A rollback does not undo a
-  migration: the previous version must keep working on the new schema. Never
-  edit or delete a migration that already ran.
+- **Migrations only add: expand, then contract.** While a new version
+  starts, the version in service runs on the schema its migrations made; so
+  does a version put back without its data. Add tables, nullable columns or
+  columns with a default, indexes. To drop, rename or change the type of a
+  column or a table, release twice: first a version that no longer reads it
+  (expand), then — once no version that reads it can run — a migration that
+  drops it, with the line `-- chest: contract` (contract). `npx chest check`
+  warns about any other migration that drops, renames or retypes. Never
+  edit or delete a migration that already ran. The Chest sets the database
+  aside before a version's migrations: a version that fails to start is put
+  back with its data, and a rollback brings the data of that version back
+  (what was written since is lost, and the owner is told).
+- **Answer `/chest` without a member.** The Chest puts a version in service
+  once `GET /chest` asked by nobody answers 2xx, 3xx, 401, 403 or 404 — the
+  401 of `member(request) === null` is the usual one. A 5xx there, or no
+  answer within 60 s, and the version is never put in service: never let
+  that path throw.
 - **No network, no local disk.** The container has no outbound network and a
   read-only root; store files through `files`, data in the database.
 - **Give signed file links only to members.** A `files.url()` link opens
   without sign-in for 15 minutes; never put it on a public page.
-- **Authorise uploads only in `/chest` routes, after `member()`.** The
-  `uploadUrl()` answer goes to that member's browser, never to a public page;
-  it serves once, within its `expiresIn`.
+- **Authorise members' uploads only in `/chest` routes, after `member()`.**
+  The `uploadUrl()` answer goes to that member's browser, never to a public
+  page; it serves once, within its `expiresIn`. A public page asks
+  `uploadUrl(folder, {public: true, types})`: a visitor's file, into a folder
+  of its own, of a type the Chest recognises.
+- **An embeddable public page keeps its state in the page.** Framed by the
+  company's website, cookies are third-party and blocked unless
+  `SameSite=None; Secure; Partitioned`: carry what a form needs in its
+  fields.
 - **Record an uploaded file after `stat` confirms it.** The browser may never
   send it, or the Chest may refuse it: write the name in your database only
-  once `files.stat(name)` returns it (its type and size as the Chest kept
-  them).
-- **Write to each member in their language.** A notification or an email to
-  another member is in `members.get(id).language` (or `lookup`), not the
-  sender's; their times in their `timeZone`.
+  once `files.stat(name)` returns it (its type, size and `sha256` as the
+  Chest kept them: the digest detects a file sent twice without reading it).
+- **Write to each member in their language.** Give a notification's words in
+  every language you speak (`translations: {fr: {title, body}}`): the Chest
+  gives each member theirs, your own words otherwise. Show a member's times
+  in their `timeZone` (`members.get(id)` or `lookup` for another member).
+- **Reach members by notifications, never by mail.** A reminder or an
+  approval to give is a `notify` with a `key`. Members may get mails of
+  their notifications, by their own choice: the Chest sends them, the tool
+  does nothing — it keeps no email preference and sends no reminder mail of
+  its own.
+- **Page every list, and handle `member.groups === null`.** No count
+  bounds a team: read `members.list` and `groups.list` page after page
+  (`next`). A member in more groups than travel with a request (about 150)
+  has `groups: null`: read them with `members.get(member.id)`.
+- **Tell a group or everyone with `broadcast`**, never by listing members
+  and notifying them in batches: the Chest resolves who has the tool now,
+  in which group or role, and leaves out `except` (the author). It answers
+  nothing; decide in your code who may trigger it (a role).
 - **Notify members, never others.** Only members with access receive
   anything; send member ids from your data, never addresses.
-- **Mind the quotas.** 1,000 recipients an hour, 100 items per member a day,
-  600 badge writes a minute: notify the people concerned, not everyone, and
-  on `QuotaExceeded` wait (a refused call changed nothing).
+- **Notify at a human pace.** Nothing is refused, but beyond ten at once to a
+  member, then one every six minutes, the Chest folds your notices into one
+  “37 new notifications” item: give each its own words only when it matters,
+  and use a `key` for what updates (a replacement is never folded).
 - **Large files go through `uploadUrl`, not `put`.** `put` and `get` carry the
   bytes through the tool's memory (256 MiB by default).
 
@@ -292,15 +549,29 @@ at install and at every update.
 | A member abroad sees times shifted by hours | Times formatted in the Chest's zone or the server's: format with `timeZone: member.timeZone`. |
 | `CapabilityNotGranted` from `databaseUrl()` | Capability missing in `chest.json`, not approved yet, or `DATABASE_URL` set by the tool itself. |
 | The browser's `PUT` answers 403 `invalid_token` | The upload token was already used, expired (`expiresIn`), or was not made for this host: ask a new `uploadUrl` for each upload. |
-| The browser's `PUT` answers 415 `type_refused` or 400 `type_mismatch` | The file's `Content-Type` is not one of `types`, or its first bytes are not of the type sent. |
+| The browser's `PUT` answers 415 `type_refused` or 400 `type_mismatch` | The file's `Content-Type` is not one of `types`, or its first bytes are not of the type sent; for a visitor, its content is of none of `types`, whatever it is called. |
+| The browser's `PUT` answers 429 `slow_down` | A visitor sent too many files (10 a minute, 64 MiB an hour): wait `Retry-After` seconds. |
+| `ChestError` `invalid_type` from `uploadUrl(…, {public: true})` | No `types`, or one the Chest cannot recognise by its content (plain text, CSV…). |
 | `TooLarge` from `uploadUrl` or `put` | Beyond the tool's largest object (32 MiB unless `chest.json` asks `"files": {"maxObject": …}`). |
+| `StorageFull` from `put`, or a browser's `PUT` answering 507 `storage_full` | The server's workload volume, which every tool's files share, is full — there is no quota per tool. Say the file could not be kept; the owner frees space or takes a larger server. |
 | `ChestError` with `invalid_name` | A file name outside the allowed shape (up to 8 segments of `[A-Za-z0-9._-]`, none starting with `.` or `-`). |
 | `member.email` is always undefined | The tool does not hold `members.email`: addresses are a permission of their own. |
 | `ChestError` with `invalid_title` | The title is empty (once control characters are removed) or longer than 80 characters. |
+| The Chest refuses the repository: `newer_chest` | `chest.json` names a later contract than the Chest serves (`"chest"`): the Chest must be updated first. |
+| The Chest refuses the repository: `manifest` | A key the contract does not have (a typo, or a key of a later contract), a missing `"chest"`, or a value outside its rule: `npx chest check` says which. |
+| The Chest refuses the repository: `migrations` | A file of `migrations/` not named `NNNN_name.sql`, not SQL text, or migrations without the capability `database`. |
 | `ChestError` with `invalid_path` | `path` is not `/chest` or under it (a full URL, `//`, `..`, a space or non-ASCII character). |
-| `QuotaExceeded` from `notifications` | Beyond 1,000 recipients an hour, 100 items per member a day or 600 badge writes a minute; the call changed nothing. |
-| `events.handle` always answers 401 | The body was read before `handle` (a body parser), or the environment is not the Chest's (`CHEST_TOKEN`, `CHEST_TOOL`; in a test, deliver with `fakeChest().emit`). |
-| No event ever comes | `chest.json` does not declare `"receives": ["member.*"]` (with `members`), the version was not approved, or the route is not `POST /chest-events` at the root. |
+| `realtime/client` never connects | The page is not on the tool's team host (`/chest`), the version lacks `"realtime"` in its capabilities or was not approved, or the connection is from another site. |
+| `ChestError` `invalid_channel` from `realtime.publish` | No pattern of `"realtime": {"channels"}` matches the name (a typo, an uppercase letter, a segment of more than 64 characters). |
+| `TypeError` `invalid_event` from `peers.send` | A member's message is named 1 to 64 of `a-z 0-9 _ -`, without a dot: dotted names are the feeds' rows and the tool's events (`typing`, not `room.typing`). |
+| A member's message never reaches `on` | It reaches `peers.on(event, (payload, from) => …)`: `on` hears only the Chest's events. |
+| `events.handle` always answers 401 | The body was read before `handle` (a body parser), or the environment is not the Chest's (`CHEST_TOKEN`, `CHEST_TOOL`; in a test, deliver with `fakeChest().deliver`). |
+| `schedules.handle` always answers 401 | The body was read before `handle`, or the environment is not the Chest's (in a test, deliver with `fakeChest().run`). |
+| A schedule never runs | The route is not `POST /chest-schedules` at the root, the version was not approved, or its handler is missing (the tool's page says “the tool has no handler for this schedule (404)”). |
+| No event ever comes | `chest.json` does not declare `"receives": ["member.*"]` (with `members`) or the tool event's type, the version was not approved, an admin switched the link off, the route is not `POST /chest-events` at the root, or — for a tool event — none of your members may see the item (its audience). |
+| `ChestError` `invalid_data` from `emit` | A field not declared in `"emits"`, a required one missing or `null`, a value of another kind (text with a control or format character, a date that does not exist), or a member the tool never had. |
+| `ChestError` `key_reused` from `emit` | The key went with other content within 72 hours: a key names one event; use another for another event. |
+| `CapabilityNotGranted` from `emit` | The version declares no `"emits"`, or was not approved. |
 | `ChestError` `erasure_not_found` from `acknowledgeErasure` | The erasure was not sent to this tool: acknowledge the `erasure` of the `member.erased` event you received. |
 | `RateLimited` from `members` | More than 600 calls a minute: use `lookup` (200 ids a call, kept a minute) instead of one `get` per row. |
 | `AiModelNotAllowed` from `ai` | The alias is not in `"ai": {"models"}` of `chest.json` (or is not one of `default`, `fast`, `smart`, `embedding`). |
@@ -314,35 +585,42 @@ Keep it dependency-free (`node:*` only), with no network access other than the
 Chest's API on `127.0.0.1`, and run `npm test` and `npm run check:package`
 before opening a pull request.
 
----
+# Studio proposals (not in 0.7.0)
 
-# Studio proposals (not in 0.3.0)
-
-Everything above is the guide of the published `@argentic/chest-sdk`
-0.3.0, word for word. This package is **0.3.1-studio.1**: 0.3.0 unchanged,
-plus the studio's proposals — primitives the store's tools need that no
-Chest gives yet. `README.md`, "Studio proposals", is their reference; this
-is the short path.
+Everything above is the guide of `@argentic/chest-sdk` **0.7.0** as
+Chest-SDK PR #38 holds it at `1a825a6` (not merged, not on npm), word for
+word. This package is **0.7.0-studio.2**: 0.7.0 unchanged, plus the
+studio's proposals — primitives the store's tools need that 0.7.0 does not
+give, in files of their own (`client/studio/`). `README.md`, "Studio
+proposals", is their reference; this is the short path.
 
 ## What the proposals add
 
-| Need | Import | Asks (`chest.proposals.json` in the studio) |
+| Need | Import | Asks (in `chest.proposals.json`, never in `chest.json`) |
 |---|---|---|
-| The company's currency, this tool's own addresses, the date in a member's zone | `chest.currency`, `chest.teamUrl`, `chest.publicUrl`, `chest.todayIn(zone)` on the `chest` object of `@argentic/chest-sdk/chest` | nothing |
-| Link to another tool of the Chest | `chest.toolUrl(name)`, `chest.toolLink(name, path)` | nothing |
+| The date in a member's zone | `chest.todayIn(who.timeZone)` on the `chest` object of `@argentic/chest-sdk/chest` | nothing |
+| Link to another tool of the Chest | `chest.tools.get(name)` (`{teamUrl, publicUrl}`, `chest.tool`'s shape), `chest.tools.link(name, path, {surface})` | nothing |
 | The look the company chose | `await chest.theme()` (never throws) | nothing |
-| Run code at set times | `handle`, `verify`, `nextRun` from `@argentic/chest-sdk/schedules`, on `POST /chest-jobs/<name>` | `"schedules": [{name, cron}]` |
-| Send and receive email | `send`, `available`, `status`, `handle` from `@argentic/chest-sdk/mail` | `"mail": {send, mailboxes}` |
+| Speak the member's language, narrowed to the tool's catalogues | `localeOf(who.language)`, `locales` from `@argentic/chest-sdk/member` | nothing |
+| Email to people **outside** the company (a booking's recap, a quote, a receipt) — never to members | `send`, `available`, `status` from `@argentic/chest-sdk/mail` | `"mail": {"send": true}` |
 | Put events in each member's calendar feed | `put`, `putMany`, `remove`, `list` from `@argentic/chest-sdk/calendar` | `"calendar": true` |
-| Tell other tools what happened; be told by them | `events.publish`, `events.receivers`; `events.handle(request, handlers, { tools })` | `"emits": [...]`, `"receives": ["<tool>.<event>"]` |
-| Notices to outside addresses (Slack, Teams, any URL) | `add`, `send`, `list`, `journal` from `@argentic/chest-sdk/webhooks` | `"webhooks": {max}` |
-| Checks of web addresses run by the Chest | `configure`, `handle` from `@argentic/chest-sdk/checks` | `"checks": {max}` |
-| Count and guard what anonymous visitors do; their language | `count`, `formToken`, `checkForm`, `language` from `@argentic/chest-sdk/visitors` | nothing |
-| Every group of the Chest, and every group of a member | `members.groups.all()`, `groups.members(id)`, `groups.of(memberId)` | `"groups": "read"` |
-| One notification to everyone, each in their language | `notifications.broadcast` | `notifications` |
-| Which addresses are members; when someone left; how they want email | `members.matchEmails`, `FormerMember.leftAt`, `mailPreference` in `members.*` | `members` |
-| Uploads from public visitors; public files | `files.uploadUrl(name, { public: true })`, `files.claim`, `files.publicUrl` | `"files": {publicUploads, publicFiles}` |
-| Reach a declared host | plain `fetch()` | `"network": [hosts]` (tests: `fakeChest({ network })`) |
+| Notices to outside addresses (Slack, Teams, any URL) | `add`, `send`, `list`, `journal` from `@argentic/chest-sdk/webhooks` | `"webhooks": true` |
+| Checks of web addresses run by the Chest | `configure`, `handle` from `@argentic/chest-sdk/checks` | `"checks": true` |
+| Count and guard what anonymous visitors do; their language; a visitor's key for the tool's records (the Chest's, never the address) | `count`, `formToken`, `checkForm`, `language`, `visitor` from `@argentic/chest-sdk/visitors` | nothing |
+| Which addresses are members; when former members left | `members.matchEmails`, `members.leftAt(ids)` | nothing beyond `members` |
+| Files served on the public host (a logo, a header image) | `files.publicPath(name, {version})` | `"files": {"publicFiles": true}` |
+| The store's words in other languages | — (read by the Chest) | `"translations": {"fr": {title, description, role_labels}}` |
+
+What 0.7.0 gives is not a proposal any more — use 0.7.0's (above):
+every group (`"members.groups"` in `chest.json`, `members.groups.list()`
+paged, `members.list({group})`), `notify`/`broadcast` with `translations`,
+events between tools (`"emits"` with schemas and `"receives"` in
+`chest.json`, `events.emit(type, data, {subject, key, occurredAt,
+audience})`, one `events.handle`), visitors' uploads
+(`files.uploadUrl("folder/", {public: true, types})`), sealed values,
+folders of Files, actions, realtime. **There is no Chest currency** (owner's
+decision; 0.7.0): an amount keeps its ISO 4217 code beside it, and a tool
+that needs a default currency keeps its own setting.
 
 ## Rules for the proposals
 
@@ -350,34 +628,86 @@ is the short path.
   `Unavailable` around every call to one and keep the page working ("Emails
   will be sent once your Chest can send them"); ask `mail.available()` /
   `webhooks.available()` before offering what needs them.
+- **Tell members with notifications, never mail** (owner's decision, 6
+  October 2026). `mail.send` refuses a member (`invalid_recipient`): by
+  `{member}`, by `mbr_…`, and — the Chest knows them — by their own
+  address, whatever its case (a former member's address is outside). The
+  Chest mails members their notifications by their own choice: no digest,
+  no reminder mail, no "email me" setting in a tool. Give every notice
+  `translations: { fr: … }` from the tool's French catalogue, a `path` and
+  a `key` (0.7.0's `notify` and `broadcast`).
+- **Mail is for people outside, and the Chest receives none.** No
+  mailboxes, no replies by email into the tool: replies go to the company's
+  address (Reply-To: the connector's by default, `available().replyTo`; a
+  tool's own setting may override it). Say so on the page and in the mail.
+  When `available()` is not ok or `send` throws, the flow still works and
+  says so. Document each outside mail in the tool's README ("Mail to people
+  outside the company": recipient, purpose, when, content, attachments,
+  Reply-To).
+- **No fixed caps; paces** (owner, brief/09). Mail has no daily number:
+  beyond the Chest's pace a message waits `"queued"`, never refused.
+  `matchEmails` slows down (`RateLimited`) beyond ten new addresses a
+  member a day; webhooks and checks have no number (`"webhooks": true`,
+  `"checks": true`; a studio.1 `{max}` bounds nothing): new webhook
+  addresses are paced (`RateLimited`), deliveries beyond the hour wait
+  `"pending"`, probes are spread. Catch `RateLimited` and go on later;
+  never show "3 of 200" or "the day's emails are used".
+- **A visitor's key is the Chest's.** `visitors.visitor(request)` reads
+  `Chest-Visitor` (an HMAC under a key only the Chest holds); keep it, never
+  `visitors.address()`. It changes if the Chest rotates its key: it names a
+  visitor within a flow, not forever. In tests,
+  `chest.visitorHeaders(address)` plays the front.
+- **Keep `chest.json` 0.7's.** `"chest": "0.7"`; a 0.7 Chest refuses a key
+  it does not know: the proposals' keys go in `chest.proposals.json` (the
+  studio's `scripts/check-manifest.mjs` checks it; `chest check` judges
+  `chest.json`). `build.static` covers neither 0.7.0's routes nor the
+  proposals' `/chest-webhooks` and `/chest-checks` (check-manifest refuses
+  it).
 - **The Chest is one object.** `import { chest } from
-  "@argentic/chest-sdk/chest"`: `chest.organization.name`,
-  `chest.timeZone`, `chest.language`, `chest.today()` (0.3.0, throw outside a
-  Chest) and `chest.currency`, `chest.teamUrl`, `chest.publicUrl`,
-  `chest.toolUrl()`, `chest.toolLink()`, `chest.theme()`, `chest.todayIn()`
-  (the studio's, never throw). Never `import * as chest`.
-- **Speak `member.language`, narrowed to your catalogue.**
-  `localeOf(who.language)` from `@argentic/chest-sdk/member` gives `"en"` or
-  `"fr"` — English for a language you do not speak yet.
-- **A member's `groups` are those that give the tool** (0.3.0). For a group
-  that does not give it, ask `await members.groups.of(who.id)` (with
-  `"groups": "read"`).
-- **Idempotency keys are whole.** Give `mail.send`, `events.publish` and
-  `webhooks.send` the whole key (up to 512 characters), with the recipient
-  in it; never cut one — the SDK sends a long key as its SHA-256.
-- **In tests**, `fakeChest({ chest: { organization, timeZone, language,
-  currency, publicUrl } })` sets what the Chest is (`UTC` and `en` unless
-  said); a test's member may leave out `language` and `timeZone` (type
-  `FakeMember`): the Chest's are given.
+  "@argentic/chest-sdk/chest"`: 0.7.0's members (throw `not_in_chest`
+  outside a Chest) and the studio's `tools`, `theme()`, `todayIn()`. Never
+  `import * as chest`. No `chest.currency`.
+- **Zones.** The company's day is `chest.timeZone` / `chest.today()` —
+  taken once from the owner's browser, set on no screen. A member's is
+  `member.timeZone`, their browser's (it follows them when they travel):
+  show times and dates in it (`chest.todayIn(who.timeZone)`: the date on
+  their clock, for their personal reminder). "Today", deadlines and
+  working days stay the company's (`chest.today()`), as 0.7.0's "Times"
+  table says. A tool that needs another reference zone (a site in another
+  country) keeps its own setting.
+- **Idempotency keys are whole.** Give `mail.send` and `webhooks.send` the
+  whole key (up to 512 characters), with the recipient in it; never cut one
+  — the SDK sends a long key as its SHA-256. 0.7.0's `events.emit` takes a
+  key of 1 to 128 of `A-Z a-z 0-9 . _ : -` only.
+- **One `seen` store for every delivery.** `events.handle`,
+  `schedules.handle`, `checks.handle`, `webhooks.handle` take `{ seen }`:
+  give them all the same durable table (the ids never meet).
+- **In tests**, `fakeChest({ tool, chest: { organization, timeZone,
+  language, teamUrl, publicUrl } })` sets what the Chest is (0.7.0's
+  defaults); a test's member may leave out `language` and `timeZone` (type
+  `FakeMember`): the Chest's are given. `fakeChest({ mail: { connected:
+  false } })` is the mail connector absent, `mail: { replyTo }` the
+  company's reply address, `mail: { pace: { burst, perMinute } }` the
+  pace (`perDay` is gone: it throws); `chest.outbox` what was sent (beyond
+  the pace, `"queued"`); `chest.visitorHeaders(address)` a visitor's
+  request headers;
+  `chest.notifications` keeps each item in the member's language (0.7.0's).
 
 ## Pitfalls of the proposals
 
 | Symptom | Cause |
 |---|---|
-| `ChestError` `key_conflict` from `mail.send`, `events.publish` or `webhooks.send` | The key was used within 24 hours for other recipients (another event): usually a key cut to 64 characters, or a key made of database ids after a restore (the ids started again; the Chest remembers the key). Never cut a key: give it whole (up to 512 characters), the SDK sends a long one as its digest; put the recipient (member id or address) in it. |
-| A calendar event is marked put but is not in the feed | `calendar.putMany` answers one result per event and does not throw for a wrong one: read each result's `ok` (and `reason`) instead of catching `invalid_event`. |
-| An event told late is counted on the wrong day by its receiver | Publish it with `events.publish(type, data, { key, occurredAt })`: the time it happened, stored with what waits, within the last 24 hours. |
+| `chest check` refuses the tool: `manifest` | A proposal's key (`mail`, `calendar`, `webhooks`, …) in `chest.json`: move it to `chest.proposals.json`. `emits` as a list, `"group.*"` in `receives`, `files.quota`: contract 0.7 refuses them — `emits` is `{type: {description, data}}`, groups changes are `member.updated`, files have no quota. |
+| `chest check` refuses an emitted type: "not an event type" | An underscore (`people.leaving_cancelled`): two to four dotted words of `a-z 0-9` and dashes only — `people.leaving-cancelled`. A renamed type is a new type for its receivers: rename both sides. |
+| `ChestError` `key_conflict` from `mail.send` or `webhooks.send` | The key was used within 24 hours for other recipients (another event): usually a key cut to 64 characters, or a key made of database ids after a restore. Never cut a key: give it whole, with the recipient in it. |
+| A calendar event is marked put but is not in the feed | `calendar.putMany` answers one result per event and does not throw for a wrong one: read each result's `ok` (and `reason`). |
 | A fetch() to a declared host fails in a test | Give it a handler: `fakeChest({ network: { "graph.microsoft.com": request => Response.json(…) } })`; in a Chest, Node 24.5+ follows the proxy (`NODE_USE_ENV_PROXY=1`), and only `fetch`/`node:http(s)` do. |
-| `chest.timeZone` throws `not_in_chest` in a test | No `fakeChest` running: 0.3.0's `chest` reads the environment the fake sets (the studio's `Europe/Paris` default is gone). |
-| A member is in a group but `who.groups` does not have it | The group does not give the tool: `members.groups.of(who.id)` (with `"groups": "read"`). |
-| `member(request).mailPreference` is always undefined | The preference is in the members API only (`members.get(id).mailPreference`), never in the assertion. |
+| `fakeChest` throws "the Chest has no currency" | `chest: { currency }`: gone in 0.7.0; keep the tool's own currency setting. |
+| `fakeChest` throws "storage is {publicFiles}" | `storage: { publicUploads }`: a visitor's upload is 0.7.0's `files.uploadUrl("folder/", { public: true, types })`. |
+| `who.groups` is `null` | 0.7.0's groups overage: the member is in more groups than an assertion carries; read them with `members.get(who.id)`. |
+| `ChestError` `invalid_recipient` from `mail.send` | A member (`{member}`, `mbr_…`, or a member's own address) as a recipient: tell them with `notifications.notify` instead. |
+| `visitors.visitor()` is always `"unknown"` | No `Chest-Visitor` header: a Chest (or the lab's front) that does not give the key yet, or a test that set only `chest-visitor-address` — use `chest.visitorHeaders(address)`. The SDK never computes a key from the address. |
+| `fakeChest` throws "mail.perDay is gone" | No daily number since studio.2: `mail: { pace: { burst, perMinute } }`. |
+| `check-manifest` warns `{"max"} bounds nothing` | `"webhooks": true`, `"checks": true` in `chest.proposals.json` (studio.2). |
+| `check-manifest`: build.static covers /chest-webhooks or /chest-checks | A static prefix (`/`, `/chest-`, …) over a proposal's delivery route: serve built files under `/_next/static/`. |
+| `chest.tools.get(name)` is null for an installed tool | Its address is not an https origin (a local `http://` one included). |

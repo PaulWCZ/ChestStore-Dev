@@ -1,0 +1,109 @@
+{
+  "date": "2026-10-06T01:40:49.817Z",
+  "node": "v24.21.0",
+  "rounds": 15,
+  "rests": 5,
+  "idle": 30,
+  "summary": [
+    {
+      "name": "A",
+      "cold_ms_node": {
+        "median": 118,
+        "min": 99,
+        "max": 250
+      },
+      "cold_ms_npm": {
+        "median": 204,
+        "min": 175,
+        "max": 328
+      },
+      "rest_mib": {
+        "rss": 75.1,
+        "uss": 23.6,
+        "pss": 28.5,
+        "runs": [
+          74.9,
+          75.1,
+          75.1,
+          75.1,
+          75.1
+        ]
+      }
+    },
+    {
+      "name": "A'",
+      "cold_ms_node": {
+        "median": 136,
+        "min": 124,
+        "max": 159
+      },
+      "cold_ms_npm": {
+        "median": 237,
+        "min": 204,
+        "max": 311
+      },
+      "rest_mib": {
+        "rss": 70.5,
+        "uss": 18.7,
+        "pss": 23.7,
+        "runs": [
+          70.7,
+          70.5,
+          70.3,
+          70.7,
+          70.2
+        ]
+      }
+    },
+    {
+      "name": "B",
+      "cold_ms_node": {
+        "median": 155,
+        "min": 136,
+        "max": 201
+      },
+      "cold_ms_npm": {
+        "median": 243,
+        "min": 217,
+        "max": 320
+      },
+      "rest_mib": {
+        "rss": 74.4,
+        "uss": 22.6,
+        "pss": 29.1,
+        "runs": [
+          74.3,
+          74.4,
+          74.4,
+          74.3,
+          74.6
+        ]
+      }
+    },
+    {
+      "name": "B, plain page",
+      "cold_ms_node": {
+        "median": 137,
+        "min": 114,
+        "max": 171
+      },
+      "cold_ms_npm": {
+        "median": 212,
+        "min": 189,
+        "max": 317
+      },
+      "rest_mib": {
+        "rss": 67.2,
+        "uss": 20.5,
+        "pss": 25.2,
+        "runs": [
+          67.2,
+          67.1,
+          67.4,
+          67.2,
+          66.9
+        ]
+      }
+    }
+  ]
+}

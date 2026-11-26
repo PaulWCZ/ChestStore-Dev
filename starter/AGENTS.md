@@ -1,0 +1,67 @@
+# My tool
+
+What the tool does, for whom, in a few sentences. Keep this file current:
+the purpose, the data model, the decisions, the commands. How the tool is
+built — pages, islands, actions, words, the database, tests, recipes,
+rules — is `node_modules/@argentic/chest-app/AGENTS.md`: read it first.
+
+## Data model
+
+- `migrations/0001_chest.sql` — the package's tables, keep them:
+  `chest_seen` (what the Chest delivered already, and the public forms'
+  tokens served), `chest_bounds` (what public actions counted today), and
+  the change log (`chest_changes`, `chest_changes_base`, `chest_watch()`)
+  for pages' versions — already there: never copy `sql/changes.sql` again.
+- EXAMPLE — `notes` (`migrations/0002_notes.sql`): `body`, `author` (a
+  member id, or 'erased'), `pinned`, `deleted_at`; watched for the page's
+  version (`select chest_watch('notes')`).
+
+## Decisions
+
+- SDK 0.7.0, tool contract 0.7 (`"chest": "0.7"`); the SDK and the
+  package are vendored in `vendor/` (never edit them).
+- Look: the Chest's own theme (`src/theme.ts`), light only.
+- A page others change follows the Chest's realtime, never a timer: the
+  notes page's `LiveNotes` island (`useLive("notes", ["notes"])`), the
+  `"realtime"` key of `chest.json` (the `notes` channel, the `notes`
+  feed), so the tool sleeps while the page stays open.
+- Time zones and money (SDK 0.7.0's "Times" table): "today", "this
+  week", a deadline's day, working days are the company's for every member
+  (`chest.today()`, SQL's `current_date`); a deadline's day is shown with
+  `f.day` (the same day everywhere); only an instant shown to a member
+  (`f.date`, `f.time`, `f.dateTime`) and a personal reminder's hour
+  (`hourIn(member.timeZone)`) are in the member's zone; the Chest has no currency — an
+  amount keeps its ISO 4217 code beside it, and a default currency is a
+  setting of the tool's own (the package's AGENTS.md, "Time zones",
+  "Money").
+- No public part (a permission: add one only when the tool needs it —
+  the package's AGENTS.md, "The public part").
+- Mail (the owner's rule): the tool never mails a member — it tells them
+  with a notification (`notifications` capability); the Chest mails
+  members their notifications as each one chose, so no digest, reminder
+  or "email me" setting in the tool. The Chest receives no mail. Mail to
+  a visitor (a receipt, a recap) only through the SDK's `mail`, which SDK
+  0.7.0 does not have yet: never SMTP or a mail service of the tool's own.
+
+## Replacing the example
+
+Everything marked `EXAMPLE (Notes)` is the example: `src/pages/`,
+`src/islands/DeleteNote.tsx`, `src/islands/LiveNotes.tsx` (and their
+lines in `src/islands/index.ts`), `src/lib/notes.ts`, the example's entries of
+`src/actions.ts` and `src/app.tsx`, `migrations/0002_notes.sql` (an
+unpublished draft may rewrite its migrations), its words in `src/i18n/`,
+its tests (`checkSources` warns while a marker is left in a tool renamed
+from `my-tool`). Then make `chest.json` ask exactly what the tool uses
+(`npm test` fails on a capability declared and unused, or used and not
+declared): the example asks `database`, `members` (authors' names),
+`realtime` (its `"realtime"` key: the `notes` channel and feed — name
+your own tables there) and `receives` (to forget an erased member).
+
+## Commands
+
+- `npm run dev`: rebuilds on every change, restarts the server.
+- `npm run build`: the type check, the browser's files, the server.
+- `npm test`: the type check, the server built into `dist/test`, the
+  tests. A database: `TEST_DATABASE_URL`, else the preview's, else PGlite
+  (1.3 GiB). They pass with the workbench's `NODE_ENV=development` too.
+- `npm start`: the built server, as the Chest runs it.

@@ -2,24 +2,6 @@
   "mail": {
     "send": true
   },
-  "emits": [
-    "people.leaving",
-    "people.leaving_cancelled",
-    "people.record"
-  ],
-  "schedules": [
-    {
-      "name": "morning",
-      "cron": "40 7 * * 1-5"
-    }
-  ],
-  "receives": [
-    "hiring.hired",
-    "hiring.hire_cancelled",
-    "leave.approved",
-    "leave.cancelled",
-    "equipment.returned"
-  ],
   "translations": {
     "fr": {
       "title": "Équipe",

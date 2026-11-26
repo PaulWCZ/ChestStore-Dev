@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { asked, can, companySurvey, edits, surveys, manages, namesShown, resultsState, roleOf, sees, settles, type PollRights } from "../lib/access.ts";
+import { asked, can, companySurvey, edits, surveys, manages, namesShown, resultsState, roleOf, sees, settles, type PollRights } from "../src/lib/access.ts";
 import { asMember } from "./support/member.ts";
 import { camille, groups, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 

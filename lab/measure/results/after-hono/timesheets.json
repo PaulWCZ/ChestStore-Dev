@@ -1,0 +1,956 @@
+{
+ "tool": "timesheets",
+ "label": "after-hono",
+ "source": "/home/user/wt/timesheets/tools/private/timesheets",
+ "date": "2026-10-06T03:39:59.857Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "ecd9579 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 12.29,
+   "five": 9.69,
+   "fifteen": 9.3
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 132,
+    "rssMiB": 623,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 33.3,
+    "rssMiB": 64,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 13.6,
+    "rssMiB": 652,
+    "command": "claude"
+   },
+   {
+    "cpu": 11.8,
+    "rssMiB": 108,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 3.9,
+    "rssMiB": 172,
+    "command": "chrome"
+   }
+  ],
+  "atEnd": {
+   "one": 6.59,
+   "five": 7.65,
+   "fifteen": 8.52
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 91.7,
+    "rssMiB": 166,
+    "command": "npm install"
+   },
+   {
+    "cpu": 33.3,
+    "rssMiB": 132,
+    "command": "chrome"
+   },
+   {
+    "cpu": 16,
+    "rssMiB": 154,
+    "command": "chrome"
+   },
+   {
+    "cpu": 14.5,
+    "rssMiB": 151,
+    "command": "chrome"
+   },
+   {
+    "cpu": 13.6,
+    "rssMiB": 679,
+    "command": "claude"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 10.9,
+  "apparentMiB": 10.4,
+  "files": 186
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2998,
+  "peakRssMiB": 221.8,
+  "peakPssMiB": 171.5,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 289.2,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 11.95,
+   "five": 9.66,
+   "fifteen": 9.3
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 111.3,
+   "apparentMiB": 103.3,
+   "files": 2509
+  },
+  "pruned": {
+   "diskMiB": 16.4,
+   "apparentMiB": 12.4,
+   "files": 1151
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 3812,
+   "peakRssMiB": 335.5,
+   "peakPssMiB": 286.7,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 275.2,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 11.95,
+    "five": 9.66,
+    "fifteen": 9.3
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 3657,
+   "peakRssMiB": 372,
+   "peakPssMiB": 287,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 297.3,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 11.87,
+    "five": 9.68,
+    "fifteen": 9.31
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.1,
+  "apparentMiB": 2,
+  "files": 20,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 29.4
+ },
+ "sdk": "0.4.1-studio.3",
+ "pages": {
+  "source": "lab/measure/pages/timesheets.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=lastWeek",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=month&group=person",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/team",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/people",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/projects/2",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/projects",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "sofia",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=month&q=Feyssine",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/reports?preset=month&kind=uninvoiced",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 419.6,
+    "firstMs": 575.8,
+    "statuses": [
+     200
+    ],
+    "load": 11.72
+   },
+   {
+    "portMs": 344.2,
+    "firstMs": 493.5,
+    "statuses": [
+     200
+    ],
+    "load": 10.9
+   },
+   {
+    "portMs": 461.2,
+    "firstMs": 573.5,
+    "statuses": [
+     200
+    ],
+    "load": 10.63
+   },
+   {
+    "portMs": 424.5,
+    "firstMs": 566.5,
+    "statuses": [
+     200
+    ],
+    "load": 9.53
+   },
+   {
+    "portMs": 520.2,
+    "firstMs": 669,
+    "statuses": [
+     200
+    ],
+    "load": 8.81
+   },
+   {
+    "portMs": 771.9,
+    "firstMs": 965.8,
+    "statuses": [
+     200
+    ],
+    "load": 9.63
+   },
+   {
+    "portMs": 437.2,
+    "firstMs": 592,
+    "statuses": [
+     200
+    ],
+    "load": 10.02
+   },
+   {
+    "portMs": 388.7,
+    "firstMs": 572.1,
+    "statuses": [
+     200
+    ],
+    "load": 9.87
+   },
+   {
+    "portMs": 314.3,
+    "firstMs": 473.8,
+    "statuses": [
+     200
+    ],
+    "load": 8.81
+   },
+   {
+    "portMs": 307.5,
+    "firstMs": 395.5,
+    "statuses": [
+     200
+    ],
+    "load": 7.98
+   }
+  ],
+  "port": {
+   "median": 422.05,
+   "min": 307.5,
+   "max": 771.9
+  },
+  "first200": {
+   "median": 572.8,
+   "min": 395.5,
+   "max": 965.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 173.9,
+     "pss": 68.2
+    },
+    "peakMiB": {
+     "rss": 174.3,
+     "pss": 68.2,
+     "cgroup": 70.8
+    },
+    "afterRequestsMiB": {
+     "rss": 174.3,
+     "pss": 67.8
+    },
+    "restMiB": {
+     "rss": 171,
+     "pss": 64.7,
+     "pssAnon": 58.3,
+     "pssFile": 6.4,
+     "cgroupAnon": 58.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 20.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102,
+      "pssMiB": 44.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 43492,
+      "ms": 22.6
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 36717,
+      "ms": 31.6
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 42484,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 55792,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 27276,
+      "ms": 12.4
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 36490,
+      "ms": 12.5
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 49033,
+      "ms": 13.7
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 21709,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 21890,
+      "ms": 7.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 22231,
+      "ms": 6.8
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 37109,
+      "ms": 13.7
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 50970,
+      "ms": 16.8
+     }
+    ],
+    "load": {
+     "mean": 7.4,
+     "max": 8.2
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168.4,
+     "pss": 62.2
+    },
+    "peakMiB": {
+     "rss": 175.9,
+     "pss": 69.6,
+     "cgroup": 66.6
+    },
+    "afterRequestsMiB": {
+     "rss": 174.7,
+     "pss": 68.4
+    },
+    "restMiB": {
+     "rss": 172,
+     "pss": 65.6,
+     "pssAnon": 59.3,
+     "pssFile": 6.3,
+     "cgroupAnon": 59.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 19.8
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.2,
+      "pssMiB": 45.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 43492,
+      "ms": 22.7
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 36717,
+      "ms": 65.8
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 42484,
+      "ms": 26.3
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 55792,
+      "ms": 28.2
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 27276,
+      "ms": 15.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 36490,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 49033,
+      "ms": 94.9
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 21709,
+      "ms": 11.2
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 21890,
+      "ms": 6.4
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 22231,
+      "ms": 6.8
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 37109,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 50970,
+      "ms": 20.2
+     }
+    ],
+    "load": {
+     "mean": 5.62,
+     "max": 5.98
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 170.7,
+     "pss": 64.1
+    },
+    "peakMiB": {
+     "rss": 176.9,
+     "pss": 70.1,
+     "cgroup": 67.6
+    },
+    "afterRequestsMiB": {
+     "rss": 176.2,
+     "pss": 69.4
+    },
+    "restMiB": {
+     "rss": 0,
+     "pss": 0,
+     "pssAnon": 0,
+     "pssFile": 0,
+     "cgroupAnon": 0,
+     "cgroupCache": 0
+    },
+    "processes": [],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 43492,
+      "ms": 25.2
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 36717,
+      "ms": 41.2
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 42484,
+      "ms": 30.3
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 55792,
+      "ms": 24.4
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 27276,
+      "ms": 9.5
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 36490,
+      "ms": 14.1
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 49033,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 21709,
+      "ms": 13.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 21890,
+      "ms": 11.2
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 22231,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 37109,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 50970,
+      "ms": 14.6
+     }
+    ],
+    "load": {
+     "mean": 5.22,
+     "max": 5.39
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168.2,
+     "pss": 61.7
+    },
+    "peakMiB": {
+     "rss": 175.6,
+     "pss": 69,
+     "cgroup": 66
+    },
+    "afterRequestsMiB": {
+     "rss": 175.6,
+     "pss": 69
+    },
+    "restMiB": {
+     "rss": 171.8,
+     "pss": 64.1,
+     "pssAnon": 58.9,
+     "pssFile": 5.2,
+     "cgroupAnon": 58.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 19.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103,
+      "pssMiB": 44.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 43492,
+      "ms": 26
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 36717,
+      "ms": 31.4
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 42484,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 55792,
+      "ms": 31.3
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 27276,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 36490,
+      "ms": 15.7
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 49033,
+      "ms": 19.1
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 21709,
+      "ms": 11.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 21890,
+      "ms": 8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 22231,
+      "ms": 89.8
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 37109,
+      "ms": 16.6
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 50970,
+      "ms": 17.8
+     }
+    ],
+    "load": {
+     "mean": 5.76,
+     "max": 6.6
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 169,
+     "pss": 62.3
+    },
+    "peakMiB": {
+     "rss": 175.1,
+     "pss": 68.3,
+     "cgroup": 66.4
+    },
+    "afterRequestsMiB": {
+     "rss": 174.6,
+     "pss": 67.8
+    },
+    "restMiB": {
+     "rss": 171.7,
+     "pss": 64.9,
+     "pssAnon": 58.9,
+     "pssFile": 6,
+     "cgroupAnon": 58.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.4,
+      "pssMiB": 20.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.4,
+      "pssMiB": 44.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 43492,
+      "ms": 29.4
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 36717,
+      "ms": 42.8
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 42484,
+      "ms": 29.3
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 55792,
+      "ms": 105.2
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 27276,
+      "ms": 80.6
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 36490,
+      "ms": 25.8
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 49033,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 21709,
+      "ms": 24.1
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 21890,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 22231,
+      "ms": 107.2
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 37109,
+      "ms": 83.5
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 50970,
+      "ms": 68.8
+     }
+    ],
+    "load": {
+     "mean": 7.82,
+     "max": 8.27
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 171.7,
+    "min": 0,
+    "max": 172
+   },
+   "pss": {
+    "median": 64.7,
+    "min": 0,
+    "max": 65.6
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 175.6,
+    "min": 174.3,
+    "max": 176.9
+   },
+   "pss": {
+    "median": 69,
+    "min": 68.2,
+    "max": 70.1
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 104.3,
+    "min": 0,
+    "max": 105.1
+   },
+   "pss": {
+    "median": 44.7,
+    "min": 0,
+    "max": 45.7
+   }
+  }
+ }
+}

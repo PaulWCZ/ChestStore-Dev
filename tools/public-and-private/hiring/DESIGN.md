@@ -6,15 +6,15 @@
 pages must feel like the company's own careers magazine — not a SaaS form;
 the team's pages are the same paper and ink, denser and calm.
 
-## Tokens: the identity is a theme (`lib/theme.ts`)
+## Tokens: the identity is a theme (`src/theme.ts`)
 
 Hiring's identity is *Magazine*, a theme of the UI kit's token contract
 (`@argentic/chest-ui`, `ui/tokens/CONTRACT.md`): the catalogue's `magazine`
-theme itself, imported in `lib/theme.ts` (`identityOf("hiring")`). The
+theme itself, imported in `src/theme.ts` (`identityOf("hiring")`). The
 careers page's other accents are made from its source, kept there and held
 equal to the catalogue's by a test (kit 0.2.2: the old copy still had the
 plum dark slot 3 that 0.2.1 made an orange). Every colour lives there;
-`app/tokens.css` holds only Hiring's own tokens, each defined from contract
+`src/tokens.css` holds only Hiring's own tokens, each defined from contract
 tokens (tomato is categorical slot 3; the careers headline size; pill
 radius that follows the theme's corners, for buttons; heavier magazine
 lines). Chips and counters take the theme's `--radius-chip`, fields the
@@ -38,7 +38,7 @@ Chest theme and a brand, light and dark.
 
 **Type**: *Bricolage Grotesque* (display — characterful, slightly quirky,
 800 for the big words, tight tracking) and *Instrument Sans* (body — clean,
-open). Both OFL-1.1, self-hosted (`public/fonts/`). Display sizes up to
+open). Both OFL-1.1, self-hosted (`public/assets/fonts/`). Display sizes up to
 5.6 rem on the careers page; the team's pages cap at 2.75 rem.
 
 **Space** 4–72 px; **radii** 6/10/18 px and pills for buttons and facts;
@@ -51,7 +51,7 @@ the one printed flourish); **motion** 120/240 ms, none with
 Settings → *Colour* replaces the cobalt on the careers pages with one of
 six accents (cobalt, forest, plum, tomato, ocean, graphite). Each is a
 whole theme — the identity with another accent, light and dark — in
-`lib/theme.ts` (`accentThemes`), checked against the contract like the
+`src/theme.ts` (`accentThemes`), checked against the contract like the
 identity, and applied to the careers pages only through a class-scoped
 style (`accentCss`). Only while Hiring wears its own look: a catalogue
 theme or the company's brand, chosen in the Chest, wins.
@@ -76,7 +76,7 @@ timeline.
 ## Icon
 
 `chest/icon.svg`: an open cobalt doorway (drawn in the look's tokens in the
-header, `components/mark.tsx`; replaced by the company's logo in brand mode) with a tomato figure stepping in —
+header, `src/components/mark.tsx`; replaced by the company's logo in brand mode) with a tomato figure stepping in —
 "welcome in". Readable at 24 px on light and dark tiles; no text. The
 careers page's hero repeats the doorway, large.
 
@@ -102,8 +102,8 @@ Support's teal, Booking's plum).
     { "name": "Leaf", "value": "#1d6b43" }
   ],
   "fonts": {
-    "display": { "family": "Bricolage Grotesque", "file": "public/fonts/bricolage-grotesque-latin-wght-normal.woff2", "weight": 800 },
-    "body": { "family": "Instrument Sans", "file": "public/fonts/instrument-sans-latin-wght-normal.woff2", "weight": 450 }
+    "display": { "family": "Bricolage Grotesque", "file": "public/assets/fonts/bricolage-grotesque-latin-wght-normal.woff2", "weight": 800 },
+    "body": { "family": "Instrument Sans", "file": "public/assets/fonts/instrument-sans-latin-wght-normal.woff2", "weight": 450 }
   },
   "specimen": "Join Atelier Martin — Senior furniture designer, Lyon."
 }

@@ -1,14 +1,37 @@
-import { createHash } from "node:crypto";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, TooLarge, Unavailable } from "./errors.js";
+import type { IncomingMessage } from "node:http";
+import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, StorageFull, TooLarge, Unavailable } from "./errors.js";
 
 // The Chest's API as a server tool reaches it, shared by the modules that
-// call it (files, members): CHEST_API is http://127.0.0.1:<port>, the tool's
+// call it (files, folders, members…): CHEST_API is http://127.0.0.1:<port>, the tool's
 // launcher, which relays each request to the Chest — the container has no
 // network. A call reaches what is the tool's only: its instance is its
 // identity. Not a published module.
 
 const maxAnswer = 4 << 20;
 const deadline = 120000;
+
+// chestLink reads a link the Chest answered, at path — to the team host
+// (its files' links and uploads), or to the documents host of Files (the
+// folders' links and uploads, /d/ and /u/) —: the token it carries, or
+// undefined for an address that is not one — https, or the origin of the
+// Chest's API itself (CHEST_API), where only a fake Chest of a tool's tests
+// serves its links: the address the tool already trusts for every call,
+// never another.
+export function chestLink(url: unknown, path: string): string | undefined {
+  if (typeof url !== "string") return undefined;
+  const found = /^(https:\/\/[A-Za-z0-9.-]{1,253}(?::[0-9]{1,5})?|http:\/\/127\.0\.0\.1:[0-9]{1,5})(\/(?:_chest\/[a-z/]+|[a-z])\/)([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u.exec(url);
+  if (!found || found[2] !== path || (found[1]!.startsWith("http:") && found[1] !== process.env["CHEST_API"])) return undefined;
+  return found[3];
+}
+
+// openerTicket is the ticket of the member of a request, as the Chest's
+// front sends it (Chest-Opener) to a version that opens sealed values or
+// reaches folders of Files; null without one.
+export function openerTicket(request: IncomingMessage | Request): string | null {
+  const headers = request.headers as Headers | IncomingMessage["headers"];
+  const value = typeof (headers as Headers).get === "function" ? (headers as Headers).get("chest-opener") : (headers as IncomingMessage["headers"])["chest-opener"];
+  return typeof value === "string" && value.length > 0 && value.length <= 256 ? value : null;
+}
 
 // base is the Chest's API as the launcher gives it; without, the version holds
 // none of the capabilities that use it.
@@ -22,8 +45,8 @@ function base(capability: string): string {
 // is Unavailable. The request and the reading of its answer end after
 // deadline milliseconds (120 seconds unless said), or when the caller's
 // signal aborts: its reason is then thrown.
-export async function ask(capability: string, method: string, path: string, init: { body?: Uint8Array<ArrayBuffer> | string; type?: string; deadline?: number; signal?: AbortSignal } = {}): Promise<Response> {
-  const headers: Record<string, string> = {};
+export async function ask(capability: string, method: string, path: string, init: { body?: Uint8Array<ArrayBuffer> | string; type?: string; headers?: Record<string, string>; deadline?: number; signal?: AbortSignal } = {}): Promise<Response> {
+  const headers: Record<string, string> = { ...init.headers };
   if (init.type !== undefined) headers["Content-Type"] = init.type;
   const url = base(capability) + path;
   const timeout = AbortSignal.timeout(init.deadline ?? deadline);
@@ -69,44 +92,25 @@ export async function json(response: Response): Promise<unknown> {
   }
 }
 
-// refusal turns an answer that is not a success into what the tool tests.
-export async function refusal(response: Response, capability: string): Promise<ChestError> {
-  let code = "refused";
+// errorCode is the code of a refusal of the Chest ({"error": code}), or
+// "refused" for an answer that says none.
+export async function errorCode(response: Response): Promise<string> {
   try {
     const given = ((await json(response)) as { error?: unknown } | null)?.error;
-    if (typeof given === "string" && /^[a-z_]{1,40}$/u.test(given)) code = given;
+    if (typeof given === "string" && /^[a-z_]{1,40}$/u.test(given)) return given;
   } catch {
-    // The code stays "refused".
+    // No code of the Chest's.
   }
+  return "refused";
+}
+
+// refusal turns an answer that is not a success into what the tool tests.
+export async function refusal(response: Response, capability: string): Promise<ChestError> {
+  const code = await errorCode(response);
   if (response.status === 403) return new CapabilityNotGranted(capability);
   if (response.status === 413) return new TooLarge();
   if (response.status === 429) return code === "rate_limited" ? new RateLimited() : new QuotaExceeded();
+  if (response.status === 507 && code === "storage_full") return new StorageFull();
   if (response.status >= 500) return new Unavailable();
   return new ChestError(code, response.status, `the Chest refused: ${code}`);
-}
-
-// ---- Idempotency keys (studio.15) -------------------------------------------
-//
-// A key that makes a retry harmless (mail.send, events.publish,
-// webhooks.send) is the tool's name for one thing sent: the Chest keeps 1 to
-// 64 of A-Z a-z 0-9 . _ : -. Tools build theirs from parts — a digest, a
-// day, a member id — and a cap of 64 made them cut the end off: past 33
-// characters of their own, `${key}:${member}`.slice(0, 64) lost the
-// recipient, two recipients shared a key and the Chest answered the second
-// with the first message (one email dropped, silently). So the SDK takes
-// any key of 1 to 512 characters without control characters and sends a
-// key that fits: as given when it already does, otherwise "sha256:" and the
-// SHA-256 of the whole key in base64url (50 characters) — never cut, so two
-// different keys stay two keys. A key given as "sha256:…" is hashed too:
-// nothing a tool writes can pose as the digest of another key.
-const plainKey = /^[A-Za-z0-9._:-]{1,64}$/u;
-export const maxKeyLength = 512;
-
-// idempotencyKey is the key the Chest receives for a key a tool gives, or
-// null when it is not a key (empty, beyond 512 characters, a control
-// character, not a string).
-export function idempotencyKey(key: unknown): string | null {
-  if (typeof key !== "string" || key.length < 1 || key.length > maxKeyLength || /\p{Cc}/u.test(key)) return null;
-  if (plainKey.test(key) && !key.startsWith("sha256:")) return key;
-  return "sha256:" + createHash("sha256").update(key, "utf8").digest("base64url");
 }

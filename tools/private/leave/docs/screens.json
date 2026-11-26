@@ -6,6 +6,16 @@
     "locale": "en"
   },
   {
+    "name": "home-full",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "full": true,
+    "only": [
+      "desktop"
+    ]
+  },
+  {
     "name": "calendar",
     "path": "/chest/calendar",
     "member": "camille",

@@ -10,7 +10,7 @@ else holds.
 ## Tokens: the identity is a theme
 
 Rooms' look is **Blueprint**, a theme of the UI kit (`@argentic/chest-ui`),
-defined with `defineTheme` in **`lib/theme.ts`** — every colour of the tool
+defined with `defineTheme` in **`src/theme.ts`** — every colour of the tool
 is there, nowhere else — and identical to the catalogue's `blueprint` (a
 test holds them equal). `checkTheme` measures every pair of the token
 contract (`ui/tokens/CONTRACT.md`) in light and dark: WCAG AA for text, 3:1
@@ -28,7 +28,7 @@ blueprint: deep blue paper, pale lines.
 | `--cat-3` (solid / soft / ink) | `#c2410c` / `#fdebe0` / `#b93d0b` | `#ff8a4c` / `#3a2a26` / `#ff8a4c` | **yours or taken** (the signal orange) |
 | `--danger` | `#b3261e` | `#ff8a80` | errors, delete |
 
-`app/tokens.css` holds only Rooms' own names, each defined from contract
+`src/tokens.css` holds only Rooms' own names, each defined from contract
 tokens: `--mine` / `--mine-ink` (a filled "mine": the slot-3 ink as ground,
 the surface as text), `--mine-soft` / `--mine-text`, `--mine-line` (the
 "now" line, a selection: 3:1), `--grid` / `--grid-major` (the paper's grid,
@@ -45,7 +45,7 @@ In brand mode the company's logo stands where the Rooms mark is.
 a clean geometric-grotesque with a technical flavour that stays friendly;
 *DM Mono* (OFL-1.1) for the drawing's annotations: desk numbers, times,
 day names and the small uppercase legends ("THIS WEEK", "FIRST FLOOR"),
-like the lettering on a plan. Both self-hosted in `public/fonts/`; tabular
+like the lettering on a plan. Both self-hosted in `public/assets/fonts/`; tabular
 figures for times. 16 px body.
 
 **Shape**: thin 1 px lines, dashed for what is free (a free desk, a free
@@ -57,7 +57,7 @@ one quarter hour is 14 px; hours are full lines, quarters faint ones.
 ## Components
 
 The shared pieces are the kit's (`@argentic/chest-ui/components`, restyled
-in `app/globals.css` only where Blueprint needs it: a navy rule under the
+in `src/styles.css` only where Blueprint needs it: a navy rule under the
 header, mono capitals on the day tiles): the shell with its labelled tabs,
 toasts, dialogs and the in-page Confirm, the people picker, date fields and
 24-hour time lists, the day strip, tabs and segmented choices, filters and
@@ -111,8 +111,8 @@ free — without reading.
     { "name": "Blueprint night", "value": "#0b1a30" }
   ],
   "fonts": {
-    "display": { "family": "Albert Sans", "file": "public/fonts/albert-sans-latin-wght-normal.woff2", "weight": 650 },
-    "body": { "family": "DM Mono", "file": "public/fonts/dm-mono-latin-500-normal.woff2", "weight": 500 }
+    "display": { "family": "Albert Sans", "file": "public/assets/fonts/albert-sans-latin-wght-normal.woff2", "weight": 650 },
+    "body": { "family": "DM Mono", "file": "public/assets/fonts/dm-mono-latin-500-normal.woff2", "weight": 500 }
   },
   "specimen": "D-04 · Thursday 09:30–10:00 · Atlas"
 }

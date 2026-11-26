@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { matcher } from "../lib/match.ts";
+import { matcher } from "../src/lib/match.ts";
 
 const people = [
   { id: "mbr_c", name: "Camille Martin", firstName: "Camille", lastName: "Martin", email: "camille@atelier.test" },

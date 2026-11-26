@@ -17,6 +17,7 @@ import type { Schedules } from "./schedules.js";
 import { maxValue, secretLabel, type Secrets } from "./secrets.js";
 import type { Team } from "./members.js";
 import { noteText, type NoteStore } from "./notes.js";
+import { setWakeDelay, validWakeDelay } from "./wake.js";
 import { applyPage, chatPage, errorPage, membersPage, publicPage, teamPage, type ChestView } from "./pages.js";
 
 // The version the tool shows on its public page: the laboratory's GitHub
@@ -192,6 +193,16 @@ export function createApp(notes: NoteStore, database: Database, files: Files, me
       const held = (await readFields(request, ["held"]))?.["held"];
       if (typeof held !== "boolean") return json(response, 400, team, { error: "invalid_body" });
       lifecycle.hold(held);
+      return send(response, 204, team);
+    }
+    // The laboratory's slow wake (wake.ts): the seconds the next starts wait
+    // before the tool listens; 0 for none.
+    if (path === "/chest/api/wake-delay") {
+      if (method !== "POST") return json(response, 405, { ...team, Allow: "POST" }, { error: "method_not_allowed" });
+      if (!canWrite(who)) return json(response, 403, team, { error: "read_only" });
+      const seconds = (await readFields(request, ["seconds"]))?.["seconds"];
+      if (!validWakeDelay(seconds)) return json(response, 400, team, { error: "invalid_body" });
+      await setWakeDelay(files, seconds);
       return send(response, 204, team);
     }
     if (path === "/chest/api/bounds-probe") {

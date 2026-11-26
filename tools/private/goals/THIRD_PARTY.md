@@ -2,8 +2,8 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Work Sans (font) | [weiweihuanghuang/Work-Sans](https://github.com/weiweihuanghuang/Work-Sans), via `@fontsource-variable/work-sans` | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-work-sans.txt` |
-| Barlow Semi Condensed (font) | [jpt/barlow](https://github.com/jpt/barlow), via `@fontsource/barlow-semi-condensed` | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-barlow-semi-condensed.txt` |
+| Work Sans (font) | [weiweihuanghuang/Work-Sans](https://github.com/weiweihuanghuang/Work-Sans), via `@fontsource-variable/work-sans` | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-work-sans.txt` |
+| Barlow Semi Condensed (font) | [jpt/barlow](https://github.com/jpt/barlow), via `@fontsource/barlow-semi-condensed` | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-barlow-semi-condensed.txt` |
 
 No code is copied from other projects. Ideas only (features, not code) come
 from OKR Tracker (Oslo kommune, MIT), Operately (Apache-2.0), BurningOKR
@@ -13,7 +13,7 @@ chart is drawn by hand in SVG; no chart library.
 
 ## Import formats (read, not copied)
 
-The import (`lib/import.ts`) reads, besides any spreadsheet and Goals' own
+The import (`src/lib/import.ts`) reads, besides any spreadsheet and Goals' own
 export:
 
 - **Lattice's goals file** — the columns of its "Bulk Upload Active Goals
@@ -41,7 +41,11 @@ The test files `test/fixtures/lattice-goals.csv` (built from the Lattice
 columns above) and `test/fixtures/goals-export-fr.csv` (Goals' own French
 export) are ours.
 
-Dependencies (`next`, `react`, `postgres`) are installed from npm under
-their own licences. `@argentic/chest-sdk` and `@argentic/chest-ui` (the
-store's UI kit: themes and components) are Argentic's own, MIT, vendored
-in `vendor/`.
+Dependencies are installed from npm under their own licences: `hono` and
+`@hono/node-server` (MIT), `react` and `react-dom` (MIT), `postgres`
+(Unlicense); for the build and tests only, `vite` (MIT), `typescript`
+(Apache-2.0), `@electric-sql/pglite` and `@electric-sql/pglite-socket`
+(Apache-2.0). Next.js is no longer used. `@argentic/chest-app` (the
+server and browser machinery), `@argentic/chest-sdk` and
+`@argentic/chest-ui` (the store's UI kit: themes and components) are
+Argentic's own, MIT, vendored in `vendor/`.

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { applyRecords, plan, previewRecords, readContract, readHeader, readSex, readWorkingTime } from "../lib/record-import.ts";
-import { createRecord, listRecords, record, updateRecord } from "../lib/records.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { applyRecords, plan, previewRecords, readContract, readHeader, readSex, readWorkingTime } from "../src/lib/record-import.ts";
+import { createRecord, listRecords, record, updateRecord } from "../src/lib/records.ts";
+import { declaredEmits } from "./support/emits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { asMember } from "./support/member.ts";
+import { asMember, opener } from "./support/member.ts";
 import { camille, everyone, hugo, nora, tom } from "./support/members.ts";
 
 // Importing HR records from Lucca, BambooHR or HR's own spreadsheet.
@@ -16,7 +17,7 @@ const withEmail = everyone.map(m => ({ ...m, email: m.firstName.toLowerCase() + 
 before(async () => {
   process.env["CHEST_TOOL"] = "people";
   database = await testDatabase();
-  chest = await fakeChest({ members: withEmail, capabilities: ["members", "members.email", "notifications"], emits: ["people.record"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: withEmail, capabilities: ["members", "members.email", "notifications", "sealed"], emits: declaredEmits });
 });
 after(async () => {
   await chest.close();
@@ -73,12 +74,12 @@ test("the plan: each row finds its record (number, then member, then legal name)
 
 test("the import writes the records in one go, notes each in the journal (field names only) and tells Leave", async () => {
   const { sql } = database;
-  chest.published.length = 0;
-  const done = await applyRecords(sql, hr, lucca);
+  chest.emitted.length = 0;
+  const done = await applyRecords(sql, hr, lucca, {}, opener(hr));
   assert.deepEqual(done, { created: 2, updated: 2, skipped: 0 });
   const all = await listRecords(sql, hr);
   const tomRecord = all.find(r => r.memberId === tom.id)!;
-  const r = (await record(sql, hr, tomRecord.id)).record;
+  const r = (await record(sql, hr, tomRecord.id, opener(hr))).record;
   assert.deepEqual([r.employeeNumber, r.legalName, r.nationality, r.hours, r.permitEnd, r.address], ["0019", "WALKER Thomas", "Britannique", 28, "2026-11-30", "1 rue Neuve\n69001 Lyon"]);
   assert.ok(all.some(x => x.legalName === "MOREAU" && x.memberId === null));
   const log = await ofRecord(sql, tomRecord.id);
@@ -86,15 +87,15 @@ test("the import writes the records in one go, notes each in the journal (field 
   assert.deepEqual(log.map(e => e.action), ["viewed", "imported", "created"]);
   assert.ok(log[1]!.fields.includes("employeeNumber") && !JSON.stringify(log).includes("Neuve"));
   // Leave hears Tom's number and first day (members only).
-  assert.deepEqual(chest.published.filter(e => (e.data as { member: string }).member === tom.id).map(e => [(e.data as { employeeNumber: string }).employeeNumber, (e.data as { startDate: string }).startDate]), [["0019", "2024-03-04"]]);
+  assert.deepEqual(chest.emitted.filter(e => (e.data as { member: string }).member === tom.id).map(e => [(e.data as { employeeNumber: string }).employeeNumber, (e.data as { startDate: string }).startDate]), [["0019", "2024-03-04"]]);
   // Imported again: the same records, nothing new.
-  assert.deepEqual(await applyRecords(sql, hr, lucca), { created: 0, updated: 0, skipped: 0 });
+  assert.deepEqual(await applyRecords(sql, hr, lucca, {}, opener(hr)), { created: 0, updated: 0, skipped: 0 });
 });
 
 test("a number already another record's is refused and said; the mapping step may say what a column holds", async () => {
   const { sql } = database;
   const other = await createRecord(sql, hr, { legalName: "GIRAUD Paul" });
-  await updateRecord(sql, hr, other.id, { employeeNumber: "0003" });
+  await updateRecord(sql, hr, other.id, { employeeNumber: "0003" }, opener(hr));
   const file = "Name;Matricule;Poste\nDIALLO Aminata;0003;Cariste\n";
   const p = await previewRecords(sql, hr, file);
   // "0003" is Paul's record: the row finds Paul's record by it.

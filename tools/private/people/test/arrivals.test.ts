@@ -2,22 +2,22 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as arrivals from "../lib/arrivals.ts";
-import { AppError } from "../lib/errors.ts";
-import * as j from "../lib/journeys.ts";
-import { addDays } from "../lib/model.ts";
-import { profile } from "../lib/profiles.ts";
-import { today } from "../lib/zone.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as arrivals from "../src/lib/arrivals.ts";
+import { AppError } from "../src/lib/errors.ts";
+import * as j from "../src/lib/journeys.ts";
+import { addDays } from "../src/shared/model.ts";
+import { profile } from "../src/lib/profiles.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, id, ines, sofia } from "./support/members.ts";
+import { camille, everyone, hugo, id, ines, sofia, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -27,7 +27,7 @@ after(async () => {
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const hr = asMember(camille);
 const hire = (data: Record<string, unknown>, source = "hiring") => chest.deliver({ type: "hiring.hired", source, data }, POST);
-const cancel = (candidate: string) => chest.deliver({ type: "hiring.hire_cancelled", source: "hiring", data: { candidate } }, POST);
+const cancel = (candidate: string) => chest.deliver({ type: "hiring.hire-cancelled", source: "hiring", data: { candidate } }, POST);
 const lucie = { candidate: "cand_42", name: "Lucie Garnier", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: ines.id };
 
 async function template() {
@@ -43,9 +43,9 @@ test("a hire told by Hiring becomes an arrival; HR is told in their language; th
   assert.equal(await hire(lucie), 204);
   const list = await arrivals.listArrivals(sql, hr);
   assert.deepEqual(list.map(a => [a.name, a.job, a.team, a.place, a.startDate, a.status, a.hiredBy]), [["Lucie Garnier", "Sales associate", "Sales", "Lyon", "2026-11-02", "expected", ines.id]]);
-  const told = chest.notifications.filter(n => n.key === `arrival:${list[0]!.id}`);
+  const told = chest.notifications.filter(n => n.key === `arrival:${list[0]!.id}`).map(seen);
   assert.deepEqual(told.map(n => [n.member, n.title]).sort(), [
-    [camille.id, "Recrutement : Lucie Garnier arrive le 2 novembre comme Sales associate"],
+    [camille.id, "Recrutement : Lucie Garnier arrive le 2 novembre comme Sales associate"],
     [sofia.id, "Hiring: Lucie Garnier joins on 2 November as Sales associate"],
   ]);
   const columns = (await sql`select column_name from information_schema.columns where table_name = 'arrivals'`).map(c => c["column_name"]);
@@ -69,8 +69,9 @@ test("events of another shape, or from another tool, change nothing", async () =
     { ...lucie, candidate: "c6", job: 7 },
     { ...lucie, candidate: "c7", name: "x".repeat(121) },
   ]) assert.equal(await hire(bad), 204);
-  // A "hiring." event that another tool would send is refused by the SDK.
-  assert.equal(await hire({ ...lucie, candidate: "c8" }, "leave"), 401);
+  // A "hiring.hired" another tool sent (SDK 0.5+: types, never tools; the
+  // Chest stamps the source): handled, and changes nothing.
+  assert.equal(await hire({ ...lucie, candidate: "c8" }, "leave"), 204);
   assert.equal(await cancel("nobody"), 204);
   assert.equal((await arrivals.listArrivals(sql, hr)).length, before);
   assert.deepEqual(arrivals.readHired({ ...lucie, team: null, place: null, startDate: null, email: null }), { candidate: "cand_42", name: "Lucie Garnier", job: "Sales associate", team: "", place: "", startDate: null, hiredBy: ines.id });
@@ -125,7 +126,7 @@ test("a hire cancelled: gone if nothing started; otherwise marked cancelled, its
   const kept = (await arrivals.listArrivals(sql, hr)).find(x => x.id === a.id)!;
   assert.equal(kept.status, "cancelled");
   assert.equal((await j.journey(sql, hr, started.id)).stopped, true);
-  const told = chest.notifications.filter(n => n.key === `arrival:${a.id}` && n.member === sofia.id);
+  const told = chest.notifications.filter(n => n.key === `arrival:${a.id}` && n.member === sofia.id).map(seen);
   assert.deepEqual(told.map(n => [n.title, n.body]), [["Hiring: Julie Roux’s hire was cancelled", "The checklist started for them is stopped."]]);
   await assert.rejects(j.startJourney(sql, hr, { arrivalId: a.id, templateId: t.id, anchor: "2026-11-16" }), refused("not_found"));
   // Brought back into Hired (a new event, a new date): the same arrival, expected again.
@@ -147,4 +148,32 @@ test("never linked: an arrival and its checklists are deleted 90 days after the 
   assert.equal(await arrivals.purgeArrivals(sql, now), 1);
   const names = (await arrivals.listArrivals(sql, hr)).map(a => a.name);
   assert.ok(!names.includes("Old Hire") && names.includes("Recent Hire"));
+});
+
+test("Hiring's exact shape, with no audience or with one: all of HR, or only the HR people it lists, see and are told", async () => {
+  const { sql } = database;
+  // Exactly what Hiring's chest.json declares for hiring.hired (email,
+  // team, place, startDate optional), nothing more.
+  const declared = { candidate: "cand_70", name: "Noé Lambert", email: null, job: "Designer", team: null, place: null, startDate: null, hiredBy: ines.id };
+  // No audience (the Chest's "all"): every HR person.
+  assert.equal(await chest.deliver({ type: "hiring.hired", source: "hiring", data: declared }, POST), 204);
+  const open = (await arrivals.listArrivals(sql, hr)).find(a => a.name === "Noé Lambert")!;
+  assert.ok((await arrivals.listArrivals(sql, asMember(sofia))).some(a => a.id === open.id));
+  assert.deepEqual(chest.notifications.filter(n => n.key === `arrival:${open.id}`).map(n => n.member).sort(), [camille.id, sofia.id]);
+  // An audience naming Camille only: Sofia (HR too) neither sees nor is told.
+  const listed = { ...declared, candidate: "cand_71", name: "Zoé Marchand" };
+  assert.equal(await chest.deliver({ type: "hiring.hired", source: "hiring", audience: [camille.id], data: listed }, POST), 204);
+  const shown = (await arrivals.listArrivals(sql, hr)).find(a => a.name === "Zoé Marchand")!;
+  assert.ok(shown);
+  assert.ok(!(await arrivals.listArrivals(sql, asMember(sofia))).some(a => a.id === shown.id));
+  await assert.rejects(arrivals.arrival(sql, asMember(sofia), shown.id), refused("not_found"));
+  assert.deepEqual(chest.notifications.filter(n => n.key === `arrival:${shown.id}`).map(n => n.member), [camille.id]);
+  // Its cancellation (Hiring's shape: the candidate alone) is told to the
+  // same people only.
+  const told = () => chest.notifications.filter(n => n.key === `arrival:${shown.id}`);
+  const hiredTitle = told()[0]!.title;
+  assert.equal(await chest.deliver({ type: "hiring.hire-cancelled", source: "hiring", audience: [camille.id], data: { candidate: "cand_71" } }, POST), 204);
+  assert.deepEqual(told().map(n => n.member), [camille.id]);
+  assert.notEqual(told()[0]!.title, hiredTitle, "the item now says the hire is cancelled");
+  assert.ok(!(await arrivals.listArrivals(sql, hr)).some(a => a.id === shown.id));
 });

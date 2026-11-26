@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.7",
   "name": "expenses",
   "title": "Expenses",
   "description": "Snap a receipt, get paid back: expense claims, approvals, mileage, and a clean monthly export for the accountant.",
@@ -19,10 +19,46 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "realtime",
+    "sealed"
   ],
   "receives": [
     "member.*"
+  ],
+  "realtime": {
+    "channels": [
+      {
+        "name": "mine:{member}"
+      },
+      {
+        "name": "desk:{key}",
+        "join": {
+          "table": "desk_live",
+          "key": "desk_key",
+          "member": "member_id"
+        }
+      }
+    ],
+    "feeds": [
+      {
+        "table": "desk_events",
+        "channel": "desk:{desk_key}",
+        "columns": [
+          "id"
+        ]
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "name": "reminder",
+      "cron": "0 9 25 * *"
+    },
+    {
+      "name": "cleanup",
+      "cron": "40 3 * * *"
+    }
   ],
   "env": [
     "BANK_DETAILS_KEY"
@@ -34,7 +70,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

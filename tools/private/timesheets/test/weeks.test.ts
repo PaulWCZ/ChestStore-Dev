@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { today } from "../lib/clock.ts";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import * as entries from "../lib/entries.ts";
-import * as handoff from "../lib/handoff.ts";
-import * as projects from "../lib/projects.ts";
-import { saveChoices } from "../lib/settings.ts";
-import { startTimer } from "../lib/timer.ts";
-import * as weeks from "../lib/weeks.ts";
+import { today } from "../src/lib/clock.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import * as entries from "../src/lib/entries.ts";
+import * as handoff from "../src/lib/handoff.ts";
+import * as projects from "../src/lib/projects.ts";
+import { saveChoices } from "../src/lib/settings.ts";
+import { startTimer } from "../src/lib/timer.ts";
+import * as weeks from "../src/lib/weeks.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, nora, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, nora, seen, tom } from "./support/members.ts";
 import { refused } from "./support/refused.ts";
 
 let database: TestDatabase;
@@ -38,7 +38,7 @@ test("a person submits their week; it waits read-only; the managers' bell says s
   const state = await weeks.submitWeek(sql, me, addDays(lastWeek, 3));
   assert.equal(state.status, "submitted");
   assert.equal(state.minutes, 900);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key, n.path]), [
+  assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.key, n.path]), [
     [camille.id, `Hugo Bernard a envoyé sa semaine du ${frDay(lastWeek)} (15:00)`, `approve:${hugo.id}:${lastWeek}`, `/chest/team/${hugo.id}?week=${lastWeek}`],
   ]);
   // Nothing of that week changes now, by any path.
@@ -79,7 +79,7 @@ test("a manager approves (it locks) or sends back with a word (it opens); the pe
   const approved = await weeks.approveWeek(sql, asMember(camille), hugo.id, lastWeek, { anyway: true });
   assert.equal(approved.status, "approved");
   assert.equal(approved.decidedBy, camille.id);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key]), [[hugo.id, `Your week of ${enDay(lastWeek)} is approved`, `approval:${lastWeek}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.key]), [[hugo.id, `Your week of ${enDay(lastWeek)} is approved`, `approval:${lastWeek}`]]);
   await assert.rejects(entries.addEntry(sql, me, { projectId: site.id, day: lastWeek, minutes: 30 }), refused("week_approved"));
   await assert.rejects(weeks.withdrawWeek(sql, me, lastWeek), refused("week_state"));
   // Sent back, even once approved: with a word, which the person reads.
@@ -121,8 +121,8 @@ test("the team's weeks against each usual week; Remind rings those short of it, 
   ]);
   chest.notifications.length = 0;
   assert.equal(await weeks.remind(sql, m, [hugo.id, ines.id, tom.id], lastWeek), 2);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key]).sort(), [
-    [ines.id, `Votre semaine du ${frDay(lastWeek)} compte 10:00 sur 35:00 — compléter le reste ?`, `remind:${lastWeek}`],
+  assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.key]).sort(), [
+    [ines.id, `Votre semaine du ${frDay(lastWeek)} compte 10:00 sur 35:00 — compléter le reste\u202f?`, `remind:${lastWeek}`],
     [tom.id, `Your week of ${enDay(lastWeek)} has 9:00 of 10:00 — fill in the rest?`, `remind:${lastWeek}`],
   ].sort());
   // Reminded again: the same item, replaced, not a second one.

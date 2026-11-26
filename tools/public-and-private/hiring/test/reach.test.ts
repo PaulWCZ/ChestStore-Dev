@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cdata, descriptionHtml, employmentTypes, indeedFeed, jobPosting, jsonLd, rssFeed, sitemap, type ReachJob } from "../lib/reach.ts";
+import { cdata, descriptionHtml, employmentTypes, endOf, indeedFeed, jobPosting, jsonLd, rssFeed, sitemap, type ReachJob } from "../src/lib/reach.ts";
 
 // Reach without network: Google for Jobs' JobPosting, Indeed's XML feed,
 // RSS, the sitemap (sources in lib/reach.ts).
@@ -9,7 +9,7 @@ const job: ReachJob = {
   description: "## The job\n- Draw **beautiful** chairs\n\nA line with ]]> and </script>", language: "en", openedAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-02T08:00:00.000Z",
   closesOn: "2026-10-31", country: "FR", postalCode: "69003", street: "14 rue des Tanneurs", salary: { min: 42000, max: 50000, currency: "EUR", period: "year" },
 };
-const company = { name: "Atelier Martin", website: "https://atelier.example/", logo: "https://jobs.atelier.example/_chest/public/brand/logo.png?v=1" };
+const company = { name: "Atelier Martin", website: "https://atelier.example/", logo: "https://jobs.atelier.example/_chest/public/brand/logo.png?v=1", zone: "Europe/Paris" };
 
 test("JobPosting has every property Google requires, and the recommended ones we know", () => {
   const p = jobPosting(job, company, "https://jobs.atelier.example/cabinet-maker");
@@ -21,7 +21,7 @@ test("JobPosting has every property Google requires, and the recommended ones we
   assert.deepEqual(p["jobLocation"], { "@type": "Place", address: { "@type": "PostalAddress", streetAddress: "14 rue des Tanneurs", addressLocality: "Lyon", postalCode: "69003", addressCountry: "FR" } });
   assert.match(String(p["description"]), /^<h2>The job<\/h2><ul><li>Draw <strong>beautiful<\/strong> chairs<\/li><\/ul><p>A line with \]\]&gt; and &lt;\/script&gt;<\/p>$/u);
   // Recommended.
-  assert.equal(p["validThrough"], "2026-10-31T23:59:59");
+  assert.equal(p["validThrough"], "2026-10-31T23:59:59+01:00");
   assert.deepEqual(p["employmentType"], ["FULL_TIME", "TEMPORARY"]);
   assert.deepEqual(p["baseSalary"], { "@type": "MonetaryAmount", currency: "EUR", value: { "@type": "QuantitativeValue", minValue: 42000, maxValue: 50000, unitText: "YEAR" } });
   assert.equal(p["directApply"], true);
@@ -61,4 +61,12 @@ test("RSS 2.0 and the sitemap", () => {
   const map = sitemap([job], "https://jobs.atelier.example");
   assert.ok(map.includes("<url><loc>https://jobs.atelier.example/cabinet-maker</loc><lastmod>2026-09-02</lastmod></url>"));
   assert.ok(descriptionHtml("**<b>**").includes("<strong>&lt;b&gt;</strong>"));
+});
+
+test("a job's last day ends at midnight in the Chest's zone, with that day's offset", () => {
+  assert.equal(endOf("2026-10-31", "Europe/Paris"), "2026-10-31T23:59:59+01:00");
+  assert.equal(endOf("2026-07-01", "Europe/Paris"), "2026-07-01T23:59:59+02:00");
+  assert.equal(endOf("2026-07-01", "America/Montreal"), "2026-07-01T23:59:59-04:00");
+  assert.equal(endOf("2026-07-01", "Asia/Kolkata"), "2026-07-01T23:59:59+05:30");
+  assert.equal(new Date(endOf("2026-10-31", "Europe/Paris")).toISOString(), "2026-10-31T22:59:59.000Z");
 });

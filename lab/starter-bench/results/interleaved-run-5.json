@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-06T02:26:41.926Z",
+  "node": "v24.21.0",
+  "rounds": 10,
+  "rests": 5,
+  "idle": 30,
+  "summary": [
+    {
+      "name": "A'",
+      "cold_ms_node": {
+        "median": 187,
+        "min": 137,
+        "max": 298
+      },
+      "cold_ms_npm": {
+        "median": 305,
+        "min": 228,
+        "max": 388
+      },
+      "rest_mib": {
+        "rss": 70.4,
+        "uss": 18.5,
+        "pss": 21.3,
+        "runs": [
+          70.4,
+          70.6,
+          70.1,
+          70.4,
+          70.4
+        ]
+      }
+    },
+    {
+      "name": "B (studio.3)",
+      "cold_ms_node": {
+        "median": 202,
+        "min": 161,
+        "max": 301
+      },
+      "cold_ms_npm": {
+        "median": 305,
+        "min": 266,
+        "max": 550
+      },
+      "rest_mib": {
+        "rss": 75.4,
+        "uss": 23.5,
+        "pss": 27,
+        "runs": [
+          75.6,
+          76.2,
+          75.2,
+          75.4,
+          75.4
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/chart",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/todo",
+  "member": "nora",
+  "language": "en"
+ },
+ {
+  "path": "/chest/checklists/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/checklists",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest?team=Sales",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/checklists/templates/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records/9",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records/register",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/numbers",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/table",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/checklists/new",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records/3",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records/import",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/records/letters",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/records/9/letters/1",
+  "member": "camille",
+  "language": "fr"
+ }
+]

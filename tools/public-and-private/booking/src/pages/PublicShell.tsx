@@ -1,0 +1,23 @@
+import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
+import type { Look } from "@argentic/chest-ui/runtime";
+import type { ReactNode } from "react";
+import { languageNames, locales as all, type Locale } from "../i18n/index.ts";
+
+// The frame of the public pages: the company — its logo when the Chest
+// gives its brand, else its name — and the language switch (each language
+// named in itself; a host's page offers only the languages its host wrote
+// in, and no switch when there is one). Never the Chest's name: the
+// customer talks to the company, and in brand mode the page is the
+// company's own.
+export function PublicShell({ look, company, locale, label, back, children, foot, languages = all }: { look: Look; company: string; locale: Locale; label: string; back: string; children: ReactNode; foot?: ReactNode; languages?: readonly Locale[] }) {
+  return (
+    <div className="public">
+      <header className="public-top">
+        <span className="company"><BrandMark logo={look.logo}>{company}</BrandMark></span>
+        {languages.length > 1 && <LanguageSwitch languages={languages.map(code => ({ code, name: languageNames[code] ?? code }))} current={locale} label={label} back={back} />}
+      </header>
+      <main className="public-main" id="main" tabIndex={-1}>{children}</main>
+      {foot && <footer className="public-foot">{foot}</footer>}
+    </div>
+  );
+}

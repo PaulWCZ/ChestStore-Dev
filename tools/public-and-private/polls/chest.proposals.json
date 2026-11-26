@@ -1,18 +1,8 @@
 {
-  "schedules": [
-    {
-      "name": "pass",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "mail": {
     "send": true
   },
   "calendar": true,
-  "groups": "read",
-  "receives": [
-    "group.*"
-  ],
   "translations": {
     "fr": {
       "title": "Sondages",

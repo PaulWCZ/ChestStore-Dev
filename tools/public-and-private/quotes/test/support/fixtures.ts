@@ -1,14 +1,14 @@
-import { addClient, type Client } from "../../lib/clients.ts";
-import { updateCompany } from "../../lib/company.ts";
-import type { Sql } from "../../lib/db.ts";
-import { createDocument, saveDraft, type Defaults, type Doc, type LineInput } from "../../lib/documents.ts";
+import { addClient, type Client } from "../../src/lib/clients.ts";
+import { updateCompany } from "../../src/lib/company.ts";
+import type { Sql } from "../../src/lib/db.ts";
+import { createDocument, saveDraft, type Defaults, type Doc, type LineInput } from "../../src/lib/documents.ts";
 import { asMember } from "./member.ts";
 import { camille, sofia } from "./members.ts";
 
 // A small French company, as the tests need it: its legal details, a client
 // or two, and documents with lines.
 export const today = "2026-09-28";
-export const defaults: Defaults = { today, locale: "fr", currency: "EUR" };
+export const defaults: Defaults = { today, locale: "fr" };
 
 export async function company(sql: Sql, extra: Record<string, unknown> = {}): Promise<void> {
   await updateCompany(sql, asMember(camille), {

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as b from "../lib/booking.ts";
-import { AppError } from "../lib/app-error.ts";
+import * as b from "../src/lib/booking.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
@@ -12,14 +12,14 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate hosts, bookings, settings, form_counts cascade`;
+  await database.sql`truncate hosts, bookings, settings, form_counts, chest_bounds, chest_seen cascade`;
 });
 
 // Monday 5 October 2026, 08:00 in Paris (UTC+2).
@@ -87,6 +87,16 @@ test("a time that is not offered is refused: outside the hours, too soon, or not
   await refuses(b.book(sql, host, type, { ...guest, start: "2026-10-06T07:10:00.000Z" }, monday), "taken");
   await refuses(b.book(sql, host, type, { ...guest, start: "nonsense" }, monday), "invalid");
   await refuses(b.book(sql, host, type, { ...guest, email: "not an email", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: "Sam <sam@example.com>", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: "sam@[192.0.2.1]", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: " ", start: "2026-10-06T07:00:00.000Z" }, monday), "empty");
+});
+
+test("a guest's address is kept as typed before the @, the domain lower-cased; erasing finds it whatever its cases", async () => {
+  const { sql, host, type } = await ready();
+  const made = await b.book(sql, host, type, { ...guest, email: " Sam.Lee@Example.COM ", start: "2026-10-06T07:00:00.000Z" }, monday);
+  assert.equal(made.booking.guestEmail, "Sam.Lee@example.com");
+  assert.equal((await b.eraseGuest(sql, asMember(camille), "sam.lee@EXAMPLE.com")).length, 1);
 });
 
 test("buffers keep time around a booking, for this type and the others", async () => {
@@ -193,29 +203,3 @@ test("bookings over for longer than kept are deleted; a guest's data can be eras
   assert.equal(await b.cleanup(sql, Date.parse("2028-11-01T00:00:00Z")), 1);
 });
 
-test("the form's guard stops a visitor after a few bookings an hour", async () => {
-  const { sql } = await ready();
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await b.guard(sql, "203.0.113.9");
-  await refuses(b.guard(sql, "203.0.113.9"), "too_many");
-  await b.guard(sql, "198.51.100.4");
-});
-
-test("the public forms' guard: the Chest counts when it can, the tool's own counters otherwise", async () => {
-  const { admit, checkForm, formToken } = await import("../lib/guard.ts");
-  const { sql } = await ready();
-  // A form sent within 3 seconds is not refused: the answer waits the rest
-  // (a clock that moves as it sleeps).
-  let clock = Date.now();
-  const slept: number[] = [];
-  await checkForm(formToken(clock - 1000), () => clock, async ms => { slept.push(ms); clock += ms; });
-  assert.ok(slept.length === 1 && slept[0]! >= 2000 && slept[0]! <= 2100, `waited ${slept[0]}`);
-  // In time: no wait at all.
-  await checkForm(formToken(clock - 5000), () => clock, async ms => { slept.push(ms); });
-  assert.equal(slept.length, 1);
-  await assert.rejects(checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  const h = new Headers({ "x-forwarded-for": "203.0.113.50" });
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, h, "book");
-  await refuses(admit(sql, h, "book"), "too_many");
-  // Another visitor is not held by the first.
-  await admit(sql, new Headers({ "x-forwarded-for": "198.51.100.50" }), "book");
-});

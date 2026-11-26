@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { listCategories } from "../lib/categories.ts";
-import { toCsv, parseCsv } from "../lib/csv.ts";
-import { exportRows } from "../lib/export.ts";
-import { addField, allFields, readExtra, removeField, renameField, restoreField } from "../lib/fields.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { fieldName } from "../lib/words.ts";
-import { plan, type Context } from "../lib/importer.ts";
-import * as items from "../lib/items.ts";
-import { fieldValue } from "../lib/model.ts";
+import { AppError } from "@argentic/chest-app";
+import { listCategories } from "../src/lib/categories.ts";
+import { toCsv, parseCsv } from "../src/lib/csv.ts";
+import { exportRows } from "../src/lib/export.ts";
+import { addField, allFields, readExtra, removeField, renameField, restoreField } from "../src/lib/fields.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { fieldName } from "../src/shared/words.ts";
+import { plan, type Context } from "../src/lib/importer.ts";
+import * as items from "../src/lib/items.ts";
+import { fieldValue } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo } from "./support/members.ts";
@@ -20,7 +20,7 @@ let chest: FakeChest;
 let phones: string, laptops: string, vehicles: string;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   const cats = await listCategories(database.sql, asMember(camille));
   phones = cats.find(c => c.key === "phone")!.id;
   laptops = cats.find(c => c.key === "laptop")!.id;
@@ -97,11 +97,11 @@ test("the export has a column per field, and reads back into the same fields", a
   const all = await items.listItems(sql, M);
   const fields = await allFields(sql);
   const t = catalogue("en");
-  const text = toCsv(exportRows(all, t, "EUR", () => "", fields));
+  const text = toCsv(exportRows(all, t, () => "", fields));
   const header = parseCsv(text)[0]!;
   assert.ok(header.includes("Licence plate") && header.includes("RAM (GB)") && header.includes("Next inspection"));
   const cats = await listCategories(sql, M);
-  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields };
+  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields, currency: "EUR" };
   const p = plan(text, "csv", context);
   const van = p.rows.find(r => r.name === "Renault Kangoo")!;
   const plate = fields.find(f => f.name === "Licence plate")!, inspection = fields.find(f => f.name === "Next inspection")!;
@@ -122,7 +122,7 @@ test("a field the tool proposed speaks each reader's language until renamed; an 
   await refused(addField(sql, M, { categoryId: screens, name: "système d’exploitation", type: "text" }), "field_taken");
   // A French file's column goes into it.
   const cats = await listCategories(sql, M);
-  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields: await allFields(sql) };
+  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields: await allFields(sql), currency: "EUR" };
   const p = plan("Nom;Catégorie;Système d’exploitation\nDell 27;Écran;Android 15\n", "csv", context);
   assert.deepEqual([p.rows[0]?.extra[os.id], p.offered], ["Android 15", []]);
   // Saved under its French name: still the key; renamed: the manager's words.
@@ -136,7 +136,7 @@ test("the French export writes the key's French name, and reads back", async () 
   const { sql } = database;
   await sql`insert into fields (category_id, name, key, type, position) values (${phones}, 'IMEI', 'imei', 'text', 8)`;
   const fields = await allFields(sql);
-  const header = parseCsv(toCsv(exportRows(await items.listItems(sql, M), catalogue("fr"), "EUR", () => "", fields)))[0]!;
+  const header = parseCsv(toCsv(exportRows(await items.listItems(sql, M), catalogue("fr"), () => "", fields)))[0]!;
   assert.ok(header.includes("Plaque d’immatriculation") || !fields.some(f => f.key === "plate"));
   assert.ok(header.includes("IMEI"));
 });

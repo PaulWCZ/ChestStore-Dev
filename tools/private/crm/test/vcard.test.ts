@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { fold, parseVcards, toVcard } from "../lib/vcard.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { fold, parseVcards, toVcard } from "../src/shared/vcard.ts";
 
 test("vCard 3.0 as phones write it: folded lines, escapes, several addresses, groups", () => {
   const text = [

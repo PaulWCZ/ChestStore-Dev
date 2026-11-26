@@ -8,7 +8,7 @@ company handbook on good paper, not a software screen.
 ## Its identity is a theme: Library
 
 The wiki's look is **Library**, a theme of the store's UI kit
-(`@argentic/chest-ui`): `defineTheme` in `lib/theme.ts`, value for value the
+(`@argentic/chest-ui`): `defineTheme` in `src/theme.ts`, value for value the
 catalogue's `library` (a test holds them equal), checked against every
 contrast pair of the kit's token contract in light and dark
 (`checkTheme`, `test/theme.test.ts`). It is the wiki's **default** look. A
@@ -17,10 +17,10 @@ theme of the catalogue (the 17 identities, "Chest", "High contrast") or its
 own brand; the wiki then wears it with the same features, and the header
 shows the company's logo where the book mark stands.
 
-So **no colour is written in the wiki's CSS**: `app/globals.css` names only
+So **no colour is written in the wiki's CSS**: `src/styles.css` names only
 the contract's tokens (`--bg`, `--surface`, `--ink`, `--accent`,
 `--accent-text`, `--line-strong`, `--highlight`, `--cat-N`…), and
-`app/tokens.css` holds the wiki's own tokens, each defined from them:
+`src/tokens.css` holds the wiki's own tokens, each defined from them:
 
 | Token | Defined as | Use |
 |---|---|---|
@@ -33,7 +33,7 @@ the contract's tokens (`--bg`, `--surface`, `--ink`, `--accent`,
 
 Library's values (light / dark) — paper `#faf6ee` / `#16140f`, ink
 `#23201a` / `#ece5d6`, deep green `#1d5b43` / `#8fcfae`, highlighter
-`#f6e3a1` / `#5c4a14` — are in `lib/theme.ts`; what the theme leaves out
+`#f6e3a1` / `#5c4a14` — are in `src/theme.ts`; what the theme leaves out
 is derived by the kit with the contract's contrast. Field borders are now
 `--line-strong` (`#908877` light: 3.3:1 on paper, 3.5:1 on a card; the old `#cfc3ab`, 1.6:1, was
 under WCAG 1.4.11's 3:1).
@@ -53,7 +53,7 @@ reads — titles, headings, page text at 19 px with 1.7 leading on a 40 rem
 measure (about 70 characters), excerpts, search results; *Source Sans 3*
 (OFL-1.1) for the interface around it. Old-style figures in text, tabular
 figures in tables, small uppercase labels ("kickers") letter-spaced. Both
-self-hosted in `public/fonts/`. **Shape**: hairline rules instead of boxes,
+self-hosted in `public/assets/fonts/`. **Shape**: hairline rules instead of boxes,
 radii 5/8/14 px, soft shadows only on what floats (menus, dialogs, hovered
 cards). **Space**: 4, 8, 12, 16, 24, 32, 48, 72. **Motion**: 120 and 240 ms,
 none with reduced motion.
@@ -134,8 +134,8 @@ highlighter-yellow search marks keep the paper metaphor all the way.
     { "name": "Ribbon", "value": "#e2a83c" }
   ],
   "fonts": {
-    "display": { "family": "Newsreader", "file": "public/fonts/newsreader-latin-wght-normal.woff2", "weight": 600 },
-    "body": { "family": "Source Sans 3", "file": "public/fonts/source-sans-3-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Newsreader", "file": "public/assets/fonts/newsreader-latin-wght-normal.woff2", "weight": 600 },
+    "body": { "family": "Source Sans 3", "file": "public/assets/fonts/source-sans-3-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Holidays and time off — how to ask"
 }

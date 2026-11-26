@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import * as b from "../lib/booking.ts";
-import { importCalendly, readTime } from "../lib/import.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as b from "../src/lib/booking.ts";
+import { importCalendly, readTime } from "../src/lib/import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone });
 });
 after(async () => {
   await chest.close();

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { answer } from "../lib/answers.ts";
-import * as polls from "../lib/polls.ts";
+import * as events from "@argentic/chest-sdk/events";
+import { answer } from "../src/lib/answers.ts";
+import { handlers, seen } from "../src/lib/lifecycle.ts";
+import * as polls from "../src/lib/polls.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, ines, lea, sofia, tom } from "./support/members.ts";
@@ -12,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -22,6 +23,9 @@ after(async () => {
 const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: null };
 const b32 = (c: string) => c.repeat(26);
+// What POST /chest-events does (src/app.tsx; the route itself is tested
+// against the built server, test/app.test.mjs).
+const POST = async (request: Request) => new Response(null, { status: await events.handle(request, handlers(database.sql), { seen: seen(database.sql) }) });
 
 test("losing access changes nothing; leaving the Chest removes only one's drafts", async () => {
   const { sql } = database;
@@ -29,9 +33,9 @@ test("losing access changes nothing; leaving the Chest removes only one's drafts
   const draft = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Draft", options: ["A", "B"] }, ctx);
   const q = (await polls.load(sql, open.id)).questions[0]!;
   await answer(sql, asMember(sofia), open.id, { [q.id]: { options: [q.options[0]!.id] } }, now);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
   assert.equal((await sql`select 1 from polls where id = ${draft.id}`).length, 1);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
   assert.equal((await sql`select 1 from polls where id = ${draft.id}`).length, 0);
   // Their open poll stays open, their answer still counts.
   const view = await polls.view(sql, asMember(camille), open.id, now);
@@ -53,8 +57,8 @@ test("an erasure unnames answers and polls, keeps them counted, and is acknowled
   await answer(sql, asMember(ines), anonymous.id, { [aq.id]: { options: [aq.options[0]!.id] } }, now);
   const erasure = "era_" + b32("a");
   const event = { type: "member.erased" as const, id: "evt_" + b32("b"), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   assert.equal((await sql`select 1 from participants where member = ${ines.id}`).length, 0);
   assert.equal((await sql`select 1 from polls where organiser = ${ines.id}`).length, 0);
@@ -68,7 +72,7 @@ test("an erasure unnames answers and polls, keeps them counted, and is acknowled
   assert.deepEqual(r.grid.map(g => g.member).sort(), ["erased", lea.id, tom.id].sort());
   assert.equal((await polls.view(sql, asMember(camille), anonymous.id, now)).answers, 1);
   // A second erased person in the same poll is counted apart.
-  await chest.emit({ type: "member.erased", data: { id: lea.id, erasure: "era_" + b32("c"), deadline: new Date(Date.now() + 864e5).toISOString() } }, POST);
+  await chest.deliver({ type: "member.erased", data: { id: lea.id, erasure: "era_" + b32("c"), deadline: new Date(Date.now() + 864e5).toISOString() } }, POST);
   assert.equal((await polls.view(sql, asMember(camille), named.id, now)).answers, 3);
 });
 

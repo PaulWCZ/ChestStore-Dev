@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { listCategories } from "../lib/categories.ts";
-import { toCsv, parseCsv } from "../lib/csv.ts";
-import { exportRows } from "../lib/export.ts";
-import { allFields } from "../lib/fields.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { applyImport, plan, previewImport, readDate, type Context } from "../lib/importer.ts";
-import * as items from "../lib/items.ts";
+import { AppError } from "@argentic/chest-app";
+import { listCategories } from "../src/lib/categories.ts";
+import { csvRow, toCsv, parseCsv } from "../src/lib/csv.ts";
+import { exportRows } from "../src/lib/export.ts";
+import { allFields } from "../src/lib/fields.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { applyImport, plan, previewImport, readDate, type Context } from "../src/lib/importer.ts";
+import * as items from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -51,7 +51,7 @@ async function context(): Promise<Context> {
     people: everyone.map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, photo: null, role: p.role, locale: "en" as const })),
     tags: new Set(), serials: new Set(),
     categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })),
-    fields: [],
+    fields: [], currency: "EUR",
   };
 }
 
@@ -151,7 +151,7 @@ test("this tool's own export reads back, in English and in French", async () => 
   const all = await items.listItems(sql, M);
   for (const locale of ["en", "fr"] as const) {
     const t = catalogue(locale);
-    const text = toCsv(exportRows(all, t, "EUR", id => (id === hugo.id ? "Hugo Bernard" : id === ines.id ? "Inès Moreau" : "")));
+    const text = toCsv(exportRows(all, t, id => (id === hugo.id ? "Hugo Bernard" : id === ines.id ? "Inès Moreau" : "")));
     assert.equal(parseCsv(text)[0]![0], t.export.headers.tag);
     const c = await context();
     c.tags = new Set();
@@ -256,4 +256,13 @@ test("importing the Custom Asset Report makes the fields and fills them", async 
   const again = await previewImport(sql, M, "snipe", text);
   assert.ok(again.rows.every(r => r.skip === "exists"));
   assert.deepEqual(again.offered, ["MAC Address"]);
+});
+
+test("CSV as spreadsheets write it: quotes, doubled quotes, line breaks inside, ; or ,, a mark, \\r\\n", () => {
+  assert.deepEqual(parseCsv('﻿a,b,c\r\n"x, y","say ""hi""","two\nlines"\n1,,3\n\n'), [["a", "b", "c"], ["x, y", 'say "hi"', "two\nlines"], ["1", "", "3"]]);
+  assert.deepEqual(parseCsv("a;b\nc;d,e\r"), [["a", "b"], ["c", "d,e"]]);
+  assert.deepEqual(parseCsv('a,b\n"q"tail,x"y\nend,'), [["a", "b"], ["qtail", 'x"y'], ["end", ""]]);
+  assert.equal(parseCsv("h\n" + "r\n".repeat(50), 10).length, 11, "stops past the rows asked");
+  // The export's own line, read back.
+  assert.deepEqual(parseCsv(csvRow(["a;b", "=1+1", 'q"'], ";")), [["a;b", "'=1+1", 'q"']]);
 });

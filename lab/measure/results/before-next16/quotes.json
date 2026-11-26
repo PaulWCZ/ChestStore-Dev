@@ -1,0 +1,1027 @@
+{
+ "tool": "quotes",
+ "label": "before-next16",
+ "source": "/home/user/wt/before/tools/public-and-private/quotes",
+ "date": "2026-10-06T00:37:27.481Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "eb38566 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.52,
+   "five": 1.43,
+   "fifteen": 1.74
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 47,
+    "rssMiB": 64,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 7.4,
+    "rssMiB": 504,
+    "command": "claude"
+   },
+   {
+    "cpu": 2.6,
+    "rssMiB": 194,
+    "command": "chrome"
+   },
+   {
+    "cpu": 1.3,
+    "rssMiB": 183,
+    "command": "chrome"
+   },
+   {
+    "cpu": 1.3,
+    "rssMiB": 106,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 5.8,
+   "five": 2.83,
+   "fifteen": 2.2
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 103,
+    "rssMiB": 771,
+    "command": "next-build (v16"
+   },
+   {
+    "cpu": 93.6,
+    "rssMiB": 6,
+    "command": "bash"
+   },
+   {
+    "cpu": 91.8,
+    "rssMiB": 415,
+    "command": "next-build (v16"
+   },
+   {
+    "cpu": 7.6,
+    "rssMiB": 480,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.8,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 14.7,
+  "apparentMiB": 13.8,
+  "files": 276
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 3678,
+  "peakRssMiB": 561.6,
+  "peakPssMiB": 516.7,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.72,
+   "five": 1.46,
+   "fifteen": 1.75
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 9823,
+  "peakRssMiB": 713.8,
+  "peakPssMiB": 666.7,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1210,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 1.14,
+   "max": 1.14
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 39362,
+   "peakRssMiB": 627.6,
+   "peakPssMiB": 530,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 2.57,
+    "max": 3.57
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 15409,
+   "peakRssMiB": 1118.3,
+   "peakPssMiB": 1020.7,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1028,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 3.42,
+    "max": 3.54
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 6.4,
+  "apparentMiB": 5.2,
+  "files": 259,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 463.7
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/quotes.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/documents/7",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/documents/11",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/invoices",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/quotes",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/clients",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/catalogue",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/export",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import?kind=clients",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+    "public": true,
+    "language": "fr"
+   },
+   {
+    "path": "/chest/documents/6",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/import?kind=invoices",
+    "member": "sofia",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 312.1,
+    "firstMs": 905.2,
+    "statuses": [
+     200
+    ],
+    "load": 3.3
+   },
+   {
+    "portMs": 289.5,
+    "firstMs": 698.8,
+    "statuses": [
+     200
+    ],
+    "load": 2.95
+   },
+   {
+    "portMs": 349.9,
+    "firstMs": 797.7,
+    "statuses": [
+     200
+    ],
+    "load": 3.32
+   },
+   {
+    "portMs": 353.4,
+    "firstMs": 802.3,
+    "statuses": [
+     200
+    ],
+    "load": 2.89
+   },
+   {
+    "portMs": 311.1,
+    "firstMs": 809.1,
+    "statuses": [
+     200
+    ],
+    "load": 2.52
+   },
+   {
+    "portMs": 344.1,
+    "firstMs": 782.4,
+    "statuses": [
+     200
+    ],
+    "load": 2.13
+   },
+   {
+    "portMs": 286.5,
+    "firstMs": 664.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.97
+   },
+   {
+    "portMs": 254.3,
+    "firstMs": 638.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.68
+   },
+   {
+    "portMs": 276.5,
+    "firstMs": 759.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.49
+   },
+   {
+    "portMs": 255.3,
+    "firstMs": 636.8,
+    "statuses": [
+     200
+    ],
+    "load": 1.26
+   }
+  ],
+  "port": {
+   "median": 300.3,
+   "min": 254.3,
+   "max": 353.4
+  },
+  "first200": {
+   "median": 770.8499999999999,
+   "min": 636.8,
+   "max": 905.2
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 241,
+     "pss": 144.1
+    },
+    "peakMiB": {
+     "rss": 274,
+     "pss": 176,
+     "cgroup": 144.9
+    },
+    "afterRequestsMiB": {
+     "rss": 274,
+     "pss": 176
+    },
+    "restMiB": {
+     "rss": 239.6,
+     "pss": 138.6,
+     "pssAnon": 104.8,
+     "pssFile": 33.8,
+     "cgroupAnon": 104.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.6,
+      "pssMiB": 20.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 171.2,
+      "pssMiB": 117.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54531,
+      "ms": 42.5
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 65
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 33.4
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49320,
+      "ms": 22.8
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49886,
+      "ms": 23.8
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93587,
+      "ms": 20.2
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 21.4
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 28.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103581,
+      "ms": 34.9
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 26.3
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 66.2
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 43.7
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 12.7
+     }
+    ],
+    "load": {
+     "mean": 1.39,
+     "max": 1.47
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 242.3,
+     "pss": 141.7
+    },
+    "peakMiB": {
+     "rss": 268.4,
+     "pss": 167.8,
+     "cgroup": 139.7
+    },
+    "afterRequestsMiB": {
+     "rss": 268.4,
+     "pss": 167.8
+    },
+    "restMiB": {
+     "rss": 233.8,
+     "pss": 133.4,
+     "pssAnon": 99.1,
+     "pssFile": 34.4,
+     "cgroupAnon": 99,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.2,
+      "pssMiB": 22.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.7,
+      "pssMiB": 111.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54531,
+      "ms": 40.3
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 58.8
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 32.2
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49320,
+      "ms": 33.3
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49886,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 22
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103581,
+      "ms": 31.7
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 17.3
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 23.7
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 29.5
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 20.1
+     }
+    ],
+    "load": {
+     "mean": 1.97,
+     "max": 2.15
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 243.7,
+     "pss": 143.7
+    },
+    "peakMiB": {
+     "rss": 268.4,
+     "pss": 168.1,
+     "cgroup": 139.5
+    },
+    "afterRequestsMiB": {
+     "rss": 268.4,
+     "pss": 168.1
+    },
+    "restMiB": {
+     "rss": 233.8,
+     "pss": 138.6,
+     "pssAnon": 99.1,
+     "pssFile": 39.5,
+     "cgroupAnon": 99.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 23.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.9,
+      "pssMiB": 114.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54531,
+      "ms": 59.1
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 62.9
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 33.4
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49320,
+      "ms": 26.2
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49886,
+      "ms": 38.6
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102845,
+      "ms": 21.6
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 29.2
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103581,
+      "ms": 33.6
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 17.7
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 24.4
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 15.9
+     }
+    ],
+    "load": {
+     "mean": 1.65,
+     "max": 1.84
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 241,
+     "pss": 147.6
+    },
+    "peakMiB": {
+     "rss": 267.1,
+     "pss": 170.8,
+     "cgroup": 137.8
+    },
+    "afterRequestsMiB": {
+     "rss": 267.1,
+     "pss": 170.8
+    },
+    "restMiB": {
+     "rss": 233.4,
+     "pss": 138.1,
+     "pssAnon": 98.6,
+     "pssFile": 39.5,
+     "cgroupAnon": 98.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 23.3
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.6,
+      "pssMiB": 114.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54531,
+      "ms": 31.6
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 50.7
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 40.3
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49320,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49886,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 15.8
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 18.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103581,
+      "ms": 30.2
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 20
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 21.7
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 25.5
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 12.9
+     }
+    ],
+    "load": {
+     "mean": 1.51,
+     "max": 1.96
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245.2,
+     "pss": 142.3
+    },
+    "peakMiB": {
+     "rss": 268.8,
+     "pss": 165.6,
+     "cgroup": 139.8
+    },
+    "afterRequestsMiB": {
+     "rss": 268.8,
+     "pss": 165.6
+    },
+    "restMiB": {
+     "rss": 235.1,
+     "pss": 130.5,
+     "pssAnon": 100.4,
+     "pssFile": 30.1,
+     "cgroupAnon": 100.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.3
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 166.2,
+      "pssMiB": 110
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54531,
+      "ms": 61.7
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 66.7
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 51
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49320,
+      "ms": 22.6
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49886,
+      "ms": 35.2
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 29.8
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 22.3
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 20.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103581,
+      "ms": 34.9
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 15.8
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 30
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 22.7
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 16.7
+     }
+    ],
+    "load": {
+     "mean": 3.26,
+     "max": 4.08
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 233.8,
+    "min": 233.4,
+    "max": 239.6
+   },
+   "pss": {
+    "median": 138.1,
+    "min": 130.5,
+    "max": 138.6
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 268.4,
+    "min": 267.1,
+    "max": 274
+   },
+   "pss": {
+    "median": 168.1,
+    "min": 165.6,
+    "max": 176
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 166.8,
+    "min": 166.5,
+    "max": 173.1
+   },
+   "pss": {
+    "median": 114.8,
+    "min": 110.2,
+    "max": 117.8
+   }
+  }
+ }
+}

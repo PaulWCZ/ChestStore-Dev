@@ -11,7 +11,7 @@ theme **Instrument** of the UI kit; the company may choose another look.
 ## The identity is a theme
 
 Timesheets' look is the UI kit's catalogue theme **Instrument**
-(`@argentic/chest-ui`, `identityOf("timesheets")` in `lib/theme.ts`): one
+(`@argentic/chest-ui`, `identityOf("timesheets")` in `src/theme.ts`): one
 source, so the tool's own look and the look a company picks from the
 catalogue are the same, checked against every pair of the kit's contract
 (WCAG AA, light and dark) by `test/theme.test.ts`. A company may give the
@@ -26,7 +26,7 @@ Instrument's values (light / dark): paper `--bg` `#eef1ec` / `#08130f`,
 (3:1 on paper and white); `--highlight` `#e4f9b0` / `#2c3d10`; the project
 colours are its categorical palette.
 
-**The tool's own tokens** (`app/tokens.css`, all from contract tokens):
+**The tool's own tokens** (`src/tokens.css`, all from contract tokens):
 
 | Token | From | Use |
 |---|---|---|
@@ -126,8 +126,8 @@ Chest's black-and-white portal nor Tasks' yellow boards.
     { "name": "Coral", "value": "#d9542c" }
   ],
   "fonts": {
-    "display": { "family": "Manrope Variable", "file": "public/fonts/manrope-latin-wght-normal.woff2", "weight": 800 },
-    "body": { "family": "Martian Mono Variable", "file": "public/fonts/martian-mono-latin-wght-normal.woff2", "weight": 500 }
+    "display": { "family": "Manrope Variable", "file": "public/assets/fonts/manrope-latin-wght-normal.woff2", "weight": 800 },
+    "body": { "family": "Martian Mono Variable", "file": "public/assets/fonts/martian-mono-latin-wght-normal.woff2", "weight": 500 }
   },
   "specimen": "Site vitrine · Design — 1:30"
 }

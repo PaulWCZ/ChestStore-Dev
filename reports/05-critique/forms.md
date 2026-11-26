@@ -140,3 +140,25 @@ No server errors or console errors besides bug 5. Pages answer in 10–50 ms on 
 13. Per-form second language (M).
 14. ZIP export with files + form JSON; CSV import of past answers; Google/Typeform definition import (M/L).
 15. In-Chest actions to CRM/Helpdesk/Tasks + an outbound signed webhook (L, needs events between tools).
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Forms's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **137.3 → 67.4 MiB**;
+  image 469 → 39 MiB; first members' page 949 →
+  582 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent on 6 October, verdict "good, with fixes"; the fixes are pending (below).
+- **Fixed after the review**: the move itself: Hono and islands on the package studio.6 (`56711fb`); tests of the built server and of the database's summary against the counted one (`31b26ee`); a scale test at 10,000 answers — pages under 120 KB, peak 110–132 MiB, CSV and archive streamed (`429c4b5`); screens and docs (`fdda9fa`, `0ac99fd`).
+- **Pending**: **Its review's fixes are not merged** at `70227ed` (6 October): they were being made when this was written. The review found that a cookieless robot filled a 60-place form in 2.4 s and can lock any form for the day — the platform half of it is in `reports/03-sdk-report.md` §4.17.
+
+**Verdict, updated.** Custom domains now exist on the Chest (brief/08): public forms can live at `forms.<company>.com`. The blockers that stay: no email to the form's owner (the Chest's `mail`), and no embedding in the company's website (every Chest refuses a frame). **Cancel tomorrow: unchanged** — internal forms yes; website forms not yet.

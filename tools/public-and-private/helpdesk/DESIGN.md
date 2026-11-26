@@ -9,10 +9,10 @@ a queue.
 
 Support's look, "Calm counter", is a theme of the UI kit
 (`@argentic/chest-ui`, vendored in `vendor/`): `defineTheme` in
-`lib/theme.ts`, identical to the catalogue's `counter` (the tests hold
+`src/theme.ts`, identical to the catalogue's `counter` (the tests hold
 them equal) and checked against every pair of the kit's token contract
 (WCAG AA, light and dark). Every colour lives there; the stylesheets name
-only the contract's tokens and Support's own few in `app/tokens.css`,
+only the contract's tokens and Support's own few in `src/tokens.css`,
 defined from them — so the company may give Support any theme of the
 catalogue, or its own brand, from its Chest, and every screen keeps
 working (README, "Looks").
@@ -30,7 +30,7 @@ working (README, "Looks").
 | `--cat-3-soft` / `--cat-3-ink` | `#ffd9cf` coral / `#773a00` | `#3b2a26` / `#f28e42` | a customer waiting too long |
 | `--danger` | `#b3261e` | `#ff9a85` | spam, erase — 6.5:1; 7.5:1 |
 
-Support's own tokens (`app/tokens.css`): `--customer`, `--customer-ink`,
+Support's own tokens (`src/tokens.css`): `--customer`, `--customer-ink`,
 `--customer-line` (the categorical slot 3, orange in every theme),
 `--note` (`--highlight`) and `--note-line` (slot 7, ochre), and
 `--radius-round` (pill buttons, square in a square theme). On a ground
@@ -39,7 +39,7 @@ is `--ink`: the contract measures `--ink-2` only on the page's grounds.
 
 **Type**: *Atkinson Hyperlegible* (OFL-1.1, the Braille Institute's face
 designed to tell letters apart), 17 px body, 700 for headings and actions,
-self-hosted in `public/fonts/` (the kit writes the `@font-face`). **Shape**: pill buttons, 14/22 px radii,
+self-hosted in `public/assets/fonts/` (the kit writes the `@font-face`). **Shape**: pill buttons, 14/22 px radii,
 bubbles with one sharp corner toward their speaker. **Motion**: 120/220 ms,
 none with reduced motion.
 
@@ -96,8 +96,8 @@ not ours.
     { "name": "Butter", "value": "#fff1b8" }
   ],
   "fonts": {
-    "display": { "family": "Atkinson Hyperlegible", "file": "public/fonts/atkinson-hyperlegible-latin-700-normal.woff2", "weight": 700 },
-    "body": { "family": "Atkinson Hyperlegible", "file": "public/fonts/atkinson-hyperlegible-latin-400-normal.woff2", "weight": 400 }
+    "display": { "family": "Atkinson Hyperlegible", "file": "public/assets/fonts/atkinson-hyperlegible-latin-700-normal.woff2", "weight": 700 },
+    "body": { "family": "Atkinson Hyperlegible", "file": "public/assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2", "weight": 400 }
   },
   "specimen": "Hello Marie, your table leaves on Thursday."
 }

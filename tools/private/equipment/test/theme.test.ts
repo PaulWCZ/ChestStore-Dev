@@ -7,9 +7,8 @@ import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, validateTheme } from "@argentic/chest-ui";
 import { allTokens } from "@argentic/chest-ui/contract";
 import { fontFiles } from "@argentic/chest-ui/fonts";
-import { themeStyle } from "@argentic/chest-ui/runtime";
 import { identityOf } from "@argentic/chest-ui/themes";
-import { currentLook, identity } from "../lib/theme.ts";
+import { currentLook, identity, pageLook } from "../src/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -18,16 +17,17 @@ test("the tool's own identity is a valid theme and passes every pair of the cont
   assert.deepEqual(checkTheme(identity), []);
 });
 
-test("its fonts are the tool's own files, served at /fonts", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
+test("its fonts are the tool's own files, served at /assets/fonts", async () => {
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
-  assert.match(themeStyle(identity), /url\(\/fonts\/ibm-plex-sans-latin-wght-normal\.woff2\)/u);
+  // The tool's own look, as /look.css and /chest/look.css serve it.
+  assert.match((await pageLook(false)).css, /url\(\/assets\/fonts\/ibm-plex-sans-latin-wght-normal\.woff2\)/u);
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
-  const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
+  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
     let look = await currentLook();
     assert.equal(look.source, "catalogue");
@@ -54,7 +54,7 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
   const found: string[] = [];
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public"].includes(name)) return [];
     return statSync(path).isDirectory() ? walk(path) : path.endsWith(".css") ? [path] : [];
   });
   for (const file of walk(root)) {
@@ -71,12 +71,12 @@ test("the identity is the catalogue's Tool crib, value for value", () => {
 });
 
 // The stylesheets name only the contract's tokens and the tool's own
-// (app/tokens.css), and those are themselves made of contract tokens (or
+// (src/tokens.css), and those are themselves made of contract tokens (or
 // of the system's page colours for the printed paper, which stays black on
 // white in every look).
 test("the stylesheets name only contract tokens and the tool's own, defined from them", () => {
   const contract = new Set(allTokens);
-  const tokens = readFileSync(join(root, "app", "tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const tokens = readFileSync(join(root, "src", "tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
   const own = new Set([...tokens.matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
   for (const own1 of own) assert.ok(!contract.has(own1), `${own1} redefines a contract token`);
   for (const m of tokens.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/gu)) {
@@ -85,7 +85,7 @@ test("the stylesheets name only contract tokens and the tool's own, defined from
     assert.ok(system || names.length > 0, `${m[1]} is not made of tokens`);
     for (const n of names) assert.ok(contract.has(n) || own.has(n), `${m[1]} uses ${n}`);
   }
-  const css = readFileSync(join(root, "app", "globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const css = readFileSync(join(root, "src", "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
   const unknown = [...css.matchAll(/var\((--[\w-]+)/gu)].map(m => m[1]!).filter(n => !contract.has(n) && !own.has(n));
   assert.deepEqual([...new Set(unknown)], []);
 });

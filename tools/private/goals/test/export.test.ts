@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { parseCsv, toCsv } from "../lib/csv.ts";
-import { cycleCsv, fileName } from "../lib/export.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { checkIn } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { parseCsv, toCsv } from "../src/lib/csv.ts";
+import { cycleCsv, fileName } from "../src/lib/export.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { checkIn } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
 import { asMember } from "./support/member.ts";
 import { camille, ines, nora } from "./support/members.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";

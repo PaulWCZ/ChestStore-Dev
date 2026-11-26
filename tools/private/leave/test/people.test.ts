@@ -3,23 +3,23 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as balances from "../lib/balances.ts";
-import { addDays, addMonths } from "../lib/calendar.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { planImport, planLeave, type KindNames } from "../lib/import.ts";
-import { today } from "../lib/today.ts";
-import * as requests from "../lib/requests.ts";
-import { saveType, types } from "../lib/rules.ts";
-import { setupSteps } from "../lib/setup.ts";
-import { setApprover, setEmployeeNumber, setEndDate, setStartDate, setWorkDays, staffRow } from "../lib/staff.ts";
-import * as tell from "../lib/tell.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as balances from "../src/lib/balances.ts";
+import { addDays, addMonths } from "../src/shared/calendar.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { planImport, planLeave, type KindNames } from "../src/lib/import.ts";
+import { today } from "../src/lib/today.ts";
+import * as requests from "../src/lib/requests.ts";
+import { saveType, types } from "../src/lib/rules.ts";
+import { setupSteps } from "../src/lib/setup.ts";
+import { setApprover, setEmployeeNumber, setEndDate, setStartDate, setWorkDays, staffRow } from "../src/lib/staff.ts";
+import * as tell from "../src/lib/tell.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 // People as payroll needs them: last days, weeks, employee numbers; leave
 // recorded for someone; the imports from Lucca's files; HR's first run.
@@ -32,7 +32,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   const id = (key: string) => all.find(t => t.key === key)!.id;
   [paid, rtt, sick, family, remote] = [id("paid"), id("rtt"), id("sick"), id("family"), id("remote")];
@@ -86,6 +86,10 @@ test("a part-timer's leave is counted on their week: to the day before they are 
   // RTT: only the days he works.
   const t = await requests.createRequest(sql, asMember(tom), { typeId: rtt, ...week(addDays(monday, 14)) });
   assert.equal(t.days, 3);
+  // Both taken back: Lucca's file below brings Tom's leave of its own, on
+  // days these may fall on (they move with today).
+  assert.equal(await requests.cancel(sql, asMember(tom), r.id), "cancelled");
+  assert.equal(await requests.cancel(sql, asMember(tom), t.id), "cancelled");
 });
 
 test("HR, or the person's approver, records leave for them: approved at once, the person told; nobody else may", async () => {
@@ -98,7 +102,7 @@ test("HR, or the person's approver, records leave for them: approved at once, th
   assert.equal(r.decidedBy, camille.id);
   assert.deepEqual((await requests.history(sql, asMember(camille), r.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id]]);
   await tell.recorded(sql, asMember(camille), r);
-  assert.equal(chest.notifications.find(n => n.member === nora.id)?.title, "Camille Martin recorded leave for you");
+  assert.equal(seen(chest.notifications.find(n => n.member === nora.id))?.title, "Camille Martin recorded leave for you");
   // Ines answers Hugo's requests: she records his; not Tom's.
   const h = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(monday), memberId: hugo.id });
   assert.equal(h.status, "approved");
@@ -154,14 +158,14 @@ test("someone who leaves: their last day is set, nothing is earned after it, no 
   await setStartDate(sql, asMember(camille), lea.id, addMonths(today(), -14));
   const before = await of(lea);
   assert.equal(before.months, 14);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: lea.id } }, POST), 204);
   assert.equal((await staffRow(sql, lea.id)).endDate, today());
   const now = await of(lea);
   assert.equal(now.until, today());
   assert.equal(now.left, before.left);
   // A last day HR set first is kept.
   await setEndDate(sql, asMember(camille), sofia.id, addDays(today(), 20));
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
   assert.equal((await staffRow(sql, sofia.id)).endDate, addDays(today(), 20));
   await assert.rejects(requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(quietMonday(40)) }), refused("left_company"));
   await setEndDate(sql, asMember(camille), sofia.id, null);
@@ -216,7 +220,7 @@ test("Lucca's approved leave: its absence export as it is; kinds by name or mapp
   const lines = mapped.rows.filter(r => r.problem === null).map(r => ({ line: r.line, memberId: r.memberId!, typeId: r.typeId!, start: r.start!, startHalf: r.startHalf, end: r.end!, endHalf: r.endHalf }));
   await assert.rejects(requests.importLeave(sql, asMember(ines), lines, true, "Lucca"), refused("forbidden"));
   const result = await requests.importLeave(sql, asMember(camille), lines, true, "Lucca");
-  assert.equal(result.done.length, 3);
+  assert.equal(result.done.length, 3, JSON.stringify(result.skipped));
   const christmas = result.done.find(r => r.memberId === ines.id)!;
   assert.equal(christmas.status, "approved");
   assert.equal((await of(ines)).left, before);

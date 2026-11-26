@@ -1,0 +1,1076 @@
+{
+ "tool": "news",
+ "label": "after-package",
+ "source": "/home/user/wt/news/tools/private/news",
+ "date": "2026-10-06T02:24:20.893Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "eba4e48 2026-10-06 (with uncommitted changes)",
+ "load": {
+  "atStart": {
+   "one": 8.61,
+   "five": 7.84,
+   "fifteen": 6.6
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 143,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 86.5,
+    "rssMiB": 114,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 33.3,
+    "rssMiB": 131,
+    "command": "chrome"
+   },
+   {
+    "cpu": 18.3,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 11.8,
+    "rssMiB": 87,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 4.74,
+   "five": 6.08,
+   "fifteen": 6.21
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 42.8,
+    "rssMiB": 138,
+    "command": "chrome"
+   },
+   {
+    "cpu": 15.6,
+    "rssMiB": 182,
+    "command": "chrome"
+   },
+   {
+    "cpu": 13.8,
+    "rssMiB": 168,
+    "command": "chrome"
+   },
+   {
+    "cpu": 11.3,
+    "rssMiB": 652,
+    "command": "claude"
+   },
+   {
+    "cpu": 11.1,
+    "rssMiB": 98,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 9.1,
+  "apparentMiB": 8.6,
+  "files": 189
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 4450,
+  "peakRssMiB": 239.6,
+  "peakPssMiB": 189.6,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 314.4,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 9.12,
+   "five": 7.95,
+   "fifteen": 6.64
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 125,
+   "apparentMiB": 112.8,
+   "files": 3728
+  },
+  "pruned": {
+   "diskMiB": 16.3,
+   "apparentMiB": 12.4,
+   "files": 1145
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 5132,
+   "peakRssMiB": 363.9,
+   "peakPssMiB": 277,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 272.2,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 9.27,
+    "max": 9.27
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 2999,
+   "peakRssMiB": 438.2,
+   "peakPssMiB": 339.8,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 326,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 9.27,
+    "five": 8.01,
+    "fifteen": 6.67
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.4,
+  "apparentMiB": 2.3,
+  "files": 17,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 27.8
+ },
+ "sdk": "0.4.1-studio.2",
+ "pages": {
+  "source": "lab/measure/pages/news.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/4",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/3",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/9",
+    "member": "nora",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/posts/5",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/new",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new?kind=event",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/8",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/10",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=bikes",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=demenagement",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/transfer",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/propose",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/proposals",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/posts/11",
+    "member": "ines",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 271,
+    "firstMs": 435.3,
+    "statuses": [
+     200
+    ],
+    "load": 9.41
+   },
+   {
+    "portMs": 350.8,
+    "firstMs": 484.1,
+    "statuses": [
+     200
+    ],
+    "load": 8.56
+   },
+   {
+    "portMs": 447.2,
+    "firstMs": 598.7,
+    "statuses": [
+     200
+    ],
+    "load": 8.22
+   },
+   {
+    "portMs": 437.2,
+    "firstMs": 642.8,
+    "statuses": [
+     200
+    ],
+    "load": 9.2
+   },
+   {
+    "portMs": 306.3,
+    "firstMs": 495.2,
+    "statuses": [
+     200
+    ],
+    "load": 8.09
+   },
+   {
+    "portMs": 302.3,
+    "firstMs": 421.9,
+    "statuses": [
+     200
+    ],
+    "load": 6.85
+   },
+   {
+    "portMs": 254.8,
+    "firstMs": 406,
+    "statuses": [
+     200
+    ],
+    "load": 6.09
+   },
+   {
+    "portMs": 425.4,
+    "firstMs": 550.2,
+    "statuses": [
+     200
+    ],
+    "load": 6.12
+   },
+   {
+    "portMs": 260.7,
+    "firstMs": 391.4,
+    "statuses": [
+     200
+    ],
+    "load": 6.52
+   },
+   {
+    "portMs": 289.8,
+    "firstMs": 393,
+    "statuses": [
+     200
+    ],
+    "load": 6.08
+   }
+  ],
+  "port": {
+   "median": 304.3,
+   "min": 254.8,
+   "max": 447.2
+  },
+  "first200": {
+   "median": 459.70000000000005,
+   "min": 391.4,
+   "max": 642.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 168.8,
+     "pss": 62.7
+    },
+    "peakMiB": {
+     "rss": 175.2,
+     "pss": 68.8,
+     "cgroup": 65.4
+    },
+    "afterRequestsMiB": {
+     "rss": 175.2,
+     "pss": 68.8
+    },
+    "restMiB": {
+     "rss": 171.4,
+     "pss": 65.6,
+     "pssAnon": 58.5,
+     "pssFile": 7.1,
+     "cgroupAnon": 58.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 20.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.7,
+      "pssMiB": 45.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20971,
+      "ms": 25.9
+     },
+     {
+      "path": "/chest/posts/4",
+      "status": 200,
+      "bytes": 24374,
+      "ms": 41.6
+     },
+     {
+      "path": "/chest/posts/3",
+      "status": 200,
+      "bytes": 17331,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/posts/9",
+      "status": 200,
+      "bytes": 16360,
+      "ms": 16.9
+     },
+     {
+      "path": "/chest/posts/5",
+      "status": 200,
+      "bytes": 15767,
+      "ms": 10
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 26809,
+      "ms": 39.8
+     },
+     {
+      "path": "/chest/new?kind=event",
+      "status": 200,
+      "bytes": 36726,
+      "ms": 11.3
+     },
+     {
+      "path": "/chest/posts/8",
+      "status": 200,
+      "bytes": 12595,
+      "ms": 12.6
+     },
+     {
+      "path": "/chest/posts/10",
+      "status": 200,
+      "bytes": 14070,
+      "ms": 8.9
+     },
+     {
+      "path": "/chest/search?q=bikes",
+      "status": 200,
+      "bytes": 4832,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/search?q=demenagement",
+      "status": 200,
+      "bytes": 5070,
+      "ms": 10.5
+     },
+     {
+      "path": "/chest/transfer",
+      "status": 200,
+      "bytes": 10651,
+      "ms": 4.6
+     },
+     {
+      "path": "/chest/propose",
+      "status": 200,
+      "bytes": 11017,
+      "ms": 4.9
+     },
+     {
+      "path": "/chest/proposals",
+      "status": 200,
+      "bytes": 5840,
+      "ms": 6.4
+     },
+     {
+      "path": "/chest/posts/11",
+      "status": 200,
+      "bytes": 11609,
+      "ms": 7.8
+     }
+    ],
+    "load": {
+     "mean": 4.96,
+     "max": 5.78
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 173.7,
+     "pss": 73.9
+    },
+    "peakMiB": {
+     "rss": 175.5,
+     "pss": 73.9,
+     "cgroup": 71.1
+    },
+    "afterRequestsMiB": {
+     "rss": 175.5,
+     "pss": 71.8
+    },
+    "restMiB": {
+     "rss": 172,
+     "pss": 66.9,
+     "pssAnon": 59.1,
+     "pssFile": 7.7,
+     "cgroupAnon": 59.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.1,
+      "pssMiB": 46.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20971,
+      "ms": 27.6
+     },
+     {
+      "path": "/chest/posts/4",
+      "status": 200,
+      "bytes": 24374,
+      "ms": 40.1
+     },
+     {
+      "path": "/chest/posts/3",
+      "status": 200,
+      "bytes": 17331,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/posts/9",
+      "status": 200,
+      "bytes": 16360,
+      "ms": 10.8
+     },
+     {
+      "path": "/chest/posts/5",
+      "status": 200,
+      "bytes": 15767,
+      "ms": 10.8
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 26809,
+      "ms": 12
+     },
+     {
+      "path": "/chest/new?kind=event",
+      "status": 200,
+      "bytes": 36726,
+      "ms": 10.9
+     },
+     {
+      "path": "/chest/posts/8",
+      "status": 200,
+      "bytes": 12595,
+      "ms": 11.4
+     },
+     {
+      "path": "/chest/posts/10",
+      "status": 200,
+      "bytes": 14070,
+      "ms": 10.5
+     },
+     {
+      "path": "/chest/search?q=bikes",
+      "status": 200,
+      "bytes": 4832,
+      "ms": 15.9
+     },
+     {
+      "path": "/chest/search?q=demenagement",
+      "status": 200,
+      "bytes": 5070,
+      "ms": 6.6
+     },
+     {
+      "path": "/chest/transfer",
+      "status": 200,
+      "bytes": 10651,
+      "ms": 3.2
+     },
+     {
+      "path": "/chest/propose",
+      "status": 200,
+      "bytes": 11017,
+      "ms": 5.3
+     },
+     {
+      "path": "/chest/proposals",
+      "status": 200,
+      "bytes": 5840,
+      "ms": 5.1
+     },
+     {
+      "path": "/chest/posts/11",
+      "status": 200,
+      "bytes": 11609,
+      "ms": 17.8
+     }
+    ],
+    "load": {
+     "mean": 3.36,
+     "max": 3.54
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 177.4,
+     "pss": 73.4
+    },
+    "peakMiB": {
+     "rss": 177.4,
+     "pss": 73.4,
+     "cgroup": 70
+    },
+    "afterRequestsMiB": {
+     "rss": 175,
+     "pss": 70.2
+    },
+    "restMiB": {
+     "rss": 171.3,
+     "pss": 66.6,
+     "pssAnon": 58.5,
+     "pssFile": 8.2,
+     "cgroupAnon": 58.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.7
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.5,
+      "pssMiB": 45.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20971,
+      "ms": 29.3
+     },
+     {
+      "path": "/chest/posts/4",
+      "status": 200,
+      "bytes": 24374,
+      "ms": 38.8
+     },
+     {
+      "path": "/chest/posts/3",
+      "status": 200,
+      "bytes": 17331,
+      "ms": 14.2
+     },
+     {
+      "path": "/chest/posts/9",
+      "status": 200,
+      "bytes": 16360,
+      "ms": 15.2
+     },
+     {
+      "path": "/chest/posts/5",
+      "status": 200,
+      "bytes": 15767,
+      "ms": 12.8
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 26809,
+      "ms": 10.8
+     },
+     {
+      "path": "/chest/new?kind=event",
+      "status": 200,
+      "bytes": 36726,
+      "ms": 9.5
+     },
+     {
+      "path": "/chest/posts/8",
+      "status": 200,
+      "bytes": 12595,
+      "ms": 13.2
+     },
+     {
+      "path": "/chest/posts/10",
+      "status": 200,
+      "bytes": 14070,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/search?q=bikes",
+      "status": 200,
+      "bytes": 4832,
+      "ms": 25.5
+     },
+     {
+      "path": "/chest/search?q=demenagement",
+      "status": 200,
+      "bytes": 5070,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/transfer",
+      "status": 200,
+      "bytes": 10651,
+      "ms": 3.2
+     },
+     {
+      "path": "/chest/propose",
+      "status": 200,
+      "bytes": 11017,
+      "ms": 10.8
+     },
+     {
+      "path": "/chest/proposals",
+      "status": 200,
+      "bytes": 5840,
+      "ms": 5.4
+     },
+     {
+      "path": "/chest/posts/11",
+      "status": 200,
+      "bytes": 11609,
+      "ms": 13.8
+     }
+    ],
+    "load": {
+     "mean": 5.88,
+     "max": 6.47
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 167.6,
+     "pss": 63
+    },
+    "peakMiB": {
+     "rss": 173.2,
+     "pss": 68.7,
+     "cgroup": 63.3
+    },
+    "afterRequestsMiB": {
+     "rss": 173.2,
+     "pss": 68.7
+    },
+    "restMiB": {
+     "rss": 169.4,
+     "pss": 64.3,
+     "pssAnon": 56.5,
+     "pssFile": 7.8,
+     "cgroupAnon": 56.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 100.6,
+      "pssMiB": 43.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20971,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/posts/4",
+      "status": 200,
+      "bytes": 24374,
+      "ms": 32.4
+     },
+     {
+      "path": "/chest/posts/3",
+      "status": 200,
+      "bytes": 17331,
+      "ms": 14.3
+     },
+     {
+      "path": "/chest/posts/9",
+      "status": 200,
+      "bytes": 16360,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/posts/5",
+      "status": 200,
+      "bytes": 15767,
+      "ms": 13.8
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 26809,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/new?kind=event",
+      "status": 200,
+      "bytes": 36726,
+      "ms": 19
+     },
+     {
+      "path": "/chest/posts/8",
+      "status": 200,
+      "bytes": 12595,
+      "ms": 10.9
+     },
+     {
+      "path": "/chest/posts/10",
+      "status": 200,
+      "bytes": 14070,
+      "ms": 10.6
+     },
+     {
+      "path": "/chest/search?q=bikes",
+      "status": 200,
+      "bytes": 4832,
+      "ms": 22
+     },
+     {
+      "path": "/chest/search?q=demenagement",
+      "status": 200,
+      "bytes": 5070,
+      "ms": 21
+     },
+     {
+      "path": "/chest/transfer",
+      "status": 200,
+      "bytes": 10651,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/propose",
+      "status": 200,
+      "bytes": 11017,
+      "ms": 45.3
+     },
+     {
+      "path": "/chest/proposals",
+      "status": 200,
+      "bytes": 5840,
+      "ms": 4.7
+     },
+     {
+      "path": "/chest/posts/11",
+      "status": 200,
+      "bytes": 11609,
+      "ms": 9.5
+     }
+    ],
+    "load": {
+     "mean": 6.81,
+     "max": 7.38
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168,
+     "pss": 63.3
+    },
+    "peakMiB": {
+     "rss": 175.6,
+     "pss": 70.5,
+     "cgroup": 66.2
+    },
+    "afterRequestsMiB": {
+     "rss": 175.6,
+     "pss": 70.5
+    },
+    "restMiB": {
+     "rss": 171.9,
+     "pss": 69,
+     "pssAnon": 59,
+     "pssFile": 10,
+     "cgroupAnon": 59,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 21.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.1,
+      "pssMiB": 47.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20971,
+      "ms": 17.4
+     },
+     {
+      "path": "/chest/posts/4",
+      "status": 200,
+      "bytes": 24374,
+      "ms": 25.5
+     },
+     {
+      "path": "/chest/posts/3",
+      "status": 200,
+      "bytes": 17331,
+      "ms": 11
+     },
+     {
+      "path": "/chest/posts/9",
+      "status": 200,
+      "bytes": 16360,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/posts/5",
+      "status": 200,
+      "bytes": 15767,
+      "ms": 10.2
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 26809,
+      "ms": 10.3
+     },
+     {
+      "path": "/chest/new?kind=event",
+      "status": 200,
+      "bytes": 36726,
+      "ms": 19
+     },
+     {
+      "path": "/chest/posts/8",
+      "status": 200,
+      "bytes": 12595,
+      "ms": 12.8
+     },
+     {
+      "path": "/chest/posts/10",
+      "status": 200,
+      "bytes": 14070,
+      "ms": 8.8
+     },
+     {
+      "path": "/chest/search?q=bikes",
+      "status": 200,
+      "bytes": 4832,
+      "ms": 15
+     },
+     {
+      "path": "/chest/search?q=demenagement",
+      "status": 200,
+      "bytes": 5070,
+      "ms": 6
+     },
+     {
+      "path": "/chest/transfer",
+      "status": 200,
+      "bytes": 10651,
+      "ms": 4.7
+     },
+     {
+      "path": "/chest/propose",
+      "status": 200,
+      "bytes": 11017,
+      "ms": 5.8
+     },
+     {
+      "path": "/chest/proposals",
+      "status": 200,
+      "bytes": 5840,
+      "ms": 4
+     },
+     {
+      "path": "/chest/posts/11",
+      "status": 200,
+      "bytes": 11609,
+      "ms": 8.5
+     }
+    ],
+    "load": {
+     "mean": 4.99,
+     "max": 5.97
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 171.4,
+    "min": 169.4,
+    "max": 172
+   },
+   "pss": {
+    "median": 66.6,
+    "min": 64.3,
+    "max": 69
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 175.5,
+    "min": 173.2,
+    "max": 177.4
+   },
+   "pss": {
+    "median": 70.5,
+    "min": 68.7,
+    "max": 73.9
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 104.6,
+    "min": 102.5,
+    "max": 105
+   },
+   "pss": {
+    "median": 45.9,
+    "min": 43.7,
+    "max": 47.7
+   }
+  }
+ }
+}

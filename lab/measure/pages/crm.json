@@ -1,0 +1,82 @@
+[
+ {
+  "path": "/chest",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/deals",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/deals/1",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/contacts/1",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/companies/1",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/deals?view=list&status=any",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=durand",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/deals/4",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/team",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings/fields",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/companies",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/contacts/17",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings/forms",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/contacts/2",
+  "member": "ines",
+  "language": "fr"
+ }
+]

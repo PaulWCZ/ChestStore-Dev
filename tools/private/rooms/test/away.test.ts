@@ -1,22 +1,24 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { wholeDays } from "../lib/away.ts";
-import * as desks from "../lib/desk-bookings.ts";
-import { presenceOf, setPresence } from "../lib/presence.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { purge } from "../lib/settings.ts";
-import { addDays, today } from "../lib/model.ts";
+import { builtServer, type Handler } from "./support/server.ts";
+import { wholeDays } from "../src/lib/away.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { presenceOf, setPresence } from "../src/lib/presence.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { purge } from "../src/lib/settings.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, ines } from "./support/members.ts";
+import { camille, everyone, hugo, ines } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
   chest = await fakeChest({ members: everyone });
   o = await office(database.sql);
@@ -26,8 +28,8 @@ after(async () => {
   await database.close();
 });
 
-const told = (type: "leave.approved" | "leave.cancelled", data: Record<string, unknown>, occurredAt?: Date) =>
-  chest.deliver({ type, source: "leave", data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}) }, POST);
+const told = (type: "leave.approved" | "leave.cancelled", data: Record<string, unknown>, occurredAt?: Date, audience?: string[]) =>
+  chest.deliver({ type, source: "leave", data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}), ...(audience ? { audience } : {}) }, POST);
 
 test("half days are left alone: a leave from the afternoon, or to noon, marks only its whole days", () => {
   assert.deepEqual(wholeDays({ from: "2026-10-05", to: "2026-10-07", fromHalf: "pm", toHalf: "am" }, "2026-10-01"), ["2026-10-06"]);
@@ -55,8 +57,46 @@ test("a leave approved in Leave: those days read Off, the desk is freed; cancell
   assert.equal(after?.get(b)?.status, "office");
 });
 
+// SDK 0.7.0: an event carries who in Leave may see it. Rooms shows the
+// "Off" only to them and to the person; for the others the day reads as
+// nothing said — the desk is freed all the same.
+test("a leave told for an audience: Off for those it names and the person, nothing said for the others; the desk is freed for all", async () => {
+  const { sql } = database;
+  const a = workday(9);
+  const desk = await desks.bookDesk(sql, asMember(ines), { deskId: o.desks[1], day: a }, zone);
+  assert.equal(await told("leave.approved", { member: ines.id, from: a, to: a, fromHalf: "day", toHalf: "day", request: "audience-1" }, undefined, [camille.id]), 204);
+  const as = async (viewer: string) => (await presenceOf(sql, [ines.id], a, a, viewer)).get(ines.id)?.get(a)?.status;
+  assert.equal(await as(camille.id), "off", "in the audience");
+  assert.equal(await as(ines.id), "off", "the person themself");
+  assert.equal(await as(hugo.id), undefined, "outside the audience: nothing said");
+  const [kept] = await sql`select cancelled_at from desk_bookings where id = ${desk.id}`;
+  assert.ok(kept!["cancelled_at"], "desk freed");
+  // Told again for everyone: everyone sees it.
+  assert.equal(await told("leave.approved", { member: ines.id, from: a, to: a, fromHalf: "day", toHalf: "day", request: "audience-1" }), 204);
+  assert.equal(await as(hugo.id), "off");
+});
+
 test("an event of another shape is accepted and changes nothing", async () => {
   assert.equal(await told("leave.approved", { member: "someone", from: "x", to: "y", request: "1" }), 204);
+});
+
+// Event types name no tool in 0.7.0: a leave.* type is Leave's word only
+// when Leave (the event's source) told it. And Leave's own shape, exactly
+// as it emits it (its lib/share.ts: halves "am" | "pm"), is read.
+test("a leave.* type told by another tool changes nothing; Leave's own shape marks the days", async () => {
+  const { sql } = database;
+  const a = workday(11);
+  const desk = await desks.bookDesk(sql, asMember(hugo), { deskId: o.desks[2], day: a }, zone);
+  const data = { member: hugo.id, from: a, to: a, fromHalf: "am", toHalf: "pm", request: "source-1" };
+  assert.equal(await chest.deliver({ type: "leave.approved", source: "hiring", data }, POST), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "office", "not Leave's word: the desk's day stays");
+  const [still] = await sql`select cancelled_at from desk_bookings where id = ${desk.id}`;
+  assert.equal(still!["cancelled_at"], null, "the desk stays booked");
+  assert.equal(await told("leave.approved", data), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "off");
+  // Nor may another tool take it back.
+  assert.equal(await chest.deliver({ type: "leave.cancelled", source: "people", data }, POST), 204);
+  assert.equal((await presenceOf(sql, [hugo.id], a, a)).get(hugo.id)?.get(a)?.status, "off");
 });
 
 // Leave shortens a leave as leave.cancelled then leave.approved for the

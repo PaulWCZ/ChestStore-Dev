@@ -1,0 +1,972 @@
+{
+ "tool": "expenses",
+ "label": "after-mail",
+ "source": "/home/user/ChestStore-Dev/tools/private/expenses",
+ "date": "2026-10-07T00:31:22.604Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "5776362 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 0.11,
+   "five": 0.27,
+   "fifteen": 0.78
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 45.4,
+    "rssMiB": 62,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 8.5,
+    "rssMiB": 443,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.6,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0.01,
+   "five": 0.13,
+   "fifteen": 0.56
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 8.4,
+    "rssMiB": 409,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.4,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.7,
+    "rssMiB": 74,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ]
+ },
+ "notes": [
+  "pages not 200: /chest/expenses/101 → 404"
+ ],
+ "repository": {
+  "diskMiB": 10.2,
+  "apparentMiB": 9.7,
+  "files": 204
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 5017,
+  "peakRssMiB": 277.2,
+  "peakPssMiB": 245.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 431.2,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "mean": 0.1,
+   "max": 0.1
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 168.1,
+   "apparentMiB": 159.4,
+   "files": 2750
+  },
+  "pruned": {
+   "diskMiB": 16.5,
+   "apparentMiB": 12.6,
+   "files": 1156
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 5545,
+   "peakRssMiB": 331.7,
+   "peakPssMiB": 269.8,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 250.1,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.09,
+    "max": 0.09
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 2211,
+   "peakRssMiB": 375.8,
+   "peakPssMiB": 304.1,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 277.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 0.24,
+    "five": 0.29,
+    "fifteen": 0.77
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 6.9,
+  "apparentMiB": 6.8,
+  "files": 29,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 33.6
+ },
+ "sdk": "0.4.1-studio.7",
+ "pages": {
+  "source": "lab/measure/pages/expenses.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/expenses/101",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/approve",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/new?trip=1",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/new?allowance=1",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pay",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/cards",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/export",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings/company",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/new",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=mercure",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 249.1,
+    "firstMs": 339.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.24
+   },
+   {
+    "portMs": 288.5,
+    "firstMs": 389.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.35
+   },
+   {
+    "portMs": 287.2,
+    "firstMs": 374.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.3
+   },
+   {
+    "portMs": 278.3,
+    "firstMs": 364.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.25
+   },
+   {
+    "portMs": 289.2,
+    "firstMs": 381,
+    "statuses": [
+     200
+    ],
+    "load": 0.21
+   },
+   {
+    "portMs": 275.4,
+    "firstMs": 360.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.18
+   },
+   {
+    "portMs": 364.4,
+    "firstMs": 456.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.15
+   },
+   {
+    "portMs": 269.1,
+    "firstMs": 365.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.27
+   },
+   {
+    "portMs": 274.6,
+    "firstMs": 358.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.22
+   },
+   {
+    "portMs": 264.9,
+    "firstMs": 349.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.19
+   }
+  ],
+  "port": {
+   "median": 276.85,
+   "min": 249.1,
+   "max": 364.4
+  },
+  "first200": {
+   "median": 365.20000000000005,
+   "min": 339.8,
+   "max": 456.6
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 174.2,
+     "pss": 101.3
+    },
+    "peakMiB": {
+     "rss": 174.2,
+     "pss": 101.3,
+     "cgroup": 70.8
+    },
+    "afterRequestsMiB": {
+     "rss": 171.9,
+     "pss": 97.1
+    },
+    "restMiB": {
+     "rss": 169.5,
+     "pss": 94.7,
+     "pssAnon": 59.1,
+     "pssFile": 35.6,
+     "cgroupAnon": 59.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.4,
+      "pssMiB": 29.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.2,
+      "pssMiB": 64.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 30433,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/expenses/101",
+      "status": 404,
+      "bytes": 7130,
+      "ms": 7.4
+     },
+     {
+      "path": "/chest/approve",
+      "status": 200,
+      "bytes": 37660,
+      "ms": 17.1
+     },
+     {
+      "path": "/chest/new?trip=1",
+      "status": 200,
+      "bytes": 28053,
+      "ms": 14.7
+     },
+     {
+      "path": "/chest/new?allowance=1",
+      "status": 200,
+      "bytes": 25812,
+      "ms": 9.9
+     },
+     {
+      "path": "/chest/pay",
+      "status": 200,
+      "bytes": 54489,
+      "ms": 16
+     },
+     {
+      "path": "/chest/cards",
+      "status": 200,
+      "bytes": 24596,
+      "ms": 9.6
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 14755,
+      "ms": 8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 35342,
+      "ms": 9.6
+     },
+     {
+      "path": "/chest/settings/company",
+      "status": 200,
+      "bytes": 97856,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 29608,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/search?q=mercure",
+      "status": 200,
+      "bytes": 8742,
+      "ms": 12.6
+     }
+    ],
+    "load": {
+     "mean": 0.12,
+     "max": 0.15
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 163.8,
+     "pss": 90.8
+    },
+    "peakMiB": {
+     "rss": 172.9,
+     "pss": 98.1,
+     "cgroup": 66.5
+    },
+    "afterRequestsMiB": {
+     "rss": 172.9,
+     "pss": 98.1
+    },
+    "restMiB": {
+     "rss": 170,
+     "pss": 95.1,
+     "pssAnon": 59.5,
+     "pssFile": 35.6,
+     "cgroupAnon": 59.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 30.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.4,
+      "pssMiB": 64.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 30433,
+      "ms": 14.2
+     },
+     {
+      "path": "/chest/expenses/101",
+      "status": 404,
+      "bytes": 7130,
+      "ms": 6.2
+     },
+     {
+      "path": "/chest/approve",
+      "status": 200,
+      "bytes": 37660,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/new?trip=1",
+      "status": 200,
+      "bytes": 28053,
+      "ms": 14.3
+     },
+     {
+      "path": "/chest/new?allowance=1",
+      "status": 200,
+      "bytes": 25812,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/pay",
+      "status": 200,
+      "bytes": 54489,
+      "ms": 15.3
+     },
+     {
+      "path": "/chest/cards",
+      "status": 200,
+      "bytes": 24596,
+      "ms": 8.8
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 14755,
+      "ms": 7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 35342,
+      "ms": 8.1
+     },
+     {
+      "path": "/chest/settings/company",
+      "status": 200,
+      "bytes": 97856,
+      "ms": 16
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 29608,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/search?q=mercure",
+      "status": 200,
+      "bytes": 8742,
+      "ms": 12.5
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.15
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 171.4,
+     "pss": 98.4
+    },
+    "peakMiB": {
+     "rss": 173.2,
+     "pss": 98.4,
+     "cgroup": 71.6
+    },
+    "afterRequestsMiB": {
+     "rss": 173.2,
+     "pss": 98.4
+    },
+    "restMiB": {
+     "rss": 170.8,
+     "pss": 96,
+     "pssAnon": 60.4,
+     "pssFile": 35.6,
+     "cgroupAnon": 60.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.4,
+      "pssMiB": 29.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.5,
+      "pssMiB": 65.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 30433,
+      "ms": 20
+     },
+     {
+      "path": "/chest/expenses/101",
+      "status": 404,
+      "bytes": 7130,
+      "ms": 6.1
+     },
+     {
+      "path": "/chest/approve",
+      "status": 200,
+      "bytes": 37660,
+      "ms": 37.6
+     },
+     {
+      "path": "/chest/new?trip=1",
+      "status": 200,
+      "bytes": 28053,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/new?allowance=1",
+      "status": 200,
+      "bytes": 25812,
+      "ms": 9.4
+     },
+     {
+      "path": "/chest/pay",
+      "status": 200,
+      "bytes": 54489,
+      "ms": 39.6
+     },
+     {
+      "path": "/chest/cards",
+      "status": 200,
+      "bytes": 24596,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 14755,
+      "ms": 10.4
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 35342,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/settings/company",
+      "status": 200,
+      "bytes": 97856,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 29608,
+      "ms": 12.9
+     },
+     {
+      "path": "/chest/search?q=mercure",
+      "status": 200,
+      "bytes": 8742,
+      "ms": 15.7
+     }
+    ],
+    "load": {
+     "mean": 0.07,
+     "max": 0.08
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 172.7,
+     "pss": 99.7
+    },
+    "peakMiB": {
+     "rss": 174.1,
+     "pss": 99.7,
+     "cgroup": 71.7
+    },
+    "afterRequestsMiB": {
+     "rss": 174.1,
+     "pss": 99.2
+    },
+    "restMiB": {
+     "rss": 170.2,
+     "pss": 95.4,
+     "pssAnon": 59.8,
+     "pssFile": 35.6,
+     "cgroupAnon": 59.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.1,
+      "pssMiB": 30.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.2,
+      "pssMiB": 64.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 30433,
+      "ms": 14.1
+     },
+     {
+      "path": "/chest/expenses/101",
+      "status": 404,
+      "bytes": 7130,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/approve",
+      "status": 200,
+      "bytes": 37660,
+      "ms": 31.3
+     },
+     {
+      "path": "/chest/new?trip=1",
+      "status": 200,
+      "bytes": 28053,
+      "ms": 13.4
+     },
+     {
+      "path": "/chest/new?allowance=1",
+      "status": 200,
+      "bytes": 25812,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/pay",
+      "status": 200,
+      "bytes": 54489,
+      "ms": 35.3
+     },
+     {
+      "path": "/chest/cards",
+      "status": 200,
+      "bytes": 24596,
+      "ms": 9.3
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 14755,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 35342,
+      "ms": 8.1
+     },
+     {
+      "path": "/chest/settings/company",
+      "status": 200,
+      "bytes": 97856,
+      "ms": 18.1
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 29608,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/search?q=mercure",
+      "status": 200,
+      "bytes": 8742,
+      "ms": 10.6
+     }
+    ],
+    "load": {
+     "mean": 0.03,
+     "max": 0.04
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 170.7,
+     "pss": 97.8
+    },
+    "peakMiB": {
+     "rss": 173.1,
+     "pss": 98.3,
+     "cgroup": 71.4
+    },
+    "afterRequestsMiB": {
+     "rss": 173.1,
+     "pss": 98.3
+    },
+    "restMiB": {
+     "rss": 169.6,
+     "pss": 94.8,
+     "pssAnon": 59.2,
+     "pssFile": 35.6,
+     "cgroupAnon": 59.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.8,
+      "pssMiB": 30.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 101.9,
+      "pssMiB": 64.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 30433,
+      "ms": 15
+     },
+     {
+      "path": "/chest/expenses/101",
+      "status": 404,
+      "bytes": 7130,
+      "ms": 8
+     },
+     {
+      "path": "/chest/approve",
+      "status": 200,
+      "bytes": 37660,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/new?trip=1",
+      "status": 200,
+      "bytes": 28053,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/new?allowance=1",
+      "status": 200,
+      "bytes": 25812,
+      "ms": 11.1
+     },
+     {
+      "path": "/chest/pay",
+      "status": 200,
+      "bytes": 54489,
+      "ms": 16.3
+     },
+     {
+      "path": "/chest/cards",
+      "status": 200,
+      "bytes": 24596,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 14755,
+      "ms": 8.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 35342,
+      "ms": 7.8
+     },
+     {
+      "path": "/chest/settings/company",
+      "status": 200,
+      "bytes": 97856,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 29608,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/search?q=mercure",
+      "status": 200,
+      "bytes": 8742,
+      "ms": 24.8
+     }
+    ],
+    "load": {
+     "mean": 0.01,
+     "max": 0.02
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 170,
+    "min": 169.5,
+    "max": 170.8
+   },
+   "pss": {
+    "median": 95.1,
+    "min": 94.7,
+    "max": 96
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 173.2,
+    "min": 172.9,
+    "max": 174.2
+   },
+   "pss": {
+    "median": 98.4,
+    "min": 98.1,
+    "max": 101.3
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 104.1,
+    "min": 103.8,
+    "max": 105.4
+   },
+   "pss": {
+    "median": 64.8,
+    "min": 64.5,
+    "max": 66
+   }
+  }
+ }
+}

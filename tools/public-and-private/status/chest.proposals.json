@@ -1,22 +1,9 @@
 {
-  "checks": {
-    "max": 10
-  },
+  "checks": true,
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "updates",
-      "cron": "*/15 * * * *"
-    }
-  ],
-  "emits": [
-    "status.incident"
-  ],
-  "webhooks": {
-    "max": 200
-  },
+  "webhooks": true,
   "translations": {
     "fr": {
       "title": "État des services",

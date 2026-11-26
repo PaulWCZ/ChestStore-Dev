@@ -1,0 +1,992 @@
+{
+ "tool": "timesheets",
+ "label": "before-next16",
+ "source": "/home/user/wt/before/tools/private/timesheets",
+ "date": "2026-10-05T23:44:52.835Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "dad0522 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.19,
+   "five": 0.39,
+   "fifteen": 0.66
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 41.6,
+    "rssMiB": 64,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 19.6,
+    "rssMiB": 75,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 10.6,
+    "rssMiB": 68,
+    "command": "npm start"
+   },
+   {
+    "cpu": 7,
+    "rssMiB": 393,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.4,
+    "rssMiB": 118,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 0.79,
+   "five": 0.48,
+   "fifteen": 0.62
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 146,
+    "rssMiB": 822,
+    "command": "next-build (v16"
+   },
+   {
+    "cpu": 6.6,
+    "rssMiB": 393,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.7,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 1.5,
+    "rssMiB": 118,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 1.1,
+    "rssMiB": 80,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 10.3,
+  "apparentMiB": 9.8,
+  "files": 182
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 4450,
+  "peakRssMiB": 558.3,
+  "peakPssMiB": 515.3,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.57,
+   "five": 0.47,
+   "fifteen": 0.68
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 8939,
+  "peakRssMiB": 732,
+  "peakPssMiB": 688.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1221.4,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.85,
+   "max": 0.85
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 35389,
+   "peakRssMiB": 614.7,
+   "peakPssMiB": 470.7,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 441,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.96,
+    "max": 0.97
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 16427,
+   "peakRssMiB": 1069,
+   "peakPssMiB": 979.5,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 964.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.27,
+    "max": 1.29
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 4.7,
+  "apparentMiB": 4,
+  "files": 174,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 457.6
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/timesheets.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=lastWeek",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=month&group=person",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/team",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/people",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/projects/2",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/projects",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "sofia",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/reports?preset=month&q=Feyssine",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/reports?preset=month&kind=uninvoiced",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 299.1,
+    "firstMs": 765.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.25
+   },
+   {
+    "portMs": 266.6,
+    "firstMs": 632.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.05
+   },
+   {
+    "portMs": 332.9,
+    "firstMs": 700.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.98
+   },
+   {
+    "portMs": 283,
+    "firstMs": 651.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.83
+   },
+   {
+    "portMs": 278.5,
+    "firstMs": 646.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.7
+   },
+   {
+    "portMs": 280.1,
+    "firstMs": 665.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.59
+   },
+   {
+    "portMs": 308.1,
+    "firstMs": 741.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.5
+   },
+   {
+    "portMs": 278.6,
+    "firstMs": 623.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.42
+   },
+   {
+    "portMs": 348,
+    "firstMs": 686.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.41
+   },
+   {
+    "portMs": 311.9,
+    "firstMs": 737.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.51
+   }
+  ],
+  "port": {
+   "median": 291.05,
+   "min": 266.6,
+   "max": 348
+  },
+  "first200": {
+   "median": 676.2,
+   "min": 623.5,
+   "max": 765.2
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 240.1,
+     "pss": 156.6
+    },
+    "peakMiB": {
+     "rss": 266,
+     "pss": 181.4,
+     "cgroup": 137.9
+    },
+    "afterRequestsMiB": {
+     "rss": 266,
+     "pss": 180.1
+    },
+    "restMiB": {
+     "rss": 233.6,
+     "pss": 141.2,
+     "pssAnon": 99.5,
+     "pssFile": 41.7,
+     "cgroupAnon": 99.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 25
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.8,
+      "pssMiB": 116
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 56450,
+      "ms": 26.1
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 68363,
+      "ms": 41.3
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 85555,
+      "ms": 31
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 63713,
+      "ms": 31.8
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 63755,
+      "ms": 34.1
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 50663,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 51221,
+      "ms": 22.8
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 49103,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 41890,
+      "ms": 29
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 43667,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 81618,
+      "ms": 26.2
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 87188,
+      "ms": 25.7
+     }
+    ],
+    "load": {
+     "mean": 0.32,
+     "max": 0.39
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 239.6,
+     "pss": 147.2
+    },
+    "peakMiB": {
+     "rss": 263.3,
+     "pss": 170.9,
+     "cgroup": 134.9
+    },
+    "afterRequestsMiB": {
+     "rss": 263.3,
+     "pss": 170.9
+    },
+    "restMiB": {
+     "rss": 230.6,
+     "pss": 138.3,
+     "pssAnon": 96.5,
+     "pssFile": 41.7,
+     "cgroupAnon": 96.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 25.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.7,
+      "pssMiB": 112.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 56450,
+      "ms": 24.6
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 68363,
+      "ms": 43.4
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 85555,
+      "ms": 28.3
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 63713,
+      "ms": 41.8
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 63755,
+      "ms": 29.3
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 50663,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 51221,
+      "ms": 21.7
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 49103,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 41890,
+      "ms": 15.5
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 43667,
+      "ms": 18.1
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 81618,
+      "ms": 22.3
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 87188,
+      "ms": 24.3
+     }
+    ],
+    "load": {
+     "mean": 0.22,
+     "max": 0.27
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.1,
+     "pss": 147.8
+    },
+    "peakMiB": {
+     "rss": 263.3,
+     "pss": 171.1,
+     "cgroup": 135
+    },
+    "afterRequestsMiB": {
+     "rss": 263.3,
+     "pss": 171.1
+    },
+    "restMiB": {
+     "rss": 230.6,
+     "pss": 138.3,
+     "pssAnon": 96.6,
+     "pssFile": 41.7,
+     "cgroupAnon": 96.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 24.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.9,
+      "pssMiB": 113.2
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 56450,
+      "ms": 26.7
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 68363,
+      "ms": 41.6
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 85555,
+      "ms": 28.4
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 63713,
+      "ms": 30.8
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 63755,
+      "ms": 25.9
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 50663,
+      "ms": 23.7
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 51221,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 49103,
+      "ms": 20.8
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 41890,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 43667,
+      "ms": 54.3
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 81618,
+      "ms": 26.7
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 87188,
+      "ms": 23.4
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 239.7,
+     "pss": 147.3
+    },
+    "peakMiB": {
+     "rss": 264,
+     "pss": 171.6,
+     "cgroup": 136.1
+    },
+    "afterRequestsMiB": {
+     "rss": 264,
+     "pss": 171.6
+    },
+    "restMiB": {
+     "rss": 231.2,
+     "pss": 138.8,
+     "pssAnon": 97.1,
+     "pssFile": 41.7,
+     "cgroupAnon": 97.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 25.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 162.3,
+      "pssMiB": 113.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 56450,
+      "ms": 34.5
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 68363,
+      "ms": 50
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 85555,
+      "ms": 27.4
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 63713,
+      "ms": 30.1
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 63755,
+      "ms": 29.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 50663,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 51221,
+      "ms": 21.8
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 49103,
+      "ms": 34.1
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 41890,
+      "ms": 16.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 43667,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 81618,
+      "ms": 20.6
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 87188,
+      "ms": 22.3
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 248,
+     "pss": 155.9
+    },
+    "peakMiB": {
+     "rss": 265.1,
+     "pss": 172.8,
+     "cgroup": 136.8
+    },
+    "afterRequestsMiB": {
+     "rss": 265.1,
+     "pss": 172.8
+    },
+    "restMiB": {
+     "rss": 232.9,
+     "pss": 142.9,
+     "pssAnon": 98.8,
+     "pssFile": 44.1,
+     "cgroupAnon": 98.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.7,
+      "pssMiB": 24.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.3,
+      "pssMiB": 118.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 56450,
+      "ms": 32.1
+     },
+     {
+      "path": "/chest/reports?preset=lastWeek",
+      "status": 200,
+      "bytes": 68363,
+      "ms": 50.7
+     },
+     {
+      "path": "/chest/reports?preset=month&group=person",
+      "status": 200,
+      "bytes": 85555,
+      "ms": 35
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 63713,
+      "ms": 30.8
+     },
+     {
+      "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 63753,
+      "ms": 24
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 50663,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/projects/2",
+      "status": 200,
+      "bytes": 51191,
+      "ms": 23
+     },
+     {
+      "path": "/chest/projects",
+      "status": 200,
+      "bytes": 49103,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 41890,
+      "ms": 15.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 43667,
+      "ms": 21
+     },
+     {
+      "path": "/chest/reports?preset=month&q=Feyssine",
+      "status": 200,
+      "bytes": 81618,
+      "ms": 19.1
+     },
+     {
+      "path": "/chest/reports?preset=month&kind=uninvoiced",
+      "status": 200,
+      "bytes": 87188,
+      "ms": 22.4
+     }
+    ],
+    "load": {
+     "mean": 0.38,
+     "max": 0.75
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 231.2,
+    "min": 230.6,
+    "max": 233.6
+   },
+   "pss": {
+    "median": 138.8,
+    "min": 138.3,
+    "max": 142.9
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 264,
+    "min": 263.3,
+    "max": 266
+   },
+   "pss": {
+    "median": 171.6,
+    "min": 170.9,
+    "max": 181.4
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 164.2,
+    "min": 163.6,
+    "max": 166.7
+   },
+   "pss": {
+    "median": 113.8,
+    "min": 113.1,
+    "max": 118.3
+   }
+  }
+ }
+}

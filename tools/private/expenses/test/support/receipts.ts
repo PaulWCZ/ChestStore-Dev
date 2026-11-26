@@ -1,7 +1,7 @@
 import type { FakeChest } from "@argentic/chest-sdk/testing";
 import type { Member } from "@argentic/chest-sdk/member";
-import type { Sql } from "../../lib/db.ts";
-import { grant, inspect, type ReceiptFile } from "../../lib/receipts.ts";
+import type { Sql } from "../../src/lib/db.ts";
+import { grant, inspect, type ReceiptFile } from "../../src/lib/receipts.ts";
 
 // A receipt as a member's browser sends it: authorised, PUT to the fake
 // Chest's front, then inspected as the save does.

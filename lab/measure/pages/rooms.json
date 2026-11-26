@@ -1,0 +1,37 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/desks",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/rooms",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/people",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/places",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/places/export",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/visitors",
+  "member": "sofia",
+  "language": "en"
+ }
+]

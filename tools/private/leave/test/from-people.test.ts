@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addDays } from "../lib/calendar.ts";
-import { readLeaving, readRecord } from "../lib/from-people.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setEmployeeNumber, setEndDate, setWorkDays, staffRow } from "../lib/staff.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { readLeaving, readRecord } from "../src/lib/from-people.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setEmployeeNumber, setEndDate, setWorkDays, staffRow } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, lea, sofia, tom } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, lea, sofia, tom, seen } from "./support/members.ts";
 
 // People → Leave (events between tools): HR writes a person's employee
 // number, first day, last day and working week once, in People's HR
@@ -21,7 +21,7 @@ let paid: string;
 before(async () => {
   database = await testDatabase();
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
 });
 after(async () => {
@@ -29,9 +29,9 @@ after(async () => {
   await database.close();
 });
 
-const record = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.record", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
-const leaving = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.leaving", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
-const stays = (member: string, occurredAt?: string) => chest.deliver({ type: "people.leaving_cancelled", data: { member }, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const record = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.record", source: "people", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const leaving = (data: Record<string, unknown>, occurredAt?: string) => chest.deliver({ type: "people.leaving", source: "people", data, ...(occurredAt ? { occurredAt } : {}) }, POST);
+const stays = (member: string, occurredAt?: string) => chest.deliver({ type: "people.leaving-cancelled", source: "people", data: { member }, ...(occurredAt ? { occurredAt } : {}) }, POST);
 const full = (member: string, more: Record<string, unknown> = {}) => ({ member, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null, ...more });
 
 test("People's events are read field by field; another shape changes nothing", () => {
@@ -82,7 +82,7 @@ test("a last day from the record settles leave after it and tells HR; cleared in
   const h = await staffRow(sql, hugo.id);
   assert.deepEqual([h.endDate, h.endBy], [last, "record"]);
   assert.equal((await requests.request(sql, asMember(camille), r.id)).status, "cancelled");
-  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `last:${hugo.id}`);
+  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `last:${hugo.id}`).map(seen);
   assert.equal(told.length, 1);
   assert.match(told[0]!.title, /^Hugo Bernard part le /u);
   // Cleared in People: the last day goes (the cancelled leave stays so).
@@ -114,4 +114,13 @@ test("a leaving checklist in People sets the last day unless one is set another 
   assert.equal((await staffRow(sql, sofia.id)).endDate, "2027-01-31");
   await stays(sofia.id, "2026-09-29T12:04:00Z");
   assert.equal((await staffRow(sql, sofia.id)).endDate, "2027-01-31");
+});
+
+test("People's types are read from People only (the source the Chest stamps); the week as text, as People's chest.json declares it", async () => {
+  const { sql } = database;
+  const before = await staffRow(sql, sofia.id);
+  assert.equal(await chest.deliver({ type: "people.record", source: "hiring", data: full(sofia.id, { employeeNumber: "0777" }) }, POST), 204);
+  assert.equal((await staffRow(sql, sofia.id)).employeeNumber, before.employeeNumber, "another tool's word changes nothing");
+  assert.deepEqual(readRecord(full(sofia.id, { workDays: "1,2,3,4,5" }))?.workDays, [1, 2, 3, 4, 5]);
+  assert.equal(readRecord(full(sofia.id, { workDays: "1,9" })), null);
 });

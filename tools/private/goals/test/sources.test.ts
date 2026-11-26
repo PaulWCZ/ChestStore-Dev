@@ -1,19 +1,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { noCycleWords, whoStarts } from "../lib/people.ts";
-import { cycleObjectives, objectiveById } from "../lib/read.ts";
-import { forgetMemberGroups, groupsOf, readerFor } from "../lib/groups.ts";
-import { knownBoards } from "../lib/sources.ts";
-import { addGroupTeam, chestGroups, forgetGroups } from "../lib/teams.ts";
-import { clockAt } from "../lib/tell.ts";
-import { unitFor, valueText } from "../lib/values.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { noCycleWords, whoStarts } from "../src/lib/people.ts";
+import { cycleObjectives, objectiveById } from "../src/lib/read.ts";
+import * as members from "@argentic/chest-sdk/members";
+import { withMember } from "@argentic/chest-sdk/testing";
+import { groupsOf, readerFor } from "../src/lib/groups.ts";
+import { knownBoards } from "../src/lib/sources.ts";
+import { addGroupTeam, chestGroups, forgetGroups, groupMembers, teams } from "../src/lib/teams.ts";
+import { clockAt } from "../src/lib/tell.ts";
+import { unitFor, valueText } from "../src/shared/values.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by the store's other tools (lib/sources.ts): cards done
@@ -22,12 +24,13 @@ import { running, world, type World } from "./support/world.ts";
 // And the coherence fixes: every group of the Chest as a team, units read
 // by their own language's rule, the admins named on an empty page.
 let w: World;
-before(async () => { w = await world({ groups: true }); });
+let POST: Server;
+before(async () => { w = await world({ groups: true }); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const admin = asMember(camille);
-const deliver = (type: string, data: Record<string, unknown>, occurredAt = new Date().toISOString()) => w.chest.deliver({ type, data, occurredAt } as never, POST);
+const deliver = (type: string, data: Record<string, unknown>, occurredAt = new Date().toISOString(), audience?: string[]) => w.chest.deliver({ type, source: type.split(".")[0]!, data, occurredAt, ...(audience ? { audience } : {}) } as never, POST);
 
 test("cards done, tickets solved and hires follow what the tools tell — per board, per owner, undone when reopened", async () => {
   const { sql } = w.database;
@@ -50,15 +53,16 @@ test("cards done, tickets solved and hires follow what the tools tell — per bo
   await deliver("helpdesk.ticket.solved", { ticket: "T-1", assignee: hugo.id });
   await deliver("helpdesk.ticket.solved", { ticket: "T-2", assignee: ines.id });
   await deliver("helpdesk.ticket.solved", { ticket: "T-3", assignee: null });
-  // Hiring's own shape: Goals keeps the candidate and who hired, nothing else.
-  await deliver("hiring.hired", { candidate: "K-1", name: "Jean Dupont", email: "jean@example.test", job: "Designer", team: null, place: null, startDate: null, hiredBy: camille.id });
+  // Hiring's own shape, exactly as its chest.json declares it: Goals keeps
+  // the candidate and who hired, nothing else.
+  await deliver("hiring.hired", { candidate: "K-1", name: "Jean Dupont", job: "Designer", team: null, place: null, startDate: null, hiredBy: camille.id });
   assert.deepEqual(await read(), [3, 1, 1, 1]);
   const kept = await sql`select * from fed_events where kind = 'hiring.hire'`;
   assert.ok(!JSON.stringify(kept).includes("Jean"), "no candidate's name kept");
   // Undone: a card reopened, a ticket reopened, a hire cancelled.
   await deliver("tasks.card.reopened", { card: "C-1" });
   await deliver("helpdesk.ticket.reopened", { ticket: "T-1" });
-  await deliver("hiring.hire_cancelled", { candidate: "K-1" });
+  await deliver("hiring.hire-cancelled", { candidate: "K-1" });
   assert.deepEqual(await read(), [2, 0, 0, 0]);
   // Done again (the same card): counted once.
   await deliver("tasks.card.done", { card: "C-1", board: "B-web", boardName: "Website (new name)", assignees: [ines.id] });
@@ -136,21 +140,25 @@ test("every group of the Chest may become a team, not only those that give Goals
   forgetGroups();
   const groups = await chestGroups();
   assert.deepEqual(groups.map(g => g.name).sort(), ["Office", "Sales", "Warehouse"]);
-  assert.deepEqual(groups.find(g => g.name === "Warehouse")!.members, [hugo.id]);
+  assert.deepEqual(await groupMembers("grp_warehouseaaaaaaaaaaaaaaaaa"), [hugo.id]);
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
   assert.equal(team.name, "Warehouse");
+  assert.deepEqual(team.members, [hugo.id]);
+  // Only the groups that are teams are asked for their members.
+  assert.deepEqual((await teams(sql)).map(x => [x.name, x.members]), [["Warehouse", [hugo.id]]]);
   await sql`delete from teams`;
 });
 
-test("a group that does not give Goals is still a team its members write for and read: its membership is asked of the Chest", async () => {
+test("a group that does not give Goals is still a team its members write for and read: the Chest names every group of a member (members.groups)", async () => {
   const { sql } = w.database;
   const { cycle } = await running(w);
   forgetGroups();
-  forgetMemberGroups();
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
-  const hugoM = asMember(hugo), sofiaM = asMember(sofia);
-  // The assertion carries only the groups that give Goals: not Warehouse.
-  assert.ok(!hugoM.groups.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  // With "members.groups", the Chest names every group of the member, as
+  // member(request) carries them: Warehouse too, which does not give Goals.
+  const asserted = (await members.get(hugo.id))!.groups ?? [];
+  assert.ok(asserted.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  const hugoM = { ...asMember(hugo), groups: asserted }, sofiaM = asMember(sofia);
   assert.ok((await groupsOf(hugoM)).includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
   const o = await createObjective(sql, hugoM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Ship every order the same day", visibility: "team", keyResults: [{ title: "Orders shipped the same day", kind: "percent", start: "70", target: "95", owner: hugo.id }] });
   await assert.rejects(createObjective(sql, sofiaM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Not my team" }), refused("forbidden"));
@@ -192,4 +200,52 @@ test("a key result's unit is kept with its writer's language", async () => {
 test("a member's empty page names whom to ask", async () => {
   assert.equal(await whoStarts("en"), "Camille Martin");
   assert.equal(await noCycleWords("fr"), "Demandez à Camille Martin de lancer le premier trimestre. D’ici là, rien à fixer.");
+});
+
+// The lead's rule (README, "With the other tools"): a key result's value is
+// a bare number, so it counts every item, whatever its audience; what
+// shows an item's content (a board's name) stays its audience's.
+test("an item another tool shows to some members only (its audience) counts in the number, its content stays theirs", async () => {
+  const { sql } = w.database;
+  await sql`delete from fed_events`;
+  await sql`delete from crm_deals`;
+  const { cycle } = await running(w);
+  const o = await createObjective(sql, admin, {
+    cycleId: cycle.id, level: "company", title: "Serve quietly",
+    keyResults: [
+      { title: "Tickets solved", source: "helpdesk.solved", start: "0", target: "10", owner: ines.id },
+      { title: "People hired", source: "hiring.hired", start: "0", target: "3", owner: camille.id },
+      { title: "Cards done", source: "tasks.done", unit: "card/cards", start: "0", target: "10", owner: ines.id },
+      { title: "Amount won", source: "crm.won_amount", currency: "EUR", start: "0", target: "10000", owner: ines.id },
+      { title: "Deals won", source: "crm.won_count", unit: "deal/deals", start: "0", target: "10", owner: ines.id },
+    ],
+  });
+  const read = async () => (await objectiveById(sql, o.id, clockAt(), null))!.keyResults.map(k => k.current);
+  // Support's tickets are for Support's roles, Hiring's hires once were
+  // for its recruiters, a card on a private board, a confidential deal.
+  await deliver("helpdesk.ticket.solved", { ticket: "T-open", assignee: ines.id });
+  await deliver("helpdesk.ticket.solved", { ticket: "T-hr", assignee: ines.id }, new Date().toISOString(), [ines.id]);
+  await deliver("hiring.hired", { candidate: "K-1", hiredBy: camille.id }, new Date().toISOString(), [hugo.id]);
+  await deliver("tasks.card.done", { card: "C-pay", board: "B-pay", boardName: "Payroll secrets", assignees: [ines.id] }, new Date().toISOString(), [ines.id]);
+  await deliver("crm.deal.won", { deal: "D-quiet", title: "Quiet deal", amount: 250000, currency: "EUR", company: null, contact: null, owner: ines.id }, new Date().toISOString(), [ines.id]);
+  assert.deepEqual(await read(), [2, 1, 1, 2500, 1], "every item counts in the bare number");
+  const [kept] = await sql<{ audience: string[] | null }[]>`select audience from fed_events where ref = 'T-hr'`;
+  assert.deepEqual(kept!.audience, [ines.id], "kept, with who may see it");
+  // Undone the same way, whatever the audience.
+  await deliver("helpdesk.ticket.reopened", { ticket: "T-hr" }, new Date().toISOString(), [ines.id]);
+  assert.deepEqual(await read(), [1, 1, 1, 2500, 1]);
+  // A board's name is an item's content: never offered from a card for some members only.
+  assert.deepEqual(await knownBoards(sql), []);
+  for (const path of ["/chest/objectives/new", `/chest/objectives/${o.id}`, `/chest/objectives/${o.id}/edit`]) {
+    const page = await POST(withMember(new Request(`https://goals-chest.chest.test${path}`), camille));
+    assert.equal(page.status, 200, path);
+    const html = await page.text();
+    for (const secret of ["Payroll", "B-pay", "Quiet deal", "D-quiet", "T-hr", "K-1"]) assert.ok(!html.includes(secret), `${path} shows no ${secret}`);
+  }
+  // Nothing of the items is kept beyond what a count needs.
+  assert.ok(!JSON.stringify(await sql`select * from crm_deals`).includes("Quiet deal"));
+  await sql`delete from cycles`;
+  await sql`delete from teams`;
+  await sql`delete from fed_events`;
+  await sql`delete from crm_deals`;
 });

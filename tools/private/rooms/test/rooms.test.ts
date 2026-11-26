@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import { addDays, today, weekday } from "../lib/model.ts";
-import * as rooms from "../lib/room-bookings.ts";
-import { setRules } from "../lib/settings.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { addDays, today, weekday } from "../src/shared/model.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
+import { setRules } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -111,4 +111,39 @@ test("daylight saving: a booking on the night the clocks change keeps its hours;
   } finally {
     await setRules(sql, asMember(camille), { weekdays: [1, 2, 3, 4, 5] });
   }
+});
+
+test("weekly: change this one and the next ones — the same time, title, people; a day taken stays as it was and is named; the ones before are untouched", async () => {
+  const { sql } = database;
+  const first = workday(2);
+  const done = await rooms.bookRoom(sql, asMember(camille), { roomId: o.atlas, day: first, start: 600, end: 630, title: "Weekly", attendees: [hugo.id], weeks: 4 }, zone);
+  const [w1, w2, w3, w4] = done.bookings;
+  await rooms.bookRoom(sql, asMember(camille), { roomId: o.atlas, day: w3!.day, start: 660, end: 690, title: "Other" }, zone);
+  const { changes, taken } = await rooms.updateFollowing(sql, asMember(camille), w2!.id, { start: 660, end: 690, title: "Moved", attendees: [hugo.id, ines.id] }, zone);
+  assert.deepEqual(changes.map(c => c.after.id), [w2!.id, w4!.id]);
+  assert.deepEqual(taken, [w3!.day]);
+  const after = new Map((await rooms.byIds(sql, [w1!.id, w2!.id, w3!.id, w4!.id], zone)).map(b => [b.id, b]));
+  assert.deepEqual([after.get(w1!.id)!.start, after.get(w2!.id)!.start, after.get(w3!.id)!.start, after.get(w4!.id)!.start], [600, 660, 600, 660]);
+  assert.equal(after.get(w4!.id)!.title, "Moved");
+  assert.deepEqual([...after.get(w4!.id)!.attendees].sort(), [hugo.id, ines.id].sort());
+  assert.equal(after.get(w1!.id)!.title, "Weekly", "before this one: untouched");
+  // A day moved: each later one moves by as many days (one day later, or
+  // one day earlier when the next day is a Saturday: the office is closed).
+  const shift = weekday(addDays(w2!.day, 1)) <= 5 ? 1 : -1;
+  const moved = await rooms.updateFollowing(sql, asMember(camille), w2!.id, { day: addDays(w2!.day, shift) }, zone);
+  assert.deepEqual(moved.changes.map(c => c.after.day), [addDays(w2!.day, shift), addDays(w3!.day, shift), addDays(w4!.day, shift)]);
+  await rooms.cancelRoomBooking(sql, asMember(camille), w1!.id, "following", zone);
+});
+
+test("a booking moved to another time, day or room is reminded and checked in afresh; a new title keeps both", async () => {
+  const { sql } = database;
+  const d = workday(3);
+  const { bookings: [b] } = await rooms.bookRoom(sql, asMember(hugo), { roomId: o.bora, day: d, start: 840, end: 870, title: "Check" }, zone);
+  await sql`update room_bookings set reminded_at = now(), checked_in_at = now() where id = ${b!.id}`;
+  const state = async () => (await sql<{ reminded: boolean; checked: boolean }[]>`select reminded_at is not null as reminded, checked_in_at is not null as checked from room_bookings where id = ${b!.id}`)[0]!;
+  await rooms.updateRoomBooking(sql, asMember(hugo), b!.id, { title: "Renamed" }, zone);
+  assert.deepEqual({ ...(await state()) }, { reminded: true, checked: true });
+  await rooms.updateRoomBooking(sql, asMember(hugo), b!.id, { start: 900, end: 930 }, zone);
+  assert.deepEqual({ ...(await state()) }, { reminded: false, checked: false });
+  await rooms.cancelRoomBooking(sql, asMember(hugo), b!.id, "one", zone);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { can, canBeApprover, mayDecide, roleOf, sightOf, type Ability } from "../lib/access.ts";
-import { answerers } from "../lib/routing.ts";
+import { can, canBeApprover, mayDecide, roleOf, sightOf, type Ability } from "../src/lib/access.ts";
+import { answerers } from "../src/lib/routing.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 

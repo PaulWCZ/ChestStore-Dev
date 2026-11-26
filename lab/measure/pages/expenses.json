@@ -1,0 +1,62 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/expenses/101",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/approve",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/new?trip=1",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/new?allowance=1",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pay",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/cards",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/export",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings/company",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/new",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=mercure",
+  "member": "camille",
+  "language": "fr"
+ }
+]

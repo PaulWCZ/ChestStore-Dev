@@ -2,29 +2,6 @@
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "badges",
-      "cron": "50 6 * * *"
-    },
-    {
-      "name": "followup",
-      "cron": "10 7 * * *"
-    },
-    {
-      "name": "archive",
-      "cron": "30 4 1 * *"
-    }
-  ],
-  "emits": [
-    "quotes.invoiced"
-  ],
-  "receives": [
-    "crm.deal.won",
-    "crm.deal.reopened",
-    "timesheets.billable",
-    "timesheets.billable_cancelled"
-  ],
   "translations": {
     "fr": {
       "title": "Devis et factures",

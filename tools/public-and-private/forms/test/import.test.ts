@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { importForm } from "../lib/importer.ts";
-import { definition, problems } from "../lib/model.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { importForm } from "../src/lib/importer.ts";
+import { definition, problems } from "../src/shared/model.ts";
 
 // The fixtures follow the documented shapes of each vendor's API (their
 // own clients' type definitions: see lib/importer.ts and THIRD_PARTY.md).

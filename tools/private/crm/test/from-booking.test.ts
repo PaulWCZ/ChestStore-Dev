@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as contacts from "../lib/contacts.ts";
-import { bookingKey, readBooking, upcoming } from "../lib/from-booking.ts";
-import { catalogue, format } from "../lib/i18n/index.ts";
-import { leads } from "../lib/leads.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { withWhen } from "../lib/page-data.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import { bookingKey, readBooking, upcoming } from "../src/lib/from-booking.ts";
+import { catalogue, format } from "../src/i18n/index.ts";
+import { leads } from "../src/lib/leads.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { withWhen } from "../src/lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -21,8 +21,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, tool: "crm", members: everyone, receives: ["member.*", "booking.confirmed", "booking.cancelled"], tools: { booking: true } });
   database = await testDatabase();
-  chest = await fakeChest({ tool: "crm", members: everyone, receives: ["member.*", "booking.confirmed", "booking.cancelled"], tools: { booking: true } });
 });
 after(async () => {
   await chest.close();
@@ -69,7 +69,7 @@ test("a new guest: a contact of their host (who works on clients here), one meet
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "SarahKlein", "direction overrides and spaces cleaned");
-  assert.equal(c.email, "sarah.klein@example.com");
+  assert.equal(c.email, "Sarah.Klein@example.com");
   assert.equal(c.phone, "+33 6 11 22 33 44");
   assert.equal(c.owner, ines.id, "the host is meeting them: theirs");
   assert.equal(c.lastContact, d.at);
@@ -200,7 +200,7 @@ test("a host who does not work on clients here: the guest is a lead of nobody's,
   assert.ok(lead?.booking);
   assert.equal(lead.booking.start, d.start);
   const bell = chest.notifications.filter(n => n.key === bookingKey(d.booking));
-  assert.deepEqual(bell.map(n => [n.member, n.title]), [[camille.id, "Nouveau contact : Léon Blanc a pris rendez-vous"]]);
+  assert.deepEqual(bell.map(n => [n.member, (n).title]), [[camille.id, "Nouveau contact\u202f: Léon Blanc a pris rendez-vous"]]);
   // A viewer hosting is no owner either.
   await tell(data({ host: lea.id, contact: { email: "viewer-host@example.com" } }));
   const [v] = await byEmail("viewer-host@example.com");
@@ -252,4 +252,47 @@ test("a host erased: their id leaves the meetings they hosted", async () => {
   assert.equal(line!.data["host"], null);
   const [row] = await sql<{ n: number }[]>`select count(*)::int as n from booked_meetings where host = ${hugo.id}`;
   assert.equal(row!.n, 0);
+});
+
+// SDK 0.7.0: Booking tells flat fields (contactName, typeName…) and an
+// audience — its host and its admins. Clients keeps the line, the meeting
+// on My day and the bell to those of the audience; a guest becomes a new
+// contact only when the host may see it and works on clients here.
+const flat = (extra: { booking: string; host: string; email: string }) => {
+  const start = soon(30);
+  return {
+    v: 1, booking: extra.booking, status: "confirmed", at: iso(soon(-1)), host: extra.host, start: iso(start), end: iso(new Date(start.getTime() + 3600_000)),
+    type: "3", typeName: "Project call", typeNameFr: "Appel projet", kind: "video",
+    contactName: "Mia Lang", contactEmail: extra.email, contactLanguage: "en", source: "page", moves: 0, path: `/chest/bookings/${extra.booking}`,
+  };
+};
+
+test("a flat booking told for its host: the contact is theirs, the meeting theirs to see — not the rest of the team's", async () => {
+  const d = flat({ booking: "aud-1", host: ines.id, email: "mia@lang.example" });
+  assert.equal(await chest.deliver({ type: "booking.confirmed", source: "booking", data: d, audience: [ines.id, camille.id] }, POST), 204);
+  const [id] = await byEmail("mia@lang.example");
+  assert.ok(id, "made: the host may see it and works here");
+  const c = await contacts.contact(database.sql, asMember(ines), id);
+  assert.equal(c.owner, ines.id);
+  const seen = async (viewer: string) => (await activities.timeline(database.sql, { contactId: id!, viewer })).filter(a => a.kind === "booking").length;
+  assert.equal(await seen(ines.id), 1);
+  assert.equal(await seen(camille.id), 1);
+  assert.equal(await seen(hugo.id), 0, "outside the audience");
+  assert.equal((await upcoming(database.sql, ines.id)).filter(m => m.booking === "aud-1").length, 1);
+  const line = (await activities.timeline(database.sql, { contactId: id!, viewer: ines.id })).find(a => a.kind === "booking")!;
+  assert.deepEqual(line.data["type"], { en: "Project call", fr: "Appel projet" });
+});
+
+test("a booking told for an audience whose host does not work on clients here makes no contact", async () => {
+  const d = flat({ booking: "aud-2", host: lea.id, email: "noah@nowhere.example" });
+  assert.equal(await chest.deliver({ type: "booking.confirmed", source: "booking", data: d, audience: [camille.id] }, POST), 204);
+  assert.deepEqual(await byEmail("noah@nowhere.example"), []);
+  assert.equal(chest.notifications.length, 0, "nobody told");
+});
+
+test("a booking.* type told by another tool than Booking is ignored", async () => {
+  const d = flat({ booking: "src-1", host: ines.id, email: "eve@elsewhere.example" });
+  assert.equal(await chest.deliver({ type: "booking.confirmed", source: "forms", data: d }, POST), 204);
+  assert.deepEqual(await byEmail("eve@elsewhere.example"), []);
+  assert.equal(readBooking({ id: "evt_s", type: "booking.confirmed", data: d, source: "hiring" }), null);
 });

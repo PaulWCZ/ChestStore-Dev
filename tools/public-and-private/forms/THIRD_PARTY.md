@@ -6,7 +6,7 @@
 | DM Serif Display (font) | [The DM Serif Display Project Authors](https://github.com/googlefonts/dm-fonts), via `@fontsource/dm-serif-display` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-dm-serif-display.txt` |
 
 **No code is copied from other projects.** The logic engine
-(`lib/logic.ts`), the validation, the summary and the CSV writer are our
+(`src/shared/logic.ts`), the validation, the summary and the CSV writer are our
 own. The anonymity design (participants apart, rows rewritten in a random
 order, nothing shown under five answers) and the CSV writer follow the
 studio's own Polls and Hiring tools (same licence, same studio).
@@ -24,13 +24,17 @@ studio):
 - SurveyJS Form Library (MIT) and `@formio/js` (MIT) were considered and
   not used: both impose their own look and are far larger than needed.
 
-Dependencies from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` and
-`@argentic/chest-ui` (MIT, the studio's working copies in `vendor/`). Icons drawn for this tool.
+Dependencies from npm under their own licences: `hono` and
+`@hono/node-server` (MIT), `react`, `react-dom` (MIT), `postgres`
+(Unlicense); to build and test only: `vite`, `typescript` (MIT, Apache-2.0),
+`@electric-sql/pglite` (Apache-2.0); `@argentic/chest-app`,
+`@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, the studio's working
+copies in `vendor/`). The streaming ZIP writer is the package's
+(`zipStream`). Icons drawn for this tool.
 
 ## Import formats (read, not copied)
 
-`lib/importer.ts` reads the form definitions two vendors' APIs give. No
+`src/lib/importer.ts` reads the form definitions two vendors' APIs give. No
 code was copied: the field names come from each vendor's own published
 client, read on 2026-09-29 (the vendors' documentation sites were not
 reachable from the studio's network):

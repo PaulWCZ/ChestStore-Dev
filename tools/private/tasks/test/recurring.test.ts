@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { chestToday } from "../lib/clock.ts";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import { addDays, firstDue, nextDue } from "../lib/repeat.ts";
-import { catchUp } from "../lib/repeats.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { chestToday } from "../src/lib/clock.ts";
+import { AppError } from "@argentic/chest-app";
+import { en } from "../src/i18n/en.ts";
+import { addDays, firstDue, nextDue } from "../src/shared/repeat.ts";
+import { catchUp } from "../src/lib/repeats.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines, lea } from "./support/members.ts";
@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, chest: { timeZone: "Pacific/Auckland" } });
+  chest = await fakeChest({ network: {}, members: everyone, chest: { timeZone: "Pacific/Auckland" } });
 });
 after(async () => {
   await chest.close();

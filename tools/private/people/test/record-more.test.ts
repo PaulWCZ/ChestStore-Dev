@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { askChange, decideChange, waitingChange, waitingChanges, withdrawChange } from "../lib/changes.ts";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { endings } from "../lib/morning.ts";
-import { employeeNumber, workDays } from "../lib/model.ts";
-import { createRecord, linkRecord, listRecords, record, updateRecord, upcoming } from "../lib/records.ts";
+import { askChange, decideChange, waitingChange, waitingChanges, withdrawChange } from "../src/lib/changes.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { endings } from "../src/lib/morning.ts";
+import { employeeNumber, workDays } from "../src/shared/model.ts";
+import { createRecord, linkRecord, listRecords, record, updateRecord, upcoming } from "../src/lib/records.ts";
+import { declaredEmits } from "./support/emits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, nora, sofia, tom } from "./support/members.ts";
+import { asMember, opener } from "./support/member.ts";
+import { camille, everyone, hugo, ines, nora, sofia, tom, seen } from "./support/members.ts";
 
 // Round 3: the employee number, the work permit's end, the days worked,
 // what People tells Leave of a record (events between tools), and changes
@@ -20,7 +21,7 @@ let chest: FakeChest;
 before(async () => {
   process.env["CHEST_TOOL"] = "people";
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"], emits: ["people.leaving", "people.leaving_cancelled", "people.record"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "sealed"], emits: declaredEmits });
 });
 after(async () => {
   await chest.close();
@@ -41,10 +42,10 @@ test("a record's employee number is unique; the work permit's end reminds HR 60 
   const { sql } = database;
   const a = await createRecord(sql, hr, { legalName: "DIALLO Aminata" });
   const b = await createRecord(sql, hr, { legalName: "GIRAUD Paul" });
-  await updateRecord(sql, hr, a.id, { employeeNumber: "0017", workPermit: "Carte de séjour salarié n° 1", permitEnd: "2026-11-20", workingTime: "part", hours: "24", workDays: "1,2,3", startDate: "2023-09-04" });
-  await assert.rejects(updateRecord(sql, hr, b.id, { employeeNumber: "0017" }), refused("number_taken"));
-  await updateRecord(sql, hr, b.id, { employeeNumber: "0003" });
-  const r = (await record(sql, hr, a.id)).record;
+  await updateRecord(sql, hr, a.id, { employeeNumber: "0017", workPermit: "Carte de séjour salarié n° 1", permitEnd: "2026-11-20", workingTime: "part", hours: "24", workDays: "1,2,3", startDate: "2023-09-04" }, opener(hr));
+  await assert.rejects(updateRecord(sql, hr, b.id, { employeeNumber: "0017" }, opener(hr)), refused("number_taken"));
+  await updateRecord(sql, hr, b.id, { employeeNumber: "0003" }, opener(hr));
+  const r = (await record(sql, hr, a.id, opener(hr))).record;
   assert.deepEqual([r.employeeNumber, r.permitEnd, r.workDays], ["0017", "2026-11-20", [1, 2, 3]]);
   assert.equal((await listRecords(sql, hr)).find(x => x.id === a.id)?.employeeNumber, "0017");
   // 60 days ahead: seen from 21 September, not from 20 September.
@@ -54,63 +55,66 @@ test("a record's employee number is unique; the work permit's end reminds HR 60 
   assert.deepEqual((await upcoming(sql, "2026-12-01")).filter(u => u.id === a.id).map(u => u.what), ["permit"]);
   chest.notifications.length = 0;
   await endings(sql, "2026-12-01");
-  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`);
+  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`).map(seen);
   assert.equal(told.length, 1);
   assert.match(told[0]!.title, /DIALLO Aminata a expiré le 20 novembre/u);
   // A day refused: an 8th day of the week.
-  await assert.rejects(updateRecord(sql, hr, a.id, { workDays: "1,8" }), refused("invalid"));
+  await assert.rejects(updateRecord(sql, hr, a.id, { workDays: "1,8" }, opener(hr)), refused("invalid"));
 });
 
 test("People tells Leave what it needs of a linked record — number, first and last day, days, hours — only when one changed; never the rest", async () => {
   const { sql } = database;
-  chest.published.length = 0;
+  chest.emitted.length = 0;
   const { id } = await createRecord(sql, hr, { memberId: tom.id });
   // Created with nothing Leave needs but the member: told once.
-  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.record", { member: tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
-  await updateRecord(sql, hr, id, { employeeNumber: "0019", startDate: "2024-03-04", workingTime: "part", hours: "28", workDays: "1,2,3,4" });
-  assert.deepEqual(chest.published.at(-1)?.data, { member: tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
+  assert.deepEqual(chest.emitted.map(e => [e.type, e.data]), [["people.record", { member: tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
+  await updateRecord(sql, hr, id, { employeeNumber: "0019", startDate: "2024-03-04", workingTime: "part", hours: "28", workDays: "1,2,3,4" }, opener(hr));
+  assert.deepEqual(chest.emitted.at(-1)?.data, { member: tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: "1,2,3,4", weeklyHours: 28 });
+  // Who sees a record in People: HR and the person (the receiver honours it).
+  assert.deepEqual(chest.emitted.at(-1)?.audience, { roles: ["hr"], members: [tom.id] });
+  assert.equal(chest.emitted.at(-1)?.subject, tom.id);
   // A change Leave does not need tells nothing.
-  const before = chest.published.length;
-  await updateRecord(sql, hr, id, { address: "1 rue de la Paix", nationality: "Britannique" });
-  assert.equal(chest.published.length, before);
-  await updateRecord(sql, hr, id, { endDate: "2026-12-31" });
-  assert.equal((chest.published.at(-1)?.data as { lastDay: string }).lastDay, "2026-12-31");
-  assert.match(chest.published.at(-1)!.key!, /^people:mbr_[a-z2-7]{26}:record:\d+$/u);
+  const before = chest.emitted.length;
+  await updateRecord(sql, hr, id, { address: "1 rue de la Paix", nationality: "Britannique" }, opener(hr));
+  assert.equal(chest.emitted.length, before);
+  await updateRecord(sql, hr, id, { endDate: "2026-12-31" }, opener(hr));
+  assert.equal((chest.emitted.at(-1)?.data as { lastDay: string }).lastDay, "2026-12-31");
+  assert.match(chest.emitted.at(-1)!.key!, /^people:mbr_[a-z2-7]{26}:record:\d+$/u);
   // A record of someone without the Chest is never told.
   const other = await createRecord(sql, hr, { legalName: "NGUYEN Linh" });
-  const n = chest.published.length;
-  await updateRecord(sql, hr, other.id, { employeeNumber: "0026", startDate: "2026-08-20" });
-  assert.equal(chest.published.length, n);
+  const n = chest.emitted.length;
+  await updateRecord(sql, hr, other.id, { employeeNumber: "0026", startDate: "2026-08-20" }, opener(hr));
+  assert.equal(chest.emitted.length, n);
   // Linked to Hugo later: told for Hugo then.
   await linkRecord(sql, hr, other.id, hugo.id);
-  assert.deepEqual(chest.published.at(-1)?.data, { member: hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
+  assert.deepEqual(chest.emitted.at(-1)?.data, { member: hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
 });
 
 test("a change asked by the person: address and emergency contact only; HR accepts (the record changes) or declines; one waits at a time", async () => {
   const { sql } = database;
   const { id } = await createRecord(sql, hr, { memberId: nora.id });
-  await updateRecord(sql, hr, id, { address: "3 rue des Lilas\n69003 Lyon", emergencyName: "Anne Petit" });
+  await updateRecord(sql, hr, id, { address: "3 rue des Lilas\n69003 Lyon", emergencyName: "Anne Petit" }, opener(hr));
   // Only Nora asks for her own record; only the askable fields.
-  await assert.rejects(askChange(sql, asMember(hugo), id, { address: "x" }), refused("not_found"));
-  await assert.rejects(askChange(sql, asMember(ines), id, { address: "x" }), refused("not_found"));
-  await assert.rejects(askChange(sql, asMember(nora), id, { job: "Boss" }), refused("invalid"));
-  await assert.rejects(askChange(sql, asMember(nora), id, { address: "3 rue des Lilas\n69003 Lyon" }), refused("empty"));
+  await assert.rejects(askChange(sql, asMember(hugo), id, { address: "x" }, opener(asMember(hugo))), refused("not_found"));
+  await assert.rejects(askChange(sql, asMember(ines), id, { address: "x" }, opener(asMember(ines))), refused("not_found"));
+  await assert.rejects(askChange(sql, asMember(nora), id, { job: "Boss" }, opener(asMember(nora))), refused("invalid"));
+  await assert.rejects(askChange(sql, asMember(nora), id, { address: "3 rue des Lilas\n69003 Lyon" }, opener(asMember(nora))), refused("empty"));
   chest.notifications.length = 0;
-  const asked = await askChange(sql, asMember(nora), id, { address: "8 quai Rambaud\n69002 Lyon", emergencyName: "Anne Petit", emergencyPhone: "06 12 34 56 78", note: "J’ai déménagé." });
+  const asked = await askChange(sql, asMember(nora), id, { address: "8 quai Rambaud\n69002 Lyon", emergencyName: "Anne Petit", emergencyPhone: "06 12 34 56 78", note: "J’ai déménagé." }, opener(asMember(nora)));
   // Only what differs is asked.
   assert.deepEqual(asked.changes, { address: "8 quai Rambaud\n69002 Lyon", emergencyPhone: "06 12 34 56 78" });
-  await assert.rejects(askChange(sql, asMember(nora), id, { address: "ailleurs" }), refused("already_asked"));
+  await assert.rejects(askChange(sql, asMember(nora), id, { address: "ailleurs" }, opener(asMember(nora))), refused("already_asked"));
   // HR hears it; the record does not change yet.
   assert.deepEqual(chest.notifications.filter(n => n.key === `change:${asked.id}`).map(n => n.member).sort(), [camille.id, sofia.id].sort());
-  assert.equal((await record(sql, hr, id)).record.address, "3 rue des Lilas\n69003 Lyon");
-  assert.equal((await waitingChange(sql, asMember(nora), id))?.id, asked.id);
-  assert.equal(await waitingChange(sql, asMember(hugo), id), null);
+  assert.equal((await record(sql, hr, id, opener(hr))).record.address, "3 rue des Lilas\n69003 Lyon");
+  assert.equal((await waitingChange(sql, asMember(nora), id, opener(asMember(nora))))?.id, asked.id);
+  assert.equal(await waitingChange(sql, asMember(hugo), id, opener(asMember(hugo))), null);
   assert.deepEqual((await waitingChanges(sql, hr)).map(w => w.legalName), ["Nora Petit"]);
   await assert.rejects(waitingChanges(sql, asMember(nora)), refused("forbidden"));
-  await assert.rejects(decideChange(sql, asMember(nora), asked.id, true), refused("forbidden"));
+  await assert.rejects(decideChange(sql, asMember(nora), asked.id, true, "", opener(asMember(nora))), refused("forbidden"));
   // Accepted: the record changes; the journal names the fields, never the values.
-  await decideChange(sql, hr, asked.id, true);
-  const now = (await record(sql, hr, id)).record;
+  await decideChange(sql, hr, asked.id, true, "", opener(hr));
+  const now = (await record(sql, hr, id, opener(hr))).record;
   assert.deepEqual([now.address, now.emergencyPhone], ["8 quai Rambaud\n69002 Lyon", "06 12 34 56 78"]);
   const log = await ofRecord(sql, id);
   assert.deepEqual(log.filter(e => e.action.startsWith("change_")).map(e => [e.action, e.fields]), [["change_accepted", ["address", "emergencyPhone"]], ["change_asked", ["address", "emergencyPhone"]]]);
@@ -118,22 +122,27 @@ test("a change asked by the person: address and emergency contact only; HR accep
   const [kept] = await sql<{ changes: unknown }[]>`select changes from record_requests where id = ${asked.id}`;
   assert.deepEqual(kept!.changes, ["address", "emergencyPhone"]);
   assert.equal(chest.notifications.filter(n => n.member === nora.id && n.key === `change:${asked.id}:answer`).length, 1);
-  await assert.rejects(decideChange(sql, hr, asked.id, false), refused("not_found"));
+  await assert.rejects(decideChange(sql, hr, asked.id, false, "", opener(hr)), refused("not_found"));
   // Declined with a word; withdrawn by the person.
-  const second = await askChange(sql, asMember(nora), id, { emergencyRelation: "Mère" });
-  await decideChange(sql, hr, second.id, false, "Envoyez-moi un justificatif.");
-  assert.equal((await record(sql, hr, id)).record.emergencyRelation, "");
-  const third = await askChange(sql, asMember(nora), id, { emergencyRelation: "Mère" });
+  const second = await askChange(sql, asMember(nora), id, { emergencyRelation: "Mère" }, opener(asMember(nora)));
+  await decideChange(sql, hr, second.id, false, "Envoyez-moi un justificatif.", opener(hr));
+  assert.equal((await record(sql, hr, id, opener(hr))).record.emergencyRelation, "");
+  const third = await askChange(sql, asMember(nora), id, { emergencyRelation: "Mère" }, opener(asMember(nora)));
   await assert.rejects(withdrawChange(sql, asMember(hugo), third.id), refused("not_found"));
   await withdrawChange(sql, asMember(nora), third.id);
-  assert.equal(await waitingChange(sql, hr, id), null);
+  assert.equal(await waitingChange(sql, hr, id, opener(hr)), null);
 });
 
 test("an erasure takes the person's asked changes with it", async () => {
   const { sql } = database;
   const { id } = await createRecord(sql, hr, { memberId: ines.id });
-  await askChange(sql, asMember(ines), id, { address: "1 place Bellecour" });
+  await askChange(sql, asMember(ines), id, { address: "1 place Bellecour" }, opener(asMember(ines)));
   await erase(sql, ines.id, "2026-09-29");
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from record_requests where member_id = ${ines.id}`;
   assert.equal(left!.n, 0);
+});
+
+test("an employee number goes to the other tools without format characters (the Chest refuses them)", async () => {
+  const { eventText } = await import("../src/lib/share.ts");
+  assert.equal(eventText("\u200bT-0019\ufeff"), "T-0019");
 });

@@ -1,26 +1,27 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { checkIns, objectiveById } from "../lib/read.ts";
-import { clockAt } from "../lib/tell.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { checkIns, objectiveById } from "../src/lib/read.ts";
+import { clockAt } from "../src/lib/tell.ts";
 import { asMember } from "./support/member.ts";
 import { camille, ines } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by Clients (the CRM), through the events it publishes
 // (Proposal (studio): events between tools): "Amount won" and "Deals won"
 // follow each deal won or reopened in the cycle's dates; nobody types them.
 let w: World;
-before(async () => { w = await world(); });
+let POST: Server;
+before(async () => { w = await world(); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const admin = asMember(camille), inesM = asMember(ines);
 const won = (deal: string, amount: number | null, occurredAt = new Date().toISOString(), currency = "EUR") =>
-  w.chest.deliver({ type: "crm.deal.won", data: { deal, title: "Deal " + deal, amount, currency, company: null, contact: null, owner: ines.id }, occurredAt } as never, POST);
+  w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal, title: "Deal " + deal, amount, currency, company: null, contact: null, owner: ines.id }, occurredAt } as never, POST);
 
 test("amount and number of deals won in the cycle follow what Clients tells", async () => {
   const { sql } = w.database;
@@ -44,10 +45,13 @@ test("amount and number of deals won in the cycle follow what Clients tells", as
   assert.deepEqual(await read(), [["money", "crm.won_amount", 15500.5], ["number", "crm.won_count", 3]]);
   // Won again (the same deal, a new amount) replaces it; reopened, it no longer counts.
   assert.equal(await won("D-2", 400000), 204);
-  assert.equal(await w.chest.deliver({ type: "crm.deal.reopened", data: { deal: "D-1" } } as never, POST), 204);
+  assert.equal(await w.chest.deliver({ type: "crm.deal.reopened", source: "crm", data: { deal: "D-1" } } as never, POST), 204);
+  assert.deepEqual(await read(), [["money", "crm.won_amount", 4000], ["number", "crm.won_count", 2]]);
+  // The same type told by another tool (a type names no tool): ignored.
+  assert.equal(await w.chest.deliver({ type: "crm.deal.won", source: "quotes", data: { deal: "D-9", amount: 100000, currency: "EUR" } } as never, POST), 204);
   assert.deepEqual(await read(), [["money", "crm.won_amount", 4000], ["number", "crm.won_count", 2]]);
   // Nonsense is accepted and ignored.
-  assert.equal(await w.chest.deliver({ type: "crm.deal.won", data: { deal: "bad ref!", amount: "lots" } } as never, POST), 204);
+  assert.equal(await w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal: "bad ref!", amount: "lots" } } as never, POST), 204);
   // The owner's check-in keeps the CRM's value, whatever is typed, and says how sure they are.
   const done = await checkIn(sql, inesM, amount!.id, { value: "999999", confidence: "at_risk" });
   assert.equal(done.value, 4000);
@@ -58,4 +62,25 @@ test("amount and number of deals won in the cycle follow what Clients tells", as
   await assert.rejects(updateKeyResult(sql, admin, count!.id, { source: "crm.lost" }), refused("invalid"));
   await sql`delete from cycles`;
   await sql`delete from teams`;
+});
+
+// The rule of every event between tools: an amount is in its currency's
+// ISO 4217 minor unit. Exactly what Clients emits (flat, minor units,
+// optional fields left out): ¥10,000 is 10000, 12.340 KWD is 12340.
+test("an amount won in yen or in dinars is read in the currency's minor unit, as Clients emits it", async () => {
+  const { sql } = w.database;
+  const { cycle } = await running(w);
+  const o = await createObjective(sql, admin, {
+    cycleId: cycle.id, level: "company", title: "Grow abroad",
+    keyResults: [
+      { title: "Revenue in Japan", source: "crm.won_amount", start: "0", target: "100000", currency: "JPY", owner: ines.id },
+      { title: "Revenue in Kuwait", source: "crm.won_amount", start: "0", target: "100", currency: "KWD", owner: ines.id },
+    ],
+  });
+  const emitted = (deal: string, amount: number, currency: string) =>
+    w.chest.deliver({ type: "crm.deal.won", source: "crm", data: { deal, title: "Deal " + deal, amount, currency, owner: ines.id, companyRef: "co-" + deal, companyName: "Client " + deal } }, POST);
+  assert.equal(await emitted("JP-1", 10000, "JPY"), 204);
+  assert.equal(await emitted("KW-1", 12340, "KWD"), 204);
+  const current = (await objectiveById(sql, o.id, clockAt(), null))!.keyResults.map(k => k.current);
+  assert.deepEqual(current, [10000, 12.34]);
 });

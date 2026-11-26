@@ -1,0 +1,102 @@
+[
+ {
+  "path": "/chest/forms/1",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/new",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/k7m2fq9d",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/p4x8vn2c",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest/f/t9r3hw6b",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/1/answers",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/2/answers/seed00000000000s",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/1/summary",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/4/summary",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/forms/1/settings",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/2/share",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/3",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/privacy?q=paul.durand%40example.org",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/3/answers",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/3/answers/seed000000000014",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/sent/seed000000000013",
+  "member": "hugo",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/f/v6m3tq8r",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/7/summary",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/forms/4/answers",
+  "member": "camille",
+  "language": "fr"
+ }
+]

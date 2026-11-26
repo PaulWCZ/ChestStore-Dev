@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { guessCategory, ruleWords } from "../lib/card-guess.ts";
+import { guessCategory, ruleWords } from "../src/lib/card-guess.ts";
 
 const rules = [
   { words: "UBER", categoryId: "travel" },

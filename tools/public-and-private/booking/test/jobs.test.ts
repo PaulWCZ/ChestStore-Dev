@@ -1,21 +1,24 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as b from "../lib/booking.ts";
+import * as b from "../src/lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { builtServer, type Handler } from "./support/server.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The built server's routes (/chest-schedules, /chest-events).
+let POST: Handler;
 // The declared calendar hosts, as the Chest's egress proxy reaches them
 // (fakeChest network, SDK studio.15): what each address answers here.
 let calendarsAnswer: (request: Request) => Response = () => new Response("", { status: 404 });
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }], network: { "calendar.google.com": request => calendarsAnswer(request) } });
+  POST = await builtServer();
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, network: { "calendar.google.com": request => calendarsAnswer(request) } });
 });
 after(async () => {
   await chest.close();
@@ -37,13 +40,17 @@ test("the hourly run emails tomorrow's guests once, in the language they booked 
   assert.equal(await chest.run("reminders", POST), 204);
   const sent = chest.outbox.filter(m => m.to.includes("alex@example.com"));
   assert.equal(sent.length, 1);
-  assert.match(sent[0]!.subject, /^Demain\u202f: Meeting avec Inès Moreau/u);
+  // "Demain" when the meeting is tomorrow in the guest's zone (Paris), else
+  // "Aujourd’hui": never "tomorrow" for a meeting of the day.
+  const paris = (t: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(t);
+  const word = paris(Date.parse(start)) === paris(Date.now()) ? "Aujourd’hui" : "Demain";
+  assert.match(sent[0]!.subject, new RegExp(`^${word}\u202f: Meeting avec Inès Moreau`, "u"));
   assert.ok(sent[0]!.text.includes(`/b/${secret}`));
 });
 
 test("the nightly run is accepted, and a run not signed by the Chest is refused", async () => {
   assert.equal(await chest.run("cleanup", POST), 204);
-  const response = await POST(new Request("http://tool.test/chest-jobs/cleanup", { method: "POST" }));
+  const response = await POST(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }));
   assert.equal(response.status, 401);
 });
 

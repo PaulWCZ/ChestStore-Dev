@@ -9,7 +9,7 @@ it.
 ## Its identity is a theme: "Seaside"
 
 Leave's look is a theme of the UI kit (`@argentic/chest-ui`): **every
-colour, font, corner and speed is in `lib/theme.ts`** (`defineTheme`),
+colour, font, corner and speed is in `src/theme.ts`** (`defineTheme`),
 checked against every pair of the kit's contract (`ui/tokens/CONTRACT.md`,
 WCAG AA, light and dark) by `test/theme.test.ts`, and held equal, value for
 value, to the catalogue's "Seaside" theme — a company that picks Seaside
@@ -18,7 +18,7 @@ for all its tools gets exactly Leave's own look.
 The company may give Leave another look in its Chest (a catalogue theme,
 or its own brand): the pages then wear it with the same features. So the
 CSS names **only contract tokens** (`--bg`, `--surface`, `--ink`,
-`--accent`, `--cat-N-soft`…) and Leave's own tokens in `app/tokens.css`,
+`--accent`, `--cat-N-soft`…) and Leave's own tokens in `src/tokens.css`,
 which are defined from them, never from a colour (the test checks it).
 
 | In the Seaside theme | Light | Dark | Use |
@@ -31,7 +31,7 @@ which are defined from them, never from a colour (the test checks it).
 | states | wait `#7a5600` on `#fdf0c7`, ok `#1b7a4b` on `#d8f3e5`, danger `#b42318` on `#fde4e1` | the pale inks on deep grounds | badges (always a shape and a word) |
 | categorical slots 1–8 | the kinds' fills and inks: sky `#d6e9fb`/`#174a7c`, mint `#cff0e0`/`#125c3e`, peach `#ffe0cf`/`#8a3a10`, lilac `#e6e0fb`/`#4a3a8f`, rose `#fbd9e3`/`#8c2346`, sea `#cdeff0`/`#0f5a5e`, sun `#fdefb8`/`#6e5200`, sand `#efe7da`/`#5b4b34` | deep fills with pale inks | kinds of leave |
 
-**Leave's own tokens** (`app/tokens.css`):
+**Leave's own tokens** (`src/tokens.css`):
 
 | Token | From | Use |
 |---|---|---|
@@ -49,7 +49,7 @@ screen readers.
 
 **Type**: *Nunito* (display: headings, big numbers, buttons — weight 800,
 `--display-weight`) and *Nunito Sans* (body), both OFL-1.1, self-hosted in
-`public/fonts/` (the kit writes the `@font-face`). **Shape**: radii 10 /
+`public/assets/fonts/` (the kit writes the `@font-face`). **Shape**: radii 10 /
 14 / 20 (+28 for the big cards) and pills; soft shadows. **Motion**: 140
 and 260 ms, eased; none with reduced motion.
 
@@ -115,8 +115,8 @@ Chest portal's black-and-white and from Tasks' ink-outlined yellow.
     { "name": "Sun", "value": "#ff9e6e" }
   ],
   "fonts": {
-    "display": { "family": "Nunito", "file": "public/fonts/nunito-latin-wght-normal.woff2", "weight": 800 },
-    "body": { "family": "Nunito Sans", "file": "public/fonts/nunito-sans-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Nunito", "file": "public/assets/fonts/nunito-latin-wght-normal.woff2", "weight": 800 },
+    "body": { "family": "Nunito Sans", "file": "public/assets/fonts/nunito-sans-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "7.25 days of paid leave left"
 }

@@ -1,14 +1,26 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { IncomingMessage } from "node:http";
-import { ask, idempotencyKey, json as readJson, refusal } from "./api.js";
-import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
-import { groupIdPattern, memberIdPattern } from "./member.js";
+import { ask, json as readJson, refusal } from "./api.js";
+import { ChestError, TooLarge, Unavailable } from "./errors.js";
+import { clockSkew, eventWindow, instantOf, isAudience, isToolEventType, itemIdPattern, maxData, toolNamePattern, type Audience } from "./eventrules.js";
+import { memberIdPattern } from "./member.js";
 import { forget } from "./members.js";
+import { delivery, eventChannel, instant, json, memorySeen, object, type Seen } from "./signed.js";
 
-// What the Chest tells a server tool of its members' lifecycle, for a tool
-// whose chest.json declares "capabilities": ["members"] and "receives":
-// ["member.*"]. The Chest posts each event to the tool's POST /chest-events,
-// through its launcher only (never from the Internet), signed for this tool:
+// What the Chest tells a server tool, and what the tool tells other tools
+// of its Chest, on one route. Two kinds of events come to the tool's POST
+// /chest-events, through its launcher only (never from the Internet),
+// signed for this tool:
+//
+// - its members' lifecycle (member.updated, access.revoked, member.removed,
+//   member.erased), for a tool whose chest.json declares "capabilities":
+//   ["members"] and "receives": ["member.*"];
+// - the documents of the folders of Files it is given (folders.file.added,
+//   folders.file.removed), for a tool whose chest.json declares
+//   "capabilities": ["folders"] — no "receives" needed;
+// - events between tools: those another tool of the Chest emits
+//   ("quote.accepted"), for a tool whose chest.json "receives" names their
+//   type, once the owner approved the link between the two tools.
 //
 //   // app/chest-events/route.ts (Next.js): outside /chest, never behind a session
 //   import * as events from "@argentic/chest-sdk/events";
@@ -16,18 +28,30 @@ import { forget } from "./members.js";
 //     return new Response(null, { status: await events.handle(request, {
 //       "member.erased": async e => { await anonymise(e.data.id); await events.acknowledgeErasure(e.data.erasure); },
 //       "access.revoked": e => unassign(e.data.id),
+//       "quote.accepted": e => createProject(e.data, e.audience),
 //     }, { seen }) });
 //   }
 //
-// Delivery is at least once, in no guaranteed order: the same event may come
-// again, always with the same id — handle() drops what the store of seen ids
-// already holds. An event the tool does not answer with a success is
-// delivered again, after a growing delay, for 72 hours; after that the tool
-// is out of sync and reconciles by listing its members (members.list) at its
-// next start. Every event also empties what members.lookup keeps.
+// A tool tells the others with emit, for the types its chest.json declares
+// in "emits", each with the fields its data carries:
+//
+//   await events.emit("quote.accepted", { quote: q.id, total: q.total }, { subject: q.id, key: `accepted:${q.id}` });
+//
+// Delivery is at least once: the same event may come again, always with the
+// same id — handle() drops what the store of seen ids already holds. Tool
+// events of one subject come in the order emitted; nothing else is ordered.
+// An event the tool does not answer with a success is delivered again,
+// after a growing delay, for 72 hours; after that a member event leaves the
+// tool out of sync (it reconciles by listing its members, members.list, at
+// its next start) and a tool event is kept as a failed delivery an admin
+// may send again. Every member event also empties what members.lookup keeps.
+// The Chest's own events (members, folders) carry no source: a tool never
+// emits one of their types.
 
-// What changed of a member the tool sees; "email" only with members.email.
-export type MemberChange = "name" | "photo" | "role" | "groups" | "email";
+// What changed of a member the tool sees; "email" only with members.email;
+// "language" and "timeZone": the language the Chest speaks to them and the
+// zone they work in — what the tool writes to them, and at what hour.
+export type MemberChange = "name" | "photo" | "role" | "groups" | "email" | "language" | "timeZone";
 // Something the tool sees of a member who has it changed.
 export type MemberUpdated = { id: string; type: "member.updated"; occurredAt: string; data: { id: string; changed: MemberChange[] } };
 // The member lost access to the tool but stays in the Chest.
@@ -37,164 +61,78 @@ export type MemberRemoved = { id: string; type: "member.removed"; occurredAt: st
 // The owner asked for this person's data to be erased: delete or anonymise
 // what the tool keeps of them before deadline, then acknowledgeErasure(erasure).
 export type MemberErased = { id: string; type: "member.erased"; occurredAt: string; data: { id: string; erasure: string; deadline: string } };
-// Proposal (studio) — the groups of the Chest, for a tool that holds
-// "groups": "read" and receives "group.*": a group was renamed or changed
-// members (who is in it; member.updated with "groups" also comes for each
-// member concerned who has the tool), or was deleted — withdraw what
-// targeted it.
-export type GroupChange = "name" | "members";
-export type GroupChanged = { id: string; type: "group.changed"; occurredAt: string; data: { id: string; changed: GroupChange[] } };
-export type GroupRemoved = { id: string; type: "group.removed"; occurredAt: string; data: { id: string } };
-// An event, told apart by its type.
-export type ChestEvent = MemberUpdated | AccessRevoked | MemberRemoved | MemberErased | GroupChanged | GroupRemoved;
+// A document of a folder of Files the tool is given, or of a folder inside
+// it, as an event names it: never who added or removed it.
+export type FolderEventFile = { id: string; name: string; type: string; size: number };
+// A document was added to a folder (a new one, or a new version of one).
+export type FolderFileAdded = { id: string; type: "folders.file.added"; occurredAt: string; data: { folder: string; file: FolderEventFile } };
+// A document was removed to Recently removed.
+export type FolderFileRemoved = { id: string; type: "folders.file.removed"; occurredAt: string; data: { folder: string; file: FolderEventFile } };
+// An event of the members' lifecycle, told apart by its type.
+export type ChestEvent = MemberUpdated | AccessRevoked | MemberRemoved | MemberErased;
 export type ChestEventType = ChestEvent["type"];
+// An event of the documents of the folders of Files the tool is given.
+export type FolderEvent = FolderFileAdded | FolderFileRemoved;
+export type FolderEventType = FolderEvent["type"];
 
-// What handle() calls for each type; a type left out is accepted and ignored.
-export type Handlers = { [K in ChestEventType]?: (event: Extract<ChestEvent, { type: K }>) => void | Promise<void> };
+// An event another tool of the Chest told (emit): its id ("evt_…", the same
+// on every delivery of it), its type, the tool that told it (source, stamped
+// by the Chest), when it happened, the thing it is about (subject, when the
+// publisher named one), who may see it, and its data — the fields its type
+// declares in the publisher's chest.json, member ids for people. audience is
+// "all" when every member who has this tool may see the item, otherwise
+// the members of this tool who may: show it to them only (the Chest never
+// delivers an item none of them may see; honouring the list is the tool's
+// rule). Read data defensively: a publisher's later version may add fields.
+export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; subject?: string; audience: "all" | string[]; data: Record<string, unknown> };
+// What a delivery carries: an event of the members' lifecycle, of the
+// folders of Files, or of a tool.
+export type ReceivedEvent = ChestEvent | FolderEvent | ToolEvent;
 
-// Proposal (studio) — events between tools. A tool publishes events of its
-// own, named after it ("leave.approved" from the tool "leave"); a tool that
-// receives them (chest.json "receives": ["leave.approved"]) gets them on the
-// same POST /chest-events, signed the same way, once an admin linked the
-// two tools (approved in words: "Is told by Leave when a leave is
-// approved"). data is what the publisher documents (plain JSON, 16 KiB at
-// most); people in it are member ids. occurredAt is when it happened: the
-// time the publisher gave (publish's occurredAt, studio.16 — an event told
-// late by a retry keeps its time), or the Chest's time of the publish.
-export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; data: Record<string, unknown> };
-export type ToolHandlers = Record<string, (event: ToolEvent) => void | Promise<void>>;
-export const toolEventPattern = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
+// The type of an event between tools as a handler is keyed: dotted words.
+export type ToolEventType = `${string}.${string}`;
+// What handle() calls for an event of type K: the event of the members'
+// lifecycle or of the folders of that type, or a tool event.
+export type Handler<K extends string> = (event: K extends ChestEventType ? Extract<ChestEvent, { type: K }> : K extends FolderEventType ? Extract<FolderEvent, { type: K }> : ToolEvent) => void | Promise<void>;
+// What handle() calls for each type — a member type ("access.revoked") or
+// a folders type ("folders.file.added"), given its own event, or a type of
+// another tool ("quote.accepted"), given a
+// ToolEvent; a type left out is accepted and ignored.
+export type Handlers<K extends ToolEventType = ChestEventType | FolderEventType | ToolEventType> = { [P in K]?: Handler<P> };
 
-// Where handle() remembers the ids of the events already handled: a store
-// the tool chooses. Keep it durable — a table of the tool's database — so a
-// delivery made again after a restart of the tool is recognised:
-//
-//   create table chest_events (id text primary key, at timestamptz not null default now());
-//   const seen = {
-//     has: async (id: string) => (await sql`select 1 from chest_events where id = ${id}`).length > 0,
-//     add: async (id: string) => { await sql`insert into chest_events (id) values (${id}) on conflict do nothing`; },
-//   };
-export type Seen = { has(id: string): boolean | Promise<boolean>; add(id: string): void | Promise<void> };
+// Where handle() remembers the ids of the events already handled (Seen), and
+// memorySeen, which keeps them in this process: shared with schedules.
+export { memorySeen, type Seen } from "./signed.js";
 
-// memorySeen keeps the last limit ids in this process: lost at a restart,
-// enough for a tool whose handlers are idempotent anyway.
-export function memorySeen(limit = 10000): Seen {
-  const ids = new Set<string>();
-  return {
-    has: id => ids.has(id),
-    add: id => {
-      ids.delete(id);
-      ids.add(id);
-      while (ids.size > limit) ids.delete(ids.values().next().value as string);
-    },
-  };
-}
-
-// The key of the events is HMAC-SHA256 of this label under the text of
-// CHEST_TOKEN, exactly as the Chest derives it (chest/toolfront): neither the
-// token itself nor the key of the Chest-Member assertion.
-const label = "Chest-Event v1";
-const claims = ["aud", "iat", "exp", "jti", "digest"] as const;
-// Clocks of the Chest and of the container may differ by this much, in seconds.
-const skew = 5;
-const maxSignature = 2048;
-const maxBody = 64 << 10;
-const compact = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u;
-const eventIdPattern = /^evt_[a-z2-7]{26}$/u;
 // The grammar of an erasure's identifier, as the Chest mints it.
 export const erasureIdPattern = /^era_[a-z2-7]{26}$/u;
-const changes: readonly string[] = ["name", "photo", "role", "groups", "email"];
+const changes: readonly string[] = ["name", "photo", "role", "groups", "email", "language", "timeZone"];
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-function json(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-const instant = (v: unknown): v is string => typeof v === "string" && v.length <= 40 && !Number.isNaN(Date.parse(v));
-
-function headerOf(request: IncomingMessage | Request): string | null {
-  const headers = request.headers as Headers | IncomingMessage["headers"];
-  const value = typeof (headers as Headers).get === "function" ? (headers as Headers).get("chest-event") : (headers as IncomingMessage["headers"])["chest-event"];
-  return typeof value === "string" && value.length <= maxSignature ? value : null;
+// The identifier of a folder or a document of Files.
+const folderIdPattern = /^[0-9a-f]{32}$/u;
+// folderEvent reads the data of an event of the folders of Files: null for
+// anything else.
+function folderEvent(data: Record<string, unknown>): FolderFileAdded["data"] | null {
+  const file = object(data["file"]);
+  if (Object.keys(data).sort().join(",") !== "file,folder" || typeof data["folder"] !== "string" || !folderIdPattern.test(data["folder"]) || !file || Object.keys(file).sort().join(",") !== "id,name,size,type") return null;
+  const { id, name, type, size } = file;
+  if (typeof id !== "string" || !folderIdPattern.test(id) || typeof name !== "string" || name.length < 1 || name.length > 1024 || typeof type !== "string" || type.length > 255 || typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) return null;
+  return { folder: data["folder"], file: { id, name, type, size } };
 }
 
-// bodyOf reads the body, 64 KiB at most; null beyond, or when it was read
-// already.
-async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null> {
-  try {
-    if (request instanceof Request) {
-      if (request.bodyUsed || Number(request.headers.get("content-length") ?? "0") > maxBody) return null;
-      const raw = Buffer.from(await request.arrayBuffer());
-      return raw.length <= maxBody ? raw : null;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of request) {
-      size += (chunk as Buffer).length;
-      if (size > maxBody) return null;
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks);
-  } catch {
-    return null;
-  }
-}
-
-// envelope reads a signed delivery: the envelope when the signature, the tool,
-// the time and the digest of the body hold; known says its type is one this
-// SDK reads.
-async function envelope(request: IncomingMessage | Request): Promise<{ event: ChestEvent; known: true } | { event: ToolEvent; known: "tool" } | { event: { id: string }; known: false } | null> {
-  const token = process.env["CHEST_TOKEN"];
-  const tool = process.env["CHEST_TOOL"];
-  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST") return null;
-  const signature = headerOf(request);
-  const parts = signature === null ? null : compact.exec(signature);
-  if (!parts) return null;
-  const [, encodedHeader = "", encodedPayload = "", encodedSignature = ""] = parts;
-  const header = object(json(Buffer.from(encodedHeader, "base64url").toString("utf8")));
-  if (!header || Object.keys(header).length !== 2 || header["alg"] !== "HS256" || header["typ"] !== "JWT") return null;
-  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(label).digest();
-  const expected = createHmac("sha256", key).update(encodedHeader + "." + encodedPayload).digest();
-  const given = Buffer.from(encodedSignature, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  const payload = object(json(Buffer.from(encodedPayload, "base64url").toString("utf8")));
-  if (!payload || Object.keys(payload).length !== claims.length || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { aud, iat, exp, jti, digest } = payload;
-  if (aud !== tool || typeof jti !== "string" || !eventIdPattern.test(jti) || typeof digest !== "string") return null;
-  if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
-  const now = Math.floor(Date.now() / 1000);
-  if (iat > now + skew || exp <= now - skew) return null;
-  const body = await bodyOf(request);
-  if (body === null) return null;
-  const sum = createHash("sha256").update(body).digest();
-  const told = Buffer.from(digest, "base64url");
-  if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
-  const e = object(json(body.toString("utf8")));
-  if (!e || e["id"] !== jti || typeof e["type"] !== "string" || !instant(e["occurredAt"])) return null;
-  // An event of another tool (Proposal (studio)): its source names it.
-  if (Object.keys(e).length === 5 && typeof e["source"] === "string") {
-    const source = e["source"], type = e["type"], toolData = object(e["data"]);
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || !toolEventPattern.test(type) || !type.startsWith(source + ".") || !toolData) return null;
-    return { known: "tool", event: { id: jti, type, source, occurredAt: e["occurredAt"] as string, data: toolData } };
-  }
-  if (Object.keys(e).length !== 4) return null;
+// chestEvent reads the envelope of an event of the Chest (its four keys):
+// the event when it is one this SDK reads, known false for a type of a
+// later Chest, null for one its type cannot say.
+function chestEvent(e: Record<string, unknown>, id: string): { event: ChestEvent | FolderEvent; known: true } | { known: false } | null {
+  if (Object.keys(e).length !== 4 || typeof e["type"] !== "string" || !instant(e["occurredAt"])) return null;
   const data = object(e["data"]);
-  const base = { id: jti, occurredAt: e["occurredAt"] as string };
-  // The Chest's groups (Proposal (studio)): data names a group.
-  if (e["type"] === "group.changed" || e["type"] === "group.removed") {
-    if (!data || typeof data["id"] !== "string" || !groupIdPattern.test(data["id"])) return null;
-    const keys = Object.keys(data).sort().join(",");
-    if (e["type"] === "group.removed") return keys === "id" ? { known: true, event: { ...base, type: "group.removed", data: { id: data["id"] } } } : null;
-    const changed = data["changed"];
-    if (keys !== "changed,id" || !Array.isArray(changed) || changed.length < 1 || changed.length > 2 || !changed.every(c => c === "name" || c === "members") || new Set(changed).size !== changed.length) return null;
-    return { known: true, event: { ...base, type: "group.changed", data: { id: data["id"], changed: [...changed] as GroupChange[] } } };
+  if (!data) return null;
+  const base = { id, occurredAt: e["occurredAt"] as string };
+  if (e["type"] === "folders.file.added" || e["type"] === "folders.file.removed") {
+    const told = folderEvent(data);
+    return told ? { known: true, event: { ...base, type: e["type"], data: told } } : null;
   }
-  if (!data || typeof data["id"] !== "string" || !memberIdPattern.test(data["id"])) return null;
+  if (typeof data["id"] !== "string" || !memberIdPattern.test(data["id"])) return null;
   const keys = Object.keys(data).sort().join(",");
   switch (e["type"]) {
     case "member.updated": {
@@ -210,134 +148,150 @@ async function envelope(request: IncomingMessage | Request): Promise<{ event: Ch
       return { known: true, event: { ...base, type: "member.erased", data: { id: data["id"], erasure: data["erasure"], deadline: data["deadline"] as string } } };
   }
   // A type of a later Chest: signed, so the tool accepts it, and ignores it.
-  return { known: false, event: { id: jti } };
+  return { known: false };
+}
+
+const toolKeys = new Set(["id", "type", "source", "occurredAt", "subject", "audience", "data"]);
+// toolEvent reads the envelope of a tool event: its keys exactly, subject
+// only when the publisher named one; null for anything else.
+function toolEvent(e: Record<string, unknown>, id: string): ToolEvent | null {
+  const { type, source, occurredAt, subject, audience } = e, data = object(e["data"]);
+  if (Object.keys(e).length !== toolKeys.size - (subject === undefined ? 1 : 0) || !Object.keys(e).every(k => toolKeys.has(k))) return null;
+  if (!isToolEventType(type) || typeof source !== "string" || !toolNamePattern.test(source) || instantOf(occurredAt) === null || !data) return null;
+  if (subject !== undefined && (typeof subject !== "string" || !itemIdPattern.test(subject))) return null;
+  const all = audience === "all";
+  if (!all && (!Array.isArray(audience) || audience.length === 0 || !audience.every(m => typeof m === "string" && memberIdPattern.test(m)) || new Set(audience).size !== audience.length)) return null;
+  return { id, type, source, occurredAt: occurredAt as string, ...(subject === undefined ? {} : { subject }), audience: all ? "all" : [...audience as string[]], data };
+}
+
+// envelope reads a signed delivery: the event when the signature, the tool,
+// the time and the digest of the body hold and the envelope is one of an
+// event of the Chest or of a tool event (it carries a source); known false
+// for an event of the Chest of a type this SDK does not read.
+async function envelope(request: IncomingMessage | Request): Promise<{ event: ReceivedEvent; known: true } | { known: false } | null> {
+  const signed = await delivery(request, eventChannel);
+  if (!signed) return null;
+  const e = object(json(signed.body.toString("utf8")));
+  if (!e || e["id"] !== signed.id) return null;
+  if (!Object.hasOwn(e, "source")) return chestEvent(e, signed.id);
+  const event = toolEvent(e, signed.id);
+  return event ? { known: true, event } : null;
 }
 
 // verify returns the event a delivery carries, or null when it is not one
 // the Chest made for this tool — no or another signature, for another tool,
-// expired, a body that is not the one signed, not a POST — or when it is of a
-// type this SDK does not know. It reads the body (64 KiB at most): call it
-// before anything else reads it. It never throws for what a request carries.
-export async function verify(request: IncomingMessage | Request): Promise<ChestEvent | null> {
+// expired, a body that is not the one signed, not a POST — or when it is an
+// event of the Chest of a type this SDK does not know. It reads the body (32 MiB
+// at most, once its signature holds: a tool event names who may see it,
+// up to a whole team): call it before anything else reads it. It never
+// throws for what a request carries.
+export async function verify(request: IncomingMessage | Request): Promise<ReceivedEvent | null> {
   const read = await envelope(request);
-  return read?.known === true ? read.event : null;
+  return read?.known ? read.event : null;
 }
 
 const remembered = memorySeen();
+// The event whose handler runs: an emit made while it runs continues its
+// chain (cause), so that the Chest cuts a loop between tools.
+const handling = new AsyncLocalStorage<string>();
 
 // handle verifies one delivery and hands the event to its handler, once:
 // the status to answer the Chest. 401 for a delivery that is not the
 // Chest's; 204 for an event handled, one already seen (seen.has), a type
-// without a handler or one this SDK does not know. A handler that throws
-// leaves the event unseen and handle throws: answer 500, the Chest delivers
-// it again. seen is the store of the ids handled (memorySeen by default,
-// lost at a restart: give a durable one).
-export async function handle(request: IncomingMessage | Request, handlers: Handlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
+// without a handler or a type of the Chest this SDK does not know. A handler that
+// throws leaves the event unseen and handle throws: answer 500, the Chest
+// delivers it again. seen is the store of the ids handled (memorySeen by
+// default, lost at a restart: give a durable one). An emit made by the
+// handler of a tool event carries that event as its cause, by itself.
+export async function handle<K extends ToolEventType>(request: IncomingMessage | Request, handlers: Handlers<K>, options: { seen?: Seen } = {}): Promise<number> {
   const read = await envelope(request);
   if (!read) return 401;
-  if (read.known === false) return 204;
+  if (!read.known) return 204;
   const seen = options.seen ?? remembered;
   const event = read.event;
   if (await seen.has(event.id)) return 204;
-  if (read.known === "tool") {
-    const handler = options.tools && Object.hasOwn(options.tools, read.event.type) ? options.tools[read.event.type] : undefined;
-    if (handler) await handler(read.event);
+  const handler = Object.hasOwn(handlers, event.type) ? (handlers as Record<string, ((e: ReceivedEvent) => void | Promise<void>) | undefined>)[event.type] : undefined;
+  if ("source" in event) {
+    if (handler) await handling.run(event.id, () => handler(event));
   } else {
     // A member changed or left: what lookup kept of them is stale.
-    forget();
-    const handler = handlers[read.event.type] as ((e: ChestEvent) => void | Promise<void>) | undefined;
-    if (handler) await handler(read.event);
+    if (!event.type.startsWith("folders.")) forget();
+    if (handler) await handler(event);
   }
   await seen.add(event.id);
   return 204;
 }
 
-// publish tells the tools that receive it that something happened here
-// (Proposal (studio)): type is "<this tool>.<name>" as chest.json "emits"
-// declares it; data a JSON object of 16 KiB at most (member ids for
-// people). key makes a retry harmless: the same key within 24 hours is one
-// event — any text of 1 to 512 characters without control characters,
-// never cut (a long one goes as its SHA-256, as mail's; studio.15); the
-// same key with another type, other data or another occurredAt is refused
-// (ChestError key_conflict, 409), never answered with the first event.
-//
-// occurredAt (Proposal (studio.16)) is when it happened, when the tool
-// publishes later than that — a retry after the Chest was unreachable, a
-// schedule that tells what waited: a Date or an ISO 8601 instant with Z or
-// an offset, within the last 24 hours (the window in which the key makes
-// a retry one event) and not ahead of now beyond a minute of clock skew.
-// Receivers read it as the event's occurredAt; without it, the Chest's
-// time of the publish. Store it with what waits to be published, and give
-// the same one at every attempt.
-//
-// Says the event's id and how many tools it goes to (the Chest delivers,
-// at least once, like member events). Errors: ChestError invalid_event
-// (400: a type this tool does not emit, data too large, occurredAt out of
-// bounds), CapabilityNotGranted (not declared, or a Chest without events
-// between tools yet), QuotaExceeded (1,000 events an hour), Unavailable.
-export async function publish(type: string, data: Record<string, unknown>, options: { key?: string; occurredAt?: Date | string } = {}): Promise<{ id: string; receivers: number }> {
-  const tool = process.env["CHEST_TOOL"] ?? "";
-  if (!toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
-  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new ChestError("invalid_event", 400, "data is a JSON object");
-  const key = options.key === undefined ? undefined : idempotencyKey(options.key);
-  if (key === null) throw new ChestError("invalid_event", 400, "a key is 1 to 512 characters, without control characters");
-  const occurred = options.occurredAt === undefined ? undefined : occurredAtOf(options.occurredAt);
-  const body = JSON.stringify({ type, data, ...(key !== undefined ? { key } : {}), ...(occurred !== undefined ? { occurred_at: occurred } : {}) });
-  if (Buffer.byteLength(body) > 16 << 10) throw new ChestError("invalid_event", 400, "data is 16 KiB at most");
+// Who, in the tool, may see the item an event is about: some of its
+// members, the members of some groups, the members holding some of its
+// roles (chest.json "roles"); left out, everyone who has the tool.
+export type EmitAudience = Audience;
+// What an emit may say besides its type and data: the thing it is about
+// (subject, an identifier of the tool's own: a receiver gets one subject's
+// events in the order emitted), an idempotency key (the same key within 72
+// hours answers the same event, told once), when it happened (now by
+// default; within the last 72 hours), and its audience.
+export type EmitOptions = { subject?: string; key?: string; occurredAt?: Date | string; audience?: EmitAudience };
+// What the Chest answers an emit: the event's id, and how many tools it was
+// written for (0 is no error: no installed tool listens, or none of their
+// members may see it).
+export type Emitted = { id: string; receivers: number };
+
+// audienceOf is the audience as the Chest takes it: each list once per
+// identifier, empty lists left out; invalid_audience when it names nobody
+// or an identifier of no grammar.
+function audienceOf(given: EmitAudience): Audience {
+  const audience = object(given) && Object.fromEntries(Object.entries(given).filter(([, list]) => !Array.isArray(list) || list.length > 0).map(([name, list]) => [name, Array.isArray(list) ? [...new Set(list)] : list]));
+  if (!isAudience(audience)) throw new ChestError("invalid_audience", 400, "an audience names members (mbr_…), groups (grp_…) or roles of the tool, one at least");
+  return audience;
+}
+
+// emit tells the tools of the Chest that receive its type that something
+// happened in this tool: type is one its chest.json declares in "emits",
+// data its declared fields (16 KiB of JSON at most). The Chest writes it
+// for each linked receiver before answering, and delivers it at least once.
+// Emitted from a handler of a tool event, it continues that event's chain
+// by itself (the Chest tells nobody an event that would loop). Errors:
+// ChestError invalid_type (400: not declared in "emits", or not a type),
+// invalid_data (400: a field not declared, missing or of another kind, a
+// member the tool never had), invalid_audience (400), invalid_event (400:
+// subject, key or occurredAt), key_reused (409: the key went with other
+// content); TooLarge (413), CapabilityNotGranted (403: the version emits
+// nothing), Unavailable (the event may or may not be told: emit again with
+// the same key).
+export async function emit(type: string, data: Record<string, unknown>, options: EmitOptions = {}): Promise<Emitted> {
+  if (!isToolEventType(type)) throw new ChestError("invalid_type", 400, "a type is two to four dotted lowercase words (quote.accepted), not member.*, access.* nor folders.*");
+  if (!object(data)) throw new ChestError("invalid_data", 400, "data is an object of the fields the type declares");
+  let size: number;
+  try {
+    size = Buffer.byteLength(JSON.stringify(data));
+  } catch {
+    throw new ChestError("invalid_data", 400, "data is not JSON");
+  }
+  if (size > maxData) throw new TooLarge();
+  const { subject, key, occurredAt, audience } = options;
+  for (const id of [subject, key]) {
+    if (id !== undefined && (typeof id !== "string" || !itemIdPattern.test(id))) throw new ChestError("invalid_event", 400, "a subject or a key is 1 to 128 letters, digits and . _ : -, starting with a letter or a digit");
+  }
+  const at = occurredAt instanceof Date ? (Number.isNaN(occurredAt.getTime()) ? undefined : occurredAt.toISOString()) : occurredAt;
+  if (occurredAt !== undefined) {
+    const time = instantOf(at), now = Date.now();
+    if (time === null || time > now + clockSkew || time < now - eventWindow) throw new ChestError("invalid_event", 400, "occurredAt is an RFC 3339 instant of the last 72 hours");
+  }
+  const cause = handling.getStore();
+  const body = JSON.stringify({ type, data, ...(subject === undefined ? {} : { subject }), ...(key === undefined ? {} : { key }), ...(at === undefined ? {} : { occurredAt: at }), ...(audience === undefined ? {} : { audience: audienceOf(audience) }), ...(cause === undefined ? {} : { cause }) });
   const response = await ask("events", "POST", "/events", { body, type: "application/json" });
-  if (response.status === 404) {
-    await response.body?.cancel();
-    throw new CapabilityNotGranted("events");
+  if (response.status === 200 || response.status === 202) {
+    const answer = object(await readJson(response));
+    const id = answer?.["id"], receivers = answer?.["receivers"];
+    if (typeof id !== "string" || !eventChannel.id.test(id) || typeof receivers !== "number" || !Number.isSafeInteger(receivers) || receivers < 0) throw new Unavailable();
+    return { id, receivers };
   }
-  if (response.status !== 200 && response.status !== 201) throw await refusal(response, "events");
-  const answer = (await readJson(response)) as { id?: unknown; receivers?: unknown } | null;
-  if (!answer || typeof answer.id !== "string" || !/^evt_[a-z2-7]{26}$/u.test(answer.id) || typeof answer.receivers !== "number") throw new Unavailable();
-  return { id: answer.id, receivers: answer.receivers };
-}
-
-// How far back and ahead an event's occurredAt may be (Proposal
-// (studio.16)): 24 hours back — the window of a key, so an event told late
-// is still one event — and a minute ahead, for the clocks of the tool's
-// container and of the Chest.
-export const occurredLimits = { behindMs: 86_400_000, aheadMs: 60_000 } as const;
-
-// occurredAtOf reads an occurredAt as the Chest keeps it (ISO 8601 in UTC,
-// milliseconds), or throws invalid_event: not an instant with its zone,
-// older than 24 hours, or ahead of now beyond a minute. now is the clock
-// it is measured against (the Chest checks again against its own).
-export function occurredAtOf(value: Date | string, now: number = Date.now()): string {
-  if (typeof value === "string" && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/u.test(value)) throw new ChestError("invalid_event", 400, "occurredAt is a Date or an ISO 8601 instant with Z or an offset");
-  const at = value instanceof Date ? value.getTime() : typeof value === "string" ? Date.parse(value) : Number.NaN;
-  if (!Number.isFinite(at)) throw new ChestError("invalid_event", 400, "occurredAt is a Date or an ISO 8601 instant with Z or an offset");
-  if (at < now - occurredLimits.behindMs) throw new ChestError("invalid_event", 400, "occurredAt is within the last 24 hours");
-  if (at > now + occurredLimits.aheadMs) throw new ChestError("invalid_event", 400, "occurredAt is not in the future");
-  return new Date(at).toISOString();
-}
-
-// receivers says which tools receive an event this tool emits (Proposal
-// (studio.16)): the names (chest.json "name") of the installed tools that
-// declare it in "receives" AND that an admin linked to this tool for it —
-// what publish would deliver to now, sorted; [] when none. For a page that
-// offers a link to another tool ("Send contacts to Clients"): greyed with
-// its reason when Clients is not among them, which chest.toolUrl — that
-// only says a tool is installed — cannot tell. It reads the Chest's
-// current links: call it when rendering such a page, not at every
-// publish. Errors: ChestError invalid_event (a type this tool does not
-// emit), CapabilityNotGranted (not declared, or a Chest without events
-// between tools), Unavailable.
-export async function receivers(type: string): Promise<string[]> {
-  const tool = process.env["CHEST_TOOL"] ?? "";
-  if (typeof type !== "string" || !toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
-  const response = await ask("events", "GET", "/events/receivers?type=" + encodeURIComponent(type));
-  if (response.status === 404) {
+  if (response.status < 400) {
     await response.body?.cancel();
-    throw new CapabilityNotGranted("events");
+    throw new Unavailable();
   }
-  if (response.status !== 200) throw await refusal(response, "events");
-  const answer = (await readJson(response)) as { tools?: unknown } | null;
-  const tools = answer?.tools;
-  if (!Array.isArray(tools) || tools.length > 1000 || !tools.every(t => typeof t === "string" && t.length <= 63 && /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(t))) throw new Unavailable();
-  return [...new Set(tools as string[])].sort();
+  throw await refusal(response, "events");
 }
 
 // acknowledgeErasure tells the Chest the tool deleted or anonymised what it

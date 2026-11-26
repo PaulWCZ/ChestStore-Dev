@@ -9,15 +9,15 @@ deep navy ink, a coral that asks to be tapped, mint for "yes", sunflower for
 down when tapped, like real buttons. Lively, never childish: one obvious
 action per screen, big answers, plain words.
 
-## Tokens — the identity is a theme (`lib/theme.ts`)
+## Tokens — the identity is a theme (`src/theme.ts`)
 
-Confetti is a theme of the store's UI kit (`defineTheme` in `lib/theme.ts`,
+Confetti is a theme of the store's UI kit (`defineTheme` in `src/theme.ts`,
 the same, value for value, as the catalogue's `confetti`: a test holds
 them equal). Every colour of the tool is there, light and dark, checked
 against every contrast pair of the kit's contract (`checkTheme`, WCAG AA).
 The company may give Polls another look (a catalogue theme, its brand): the
 CSS names only the contract's tokens and Polls' own, defined from them in
-`app/tokens.css` — never a colour (a test reads every stylesheet).
+`src/tokens.css` — never a colour (a test reads every stylesheet).
 
 | Polls before | Now | Light | Dark |
 |---|---|---|---|
@@ -40,15 +40,18 @@ in Workshop and High contrast).
 
 - **Type**: *Fredoka* (rounded display, OFL-1.1) for titles, numbers and
   chunky labels; *Plus Jakarta Sans* (OFL-1.1) for text. Both self-hosted
-  in `public/fonts/`; the kit writes their `@font-face`.
+  in `public/assets/fonts/`; the kit writes their `@font-face`.
 - **Spacing**: 4, 8, 12, 16, 24, 32, 48 px. **Radii**: 10, 16, 24 px and
   pills. **Ledge**: 4 px of `--line-strong` (or `--accent-line`) under
   every chunky control; tapping presses it down.
+- **Lengths from data** (bars, meters, columns) are classes `pct-0`…`pct-100`
+  (`--w`, `--h`): the pages carry no `style=""`. The look itself is a
+  stylesheet the tool serves (`/chest/look.css`, `/look.css`).
 - **Motion**: bars grow, columns rise, confetti bursts once when an answer
   is sent. `prefers-reduced-motion` turns all of it off (the burst is not
   drawn at all).
 
-## Components (`app/globals.css`)
+## Components (`src/styles.css`)
 
 - **The shell** is the kit's `AppShell` (a paper bar, the mark or the
   company's logo, the member chip); "New poll" is the home page's main
@@ -102,7 +105,7 @@ in Workshop and High contrast).
 
 ## Icon
 
-`chest/icon.svg` (and `app/icon.svg`, `components/mark.tsx`): a coral card
+`chest/icon.svg` (and `public/assets/icon.svg`, the browser tab's, and `src/components/mark.tsx`): a coral card
 standing on a navy ledge, three result bars (navy, white, mint) and two
 confetti dots. No text; readable at 24 px on light and dark tiles.
 
@@ -127,8 +130,8 @@ explained in plain words, with the lock of five dots.
     { "name": "Quiet ink", "value": "#4a5270" }
   ],
   "fonts": {
-    "display": { "family": "Fredoka", "file": "public/fonts/fredoka-latin-wght-normal.woff2", "weight": 600 },
-    "body": { "family": "Plus Jakarta Sans", "file": "public/fonts/plus-jakarta-sans-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Fredoka", "file": "public/assets/fonts/fredoka-latin-wght-normal.woff2", "weight": 600 },
+    "body": { "family": "Plus Jakarta Sans", "file": "public/assets/fonts/plus-jakarta-sans-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Pizza or sushi on Friday?"
 }

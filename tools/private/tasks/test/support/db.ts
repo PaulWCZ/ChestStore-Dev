@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { provide } from "../../lib/db.ts";
+import { provide } from "../../src/lib/db.ts";
 
 // A fresh database for a test file, with the tool's migrations run as the
 // Chest runs them (in name order, each in its own transaction, recorded in
@@ -29,13 +29,24 @@ export async function migrate(sql: postgres.Sql): Promise<void> {
 }
 
 export async function testDatabase(): Promise<TestDatabase> {
+  const given = process.env["CHEST_TIME_ZONE"] ?? "";
+  const zone = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/u.test(given) ? given : "UTC";
   const server = process.env["TEST_DATABASE_URL"];
   if (server) {
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
     const admin = postgres(server, { max: 1, onnotice: () => {} });
-    await admin.unsafe(`create database ${name}`);
+    // The Chest's shape: a role t_<tool> owning its database (databaseUrl()
+    // refuses any other, so the built server checks it too).
+    await admin.unsafe(`create role ${name} login password 'test'`);
+    // The Chest sets its time zone as the role's own (contract 0.4:
+    // CHEST_TIME_ZONE "is also its database role's timezone"), so every
+    // session — the tool's pool, the built server's, the test's — has the
+    // company's current_date: the fake Chest's zone when it started first
+    // (CHEST_TIME_ZONE), else UTC, the Chest's own default.
+    await admin.unsafe(`alter role ${name} set timezone = '${zone}'`);
+    await admin.unsafe(`create database ${name} owner ${name}`);
     const base = new URL(server);
-    const url = `postgres://${base.username}:${base.password}@127.0.0.1:${base.port || 5432}/${name}`;
+    const url = `postgres://${name}:test@127.0.0.1:${base.port || 5432}/${name}?sslmode=disable`;
     const sql = postgres(url, { max: 4, onnotice: () => {} });
     await migrate(sql);
     process.env["DATABASE_URL"] = url;
@@ -47,6 +58,7 @@ export async function testDatabase(): Promise<TestDatabase> {
       provide(undefined);
         await sql.end();
         await admin.unsafe(`drop database if exists ${name} with (force)`);
+        await admin.unsafe(`drop role if exists ${name}`);
         await admin.end();
       },
     };
@@ -56,7 +68,9 @@ export async function testDatabase(): Promise<TestDatabase> {
   const { unaccent } = await import("@electric-sql/pglite/contrib/unaccent");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
   const pg = await PGlite.create({ extensions: { pg_trgm, unaccent } });
-  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
+  // One session for every connection: its zone is the Chest's.
+  await pg.exec(`set time zone '${zone}'`);
+  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1", maxConnections: 8 });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();
   const port = address?.port ?? 0;

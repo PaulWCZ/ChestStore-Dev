@@ -62,3 +62,23 @@ Weak: on the phone form, *Save* is a sticky bar that covers the Date field while
 8. FEC-layout journal export — M
 9. OCR suggestion (on-server or AI gateway) — L
 10. Card feeds and advances (SDK/bank; state as out of scope meanwhile) — L
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Expenses's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.4,
+  SDK `0.4.1-studio.3`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **127 → 67.6 MiB**;
+  image 514 → 33 MiB; first members' page 779 →
+  979 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: amounts read exactly or refused ("1O,50", "12x5", "1e3", "−12,50", "1,2.34" had been saved wrong), ambiguous ones refused with their own sentence, limits in the company's money (`2af2f3a`); a transfer file cancelled only after a confirmation naming its day and amount, and once its day has come only when the bank did not pay it; bank details someone else entered wait for their owner's "These are mine"; "To pay back" says what the payer approved themselves; transfer files always checked against the ISO 20022 schema (`d9cb32b`). Axe 0 on 27 screens, browser flow 32 steps (`372b42a`).
+- **Pending**: It vendors older packs than the others (package studio.4, SDK 0.4.1-studio.3); re-vendoring is mechanical.

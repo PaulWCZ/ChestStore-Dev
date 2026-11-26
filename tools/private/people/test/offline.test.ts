@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { eraseRecords } from "../lib/records.ts";
-import { createRecord, linkRecord, updateRecord } from "../lib/records.ts";
-import { offlineStaff, placement, setPlacement } from "../lib/offline.ts";
-import { profiles } from "../lib/profiles.ts";
-import { addDays } from "../lib/model.ts";
-import { orgChart } from "../lib/tree.ts";
-import { today } from "../lib/zone.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { eraseRecords } from "../src/lib/records.ts";
+import { createRecord, linkRecord, updateRecord } from "../src/lib/records.ts";
+import { offlineStaff, placement, setPlacement } from "../src/lib/offline.ts";
+import { profiles } from "../src/lib/profiles.ts";
+import { addDays } from "../src/shared/model.ts";
+import { orgChart } from "../src/shared/tree.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { asMember } from "./support/member.ts";
+import { asMember, opener } from "./support/member.ts";
 import { camille, everyone, hugo, ines, paul, tom } from "./support/members.ts";
 
 // Staff without the Chest (round 3, blocker 5): an HR record not linked to
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ tool: "people", members: everyone });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, tool: "people", members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -39,7 +39,7 @@ const refused = (code: string) => (error: unknown) => error instanceof AppError 
 async function warehouse() {
   const { sql } = database;
   const { id } = await createRecord(sql, hr, { legalName: "Aminata Diallo" });
-  await updateRecord(sql, hr, id, { job: "Warehouse operative", startDate: addDays(today(), -200), contract: "permanent", address: "12 rue des Lilas, Lyon", emergencyName: "Moussa Diallo", birthDate: "1990-04-02" });
+  await updateRecord(sql, hr, id, { job: "Warehouse operative", startDate: addDays(today(), -200), contract: "permanent", address: "12 rue des Lilas, Lyon", emergencyName: "Moussa Diallo", birthDate: "1990-04-02" }, opener(hr));
   return id;
 }
 
@@ -62,9 +62,9 @@ test("only while they work here, and only while HR lists them; linked records ar
   const { sql } = database;
   const id = await warehouse();
   const future = (await createRecord(sql, hr, { legalName: "Linh Nguyen" })).id;
-  await updateRecord(sql, hr, future, { startDate: addDays(today(), 20) });
+  await updateRecord(sql, hr, future, { startDate: addDays(today(), 20) }, opener(hr));
   const gone = (await createRecord(sql, hr, { legalName: "Marc Roux" })).id;
-  await updateRecord(sql, hr, gone, { startDate: "2020-01-06", endDate: addDays(today(), -1) });
+  await updateRecord(sql, hr, gone, { startDate: "2020-01-06", endDate: addDays(today(), -1) }, opener(hr));
   const member = (await createRecord(sql, hr, { memberId: tom.id })).id;
   assert.deepEqual((await offlineStaff(sql, hr, today())).map(o => o.recordId), [id]);
   assert.ok(member);

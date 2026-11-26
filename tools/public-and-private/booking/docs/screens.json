@@ -38,6 +38,7 @@
   {"name": "block-from-agenda", "path": "/chest", "member": "ines", "language": "en", "only": ["desktop"], "actions": [{"click": "button.meeting.free >> nth=0"}, {"wait": 500}]},
   {"name": "block-from-agenda-phone", "path": "/chest", "member": "ines", "language": "en", "only": ["phone"], "actions": [{"click": ".free-toggle label"}, {"wait": 200}, {"click": "button.meeting.free >> nth=0"}, {"wait": 500}]},
   {"name": "questions-form-fr", "path": "/ines-moreau/project-call", "member": "ines", "language": "fr", "only": ["phone"], "actions": [{"click": ".time-button >> nth=0"}, {"wait": 400}]},
+  {"name": "settings-host", "path": "/chest/settings", "member": "ines", "language": "en", "only": ["desktop"]},
   {"name": "settings-languages", "path": "/chest/settings", "member": "ines", "language": "fr", "only": ["phone"]},
   {"name": "type-rooms", "path": "/chest/types/2", "member": "ines", "language": "en", "only": ["desktop"], "actions": [{"hover": ".rooms"}, {"wait": 200}]},
   {"name": "bookings-port", "path": "/chest", "member": "ines", "language": "en", "look": {"tool": "brand:port"}},

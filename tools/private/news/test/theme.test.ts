@@ -6,8 +6,9 @@ import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { allTokens, checkTheme, identityOf, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
-import { themeStyle } from "@argentic/chest-ui/runtime";
-import { currentLook, identity } from "../lib/theme.ts";
+import { identity, sheetOf } from "../src/theme.ts";
+
+const currentLook = async () => (await sheetOf("team")).look;
 
 const root = join(import.meta.dirname, "..");
 
@@ -23,17 +24,18 @@ test("the identity is the catalogue's Newsprint theme, exactly", () => {
   assert.equal(identity.id, "newsprint");
 });
 
-test("its fonts are the tool's own files, served at /fonts", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
+test("its fonts are the tool's own files, served at /assets/fonts", async () => {
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
-  assert.match(themeStyle(identity), /url\(\/fonts\/fraunces-latin-wght-normal\.woff2\)/u);
-  assert.match(themeStyle(identity), /url\(\/fonts\/libre-franklin-latin-wght-normal\.woff2\)/u);
+  const { css } = await sheetOf("team");
+  assert.match(css, /url\(\/assets\/fonts\/fraunces-latin-wght-normal\.woff2\)/u);
+  assert.match(css, /url\(\/assets\/fonts\/libre-franklin-latin-wght-normal\.woff2\)/u);
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
-  const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "library" } } });
+  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "library" } } });
   try {
     let look = await currentLook();
     assert.equal(look.source, "catalogue");
@@ -60,7 +62,7 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
   const found: string[] = [];
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public"].includes(name)) return [];
     return statSync(path).isDirectory() ? walk(path) : path.endsWith(".css") ? [path] : [];
   });
   for (const file of walk(root)) {
@@ -71,12 +73,12 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
 });
 
 // Every custom property the CSS reads is the contract's, or one of the
-// tool's own tokens (app/tokens.css), defined from the contract's.
+// tool's own tokens (src/tokens.css), defined from the contract's.
 test("the stylesheets read only contract tokens and the tool's own", () => {
-  const own = new Set([...readFileSync(join(root, "app", "tokens.css"), "utf8").matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
+  const own = new Set([...readFileSync(join(root, "src", "tokens.css"), "utf8").matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
   const known = new Set<string>([...allTokens, ...own]);
   const unknown: string[] = [];
-  for (const file of ["app/tokens.css", "app/globals.css"]) {
+  for (const file of ["src/tokens.css", "src/styles.css"]) {
     for (const m of readFileSync(join(root, file), "utf8").matchAll(/var\((--[\w-]+)/gu)) if (!known.has(m[1]!)) unknown.push(`${file}: ${m[1]}`);
   }
   assert.deepEqual(unknown, []);
@@ -85,6 +87,6 @@ test("the stylesheets read only contract tokens and the tool's own", () => {
 // A weight written as a number would not follow a theme whose hierarchy is
 // size alone (the Chest theme's 400): weights come from tokens, 400 aside.
 test("weights come from the theme's tokens", () => {
-  const css = readFileSync(join(root, "app", "globals.css"), "utf8");
+  const css = readFileSync(join(root, "src", "styles.css"), "utf8");
   assert.deepEqual([...css.matchAll(/font-weight:\s*(\d+)/gu)].map(m => m[1]).filter(w => w !== "400"), []);
 });

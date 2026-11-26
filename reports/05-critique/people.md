@@ -64,3 +64,23 @@ Weak: HR setup at scale (Major 4); the phone navigation.
 7. Localised example templates; auto-tick the profile step — S
 8. Custom fields; headcount and turnover reports — M
 9. Phone nav labels; duplicate empty text; French colon spacing; chart stubs — S
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from People's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **125.7 → 70.7 MiB**;
+  image 460 → 30 MiB; first members' page 639 →
+  390 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: Edit as a table with the manager as a person picker in the cell (2,000 people: a 4.4 MiB page, was 289 MB); typed action fields; a profile's parts all checked before any write; records written under a row lock, with race tests; the directory export (with HR's private fields) written in the journal; reading the directory deletes nothing (purges are the morning run's) (`bcd6338`); five French tabs fit 390 px, a departed manager in the sample (`e07ed48`).
+- **Pending**: Platform: the owner, admins and the builder enter People as `hr` (its first role) and read every record — `reports/03-sdk-report.md` §4.17 asks for a role builders do not get.

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addClient, getClient } from "../lib/clients.ts";
-import { crmKey, readWon } from "../lib/crm.ts";
-import { getDocument, saveDraft, sendQuote } from "../lib/documents.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { addClient, getClient } from "../src/lib/clients.ts";
+import { crmKey, readWon } from "../src/lib/crm.ts";
+import { getDocument, saveDraft, sendQuote } from "../src/lib/documents.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { company, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -15,8 +15,8 @@ import { everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", language: "fr" } });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" } });
   await company(database.sql);
 });
 after(async () => {
@@ -84,14 +84,18 @@ test("an owner without a Quotes role: the draft is the tool's, and the sales peo
   assert.deepEqual(chest.notifications.filter(n => n.key === crmKey("D4")).map(n => n.member).sort(), [hugo.id, ines.id].sort());
 });
 
-test("no amount, another currency, no company: an empty line, a person as client", async () => {
+test("no amount, another currency, no company: an empty line, the deal's own currency, a person as client", async () => {
   await told("crm.deal.won", won("D5", { amount: null, company: null, contact: { name: "Jeanne Roux", email: "jeanne@example.test" } }));
   const q = await getDocument(database.sql, asMember(lea), String(await quoteOf("D5")), today);
   assert.equal(q.lines[0]?.unitPrice, 0);
   assert.equal(q.client?.kind, "person");
   assert.equal(q.client?.name, "Jeanne Roux");
+  // A deal in dollars: a quote in dollars, the deal's amount on its line
+  // (SDK 0.7.0: each document in its own currency).
   await told("crm.deal.won", won("D6", { currency: "USD" }));
-  assert.equal((await getDocument(database.sql, asMember(lea), String(await quoteOf("D6")), today)).lines[0]?.unitPrice, 0);
+  const usd = await getDocument(database.sql, asMember(lea), String(await quoteOf("D6")), today);
+  assert.equal(usd.currency, "USD");
+  assert.equal(usd.lines[0]?.unitPrice, 480000);
 });
 
 test("a deal reopened: an untouched draft goes (and can come back); a changed or sent one stays, and says so", async () => {
@@ -145,4 +149,67 @@ test("events of another shape are accepted and change nothing", async () => {
   const read = readWon({ deal: "D11", title: "  Site\n ", amount: 1, currency: "EUR", company: { ref: "c", name: "X", siren: "123", vat: "1", email: "no", country: "France" } });
   assert.deepEqual(read?.company && { siren: read.company.siren, vat: read.company.vat, email: read.company.email, country: read.company.country }, { siren: "", vat: "", email: "", country: "FR" });
   assert.equal(read?.title, "Site");
+});
+
+test("SDK 0.7.0's flat shape: the company and the contact as fields of their own", async () => {
+  const flat = {
+    deal: "F1", title: "Refonte du site", amount: 480000, currency: "EUR", owner: hugo.id,
+    companyRef: "co-77", companyName: "Menuiserie Noir SARL", companyAddress: "4 rue du Bois", companyPostcode: "69005", companyCity: "Lyon", companyCountry: "FR",
+    companyEmail: "contact@noir.test", contactName: "Paul Noir", contactEmail: "paul@noir.test",
+  };
+  const read = readWon(flat)!;
+  assert.deepEqual([read.company?.ref, read.company?.name, read.company?.city, read.contact?.name], ["co-77", "Menuiserie Noir SARL", "Lyon", "Paul Noir"]);
+  assert.equal(await told("crm.deal.won", flat), 204);
+  const q = await getDocument(database.sql, asMember(lea), String(await quoteOf("F1")), today);
+  assert.equal(q.client?.name, "Menuiserie Noir SARL");
+});
+
+test("a type names no tool: crm.deal.won from another tool than Clients makes nothing", async () => {
+  assert.equal(await chest.deliver({ type: "crm.deal.won", source: "forms", data: won("S1") }, POST), 204);
+  assert.equal(await quoteOf("S1"), undefined, "not from Clients: no draft");
+  assert.equal(await told("crm.deal.won", won("S1")), 204);
+  assert.ok(await quoteOf("S1"), "from Clients: the draft");
+});
+
+// The rule of every event between tools: an amount is in its currency's
+// ISO 4217 minor unit. Clients converts its hundredths before it emits
+// (minorUnits): Quotes takes them as they come.
+test("a deal's amount comes in its currency's minor unit and is kept as it comes: EUR, JPY, KWD", () => {
+  const base = { deal: "Y1", title: "Atelier Tokyo", owner: null };
+  assert.equal(readWon({ ...base, amount: 480000, currency: "EUR" })!.amount, 480000, "€4,800.00");
+  assert.equal(readWon({ ...base, amount: 10000, currency: "JPY" })!.amount, 10000, "¥10,000");
+  assert.equal(readWon({ ...base, amount: 12340, currency: "KWD" })!.amount, 12340, "12.340 KWD");
+  assert.equal(readWon({ ...base, amount: null, currency: "JPY" })!.amount, null);
+});
+
+// Exactly what Clients emits for a yen and a dinar deal (its chest.json
+// "emits" and lib/share.ts: flat, minor units, optional fields left out).
+test("a won deal in yen and one in dinars, as Clients emits them: drafts of ¥10,000 and 12.340 KWD", async () => {
+  const { sql } = database;
+  const emitted = (deal: string, amount: number, currency: string) => ({
+    deal, title: `Deal ${currency}`, amount, currency, owner: hugo.id,
+    companyRef: `co-${deal}`, companyName: `Client ${currency}`, companyCountry: "FR", contactName: "Aki Tanaka", contactEmail: "aki@client.test",
+  });
+  assert.equal(await told("crm.deal.won", emitted("JPY1", 10000, "JPY")), 204);
+  assert.equal(await told("crm.deal.won", emitted("KWD1", 12340, "KWD")), 204);
+  for (const [deal, currency, minor] of [["JPY1", "JPY", 10000], ["KWD1", "KWD", 12340]] as const) {
+    const q = await getDocument(sql, asMember(lea), String(await quoteOf(deal)), today);
+    assert.equal(q.currency, currency);
+    assert.deepEqual(q.lines.map(l => l.unitPrice), [minor], `${deal}: taken as it came`);
+  }
+});
+
+test("a deal for some people only (its audience): no draft every reader of Quotes would see; its owner is told to write it", async () => {
+  // Hugo had many notices already: past the Chest's pace (0.7.0), a new
+  // one folds into his grouped item instead of keeping its key.
+  const grouped = () => chest.notifications.find(n => n.member === hugo.id && n.grouped !== undefined)?.grouped ?? 0;
+  const was = grouped();
+  assert.equal(await chest.deliver({ type: "crm.deal.won", source: "crm", audience: [hugo.id], data: won("P1") }, POST), 204);
+  assert.equal(await quoteOf("P1"), undefined, "no draft");
+  assert.ok(chest.notifications.some(n => n.member === hugo.id && n.key === crmKey("P1")) || grouped() > was, "Hugo is told");
+  // Not in the audience: nobody told, nothing made.
+  const after = chest.notifications.length;
+  await chest.deliver({ type: "crm.deal.won", source: "crm", audience: [lea.id], data: won("P2") }, POST);
+  assert.equal(chest.notifications.length, after);
+  assert.equal(await quoteOf("P2"), undefined);
 });

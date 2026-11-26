@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { grid, monthOf, shift } from "../lib/calendar.ts";
+import { grid, monthOf, shift } from "../src/shared/calendar.ts";
 
 test("the calendar's month: read from the address, shifted across years, whole weeks from Monday", () => {
   assert.equal(monthOf("2026-10", "2026-09-29"), "2026-10");

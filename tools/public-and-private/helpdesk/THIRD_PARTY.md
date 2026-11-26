@@ -2,8 +2,8 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| `lib/zip.ts` (a ZIP of text files, stored) | the studio's Clients tool (`tools/private/crm/lib/zip.ts`), written for it — same author, MIT | MIT | `lib/zip.ts` |
-| Atkinson Hyperlegible (font) | [Braille Institute](https://www.brailleinstitute.org/freefont/), via `@fontsource/atkinson-hyperlegible` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-atkinson-hyperlegible.txt` |
+| `src/lib/zip.ts` (a ZIP of text files, deflated as it is written) | the studio's Clients tool (`tools/private/crm/lib/zip.ts`), written for it — same author, MIT; rewritten to stream with data descriptors and Node's zlib | MIT | `src/lib/zip.ts` |
+| Atkinson Hyperlegible (font) | [Braille Institute](https://www.brailleinstitute.org/freefont/), via `@fontsource/atkinson-hyperlegible` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-atkinson-hyperlegible.txt` |
 
 Ideas, no code: the shared-inbox folders and the collision warning
 (FreeScout, AGPL — ideas only), the three statuses (Help Scout), saved
@@ -17,8 +17,10 @@ GPL-2.0) — we keep four plain words, *Urgent* rather than *Emergency*;
 FreeScout's Tags module (https://freescout.net/module/tags/, AGPL-3.0):
 tags added on a conversation, a click shows every tagged conversation,
 an admin page to rename and delete. Dependencies from npm under
-their own licences: `next`, `react`, `react-dom` (MIT), `postgres`
-(Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, the studio's
+their own licences: `hono`, `@hono/node-server`, `react`, `react-dom`
+(MIT), `postgres` (Unlicense); for the build and the tests only, `vite`,
+`typescript` (MIT, Apache-2.0), `@electric-sql/pglite` and `pglite-socket` (Apache-2.0 or the PostgreSQL licence);
+`@argentic/chest-sdk`, `@argentic/chest-ui` and `@argentic/chest-app` (MIT, the studio's
 working copies, packed in `vendor/`; the kit's file picker and inbox
 filters started from this tool's own). Icons drawn for this tool.
 

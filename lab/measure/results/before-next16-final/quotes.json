@@ -1,0 +1,1028 @@
+{
+ "tool": "quotes",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/public-and-private/quotes",
+ "date": "2026-10-06T10:52:02.215Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "eb38566 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.68,
+   "five": 0.75,
+   "fifteen": 1.07
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 136,
+    "rssMiB": 247,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 62.9,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 17.1,
+    "rssMiB": 90,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 11.9,
+    "rssMiB": 583,
+    "command": "claude"
+   },
+   {
+    "cpu": 7.5,
+    "rssMiB": 67,
+    "command": "npm run build"
+   }
+  ],
+  "atEnd": {
+   "one": 0.37,
+   "five": 0.84,
+   "fifteen": 1.03
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 11.8,
+    "rssMiB": 561,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.9,
+    "rssMiB": 216,
+    "command": "chrome"
+   },
+   {
+    "cpu": 2.7,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 2.1,
+    "rssMiB": 113,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 1.9,
+    "rssMiB": 184,
+    "command": "chrome"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 14.7,
+  "apparentMiB": 13.8,
+  "files": 276
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 4103,
+  "peakRssMiB": 562.2,
+  "peakPssMiB": 517.4,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.79,
+   "five": 0.77,
+   "fifteen": 1.07
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 9588,
+  "peakRssMiB": 735,
+  "peakPssMiB": 690.1,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1224.6,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.81,
+   "max": 0.81
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 137,
+   "signal": null,
+   "ms": 39692,
+   "peakRssMiB": 643.2,
+   "peakPssMiB": 535.5,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 1
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.74,
+    "max": 0.91
+   },
+   "tail": "\n> chest-quotes@0.1.0 build\n> NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack\n\nGenerating route types...\n✓ Types generated successfully\n▲ Next.js 16.3.6 (webpack)\n✓ Running next.config.ts took 33ms\n- Experiments (use with caution):\n  · cpus: 1\n  ⨯ webpackBuildWorker\n  ✓ webpackMemoryOptimizations\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 21.3s\n  Skipping validation of types\n  Finished TypeScript config validation in 4ms ...\n  Collecting page data using 1 worker ...\n  Generating static pages using 1 worker (0/10) ...\n  Generating static pages using 1 worker (2/10) \r\n  Generating static pages using 1 worker (4/10) \r\n  Generating static pages using 1 worker (7/10) \r\n✓ Generating static pages using 1 worker (10/10) in 280ms\n  Finalizing page optimization ...\n  Collecting build traces ...\nKilled\n",
+   "fits": false
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 17461,
+   "peakRssMiB": 1076.8,
+   "peakPssMiB": 1000.9,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 978.4,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.36,
+    "max": 1.45
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 6.4,
+  "apparentMiB": 5.2,
+  "files": 259,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 463.7
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/quotes.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/documents/7",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/documents/11",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/invoices",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/quotes",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/clients",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/catalogue",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/export",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import?kind=clients",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+    "public": true,
+    "language": "fr"
+   },
+   {
+    "path": "/chest/documents/6",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/import?kind=invoices",
+    "member": "sofia",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 324.2,
+    "firstMs": 987.8,
+    "statuses": [
+     200
+    ],
+    "load": 1.38
+   },
+   {
+    "portMs": 304.3,
+    "firstMs": 712.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.24
+   },
+   {
+    "portMs": 297.9,
+    "firstMs": 688.5,
+    "statuses": [
+     200
+    ],
+    "load": 1.37
+   },
+   {
+    "portMs": 270.5,
+    "firstMs": 633.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.23
+   },
+   {
+    "portMs": 342.4,
+    "firstMs": 755.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.12
+   },
+   {
+    "portMs": 454.9,
+    "firstMs": 1017.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.87
+   },
+   {
+    "portMs": 354.1,
+    "firstMs": 763.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.82
+   },
+   {
+    "portMs": 305.9,
+    "firstMs": 777.7,
+    "statuses": [
+     200
+    ],
+    "load": 1.7
+   },
+   {
+    "portMs": 311.3,
+    "firstMs": 783.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.51
+   },
+   {
+    "portMs": 315,
+    "firstMs": 814.4,
+    "statuses": [
+     200
+    ],
+    "load": 1.93
+   }
+  ],
+  "port": {
+   "median": 313.15,
+   "min": 270.5,
+   "max": 454.9
+  },
+  "first200": {
+   "median": 770.6500000000001,
+   "min": 633.1,
+   "max": 1017.1
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 241.9,
+     "pss": 146
+    },
+    "peakMiB": {
+     "rss": 272.4,
+     "pss": 176,
+     "cgroup": 143.8
+    },
+    "afterRequestsMiB": {
+     "rss": 272.4,
+     "pss": 176
+    },
+    "restMiB": {
+     "rss": 237.3,
+     "pss": 141.4,
+     "pssAnon": 102.6,
+     "pssFile": 38.8,
+     "cgroupAnon": 102.6,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 24
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 168.5,
+      "pssMiB": 117.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54532,
+      "ms": 60
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 100.8
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 34.7
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49321,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49887,
+      "ms": 30.6
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 38.6
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103582,
+      "ms": 35.8
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 22
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 68
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 27.6
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 20.5
+     }
+    ],
+    "load": {
+     "mean": 1.35,
+     "max": 1.5
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 246,
+     "pss": 150.1
+    },
+    "peakMiB": {
+     "rss": 269.9,
+     "pss": 173.6,
+     "cgroup": 140.9
+    },
+    "afterRequestsMiB": {
+     "rss": 269.9,
+     "pss": 173.6
+    },
+    "restMiB": {
+     "rss": 234.6,
+     "pss": 138.4,
+     "pssAnon": 99.9,
+     "pssFile": 38.5,
+     "cgroupAnon": 99.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 23.7
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 165.9,
+      "pssMiB": 114.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54532,
+      "ms": 34.5
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 54.8
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 29.9
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49321,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49887,
+      "ms": 17.4
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102845,
+      "ms": 15.6
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 20.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103582,
+      "ms": 32.7
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 17.2
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 22
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 20.9
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 12.2
+     }
+    ],
+    "load": {
+     "mean": 1.07,
+     "max": 1.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245.3,
+     "pss": 149.4
+    },
+    "peakMiB": {
+     "rss": 266.3,
+     "pss": 170,
+     "cgroup": 137.5
+    },
+    "afterRequestsMiB": {
+     "rss": 266.3,
+     "pss": 170
+    },
+    "restMiB": {
+     "rss": 232.2,
+     "pss": 134.7,
+     "pssAnon": 97.5,
+     "pssFile": 37.2,
+     "cgroupAnon": 97.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 23.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 163.6,
+      "pssMiB": 111
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54532,
+      "ms": 77.6
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 57.9
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 32.9
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49321,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49887,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102845,
+      "ms": 17
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 20
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103582,
+      "ms": 27.9
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 19.8
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 23.4
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 13.4
+     }
+    ],
+    "load": {
+     "mean": 0.76,
+     "max": 0.91
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 250.2,
+     "pss": 160.8
+    },
+    "peakMiB": {
+     "rss": 268.7,
+     "pss": 179.3,
+     "cgroup": 139.9
+    },
+    "afterRequestsMiB": {
+     "rss": 268.7,
+     "pss": 179.3
+    },
+    "restMiB": {
+     "rss": 235,
+     "pss": 138.6,
+     "pssAnon": 100.3,
+     "pssFile": 38.4,
+     "cgroupAnon": 100.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 23.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 166.1,
+      "pssMiB": 114.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54532,
+      "ms": 32.4
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 50.1
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 30.4
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49321,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49887,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 15.6
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 17.3
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 52.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103582,
+      "ms": 28.7
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 20.6
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 23.9
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 26.8
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 11.6
+     }
+    ],
+    "load": {
+     "mean": 0.95,
+     "max": 1.16
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 243.5,
+     "pss": 146.9
+    },
+    "peakMiB": {
+     "rss": 267.7,
+     "pss": 171,
+     "cgroup": 138.8
+    },
+    "afterRequestsMiB": {
+     "rss": 267.7,
+     "pss": 171
+    },
+    "restMiB": {
+     "rss": 232.2,
+     "pss": 135.5,
+     "pssAnon": 97.4,
+     "pssFile": 38,
+     "cgroupAnon": 97.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 23.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 163.3,
+      "pssMiB": 111.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 54532,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/documents/7",
+      "status": 200,
+      "bytes": 116666,
+      "ms": 47.6
+     },
+     {
+      "path": "/chest/documents/11",
+      "status": 200,
+      "bytes": 107411,
+      "ms": 30.9
+     },
+     {
+      "path": "/chest/invoices",
+      "status": 200,
+      "bytes": 49321,
+      "ms": 18.4
+     },
+     {
+      "path": "/chest/quotes",
+      "status": 200,
+      "bytes": 49887,
+      "ms": 18.6
+     },
+     {
+      "path": "/chest/clients",
+      "status": 200,
+      "bytes": 93588,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/catalogue",
+      "status": 200,
+      "bytes": 102846,
+      "ms": 15.6
+     },
+     {
+      "path": "/chest/export",
+      "status": 200,
+      "bytes": 44860,
+      "ms": 17.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 103582,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/import?kind=clients",
+      "status": 200,
+      "bytes": 89688,
+      "ms": 15.8
+     },
+     {
+      "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+      "status": 200,
+      "bytes": 41135,
+      "ms": 21.8
+     },
+     {
+      "path": "/chest/documents/6",
+      "status": 200,
+      "bytes": 106704,
+      "ms": 21.5
+     },
+     {
+      "path": "/chest/import?kind=invoices",
+      "status": 200,
+      "bytes": 90273,
+      "ms": 12.5
+     }
+    ],
+    "load": {
+     "mean": 0.55,
+     "max": 0.67
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 234.6,
+    "min": 232.2,
+    "max": 237.3
+   },
+   "pss": {
+    "median": 138.4,
+    "min": 134.7,
+    "max": 141.4
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 268.7,
+    "min": 266.3,
+    "max": 272.4
+   },
+   "pss": {
+    "median": 173.6,
+    "min": 170,
+    "max": 179.3
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 167.8,
+    "min": 165.2,
+    "max": 170.4
+   },
+   "pss": {
+    "median": 114.7,
+    "min": 111.2,
+    "max": 117.5
+   }
+  }
+ }
+}

@@ -1,6 +1,8 @@
 // Quotes & invoices, as people use it, in a real browser:
 //   node lab/chest-dev/flows/quotes.mjs [port]
-// (the harness runs the tool with --reset: the sample company is there).
+// (the harness runs the tool with --reset --tools crm,timesheets: the
+// sample company is there, and Clients and Timesheets are installed for
+// the links back.)
 // Hugo (sales, English) writes a quote on his phone and sends it; the
 // client accepts; he makes a deposit invoice and hands it to billing. Sofia
 // (billing, English) finalises it, sends it, records a payment. Camille
@@ -13,10 +15,11 @@
 // "Bon pour accord"; a link turned off stops working. Sofia imports the
 // invoices still to collect from the previous tool, and keeps a copy of the
 // monthly archive.
-import { as, control, done, expect, open, step } from "./lib.mjs";
+import postgres from "postgres";
+import { as, control, done, expect, open, step, toolDatabase, watchRealtime } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const french = async () => context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -26,7 +29,7 @@ let invoiceUrl = "";
 let answerPath = "";
 // A visitor of the public host: no member, their own phone.
 async function visitor(locale = "fr-FR") {
-  const other = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, hasTouch: true });
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, locale, hasTouch: true });
   const p = await other.newPage();
   p.on("pageerror", e => problems.push("visitor page: " + e.message));
   p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("visitor console: " + m.text()); });
@@ -84,16 +87,18 @@ await step("Hugo sends it: numbered, emailed in French with the PDF", async () =
   const found = /Lisez le devis D-\d{4}-0007 et acceptez-le en ligne\s:\s\S*?(\/q\/[A-Za-z0-9_-]{32})/u.exec(await dev());
   expect(found, "the answer link in the email");
   answerPath = found[1];
+  // To the client only; replies reach the company's address, not the tool.
+  expect(/compta@garage-rossi\.test<br>replies to <code>[^<@]+@[^<]+<\/code>/u.test(await dev()), "Reply-To the company's address");
   expect((await page.locator(".card.online").innerText()).includes("Copy the link"), "the margin gives the link to copy");
 });
 
 await step("the client, on their phone: reads the quote, opens the PDF, accepts it with Bon pour accord", async () => {
   const { other, p } = await visitor();
-  await p.goto(origin + answerPath);
+  await p.goto(publicOrigin + answerPath);
   expect((await p.locator("h1").innerText()).startsWith("Devis D-"), "the quote's page, in the visitor's French");
   const sheet = await p.locator(".sheet").innerText();
   expect(sheet.includes("Photos de l’atelier") && sheet.includes("Garage Rossi SARL"), "the quote as a page");
-  const pdf = await p.request.get(origin + answerPath + "/pdf");
+  const pdf = await p.request.get(publicOrigin + answerPath + "/pdf");
   expect(pdf.status() === 200 && Buffer.from(await pdf.body()).subarray(0, 5).toString() === "%PDF-", "its PDF");
   expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scroll on the phone");
   expect((await p.locator(".public-foot").innerText()).includes("pas une signature électronique certifiée (eIDAS)"), "says it is not an eIDAS signature");
@@ -158,7 +163,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
 
   // The client opens it and starts answering.
   const { other, p } = await visitor();
-  await p.goto(origin + link);
+  await p.goto(publicOrigin + link);
   await p.getByLabel("Vos prénom et nom").fill("Luca Rossi");
   await p.getByText("Bon pour accord", { exact: true }).click();
 
@@ -172,7 +177,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
   await page.getByLabel("Unit price excluding VAT of line 1").waitFor();
   // Meanwhile the link says a new version is coming, and takes no answer.
   const { other: other2, p: p2 } = await visitor();
-  await p2.goto(origin + link);
+  await p2.goto(publicOrigin + link);
   expect((await p2.locator("h1").innerText()).includes("en cours de mise à jour"), "revising: " + await p2.locator("h1").innerText());
   expect(await p2.locator("form").count() === 0, "no answer while it is rewritten");
   await other2.close();
@@ -209,7 +214,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
   expect((await p.locator("h1").innerText()).includes("v2"), "the page shows version 2 without a reload");
   expect((await p.locator(".answer-state .lead").innerText()).replace(/\s/gu, " ").includes("144,00 €"), "the new price, in place");
   expect((await p.locator(".replaces").innerText()).includes("remplace la version 1"), "says what it replaces");
-  const earlier = await p.request.get(origin + (await p.locator(".earlier a").first().getAttribute("href")));
+  const earlier = await p.request.get(publicOrigin + (await p.locator(".earlier a").first().getAttribute("href")));
   expect(earlier.status() === 200, "the client reads version 1 too");
   expect(await p.getByLabel("Vos prénom et nom").inputValue() === "Luca Rossi", "their name kept");
   await p.getByText("Bon pour accord", { exact: true }).click();
@@ -260,10 +265,11 @@ await step("Sofia sends it and records a partial payment, then deletes and resto
 });
 
 await step("Timesheets hands over billable time: one draft invoice, linked back, finalised by Sofia, and Timesheets hears it once", async () => {
-  const data = { version: 1, handoff: "901", project: { id: "3", name: "Site vitrine" }, client: { id: "2", name: "garage ROSSI sarl" },
-    period: { from: "2026-09-01", to: "2026-09-30" }, currency: "EUR", minutes: 450, amount: 67500, entries: 12,
-    lines: [{ label: "Design", task: { id: "7", name: "Design" }, minutes: 450, rate: 9000, amount: 67500, entries: 12 }],
-    source: { tool: "timesheets", path: "/chest/projects/3" } };
+  // Flat, as SDK 0.7.0 carries it: names as fields, the lines as JSON text.
+  const data = { version: 1, handoff: "901", projectName: "Site vitrine", clientName: "garage ROSSI sarl",
+    from: "2026-09-01", to: "2026-09-30", currency: "EUR", minutes: 450, amount: 67500, entries: 12,
+    lines: JSON.stringify([{ label: "Design", task: null, minutes: 450, rate: 9000, amount: 67500, entries: 12 }]),
+    path: "/chest/projects/3" };
   await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
   await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
   expect((await dev()).includes("Time to invoice from Timesheets: Site vitrine"), "billing told in the bell");
@@ -457,11 +463,11 @@ await step("a link turned off stops working; a new one works", async () => {
   await page.waitForSelector(".card.online");
   const { other, p } = await visitor("en-GB");
   const secretPath = "/q/SampleAnswerLinkQuoteD0006Roux01";
-  await p.goto(origin + secretPath);
+  await p.goto(publicOrigin + secretPath);
   expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "open, in English");
   // The terms and conditions of sale, linked; accepting accepts them too.
   const termsLink = p.getByRole("link", { name: "Terms and conditions of sale (PDF)" });
-  const termsPdf = await p.request.get(origin + (await termsLink.getAttribute("href")));
+  const termsPdf = await p.request.get(publicOrigin + (await termsLink.getAttribute("href")));
   expect(termsPdf.status() === 200 && Buffer.from(await termsPdf.body()).subarray(0, 5).toString() === "%PDF-", "the client reads the terms");
   expect((await p.locator(".agree").innerText()).includes("and the terms and conditions of sale"), "accepting names the terms");
   await page.getByRole("button", { name: "Turn the link off" }).click();
@@ -472,9 +478,9 @@ await step("a link turned off stops working; a new one works", async () => {
   await page.getByRole("button", { name: "Make a new link" }).click();
   await page.locator(".ck-toast", { hasText: "New link made" }).waitFor();
   const url = await page.locator(".copy-link input").inputValue();
-  await p.goto(origin + new URL(url).pathname);
+  await p.goto(publicOrigin + new URL(url).pathname);
   expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "the new link works");
-  const bad = await p.goto(origin + "/q/" + "x".repeat(32));
+  const bad = await p.goto(publicOrigin + "/q/" + "x".repeat(32));
   expect(bad.status() === 200 && (await p.locator("h1").innerText()) === "This link does not work", "a wrong link says so");
   await other.close();
 });
@@ -618,6 +624,18 @@ await step("the Chest pauses email: Settings says the reminders wait, and nothin
   expect(await page.locator("section[aria-labelledby=s-reminders] .callout").count() === 0, "sending again: no warning left");
 });
 
+await step("the company's mail not connected: Settings says the reminders only tell the bell, and why", async () => {
+  await control(page, origin, "delivery", { mail: "not_connected" });
+  try {
+    await page.goto(origin + "/chest/settings");
+    const warning = page.locator("section[aria-labelledby=s-reminders] .callout");
+    await warning.waitFor();
+    expect((await warning.innerText()).includes("n’est pas encore connecté"), "not connected, said in French: " + await warning.innerText());
+  } finally {
+    await control(page, origin, "delivery", { mail: "ready" });
+  }
+});
+
 await step("round 3: a new client from its SIREN — the public directory, or an honest word when it cannot be reached", async () => {
   await as(context, origin, "hugo");
   await english();
@@ -640,6 +658,19 @@ await step("round 3: a new client from its SIREN — the public directory, or an
   await page.locator("form p.error[role=alert]", { hasText: "SIREN" }).waitFor();
 });
 
+await step("a client's address the browser lets through but mail would not take is refused under its field; what was typed stays", async () => {
+  await english();
+  await page.goto(origin + "/chest/clients");
+  await page.getByRole("button", { name: "New client" }).first().click();
+  await page.getByLabel("Company name").fill("Atelier Lumière");
+  // Two dots in a row: the server's field.email refuses it.
+  await page.getByLabel("Email", { exact: true }).fill("contact..atelier@example.com");
+  await page.getByRole("button", { name: "Add the client" }).click();
+  await page.locator("form p.error[role=alert]", { hasText: "This is not an email address." }).waitFor();
+  expect(await page.getByLabel("Email", { exact: true }).getAttribute("aria-invalid") === "true", "the field marked");
+  expect(await page.getByLabel("Company name").inputValue() === "Atelier Lumière", "kept");
+});
+
 await step("phone: every place with its words — five labelled tabs, the rest in More", async () => {
   await english();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -654,6 +685,30 @@ await step("phone: every place with its words — five labelled tabs, the rest i
   await page.waitForURL(/\/chest\/settings$/u);
 });
 
+await step("each document in its own currency: the tool's default in Settings, a draft quote changed to dollars, its totals in dollars", async () => {
+  await as(context, origin, "camille");
+  await english();
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/settings");
+  const select = page.getByLabel("Default currency");
+  expect((await select.inputValue()) === "EUR", "EUR by default");
+  expect((await page.locator("#s-currency-hint").innerText()).includes("Each document keeps its own"), "said in plain words");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "New quote" }).first().click();
+  await page.waitForURL(/\/chest\/documents\/\d+$/u);
+  await page.getByLabel("Amounts in").selectOption("USD");
+  if (!(await page.getByLabel("Description of line 1").count())) await page.getByRole("button", { name: "Add a line" }).click();
+  await page.getByLabel("Description of line 1").fill("Licence");
+  await page.getByLabel("Unit price excluding VAT of line 1").fill("100");
+  await saved();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.getByLabel("Amounts in").inputValue()) === "USD", "kept in dollars");
+  const totals = await page.locator(".totals").innerText();
+  expect(/\$|US\s?\$/u.test(totals) && !totals.includes("€"), "the totals in dollars: " + totals);
+});
+
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -662,6 +717,29 @@ await step("phone width: no page scrolls sideways", async () => {
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(wide <= 0, `${path} scrolls sideways by ${wide}px`);
   }
+});
+
+// SDK 0.7.0's realtime: the quotes list left open joins "documents" on
+// the Chest; a document written (here by the database itself) is a row of
+// the feed "documents", and the list reads itself again without a reload.
+await step("the quotes list left open follows the Chest's realtime: a quote renamed elsewhere shows its new name without a reload", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  const live = watchRealtime(page);
+  await page.goto(origin + "/chest/quotes");
+  const row = page.locator('a[href^="/chest/documents/"]').first();
+  await row.waitFor();
+  const id = Number(/\/chest\/documents\/(\d+)/u.exec((await row.getAttribute("href")) ?? "")?.[1]);
+  expect(id > 0, "a quote on the list");
+  await live.joined();
+  const sql = postgres(toolDatabase("quotes", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update documents set title = 'Live renamed quote', updated_at = now() where id = ${id}`;
+  } finally {
+    await sql.end();
+  }
+  await live.received(f => f.op === "msg" && f.event === "documents.update" && f.payload?.id === id);
+  await page.getByText("Live renamed quote").first().waitFor({ timeout: 10000 });
 });
 
 await browser.close();

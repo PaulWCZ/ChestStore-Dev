@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { check, walk } from "../lib/logic.ts";
-import { blank, copyDefinition, definition, definitionFromText, limits, problems, readIn, redirectUrl, settings, sniff, typesFor } from "../lib/model.ts";
-import { template, templateKeys } from "../lib/templates.ts";
-import { zonedInstant, zonedParts } from "../lib/zone.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { check, walk } from "../src/shared/logic.ts";
+import { blank, copyDefinition, definition, definitionFromText, limits, problems, readIn, redirectUrl, settings, sniff, typesFor } from "../src/shared/model.ts";
+import { template, templateKeys } from "../src/lib/templates.ts";
+import { zonedInstant, zonedParts } from "../src/shared/zone.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 
 const code = (fn: () => unknown) => {
@@ -118,5 +118,6 @@ test("answers read in the member's language when the form has it, as written oth
   const def = { title: "Contact", intro: "", language: "en" as const, alt: { language: "fr" as const, texts: { title: "Contact FR", qaaaaaaa: "Votre nom" } }, pages: [{ id: "paaaaaaa", title: "", questions: [ask], jumps: [] }] };
   assert.equal(readIn(def, "fr").pages[0]!.questions[0]!.title, "Votre nom");
   assert.equal(readIn(def, "en"), def);
-  assert.equal(readIn({ ...def, alt: undefined }, "fr").title, "Contact");
+  const { alt: _alt, ...alone } = def;
+  assert.equal(readIn(alone, "fr").title, "Contact");
 });

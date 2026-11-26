@@ -1,29 +1,36 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as events } from "../app/chest-events/route.ts";
-import * as candidates from "../lib/candidates.ts";
-import * as cv from "../lib/cv.ts";
-import { catalogue, format, locales } from "../lib/i18n/index.ts";
-import * as interviews from "../lib/interviews.ts";
-import { jobTemplateKeys } from "../lib/jobs.ts";
-import * as lifecycle from "../lib/lifecycle.ts";
-import * as messages from "../lib/messages.ts";
-import { sniff } from "../lib/model.ts";
-import * as outbox from "../lib/outbox.ts";
-import { parse } from "../lib/rich-text.ts";
-import * as selfSchedule from "../lib/self-schedule.ts";
-import * as share from "../lib/share.ts";
-import { addDays, dayOf, instantOf } from "../lib/time.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fakeChest, type FakeChest, type FakeEmits } from "@argentic/chest-sdk/testing";
+import * as candidates from "../src/lib/candidates.ts";
+import * as cv from "../src/lib/cv.ts";
+import { catalogue, format, locales } from "../src/i18n/index.ts";
+import * as interviews from "../src/lib/interviews.ts";
+import { jobTemplateKeys } from "../src/lib/jobs.ts";
+import * as lifecycle from "../src/lib/lifecycle.ts";
+import * as messages from "../src/lib/messages.ts";
+import { sniff } from "../src/shared/model.ts";
+import * as outbox from "../src/lib/outbox.ts";
+import { parse } from "../src/shared/rich-text.ts";
+import * as selfSchedule from "../src/lib/self-schedule.ts";
+import * as share from "../src/lib/share.ts";
+import { addDays, dayOf, instantOf } from "../src/shared/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { built } from "./support/app.ts";
+
+// What the Chest posts, through the built server's routes.
+const events = (request: Request) => built().then(app => app.fetch(request));
 
 // Round 3: the interviewers' real calendars (Booking's busy times heard,
 // Hiring's told back), lunch, one history line per link, files sent to a
 // candidate (and with a template), a photo as a CV, jobs to start from.
 
+// The types chest.json declares, with their fields (contract 0.7).
+const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { emits: Record<string, FakeEmits> };
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
@@ -32,12 +39,10 @@ before(async () => {
   chest = await fakeChest({
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail", "calendar"],
-    mail: { domain: "atelier.test", mailboxes: ["jobs"] },
+    mail: { domain: "atelier.test" },
     calendar: { domain: "atelier.test", toolTitle: "Hiring", company: "Atelier Martin" },
     chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" },
-    emits: ["hiring.hired", "hiring.hire_cancelled", "hiring.busy"],
-    receivers: 1,
-    storage: { publicUploads: true },
+    emits: manifest.emits,
   });
 });
 after(async () => {
@@ -61,7 +66,8 @@ const someone = (slug: string) => application(slug, { email: `c${++n}@example.co
 // What Booking tells: Inès is taken from … to …
 function bookingBusy(member: string, spans: [Date, Date][], at = new Date()) {
   const from = new Date(Math.floor(Date.now() / 86400000) * 86400000);
-  return { v: 1, member, at: at.toISOString(), from: minute(from), to: minute(new Date(from.getTime() + 90 * 86400000)), spans: spans.map(([a, b]) => [minute(a), minute(b)]) };
+  // Flat fields (contract 0.7): the spans as JSON text.
+  return { member, at: at.toISOString(), from: minute(from), to: minute(new Date(from.getTime() + 90 * 86400000)), spans: JSON.stringify(spans.map(([a, b]) => [minute(a), minute(b)])) };
 }
 
 test("Booking says Inès is busy: the candidate is never offered that hour, nor lunch; the recruiter sees it as Booking's", async () => {
@@ -137,9 +143,20 @@ test("Leave says Inès is off: no time is offered on her day off, the recruiter 
   assert.equal((await interviews.busy(sql, asMember(camille), [ines.id], tuesday)).length, 0);
 });
 
+test("busy times are taken only from the tool their type names (booking.busy from Booking, leave.busy from Leave)", async () => {
+  const { sql } = database;
+  const data = bookingBusy(hugo.id, [[new Date(Date.now() + 86400000), new Date(Date.now() + 90000000)]]);
+  const base = { id: "evt_x", occurredAt: new Date().toISOString(), audience: "all" as const, data };
+  assert.equal(await share.takeBusy(sql, { ...base, type: "booking.busy", source: "people" }), false);
+  assert.equal(await share.takeBusy(sql, { ...base, type: "leave.busy", source: "booking" }), false);
+  assert.equal(await share.takeBusy(sql, { ...base, type: "booking.busy", source: "booking" }), true);
+  // Booking's shape as its chest.json declares it (v, spans as JSON text) is read.
+  assert.equal(await share.takeBusy(sql, { ...base, type: "leave.busy", source: "leave", data: { v: 1, ...data, at: new Date(Date.now() + 1000).toISOString() } }), true);
+});
+
 test("Hiring tells Booking the interviews' times, only when they change, never what Booking told it", async () => {
   const { sql } = database;
-  chest.published.length = 0;
+  chest.emitted.length = 0;
   const job = await openJob(sql, asMember(camille), "Salesperson");
   const c = (await candidates.apply(sql, someone(job.slug))).candidate;
   const monday = nextMonday();
@@ -147,15 +164,19 @@ test("Hiring tells Booking the interviews' times, only when they change, never w
   await chest.deliver({ type: "booking.busy", source: "booking", data: bookingBusy(camille.id, [[instantOf(tuesday, "16:00", zone), instantOf(tuesday, "17:00", zone)]], new Date(Date.now() + 5000)) }, events);
   const done = await interviews.schedule(sql, asMember(camille), c.id, { day: tuesday, time: "09:30", minutes: 45, people: [camille.id], tell: false }, isTeam);
   assert.equal(await share.shareBusy(sql, done.interview.people), 1);
-  const told = chest.published.filter(p => p.type === "hiring.busy");
+  const told = chest.emitted.filter(p => p.type === "hiring.busy");
   assert.equal(told.length, 1);
-  assert.deepEqual(told[0]!.data["spans"], [[minute(instantOf(tuesday, "09:30", zone)), minute(instantOf(tuesday, "10:15", zone))]]);
+  assert.deepEqual(JSON.parse(told[0]!.data["spans"] as string), [[minute(instantOf(tuesday, "09:30", zone)), minute(instantOf(tuesday, "10:15", zone))]]);
+  assert.equal(told[0]!.subject, camille.id, "one member's snapshots in order");
+  assert.deepEqual(told[0]!.audience, { roles: ["recruiter", "interviewer"] });
+  assert.equal(told[0]!.data["v"], 1, "Booking keeps a busy snapshot only when v is 1 (its readBusy)");
+  assert.deepEqual(Object.keys(told[0]!.data).sort(), Object.keys(manifest.emits["hiring.busy"]!.data).sort(), "the fields chest.json declares");
   assert.ok(!JSON.stringify(told[0]!.data).includes(c.name) && !JSON.stringify(told[0]!.data).includes("Salesperson"), "times only");
   assert.equal(await share.shareBusy(sql, [camille.id]), 0, "unchanged: not told again");
   // Called off: told again, empty.
   const off = await interviews.cancel(sql, asMember(camille), done.interview.id, false);
   assert.equal(await share.shareBusy(sql, off.interview.people, Date.now() + 1000), 1);
-  assert.deepEqual(chest.published.filter(p => p.type === "hiring.busy").at(-1)!.data["spans"], []);
+  assert.equal(chest.emitted.filter(p => p.type === "hiring.busy").at(-1)!.data["spans"], "[]");
   // The outbox schedule covers the others (Inès was never on one: nothing to say).
   assert.equal(await share.shareDueBusy(sql, Date.now() + 2000), 0);
 });
@@ -178,14 +199,15 @@ test("a photo of a CV is a CV: JPEG, PNG, HEIC by their first bytes", async () =
   assert.equal(sniff(new TextEncoder().encode("\0\0\0\x18ftypheic\0\0\0\0")), "image/heic");
   assert.equal(sniff(new TextEncoder().encode("GIF89a")), null);
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
-  const up = await cv.grant("public", "image/jpeg", jpeg.length);
-  assert.equal((await chest.upload(up.url, jpeg, "image/jpeg")).status, 201);
-  const kept = await cv.accept(up.ticket, "public", "IMG_2041.jpg");
+  const up = await cv.publicGrant("image/jpeg", jpeg.length);
+  const sent = await chest.upload(up.url, jpeg, "image/jpeg");
+  assert.equal(sent.status, 201);
+  const kept = await cv.take(((await sent.json()) as { name: string }).name, "IMG_2041.jpg");
   assert.match(kept.object, /^cv\/[0-9a-f]{20}\.jpg$/u);
-  // A picture that says JPEG but is a PNG is refused.
-  const liar = await cv.grant("public", "image/jpeg", 8);
-  await chest.upload(liar.url, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "image/jpeg");
-  await assert.rejects(cv.accept(liar.ticket, "public", "x.jpg"), { code: "cv_invalid" });
+  // A picture that says JPEG but is a PNG is refused (by the Chest's door,
+  // and by the tool's own check of a recruiter's file).
+  const liar = await cv.publicGrant("image/jpeg", 8);
+  assert.equal((await chest.upload(liar.url, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "image/jpeg")).status, 415, "a visitor's file is of the type its bytes are");
 });
 
 const pdf = "%PDF-1.4\n% offer\n%%EOF\n";

@@ -3,17 +3,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { pdfOf } from "../lib/archive.ts";
-import { desk } from "../lib/desk.ts";
-import { finalise, getDocument, listDocuments, overdueCount, startCreditNote } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { exportCsv } from "../lib/export.ts";
-import { importTable, undoImport } from "../lib/importers.ts";
-import { exportJournal } from "../lib/journal.ts";
-import { continueSequence } from "../lib/numbering.ts";
-import { dateOf, guessMapping, readTable } from "../lib/parse-import.ts";
-import { addPayment } from "../lib/payments.ts";
-import { draftMessage, sendReminder } from "../lib/sending.ts";
+import { pdfOf } from "../src/lib/archive.ts";
+import { desk } from "../src/lib/desk.ts";
+import { finalise, getDocument, listDocuments, overdueCount, startCreditNote } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { exportCsv } from "../src/lib/export.ts";
+import { importTable, undoImport } from "../src/lib/importers.ts";
+import { exportJournal } from "../src/lib/journal.ts";
+import { continueSequence } from "../src/lib/numbering.ts";
+import { dateOf, guessMapping, readTable } from "../src/shared/parse-import.ts";
+import { addPayment } from "../src/lib/payments.ts";
+import { draftMessage, sendReminder } from "../src/lib/sending.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -29,8 +29,8 @@ let chest: FakeChest;
 const today = "2026-09-29";
 const options = { currency: "EUR", defaultLanguage: "fr" as const, today };
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" } });
+  database = await testDatabase();
   await company(database.sql);
   await client(database.sql);
 });
@@ -91,7 +91,7 @@ test("open invoices come with their numbers; paid ones and bad rows are said", a
   assert.equal(c.dueDate, "2026-09-30");
   // On the desk and the tile: money to collect, overdue.
   const d = await desk(sql, asMember(sofia), today);
-  assert.equal(d.toCollect.due, 120000 + 200000 + 96000);
+  assert.deepEqual(d.toCollect.due, [{ currency: "EUR", amount: 120000 + 200000 + 96000 }], "one total per currency");
   assert.equal(d.overdue.count, 2);
   assert.equal(await overdueCount(sql, today), 2);
   // The same file again: nothing doubles.

@@ -81,18 +81,34 @@ see "What it does not do yet".
   its day, adds or deletes steps, stops a checklist (with *Undo*) or
   deletes a stopped one (asked first: it is for good). The person who started it is told when it is
   complete.
-- **A welcome email** (Proposal (studio) `mail`): starting a welcome
-  checklist sends the newcomer a short email in their language — welcome
-  to the company, their first day, their manager, where their first steps
-  are (a link to *My to-dos* once they have the Chest) — signed by the HR
-  person who started it, whose address is the reply address. A member
-  gets it at their Chest address (People never types it); an arrival not
-  in the Chest yet at the **work address** HR gave (Hiring's personal
-  address is never kept, so an arrival from Hiring without one gets
-  nothing); an arrival reads the Chest's language. Once per checklist; not
-  for a first day more than two weeks past; the person's own email choice
-  in the Chest is followed (not transactional). The page says "Started.
-  Nora gets a short welcome email." only when it left.
+- **A welcome** when a welcome checklist starts — welcome to the company,
+  their first day, their manager, where their first steps are — signed by
+  the HR person who started it. Two ways, by who the newcomer is (the
+  owner's decision of 6 October 2026: mail to members is never a tool's
+  job):
+  - **a member of the Chest** finds it in their **notifications** (English
+    with its French; the Chest shows them theirs, and mails it to them if
+    that is their choice in the Chest); it opens *My to-dos*;
+  - **an arrival not in the Chest yet** gets it **by email** at the **work
+    address** HR gave (not a member: an email to someone outside, see "Mail
+    to people outside the company"), in the Chest's language. Hiring's
+    personal address is never kept, so an arrival from Hiring without a
+    work address gets nothing. The address is first matched with the
+    Chest's members (`members.matchEmails`): when it is already a member's
+    (they joined the Chest before HR linked the arrival), that member gets
+    the **notification**, never an email, and HR is asked to link the
+    arrival to them under *Arriving*. When the Chest cannot say whose the
+    address is, nothing is sent (a member is never mailed by mistake) and
+    the page says so.
+  Once per checklist; not for a first day more than two weeks past. The
+  start form says beforehand which it will be ("Nora finds a short welcome
+  in their Chest notifications.", "Hugo is already in the Chest: they will
+  find a short welcome in their notifications. Link their arrival…",
+  "Lucie gets a short welcome email.", or why no email will leave), and
+  the toast after says what happened ("A short welcome email is on its way
+  to lucie.garnier@…"). An email that bounces (or is marked as spam, or
+  fails) shows on the checklist for HR: "The welcome email to … could not
+  be delivered. Check their work email".
 - **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
   Workspace users export, Lucca's export): columns recognised from their
   names in English and French — BambooHR's "Employee #" (left out), "First
@@ -142,6 +158,21 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
 - Also: the **employee number** (*matricule*, unique), the **work
   permit's end of validity**, and the **days worked** of a part-timer
   (Monday to Sunday, as the part-time contract says).
+- **Sealed by the Chest**: the home address and the emergency contact
+  (name, relationship, phone) are sealed (SDK 0.5+, capability `sealed`,
+  `src/lib/sealing.ts`): the database, backups, logs, the Data tab and the
+  agents hold `chest:sealed:…`; the owner and admins never read them in the
+  Chest. HR's copy is sealed for the role `hr` — the Chest refuses anyone
+  else, whatever People's code does —, and the person's own copy opens for
+  them only (they read their own record). Every open is journaled by the
+  Chest. A change the person asks waits sealed the same way. What lists,
+  filters and the staff register need (names, dates, contract, job,
+  nationality, work permit) stays in clear. Values written before this
+  version are sealed by the next morning run. When the Chest cannot open
+  them (restored, waiting for its owner's recovery code), the record says
+  so, HR's form leaves the address and the emergency contact out (an empty
+  field saved would write over them) and the rest of the record saves; a
+  change the person asked waits until they open again.
 - **Who sees what**: HR edits every record; **the person reads their own**
   ("My HR record" on their profile), read-only; **anyone else — their
   manager included — is told it does not exist** (404).
@@ -231,8 +262,11 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
 
 ## With the other tools
 
-**Hiring → People** (Proposal (studio): events between tools, once an
-admin linked the two; `chest.proposals.json` `receives`):
+**Hiring → People** (events between tools, SDK 0.5+; `chest.json`
+`receives`; the owner approves the link). Each type is read from the tool
+its first word names only (the `source` the Chest stamps); an item told
+with an audience is shown to the members it lists only (arrivals: to those
+HR people; "away": to those members and the person):
 
 - `hiring.hired` `{candidate, name, email, job, team, place, startDate,
   hiredBy}` makes an **arrival**: someone coming who is not a member yet.
@@ -251,7 +285,7 @@ admin linked the two; `chest.proposals.json` `receives`):
   name (on the directory and on their profile). Their profile's empty
   fields take the job, team, office, start date and manager; the checklist
   becomes theirs and their steps reach their bell.
-- `hiring.hire_cancelled` `{candidate}`: the arrival goes if nothing was
+- `hiring.hire-cancelled` `{candidate}`: the arrival goes if nothing was
   started for it; otherwise it is marked *Hire cancelled*, its checklist
   stopped (its steps leave everyone's bell) and HR is told; HR deletes it.
   Brought back into Hired, it is expected again (a stopped checklist is
@@ -289,7 +323,7 @@ v1, which Equipment publishes (`tools/private/equipment/lib/returned.ts`,
 its `emits`): Equipment receives `people.leaving` and lists what the person
 holds; once everything they held is back, it publishes
 
-- `equipment.returned` `{member: "mbr_…"}` (key
+- `equipment.returned` `{"member": "mbr_…"}` (key
   `equipment:<member>:returned:<time>`), and People ticks the running
   leaving checklist's **"Return the laptop, badge and keys"** step for
   that person, marked "Ticked by Equipment: everything is back"; its
@@ -297,17 +331,20 @@ holds; once everything they held is back, it publishes
   example step does (its words' key `offboarding.equipment`, kept until HR
   rewords it): a step HR wrote itself stays HR's to tick. Another shape,
   another tool, a stopped checklist: nothing; told twice, nothing more.
-  Built and tested on both sides (`lib/returns.ts`,
+  Built and tested on both sides (`src/lib/returns.ts`,
   `test/returns.test.ts`, the harness's *Deliver*; Equipment's
   `lib/returned.ts`, which tells it again every quarter of an hour while
   the Chest cannot take it). Until an admin links Equipment to People for
   it, HR ticks the step by hand.
 
-**People → other tools** — departures and records (`chest.proposals.json` `emits`):
+**People → other tools** — departures and records (`chest.json` `emits`,
+each type with its fields; subject: the person; audience: who sees it in
+People — a departure, HR, the person, their manager and those given a step
+of the leaving checklist; a record, HR and the person):
 
 - When HR **starts a leaving checklist** for a member, its last day is
   their departure: People publishes `people.leaving` `{member, lastDay}`.
-  Stopping it publishes `people.leaving_cancelled` `{member}`; *Undo* (or
+  Stopping it publishes `people.leaving-cancelled` `{member}`; *Undo* (or
   *Start it again*) tells it again. With several leaving checklists
   running, the latest last day counts; a change that moves nothing tells
   nothing. Who and when only — never the checklist, its steps or a
@@ -319,9 +356,11 @@ holds; once everything they held is back, it publishes
   HR types it once: told when a record linked to a member is written,
   linked, created or imported, **only when one of these changed** since
   People last told it (`records.told`; a record not told is told at its
-  next change). `employeeNumber` string or null, days `YYYY-MM-DD` or null
-  (`lastDay` is the record's last day), `workDays` ISO days `[1..7]` (1 =
-  Monday) or null when not said, `weeklyHours` a number or null. Never the
+  next change). `employeeNumber` text or null (without format characters,
+  which the Chest refuses), days `YYYY-MM-DD` or null (`lastDay` is the
+  record's last day), `workDays` ISO days as text `"1,2,3,4,5"` (1 =
+  Monday; an event's fields are flat) or null when not said,
+  `weeklyHours` a number or null. Never the
   name, the contract, the address or anything else of the record. A record
   of someone without the Chest is never told. **Leave** receives it: the
   number, first day, days worked and last day follow the record.
@@ -335,8 +374,9 @@ corners, and its logo where People's mark is), as the company chooses in
 its Chest, for all its tools or for People alone. Same features, same
 pages, readable in every look (every theme is checked against WCAG AA,
 light and dark). The look is resolved on the server
-(`chest.theme()`, a Proposal (studio) of the SDK) and written into the page;
-no script, nothing to set in People. The staff register and the HR record
+(`chest.theme()`, a Proposal (studio) of the SDK) and served as the page's
+own stylesheet (`/chest/look.css`, named by its content's hash: cached until
+the look changes); no script, no inline style, nothing to set in People. The staff register and the HR record
 print black on white whatever the look (DESIGN.md, "Paper").
 
 The shared pieces — the header and its labelled tabs, toasts with *Undo*,
@@ -401,18 +441,40 @@ records: see "On a Chest").
 | `/chest/records/register`, `/chest/records/register/csv` | HR | the staff register; its CSV |
 | `/chest/numbers` | HR | headcount, arrivals and departures, turnover |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/morning` | the Chest only (signed) — proposal | the weekday morning reminder |
+| `/chest-schedules` | the Chest only (signed) | the runs of `chest.json`'s schedules: `morning`, weekdays 07:40 |
+| `/chest/actions/<name>` | members (from the page) | every change (`src/actions.ts`) |
+| `/chest/look.css`, `/assets/…` | the page | the look; the browser's script, styles, fonts, icon |
 | `/` | anyone | "People lives in your Chest" |
 
-## On a Chest
+## Mail to people outside the company
 
-- `capabilities`: `database`, `members` (names, photos, roles: the directory
-  itself), `members.email` (the work address on profiles, the import's
-  matching), `files` (the records' documents, 20 MB each), `notifications`
-  (the bell and the tile's number: open to-dos); `receives: ["member.*"]`.
-  No network. Proposal (studio), in `chest.proposals.json`: `mail:
-  {send: true}` (the welcome email), `emits`, `receives` (Hiring, Leave,
-  Equipment), `schedules`.
+Sent through the Chest's mail connector (studio proposal, not built yet).
+Members are never mailed by People: they get notifications, which the
+Chest mails them by their own choice.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| A newcomer not in the Chest yet (an expected arrival), at the work address HR typed on their arrival — only when `members.matchEmails` says the address is no member's (a member's address: a notification instead; no answer: nothing) | Welcome them before they have access | When HR starts their welcome checklist, once; not for a first day more than two weeks past; never to Hiring's personal address; a bounce shows on the checklist (`mail.status`) | "Welcome to {company}, {name}": their first day, their manager, that their first steps will wait for them in People; signed by the HR person; plain text, in the Chest's language | None | The HR person who started the checklist (their Chest address), else the company's reply address |
+
+
+- **Contract 0.7** (`"chest": "0.7"`). `capabilities`: `database`,
+  `members` (names, photos, roles: the directory itself), `members.email`
+  (the work address on profiles, the import's matching), `files` (the
+  records' documents, 20 MB each), `notifications` (the bell and the
+  tile's number: open to-dos), `realtime` (the open pages), `sealed` (the
+  address and the emergency contact). `receives`: `member.*`,
+  `hiring.hired`, `hiring.hire-cancelled`, `leave.approved`,
+  `leave.cancelled`, `equipment.returned`; `emits` (each with its fields):
+  `people.leaving`, `people.leaving-cancelled`, `people.record`;
+  `realtime`: the channels `people` (every member: feeds of `journeys`,
+  `journey_items`, `profiles`, `away`) and `hr` (the role `hr`: `records`,
+  `record_requests`, `arrivals`), ids only. No network. Proposals (studio)
+  in `chest.proposals.json`: `mail: {send: true}` (the welcome email to an
+  arrival not in the Chest yet — never to a member) and `translations`.
+- `"schedules"`: `morning`, weekdays at 07:40 in the company's zone,
+  posted to `POST /chest-schedules`.
+- `build.static: ["/assets/"]`: the browser's files, the fonts and the icon
+  are served there, to anyone, without a member — nothing else is.
 - **Who is HR**: the owner, the admins and the tool's builders enter with
   the first role, `hr` — so they read HR records. Give the tool's building
   to someone who may read them, or see "Needs from the SDK".
@@ -442,57 +504,84 @@ records: see "On a Chest").
   number. The legal name is written by HR in the record (not copied from
   the Chest): the register must still show it five years after the
   person left, after the Chest forgot them — the one place People keeps a
-  name, on purpose. Data is not encrypted at rest by People itself (see
-  "Needs from the SDK").
-- No WebSocket: pages re-read themselves every 30–60 s while visible.
+  name, on purpose. The address and the emergency contact are sealed by
+  the Chest (see "HR records").
+- **Live without a timer**: the directory, the checklists, *My to-dos*
+  and HR's records follow the Chest's realtime (People sleeps while a tab
+  stays open); each row written is an event carrying its id only, and the
+  page reads itself again — what it shows is still decided by the
+  reader's access.
 
 ## Needs from the SDK
 
-People runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
-`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
-interface and the bell in each member's language) and `timeZone`;
-`chest.organization.name` (the company's name in the welcome email and
-the letters); `chest.timeZone` and `chest.today()`: "today", due days and
-anniversaries — the database's `current_date` is the same day, since the
-Chest makes its zone the TimeZone of the tool's database sessions. The
-member's own zone (`lib/zone.ts` `todayOf`, `chest.todayIn`, a studio
-addition): "today" and "late" on a person's own *My to-dos*, and every
-time shown to them (the day a step was ticked, a record's history); the
-Chest's zone stays for what concerns everyone (checklists' due days,
-records, the morning run).
+People runs on SDK 0.7.0 + studio proposals (`0.7.0-studio.2`), contract
+0.7, and the studio's `@argentic/chest-app` (0.1.0-studio.12), in
+`vendor/`. `member(request)` with the member's `language` (the interface
+and the bell in each member's language) and `timeZone` (where their
+browser is: every time shown to them — the day a step was ticked, a
+record's history — is on their clock); `chest.organization.name` (the
+company's name in the welcome and the letters); `chest.timeZone` and
+`chest.today()`: "today", "late", due days and anniversaries are the
+company's day for everyone, *My to-dos* included (SDK 0.7.0's Times) —
+the database's `current_date` is the same day. People has no time-zone
+setting. `sealed` (the address and the emergency contact, opened on the
+reader's request — `Chest-Opener` — and never in a schedule, an event, a
+log or a mail); `events.emit` / `events.handle` (one map for the members'
+lifecycle and the other tools); `realtime`.
 
-- **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`:
+- **Scheduled tasks** (official since 0.4.0: `schedules` in `chest.json`,
   `morning`, weekdays 07:40): one bell item per person with steps due today
-  or late, tiles' numbers kept true overnight, and the 30-day purge of
-  departed profiles. **Without it** the tool is fully usable: the tile's
-  number is set whenever a step changes and when its owner opens *My
-  to-dos*, and the purge runs whenever the directory is read.
-- `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
-  member by id, or to an arrival's work address; `replyTo` the HR person's
-  Chest address, `members.email`). The person's own email choice
-  (`mailPreference`, in the members API) is applied by `mail.send`. The
-  start form asks `mail.available()` (`lib/mailing.ts`) before
-  it promises the email: "{name} gets a short welcome email" only when the
-  Chest would send it; otherwise it says why none will leave (mail not
-  connected, mail paused or the day's emails used, no work email for an
-  arrival). The key names the checklist and the recipient (`people:welcome:<checklist>:<member or address>`),
-  so a restored database never reuses one person's key for another. On a
-  Chest without mail, nothing is sent, nothing fails, and the page does
-  not say it was sent.
-- **Events between tools** — **Proposal (studio)**: receives
-  `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
-  `leave.cancelled`, `equipment.returned`; emits `people.leaving`, `people.leaving_cancelled`,
-  `people.record` (see "With the other tools"). Without it, HR starts checklists for
-  members only, nobody reads "Away", and Equipment is not told of
-  departures.
+  or late, HR's endings (trial periods, contracts, work permits, dated
+  fields), tiles' numbers kept true overnight, the purges (departed
+  profiles after 30 days, past leaves, arrivals, records after five years,
+  the journal after two, the delivered ids after 30 days). The tile's
+  number is also set whenever a step changes and when its owner opens *My
+  to-dos*. Reading a page never deletes anything.
+- `notifications` with `translations`: every bell item in English with
+  its French in one call, the member's welcome among them; the Chest mails
+  and pushes them by each member's choice.
+- `mail` — **Proposal (studio)**: `mail.send` of the welcome email to an
+  arrival not in the Chest yet, at the work address HR gave (`replyTo` the
+  HR person's Chest address, `members.email`; else the company's reply
+  address the owner set with the connector). The start form asks
+  `mail.available()` (`src/lib/mailing.ts`) before it promises the email:
+  "{name} gets a short welcome email" only when the Chest would send it;
+  otherwise it says why none will leave (the company's mail not connected,
+  mail paused or the day's emails used, no work email). The key names the
+  checklist and the address (`people:welcome:<checklist>:<address>`), so a
+  restored database never reuses one person's key for another. Without the
+  connector nothing is sent, nothing fails, and the page does not say it
+  was sent. Before sending, `members.matchEmails([address])` (Proposal
+  (studio)): an address already a member's gets the notification instead;
+  no answer, nothing leaves. The message id is kept on the checklist
+  (migration 0009: `journeys.welcome_mail`, never the address); its fate is
+  asked with `mail.status(id)` when HR opens the checklist and every
+  morning for two weeks, and a bounce, complaint or failure shows on the
+  checklist. Limit: `matchEmails` matches only members who have People; a
+  Chest member without People whose address HR typed on an arrival would
+  still get the email (the Chest gives People no way to know them).
 - **The company's look** — **Proposal (studio)** (`chest.theme()`): the theme or brand the company chose. Without it (a
   real Chest today) People wears its own identity.
 - **Files** (`files`, 0.2.0): the records' documents, uploaded by the
   browser straight to the Chest (`uploadUrl`), opened through `files.url`.
-- **Wished for, not built** (in the SDK report): **sealed fields** — a
-  Chest-held key to encrypt the most sensitive fields at rest
-  (`secrets.seal(text)` / `open(sealed)`), so a database backup or a
-  builder reading tables sees nothing; **a role the builders do not get**
+### What SDK 0.7.0 cannot give People (and what it does instead)
+
+- **Mail to an arrival not in the Chest yet** (the welcome email): no
+  mail in 0.7.0 (the `mail` proposal); on a real Chest the start form says
+  no welcome email will leave, and members get their notification.
+- **"Is this address a member's?"** (`members.matchEmails`, a proposal):
+  without it, People would need every member's address; on a real Chest no
+  email leaves.
+- **A seal "for these roles or this member"**: `sealed.seal` takes roles
+  only, so the person could not open their own address sealed for `hr`;
+  People keeps two sealed copies (HR's for the role, the person's opened
+  only for them by People's own check).
+- **The store's words in French**, **the company's look**, **To do items**
+  (the contract's `todo`): none in 0.7.0.
+- **A live channel per member**: `chest check` refuses a feed on a
+  `{member}` channel, so *My to-dos* hears every checklist change (ids
+  only) and reads itself again.
+- **Wished for, not built** (in the SDK report): **a role the builders do not get**
   (the manifest marking `hr` as "never given by default"), so building the
   tool does not mean reading records; a **Chest-wide audit journal** the
   tool writes to and the owner reads (People keeps its own meanwhile);
@@ -503,16 +592,33 @@ records, the morning run).
 
 ## Develop
 
+How it is made: the studio's starter stack — a Hono server that renders
+React pages (`src/pages/`), a few islands that run in the browser
+(`src/islands/`), typed actions (`src/actions.ts`) over the services
+(`src/lib/`, the rules and the SQL), Vite for the two builds, the machinery
+from `@argentic/chest-app` (`vendor/`). AGENTS.md has the map.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # tsc, the server built into dist/test, node:test (113 tests);
+                  # TEST_DATABASE_URL for a real PostgreSQL, else PGlite
+npm run build     # tsc, the browser's files, the server (dist/), as the Chest does
+npm start         # the built server on PORT, as the Chest runs it
+npm run dev       # rebuilds on every change
 ```
+
+Measured on 6 October 2026 with `lab/measure` (Node 24.21, production
+build, 20 pages read then 30 s at rest, five times; the server process
+tree): **~70 MiB PSS at rest** (125.7 on Next.js 16), RSS ~173 MiB (236),
+first page ~0.39 s after start (0.64), image ~30 MiB (460), build peak
+~280 MiB PSS in 2.4 s (1,064 MiB in 19.6 s; it now fits 512 MiB and one
+CPU, where `npm ci` alone did not).
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/people --reset`
 (a sample company from `seed/sample.sql`: Nora started six days ago, her
-welcome checklist is under way), `node lab/chest-dev/flows/people.mjs 4700`
-(the browser flows), `node lab/chest-dev/screens.mjs tools/private/people`.
+welcome checklist is under way), `node lab/chest-dev/dev.mjs tools/private/people --prod --build --reset --port 4700`
+then `node lab/chest-dev/flows/people.mjs 4700` (the browser flows),
+`node lab/chest-dev/audit.mjs tools/private/people --port 4700`, `node lab/chest-dev/screens.mjs tools/private/people`.
 
 ## What it does not do (yet)
 
@@ -536,7 +642,7 @@ record comes from documents; the work phone is the person's own to edit);
 field visibility has two levels (everyone, or HR and the person) — no
 "team only"; vCard export; "away" from other sources than Leave (a
 calendar); public holidays in the "back on" day; teams as Chest groups;
-drag-and-drop in the org chart; reminders by email; the welcome email's
+drag-and-drop in the org chart; the welcome's
 words are the tool's (HR cannot reword it yet) and it goes when the
 checklist starts, not on a day HR picks; an
 export of checklists and their history; changing a

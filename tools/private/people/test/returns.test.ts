@@ -3,13 +3,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { examples } from "../lib/examples.ts";
-import { en } from "../lib/i18n/en.ts";
-import * as j from "../lib/journeys.ts";
-import { addDays } from "../lib/model.ts";
-import { equipmentReturned, returnPhrase } from "../lib/returns.ts";
-import { today } from "../lib/zone.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import { examples } from "../src/lib/examples.ts";
+import { en } from "../src/i18n/en.ts";
+import * as j from "../src/lib/journeys.ts";
+import { addDays } from "../src/shared/model.ts";
+import { equipmentReturned, returnPhrase } from "../src/lib/returns.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, sofia, tom } from "./support/members.ts";
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ tool: "people", members: everyone, receivers: 1 });
+  chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, tool: "people", members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -46,9 +46,9 @@ async function leaving() {
   return { id: started.id, items };
 }
 
-test("the manifest's proposals receive it", () => {
-  const proposals = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.proposals.json"), "utf8"));
-  assert.ok(proposals.receives.includes("equipment.returned"));
+test("chest.json receives it (contract 0.7)", () => {
+  const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8"));
+  assert.ok(manifest.receives.includes("equipment.returned"));
 });
 
 test("everything back: the return step ticks itself, by Equipment; told twice, nothing more", async () => {

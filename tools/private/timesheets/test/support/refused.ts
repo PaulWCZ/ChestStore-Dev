@@ -1,4 +1,4 @@
-import { AppError } from "../../lib/app-error.ts";
+import { AppError } from "../../src/lib/app-error.ts";
 
 // refused(code) checks a promise failed with that service code.
 export const refused = (code: string) => (error: unknown) => {

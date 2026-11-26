@@ -25,7 +25,9 @@ that needs the 80 % they use every day. Research:
   team's open pipeline by stage and the latest wins.
 - **Deals**: a board by stage — drag a deal to its next stage with the
   mouse, a finger (long press) or the keyboard (Space, arrows, Space); each
-  column shows its count, its total and its probability. Won and Lost are
+  column shows its count, its total (per currency) and its probability,
+  and its first 100 cards — past that, "N more deals: see the list"
+  opens the list view on that stage. Won and Lost are
   the two end stages: dropping a deal there asks why, in a few words (one
   tap on a usual reason). Closed deals stay on the board 30 days; a legend
   says what the cards' dots mean. A list view (200 a page) filters by owner,
@@ -62,7 +64,7 @@ that needs the 80 % they use every day. Research:
   without a time or to nobody: the event follows or goes. A step without a
   time stays a to-do, out of calendars. The step form says "it goes into
   your Chest calendar" only where the Chest has one (studio proposal
-  `calendar`; `lib/step-calendar.ts`).
+  `calendar`; `src/lib/step-calendar.ts`).
 - **"Log this call?"**: on a phone, *Call* on a contact's (or company's)
   page dials; back on the page afterwards (more than a few seconds later,
   within three hours), it asks once — "You called Claire Durand. Log the
@@ -109,14 +111,20 @@ that needs the 80 % they use every day. Research:
   day, everything it added (its author or a manager). vCard (3.0, 4.0, 2.1
   quoted-printable) import of an address book.
 - **Export**: each list as CSV (headers in the reader's language, the
-  team's fields as columns, formulas neutralised), contacts as vCard 4.0
+  team's fields as columns; a cell that would start a spreadsheet formula
+  gets a leading `'` — phone numbers and amounts stay as they are, and
+  this tool's importer takes the `'` off again), contacts as vCard 4.0
   (one or all), one person's whole file as JSON; and, for a manager, the
-  **whole client book** as one ZIP of CSV files (companies, contacts,
+  **whole client book** as one ZIP of CSV files, values kept exactly (companies, contacts,
   deals, activities, next steps, fields) with stable English column names
   and ids.
 - **The bell**: when someone gives you a deal or a next step; every weekday
-  morning (proposal *schedules*) one item with your due next steps; the
-  tile's number is your late + today's next steps.
+  morning (*schedules*) one item with your due next steps; the tile's number
+  is your late + today's next steps. Each item is one notice in English with
+  its French translation (SDK 0.7.0 `translations`); the Chest shows
+  each member theirs, and **mails it to them if they chose so** in the Chest
+  (every one, once or twice a day, or never) — Clients has no "email me"
+  setting and sends no email of its own.
 - **Stages** (managers): rename (the default ones speak each reader's
   language until renamed), set each stage's chance to win, reorder, add,
   remove an empty one.
@@ -127,9 +135,13 @@ that needs the 80 % they use every day. Research:
 |---|---|
 | `manager` | Everything: every deal, give anything to anyone, the stages and the team's own fields, delete or merge any company or contact, import (and create fields from a file), undo anyone's import, export the whole book |
 | `sales` | Add and edit companies and contacts, log on anything and add files, add deals; change the deals they own (or that nobody owns — they may take them); give things to colleagues; delete or merge the companies and contacts they own; import and undo their own imports for a day |
-| `viewer` | Read everything (their home is the team's pipeline) and export lists |
+| `viewer` | Read everything (their home is the team's pipeline); export lists only if a manager allows it |
 
-Enforced on the server in `lib/access.ts`; tested in `test/access.test.ts`
+Who may download the lists (CSV, vCard) is a manager's choice in
+Settings, *Who may export lists*: managers only, managers and sales (the
+default), or everyone. The whole-book ZIP stays a manager's.
+
+Enforced on the server in `src/lib/access.ts`; tested in `test/access.test.ts`
 and every service test.
 
 ## First minute
@@ -166,7 +178,7 @@ and every service test.
 | `/chest/search?q=` | Search |
 | `/chest/import`, `/chest/settings`, `/chest/settings/fields` | Import (and recent imports, Undo); stages and fields (managers) |
 | `/chest-events` | The Chest's lifecycle events, `forms.contact` from Forms and `booking.confirmed` / `booking.cancelled` from Booking (signed) |
-| `/chest-jobs/morning` | The weekday morning (proposal *schedules*, signed) |
+| `/chest-schedules` | The weekday morning (`schedules` of `chest.json`, signed `Chest-Schedule`) |
 | `/` | The public host: says where the tool lives |
 
 ## On a Chest
@@ -175,7 +187,10 @@ and every service test.
   things), `notifications` (the bell and the tile's number), `files` (files
   on records: the browser uploads to the Chest with a one-time signed
   address, the tool lists them and opens them through fresh 15-minute
-  links); `receives: ["member.*"]`. No network.
+  links), `realtime` (open pages follow what others change, below);
+  `receives`: `member.*`, `forms.contact`, `booking.confirmed`,
+  `booking.cancelled`; `emits`: `crm.deal.won`, `crm.deal.reopened`, each
+  with its schema. Contract 0.7 (SDK 0.7.0). No network.
 - **Someone leaves** (or loses access): their deals, companies, contacts and
   open next steps go to *unassigned* (each deal's history says so); the
   managers are told in one bell item, with a link to the unassigned deals;
@@ -186,8 +201,8 @@ and every service test.
 - Owners are member ids of people who have the tool with the `manager` or
   `sales` role (checked with `members.lookup`); names are resolved when
   rendering.
-- No WebSocket: an open page re-reads itself every 30–60 s while visible.
-- Money is whole cents (`bigint`), EUR, formatted with `Intl`.
+- **Pages follow what others change, live** (SDK 0.7.0 `realtime`, never a timer): My day, the deals (board and list), a deal, the companies and the contacts join the `team` channel, whose feeds tell them each row written to the tables they show (the rows' keys only); the page is then read again from the server, which decides what its reader may see. Clients sleeps while pages stay open; a read with nothing new is a 304, nothing rendered: each page's version is the package's change stamp (`migrations/0009`: one log row per transaction that changed rows, seen at its commit — a 5,000-row import does not hold other writes, and a late commit always shows), with the day and the quarter hour.
+- **Money**: each deal keeps its own currency (ISO 4217, `deals.currency`); a new deal takes the team's **default currency**, a manager's setting (*Settings*, EUR until changed — SDK 0.7.0 has no Chest currency). Amounts are whole hundredths (`bigint`), read as people write it (the package's `field.money`: "12 500,50", "12,500.50"; "1,250" alone asks *thousands or cents?*), formatted with kept `Intl` objects.
 
 ## GDPR
 
@@ -220,23 +235,28 @@ them, deleted with them.
 
 ## With the other tools
 
-Through the studio's proposal **events between tools** (`chest.proposals.json`
-`"emits"` and `"receives"`), once an admin of the Chest linked Clients to
-another tool.
+Through **events between tools** (SDK 0.7.0; `chest.json` `"emits"`, each
+type with its schema, and `"receives"`), once the owner approved the link.
+Data are flat: the contract's kinds have no object.
 
 ### What Clients tells
 
+An `amount` in an event between tools is, by the studio's rule, an integer
+in its currency's ISO 4217 minor unit (¥10,000 is 10000, 12.340 KWD is
+12340). Clients keeps hundredths of every currency (`deals.value_cents`)
+and converts when it emits (`src/lib/share.ts` `minorUnits`).
+
 | Event | When | Data |
 |---|---|---|
-| `crm.deal.won` | A deal enters Won (board drop or the Won button, after the reason) | `{ deal, title, amount` (integer cents) `, currency: "EUR", company: { ref, name, address, postcode, city, country, siren, vat, email } \| null, contact: { name, email } \| null, owner }` — key `crm:<deal>:won:<time>` |
+| `crm.deal.won` | A deal enters Won (board drop or the Won button, after the reason) | `{ deal, title, amount` (in the currency's minor unit) `, currency` (the deal's, ISO 4217) `, owner?, companyRef?, companyName?, companyAddress?, companyPostcode?, companyCity?, companyCountry?, companySiren?, companyVat?, companyEmail?, contactName?, contactEmail? }` — subject `deal:<deal>`, key `crm:<deal>:won:<time>`, no audience (every member of Clients reads every deal) |
 | `crm.deal.reopened` | A won deal leaves Won (reopened, or moved to another stage) | `{ deal }` |
 
 **Quotes** starts a quote from `crm.deal.won`. Clients sends the company's
 street, postcode, city, country (an ISO code; a country written in a file
 that is not recognised is kept on the record but sent as `null`), SIREN
 (the 9 digits of a SIREN or SIRET), VAT number and email; what is blank is
-sent as `null`, never guessed. Publishing is a
-courtesy (`lib/share.ts`): when the Chest cannot take the event, the deal's
+left out, never guessed. Publishing is a
+courtesy (`src/lib/share.ts`): when the Chest cannot take the event, the deal's
 move still stands. Deals imported already won are not told.
 
 ### What Clients receives: `forms.contact` from Forms
@@ -244,7 +264,7 @@ move still stands. Deals imported already won are not told.
 When a form of **Forms** maps a contact (its Settings, "Also create a
 contact in Clients") and someone answers it with an email or a phone, Forms
 publishes `forms.contact` (version 1; the contract is Forms' README, "With
-the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
+the other tools"). Clients (`src/lib/from-forms.ts`, on `/chest-events`):
 
 - **Finds the person — a privacy rule.** The same email (whatever its
   case) is the same person. The same phone (digits compared, either of the
@@ -304,7 +324,7 @@ the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
   answer in Forms. The line keeps the answer's path only (never an
   address, which changes when Forms gets a custom domain); the link is made
   when the page is shown, with `chest.toolLink("forms", path)`
-  (`lib/page-data.ts`, `answerLink`). While Forms is not installed on the
+  (`src/lib/page-data.ts`, `answerLink`). While Forms is not installed on the
   Chest — or the path is not an answer's page on Forms' team host — the
   form is named without a link. Following it opens Forms only for a member
   who has Forms; its host tells the others.
@@ -314,7 +334,7 @@ the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
 When a guest books a meeting with a member in **Booking** (on its public
 page, or a host books for them), moves it or cancels it, Booking publishes
 `booking.confirmed` / `booking.cancelled` (version 1; the contract is
-Booking's README, "With the other tools"). Clients (`lib/from-booking.ts`,
+Booking's README, "With the other tools"). Clients (`src/lib/from-booking.ts`,
 on `/chest-events`, `booked_meetings` in migration 0006):
 
 - **Finds the guest by the forms' rule**: the same email (lower-cased) is
@@ -367,22 +387,36 @@ with `booking.confirmed` or `booking.cancelled` plays Booking
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on **SDK 0.7.0** + the studio's proposals (`0.7.0-studio.2`), the
+studio's package `@argentic/chest-app` (`0.1.0-studio.12`) and UI kit
+(`0.2.6-studio.1`), all in `vendor/`; tool contract 0.7 (`chest.json`).
 
-- `member.language` and `chest.timeZone` — **SDK 0.3.0**: the interface
-  and the bell in each member's language; "today", a next step's day and
-  hour, "won this month" and the team report's weeks in the Chest's zone
-  (`lib/zone.ts`; the database's sessions are in it too, and the sample
-  data's days are `current_date`); a time shown to a member in their own
-  zone (`member.timeZone`).
-- `schedules` — **Proposal (studio)**, declared in `chest.proposals.json`
-  (`morning`, weekdays 07:30): the morning digest, the tiles kept true
-  overnight, the purge of removed history. On a Chest without it, the tile's
-  number is set right whenever its owner opens *My day*, and removed history
-  simply stays hidden.
-- `events` between tools — **Proposal (studio)**, `emits` and `receives`
-  (`forms.contact`, `booking.confirmed`, `booking.cancelled`) in
-  `chest.proposals.json`: see "With the other tools".
+- `member.language`, `chest.timeZone` (the company's zone, captured once,
+  set on no screen) — "today", a next step's day and hour, "won this month"
+  and the team report's weeks are the company's (`src/lib/zone.ts`; the
+  database's sessions are in it too); a time shown to a member is in their
+  own zone (`member.timeZone`).
+- `schedules` (`morning`, weekdays 07:30): the morning reminder of the
+  day's next steps, the tiles kept true overnight, the purge of removed
+  history.
+- `events` between tools — official 0.7.0: `emits` with schemas and
+  `receives` in `chest.json`; each event received keeps its **audience**:
+  Booking tells a booking to its host and its admins, so the meeting line,
+  the meeting on My day, the lead's meeting and the bell are theirs only
+  (`activities.audience`, `booked_meetings.audience`); a guest who is not a
+  contact yet becomes one only when the host may see the booking and works
+  on clients here (the contact is then theirs) — otherwise the team learns
+  nothing of it. A `forms.contact` told for some people only (Forms tells
+  it to all) would attach only to an existing contact. A `booking.*` or `forms.*` type
+  is read only from the tool it names (the event's `source`). The text
+  fields Clients emits carry no format character (Unicode Cf, which the
+  Chest refuses): stripped in the event only, the names kept as typed.
+- `realtime` — official 0.7.0: the `team` channel and its feeds.
+- **Currency** — 0.7.0 has none: each deal keeps its own, the default is
+  the team's setting; totals (My day, the list, Team, companies' open
+  value) add the default currency's deals only and say how many are in
+  another (no exchange rate is known); the board totals each currency
+  apart.
 - `chest.toolLink` — **Proposal (studio)** (SDK report §4.18): the address
   of the answer in Forms, from the addresses the Chest gives in
   `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
@@ -392,7 +426,7 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
 - `calendar` — **Proposal (studio)**, `"calendar": true` in
   `chest.proposals.json` ("Adds events to the calendar of the members
   concerned"): timed next steps in their owner's calendar
-  (`lib/step-calendar.ts`: `publishStep` after each change of a step,
+  (`src/lib/step-calendar.ts`: `publishStep` after each change of a step,
   `reconcile` after bulk changes and each morning — in batches of 100
   with `calendar.putMany`, Proposal (studio.15), which answers each event
   (studio.16): only the events the Chest took are remembered as put, a
@@ -400,14 +434,21 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   next run and never holds the others back). On a Chest without it,
   the steps stand and the form stops promising the calendar
   (`tool_state`).
-- **Needed, not built: received mail for the tool** — to log emails by
-  themselves (a BCC address, `clients@<company domain>`, files each email on
-  the contact whose address it carries; "send from the contact page"). The
-  studio's *mail* proposal gives most of the shape (`mailboxes`,
-  `mail.handle`, `members.email`); Clients will use it once it ships, and
-  also needs to tell the team's own addresses from clients' (the sender of
-  a BCC is the salesperson) — see the SDK report. Until then **emails are
-  not captured**: *Log an email* records that one happened.
+- **Emails are logged, not captured.** The owner decided (6 October 2026)
+  that the Chest never receives mail: no BCC address, no inbound address, no reply
+  threads. Clients therefore files no email by itself; *Log an email*
+  records that one happened. Capturing emails would need reading the
+  company's own mail through its provider (Gmail, Microsoft 365) — a
+  connector the Chest does not have and the studio has not proposed.
+
+## Mail
+
+Clients sends **no email**, to anyone, and asks for no mail permission.
+What it tells the team — a deal or a next step given to you, the morning's
+due next steps, a new lead from a form or a booking, someone who left with
+deals — are notifications; the Chest mails members their notifications as
+each one chooses. Writing to a client is done from the person's own mail
+app (an address is a `mailto:` link), then logged with *Log an email*.
 
 ## Names in each reader's language
 
@@ -417,14 +458,14 @@ source", "Segment" and its choices), industries ("Food retail") and tags
 ("Concurrent", "Commerce alimentaire", "grand compte") until someone
 renames them (Settings → Fields; a company's industry or tags edited to
 other words). A form that shows them and is saved unchanged keeps the
-keys (`lib/seed-words.ts`, `lib/fields.ts` `localized`). The records' own
+keys (`src/lib/seed-words.ts`, `src/lib/fields.ts` `localized`). The records' own
 words — deal titles, steps, notes — are the sample team's, as typed (in
 English), like any company's data.
 
 ## Looks
 
 Clients wears its own identity, **"Sales desk"** (cool slate, one electric
-blue, figures in IBM Plex Mono — `lib/theme.ts`, DESIGN.md), by default.
+blue, figures in IBM Plex Mono — `src/theme.ts`, DESIGN.md), by default.
 The company may choose another look in its Chest, for all its tools or for
 Clients alone: any theme of the UI kit's catalogue (the store's 17
 identities, "Chest", "High contrast") or **its own brand** (colours,
@@ -432,17 +473,42 @@ fonts, corners, logo — the logo then stands where the Clients mark is).
 Every feature is the same in every look, and every text stays readable
 (WCAG AA, light and dark): the CSS names only the kit's contract tokens.
 The look is resolved on the server (`chest.theme()`, SDK proposal) and
-written as one `<style>` with the page's nonce; outside a Chest that
+served as a stylesheet of its own (`/chest/look.css`, cached by its hash: no inline style anywhere); outside a Chest that
 serves themes, it is Sales desk. Screens: `docs/screens/board-chest-*`
 (the portal's look), `board-theme-*` and `day-theme-*` (Library,
 Workshop), `board-brand-*` and `team-brand-*` (a sample brand).
+
+## How it is made
+
+The studio's stack (`@argentic/chest-app`, `app/AGENTS.md` of the studio):
+Hono serves React pages rendered on the server; the parts that act in the
+browser are islands (`src/islands/`, made of `src/components/`), each
+given only the words it shows; every change is an action
+(`src/actions.ts`) called by `call()`, the page then refreshed in place
+(focus, scroll and what is typed kept). Vite builds the browser's script
+and the server. No inline script or style: the policy is
+`default-src 'self'`; bars are SVG, the board's drag sets its transform
+through the element itself. Built: about 455 KB of script (135 KB
+gzipped) for the browser, one server file.
+
+| Where | What |
+|---|---|
+| `src/app.tsx` | Every route: pages, downloads, `/chest-events`, `/chest-schedules` |
+| `src/actions.ts` | Every change, by name, with its fields |
+| `src/pages/` | The pages (server); `words.ts` picks each island's words |
+| `src/islands/`, `src/components/` | What runs in the browser |
+| `src/lib/` | Rules and SQL (services take the connection first) |
+| `src/shared/` | Rules the browser and the server share (amounts, CSV, vCard, import mapping) |
+| `src/i18n/` | Every word (`en.ts` source, `fr.ts`), `format.ts` the kept `Intl` objects |
+| `migrations/` | The schema; `0008_page_version_off.sql` drops the former page-version counter and adds `settings`; `0009_chest_changes.sql` the package's change log, which the pages' versions read |
 
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # tsc, the server built into dist/test, node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm run build     # types, then Vite: the browser's files and the server, as the Chest does
+npm start         # the built server (dist/server/main.js) on PORT
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800`
@@ -453,14 +519,21 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800
 ## What it does not do (yet)
 
 - **Emails are not captured** (no BCC, no Gmail/Outlook sync, no sending
-  from the contact page): it needs received mail from the Chest (above).
+  from the contact page): the Chest receives no mail (above); a contact's
+  address opens the person's own mail app.
 - Only timed steps reach the calendar, one way: moving the event in
   Google or Outlook does not move the step (a feed is read-only).
 - The "Log this call?" prompt knows a tap on *Call*, not the call itself
   (nor whether it was answered); on a desktop the tap opens whatever app
   handles phone links.
-- One pipeline; no products or line items (quotes live in *Quotes*); EUR
-  only.
+- One pipeline; no products or line items (quotes live in *Quotes*); a new
+  deal takes the team's default currency (an import may name each deal's);
+  deals are not converted: totals add the default currency's deals only
+  and count the others (the board totals each currency apart).
+- **On SDK 0.7.0 alone** (without the studio's proposals): no next step in
+  the members' calendars (0.7.0 has no calendar), and no link to the answer
+  in Forms or the booking in Booking (0.7.0 gives a tool no other tool's
+  address) — the line names them without a link.
 - Fields: four kinds (text, number, date, one choice) — no multi-choice,
   no formula, no required field; 30 per kind of record. Search (`/`) does
   not look inside them (the list filter does).

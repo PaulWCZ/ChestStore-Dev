@@ -5,6 +5,8 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
+**Update from the owner (2026-11-24): SDK 0.7.0 (Chest-SDK PR #38, not merged).** Every tool should use it; where impossible, a precise list of why. Owner's decision: currency and time zone are the apps' business, not the Chest's (PR #38 `8299bf8`, `50c8153`: no `chest.currency`; `chest.timeZone` is the company's reference zone captured once from the owner's browser; `member.timeZone` is the member's browser zone). Main (SDK 0.5.1 references, brief 09) and PR #9 (reference to 0.7.0 at `2581b22`, older than the PR head `1a825a6` used here) merged into the work branch. Done: `sdk/` → `0.7.0-studio.1` (official 1a825a6 verbatim, 194 tests; proposals kept only where 0.7.0 lacks them; checker 0.7.0). **Done (2026-11-25): every tool is on 0.7.0.** All 18 tools declare `"chest": "0.7"` and vendor `sdk/` `0.7.0-studio.2`, package `@argentic/chest-app` `0.1.0-studio.13` and UI kit `0.2.6-studio.1`. Each was migrated by one agent and reviewed by another (groups A–F), plus a cross-tool fix, the realtime gating in 9 tools (no member hears a channel of something they cannot see), and a last adversarial review of that gating, which fixed 3 leaks. Final check: every test passes on PGlite and PostgreSQL, chest-check, check-manifest and check-vendor pass, 19/19 browser flows pass on the first run on the shared harness (now on 0.7, with a realtime relay), and axe finds 0 violations. The owner's list of what is not possible, and why, is `reports/08-sdk-0.7.md`. Rules decided: event amounts in ISO 4217 minor units; every receiver checks `source`; Unicode format characters stripped from event text. Next: when PR #38 merges or moves, re-vendor and re-run; fix the check-then-admit race once the SDK says how; re-measure memory on 0.7; refresh `reference/` (PR #9 `2581b22` is older than `1a825a6`).
+
 Official SDK reference refreshed to 0.5.1 (`8630b83`). The official standalone
 browser realtime module and recovery regressions are backported into the SDK
 fork as `0.3.1-studio.2`, preserving its experimental server APIs. Full rebasing
@@ -16,6 +18,36 @@ prototype tools are not qualified official applications.
 **Update from the owner (2026-10-07): read [brief/09-update-sdk-0.5.md](brief/09-update-sdk-0.5.md).** `reference/` was refreshed (SDK 0.5.0 from Chest-SDK main, not yet on npm; contract 0.5; the Perseus starter, the test bench, the contract and the changed specs). Asks: every tool on SDK 0.5.0 with the official shapes of groups, broadcast, events and visitors' uploads; realtime instead of polling; sealed fields for sensitive data; needs kept in the SDK report. Do not build a team chat: the official Chat (`chest-by-argentic/chat`) exists, study it.
 
 **Update from the owner (2026-10-05): read [brief/08-update-2026-10.md](brief/08-update-2026-10.md).** `reference/` was refreshed (SDK 0.4.1, contract 0.4, the Perseus starter); the 18 tools are refused by a 0.4 Chest as they are (`"version": 2`, schedules on `/chest-jobs`). Asks: (a) every tool on SDK 0.4.x and the 0.4 manifest; (b) memory at rest measured, Next.js tools moved to the lighter reference stack unless measured otherwise; (c) a better starter template for Perseus (`reports/` + a working template folder).
+
+### Update 2026-10 — the plan and where it stands
+
+The owner's message (2026-10-05) adds: work the three asks **in parallel,
+with subagents, in loops**, each result reviewed by a separate critical
+reviewer until it is excellent (works on a real Chest, best a company
+could get, every screen understood in seconds); every tool must pass
+`chest check` and install on a Chest.
+
+How the lead runs it: each agent works in its own Git worktree
+(`/home/user/wt/<name>`, branch `wt/<name>`) and commits there; the lead
+merges into `claude/exciting-planck-t5514x` and pushes (PR to main). Node
+24.21 (the Chest's pinned image) is at `/opt/node24/bin` and used for
+builds, checks and measurements (the shell default stays Node 22).
+
+| Phase | What | State |
+|---|---|---|
+| 0 | `scripts/chest-check.mjs`: the official checker on one tool as its own repository | done — all 18 tools **refused** today (`manifest`: no `"chest"`) |
+| 1a | `sdk/` → `0.4.1-studio.2` (official verbatim + proposals that 0.4.1 lacks), change list, SDK report §2/§5/§10 | **done, reviewed, fixed, merged** — 145 tests (69 official unchanged + 76 studio); review found `visitors` trusting a forgeable `X-Forwarded-For` → now `Chest-Visitor-Address` (proposal), 6 public tools to fix while migrating |
+| 1b | The studio starter `starter/` + `reports/06-perseus-starter.md` with measurements | **done, five reviews** (the fifth: no blocker); package `app/` = `@argentic/chest-app` **0.1.0-studio.8** (change log for page versions, proof of work for public writes, islands loaded per page, deploy detection). Report v4.3; its memory/cold-start placeholders wait for `after-final` |
+| 1c | `lab/measure/` bench; `lab/chest-dev` on contract 0.4 (two hosts, routing, schedules, sleep, logs) | **done** |
+| 2 | Pilot migrations (Polls, Tasks), critical review | **done** |
+| 3 | The 16 other tools, each reviewed until excellent | **done (2026-10-06)**: all 18 on package studio.8, SDK 0.4.1-studio.4, kit 0.2.6-studio.1 (`check-vendor`: nothing stale), `chest check` OK 18/18, each tool reviewed by an independent agent and its fixes merged (Timesheets `bbd615b`, Clients `c969373`+`2068a95`, Goals `6365ad8`+`27d3149`, Rooms `11bb094`+`20148e3`, Quotes `a462903`+`19ef815`, Hiring `0f274f4`+`9ec1b77`, Forms `5054d00`+`1ae0a5b`, the others earlier) |
+| 4 | Before/after measured together in a quiet window; reports | **done (2026-10-07)**: `before-next16-final` and `after-mail` (bench fix: members' groups signed for `members.groups`; seven tools re-measured). `reports/07-stack-and-memory.md` (PSS tree 134–173 → 93–105 MiB, server alone 62–75, first 200 319–487 ms, images 27–40 MiB); report 06 numbers filled (studio starter 76.9 vs reference 66.4 MiB); critique numbers replaced; PR #3 body updated. Sixth starter review running |
+| 5 | **Owner's mail decisions (PR #4, 2026-10-06)**: member mails → notifications (the Chest mails them by each member's choice), no inbound mail, outside mail kept behind `mail.send` (a connector to the company's provider), `members.groups`, broadcast with translations | **done (2026-10-07)**: SDK `0.4.1-studio.7` (studio.5 the decisions; studio.6 review: header injection, empty broadcast `to`; studio.7 no 16-group lockout, 158 tests). All 18 tools migrated (six agents), each reviewed by an independent agent and fixed (Booking: host told of a colleague's change; Wiki: Remind limited; Expenses: approvers' 25th reminder restored; Support: "Their email" and no relay; Hiring, Rooms: limits on typed addresses; People: never mails a member), then a sweep: studio.7 everywhere, French no-break spaces kept in notices, Status' PostgreSQL time-zone test fixed. `chest check` 18/18, check-manifest 18/18, check-vendor clean. Outside mail: 9 tools (SDK report §4.2 table); none: 9. `after-mail` measuring |
+| 6 | Consolidation after the sixth starter review | **done (2026-10-07)**: package studio.9 (AGENTS: the mail rule, "tell everyone or a role", reminder limits, caches, `field.email`, `checkSources` on `charge`) and studio.10 (`readEmail` shared by server and browser; a JS-sent field refusal marks the field, focuses it and clears on input — axe clean). Every tool's address checks on `field.email`/`readEmail`; test databases in the Chest's zone. 18 tools and the starter re-vendored; tests green (PGlite, and PostgreSQL for the changed tools), `chest check` 18/18, check-vendor clean, Status and Forms flows pass |
+Findings so far (for the SDK report): `chest check` archives the whole Git
+repository a folder belongs to (fails in a monorepo: `ENOBUFS`); under Node
+22.22 its WASI run segfaults on archives of a few MB (Tasks), not under
+Node 24.21.
 
 Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 under way.
 

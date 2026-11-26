@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chest as chestSettings } from "@argentic/chest-sdk/chest";
-import { POST } from "../app/chest-events/route.ts";
-import { listCategories } from "../lib/categories.ts";
-import { lastDayOf, leavingList, purgeDepartures, readLeaving } from "../lib/departures.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as items from "../lib/items.ts";
-import { addDays } from "../lib/model.ts";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { listCategories } from "../src/lib/categories.ts";
+import { lastDayOf, leavingList, purgeDepartures, readLeaving } from "../src/lib/departures.ts";
+import { AppError } from "@argentic/chest-app";
+import * as items from "../src/lib/items.ts";
+import { addDays } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, sofia } from "./support/members.ts";
@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -25,8 +25,8 @@ after(async () => {
 });
 
 const M = asMember(camille);
-const told = (type: "people.leaving" | "people.leaving_cancelled", data: Record<string, unknown>, extra: { source?: string; occurredAt?: string } = {}) =>
-  chest.deliver({ type, source: extra.source ?? "people", data, ...(extra.occurredAt ? { occurredAt: extra.occurredAt } : {}) }, POST);
+const told = (type: "people.leaving" | "people.leaving-cancelled", data: Record<string, unknown>, extra: { source?: string; occurredAt?: string; audience?: string[] } = {}) =>
+  chest.deliver({ type, source: extra.source ?? "people", data, ...(extra.occurredAt ? { occurredAt: extra.occurredAt } : {}), ...(extra.audience ? { audience: extra.audience } : {}) }, onEvent);
 const bell = (member: string, who: string) => chest.notifications.filter(n => n.member === member && n.key === `leaving:${who}`);
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
@@ -56,7 +56,7 @@ test("someone leaving: the managers hear it once, in their language, with what t
   assert.equal(await told("people.leaving", { member: hugo.id, lastDay: last }, { occurredAt: ago(60_000) }), 204);
   const toCamille = bell(camille.id, hugo.id);
   assert.equal(toCamille.length, 1);
-  assert.match(toCamille[0]!.title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
+  assert.match((toCamille[0]!).title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
   assert.match(bell(sofia.id, hugo.id)[0]!.title, /^Hugo Bernard leaves on \d+ \S+ — 3 items to take back$/u);
   assert.equal(toCamille[0]!.path, `/chest/people/${hugo.id}`);
   assert.equal(bell(hugo.id, hugo.id).length, 0, "never the person leaving");
@@ -65,11 +65,11 @@ test("someone leaving: the managers hear it once, in their language, with what t
   await assert.rejects(leavingList(sql, asMember(ines)), (e: unknown) => e instanceof AppError && e.code === "forbidden");
   // The same event delivered twice: one bell item still.
   const event = { type: "people.leaving", source: "people", id: "evt_" + "p".repeat(26), data: { member: hugo.id, lastDay: last } };
-  assert.equal(await chest.deliver(event, POST), 204);
-  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
   assert.equal(bell(camille.id, hugo.id).length, 1);
   // Taken back in People: the notice goes, the list forgets him.
-  assert.equal(await told("people.leaving_cancelled", { member: hugo.id }), 204);
+  assert.equal(await told("people.leaving-cancelled", { member: hugo.id }), 204);
   assert.equal(bell(camille.id, hugo.id).length, 0);
   assert.deepEqual(await leavingList(sql, M), []);
   assert.equal(await lastDayOf(sql, M, hugo.id), null);
@@ -95,7 +95,7 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   assert.equal(bell(camille.id, ines.id).length, 1);
   chest.members.splice(chest.members.findIndex(m => m.id === ines.id), 1);
   chest.former.push({ id: ines.id, name: "Inès Moreau" });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, onEvent), 204);
   assert.equal(bell(camille.id, ines.id).length, 0, "the leaving notice goes");
   assert.equal(chest.notifications.filter(n => n.member === camille.id && n.key === `left:${ines.id}`).length, 1, "the left notice says the rest");
   assert.equal(await lastDayOf(sql, M, ines.id), null);
@@ -107,7 +107,8 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   assert.equal(await told("people.leaving", { member: "mbr_" + "z".repeat(26), lastDay: now }), 204);
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: "soon" }), 204);
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: addDays(now, -40) }), 204);
-  assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }, { source: "hiring" }), 401);
+  // A people.* type told by another tool (the Chest's source) is ignored.
+  assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }, { source: "hiring" }), 204);
   assert.equal(await count(), before);
   // Forgotten 30 days after the last day; a cancelled one after a week.
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }), 204);
@@ -116,4 +117,24 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   assert.equal(await purgeDepartures(sql, addDays(now, 31)), 2);
   await sql`insert into departures (member_id, last_day, told_at) values (${camille.id}, null, now() - interval '8 days')`;
   assert.equal(await purgeDepartures(sql, now), 1);
+});
+
+// SDK 0.7.0: People says who may see a departure (its audience). Only the
+// managers in it are told, and only they see it in their lists and on the
+// person's page.
+test("a departure told for an audience: only the managers in it hear it and see it", async () => {
+  const { sql } = database;
+  const now = chestSettings.today();
+  await equip(hugo.id);
+  assert.equal(await told("people.leaving", { member: hugo.id, lastDay: addDays(now, 10) }, { audience: [camille.id] }), 204);
+  assert.equal(bell(camille.id, hugo.id).length, 1, "Camille is in it");
+  assert.equal(bell(sofia.id, hugo.id).length, 0, "Sofia is not told");
+  assert.ok((await leavingList(sql, asMember(camille))).some(l => l.memberId === hugo.id));
+  assert.ok(!(await leavingList(sql, asMember(sofia))).some(l => l.memberId === hugo.id));
+  assert.equal(await lastDayOf(sql, asMember(camille), hugo.id), addDays(now, 10));
+  assert.equal(await lastDayOf(sql, asMember(sofia), hugo.id), null);
+  // Told again for everyone: everyone sees it.
+  assert.equal(await told("people.leaving", { member: hugo.id, lastDay: addDays(now, 10) }), 204);
+  assert.ok((await leavingList(sql, asMember(sofia))).some(l => l.memberId === hugo.id));
+  assert.equal(await told("people.leaving-cancelled", { member: hugo.id }), 204);
 });

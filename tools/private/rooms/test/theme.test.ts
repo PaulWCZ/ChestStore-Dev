@@ -6,9 +6,10 @@ import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
-import { themeStyle } from "@argentic/chest-ui/runtime";
 import { identityOf } from "@argentic/chest-ui/themes";
-import { currentLook, identity } from "../lib/theme.ts";
+import { identity, sheetOf } from "../src/theme.ts";
+
+const currentLook = async () => (await sheetOf("team")).look;
 
 const root = join(import.meta.dirname, "..");
 
@@ -17,12 +18,13 @@ test("the tool's own identity is a valid theme and passes every pair of the cont
   assert.deepEqual(checkTheme(identity), []);
 });
 
-test("its fonts are the tool's own files, served at /fonts", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
+test("its fonts are the tool's own files, served at /assets/fonts", async () => {
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
-  assert.match(themeStyle(identity), /url\(\/fonts\/albert-sans-latin-wght-normal\.woff2\)/u);
+  forgetTheme();
+  assert.match((await sheetOf("team")).css, /url\(\/assets\/fonts\/albert-sans-latin-wght-normal\.woff2\)/u);
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
@@ -53,7 +55,7 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
   const found: string[] = [];
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public"].includes(name)) return [];
     return statSync(path).isDirectory() ? walk(path) : path.endsWith(".css") ? [path] : [];
   });
   for (const file of walk(root)) {

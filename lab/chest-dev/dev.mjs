@@ -1,10 +1,16 @@
-// The studio's `chest dev`: runs one tool as a Chest would, on this machine.
+// The studio's `chest dev`: runs one tool as a Chest of contract 0.7 would
+// (SDK 0.7.0-studio.N's fake; tools still on 0.4 start too), on this machine — any tool that follows the contract (`npm ci`,
+// `build.command`, `build.start` with PORT), whatever its framework.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--stale-ok] [--seed] [--reset] [--empty] [--tools crm,helpdesk] [--linked] [--elsewhere] [--granting-groups]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools crm,helpdesk] [--linked] [--elsewhere] [--granting-groups] [--no-mail-connector]
 //
-// SDK 0.3.1-studio.1 (lab/chest-dev/README.md): the Chest is "Atelier
-// Martin", in CHEST_TIME_ZONE (Europe/Paris unless set), speaking English,
-// paying in euros; the tool's database sessions are in that zone.
+// lab/chest-dev/README.md: the Chest is "Atelier Martin", in
+// CHEST_TIME_ZONE (Europe/Paris unless set), speaking English, paying in
+// euros; the tool's database sessions are in that zone. Two origins, as on
+// a Chest: the team host https://127.0.0.1:<port> (/chest…, build.static,
+// /_dev, /_chest) and the public host https://localhost:<port+2>; the tool
+// listens on <port+1>; the Chest's routing is enforced in front of it
+// (routing.mjs) and every refusal is logged.
 //
 // - a fake Chest (the SDK working copy's fakeChest: members, groups, files,
 //   notifications, events, and every proposal it fakes), with a cast of
@@ -14,44 +20,67 @@
 //   recorded in chest_migrations); --reset drops it and starts again, --seed
 //   loads seed/sample.sql (also on a fresh database), --empty never loads it
 //   (a new company's first visit: with --reset, an empty tool);
-// - the tool itself (`npm run dev`, or `npm start` after `npm run build`
-//   with --prod) on a port of its own, with the Chest's environment;
-// - in front, http://localhost:<port>: /chest… carries the Chest-Member
-//   assertion of the member chosen on /_dev (in the language chosen there),
-//   the rest is the public host (no member), /_chest/… is the fake Chest's
+// - the tool itself (`npm run dev` when it has one, or `build.start` after
+//   `build.command` with --prod; --build runs `npm ci` when needed and the
+//   build first) on a port of its own, with the Chest's environment and
+//   nothing of the shell's; its stdout and stderr kept as its log
+//   (lab/chest-dev/logs/<tool>/<run>.log, shown on /_dev/logs); with
+//   --sleep-after, put to sleep when idle and woken by the next request,
+//   event or schedule run (tool.mjs);
+// - in front, the team host https://127.0.0.1:<port>: /chest… carries the
+//   Chest-Member assertion of the member chosen on /_dev (in the language
+//   chosen there), a GET under build.static goes to anyone, anything else
+//   is sent to the public host https://localhost:<port+2> (the public part,
+//   no member; 404 without one); /_chest/… is the fake Chest's
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
-//   lifecycle events, proposals such as scheduled tasks, the outbox and
-//   received mail, the calendar feeds, the Chest's groups, webhooks);
+//   lifecycle events, proposals such as scheduled tasks, the outbox of mail
+//   to people outside, the calendar feeds, the Chest's groups, webhooks);
+//   the Chest receives no mail (owner's decision, 2026-10-06): no mailbox;
+//   --no-mail-connector starts with the company's mail provider not
+//   connected (mail.available() says not_connected, send throws
+//   Unavailable; /_dev "Delivery" connects it);
 // - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS),
 //   and those named by --tools (a sender that checks its receivers are
-//   installed: Forms asks for Clients and Support); with --linked, an
-//   admin linked them to this tool for the events they receive.
+//   installed: Forms asks for Clients and Support); --linked is gone with
+//   0.7.0 (no links between tools: events.emit answers a count);
+// - realtime (0.7.0, capability "realtime"): a page's connection to
+//   wss://<team host>/_chest/realtime is relayed to the fake Chest's hub as
+//   the member signed in, and the Chest's triggers are installed on the
+//   tables of chest.json's "feeds" after the migrations: each committed
+//   row reaches the pages joined to its channel (README, "Realtime").
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres); CHEST_TIME_ZONE
 // (the Chest's zone, default Europe/Paris).
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createServer, request as httpRequest } from "node:http";
+import { createServer as createHttpServer, request as httpRequest } from "node:http";
+import { connect as connectSocket } from "node:net";
+import { createServer } from "node:https";
+import { certificate } from "./cert.mjs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import postgres from "postgres";
 import { sampleBrand, sampleBrands } from "./brand/sample.mjs";
 import { cast, castFor } from "./cast.mjs";
-import { devPage } from "./page.mjs";
+import { devPage, logsPage } from "./page.mjs";
+import { addedPolicies, allowedCookies, isNavigation, route, staticPrefixes, wakingPage } from "./routing.mjs";
+import { startFeeds } from "./feeds.mjs";
+import { createTool } from "./tool.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const args = process.argv.slice(2);
-const folder = args.find(a => !a.startsWith("--") && !/^\d+$/u.test(a));
+const valued = new Set(["port", "tools", "sleep-after"]);
+const folder = args.find((a, i) => !a.startsWith("--") && !(i > 0 && valued.has(args[i - 1].slice(2))));
 const flag = name => args.includes("--" + name);
 const option = (name, fallback) => {
   const i = args.indexOf("--" + name);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 if (!folder || !existsSync(join(folder, "chest.json"))) {
-  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--stale-ok] [--seed] [--reset] [--empty] [--tools a,b] [--linked] [--elsewhere] [--granting-groups]");
+  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools a,b] [--linked] [--elsewhere] [--granting-groups] [--no-mail-connector]");
   process.exit(1);
 }
 // The Chest's zone (CHEST_TIME_ZONE): the tool's chest.timeZone, the zone of
@@ -73,15 +102,29 @@ const manifest = JSON.parse(readFileSync(join(tool, "chest.json"), "utf8"));
 const proposals = existsSync(join(tool, "chest.proposals.json")) ? JSON.parse(readFileSync(join(tool, "chest.proposals.json"), "utf8")) : {};
 const port = Number(option("port", "4000"));
 const inner = port + 1;
-const origin = `http://localhost:${port}`;
+const publicPort = port + 2;
+// The two hosts of a Chest, two origins over https (cert.mjs): the team
+// host on 127.0.0.1, the public host on localhost — two host names, so a
+// browser keeps their cookies apart too, as a Chest's two hosts.
+const origin = `https://127.0.0.1:${port}`;
+const publicOrigin = `https://localhost:${publicPort}`;
+const sleepAfter = Number(option("sleep-after", "0"));
+if (!Number.isFinite(sleepAfter) || sleepAfter < 0) {
+  console.error("✗ --sleep-after: a number of seconds (the Chest: 900; its laboratory: 5 to 900)");
+  process.exit(1);
+}
 
 // The SDK working copy, built.
 const sdk = join(root, "sdk");
-if (!existsSync(join(sdk, "dist", "src", "testing.js"))) {
+// 0.4.1-studio.N builds the studio's fake to dist/studio/testing.js (the
+// official modules stay in dist/src).
+const testingFile = ["studio", "src"].map(dir => join(sdk, "dist", dir, "testing.js")).find(existsSync) ?? join(sdk, "dist", "studio", "testing.js");
+if (!existsSync(testingFile) || statSync(join(sdk, "package.json")).mtimeMs > statSync(testingFile).mtimeMs) {
   if (!existsSync(join(sdk, "node_modules"))) execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: sdk, stdio: "inherit" });
   execFileSync("npm", ["run", "build"], { cwd: sdk, stdio: "inherit" });
 }
-const testing = { ...(await import(pathToFileURL(join(sdk, "dist", "src", "testing.js")).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
+const testing = { ...(await import(pathToFileURL(["studio", "src"].map(dir => join(sdk, "dist", dir, "testing.js")).find(existsSync)).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
+const sdkVersion = JSON.parse(readFileSync(join(sdk, "package.json"), "utf8")).version;
 
 // The UI kit working copy, built: the theme catalogue for the switcher,
 // and its fonts, which the fake Chest's front serves at /_chest/theme/fonts/
@@ -113,10 +156,16 @@ function choiceOf(value) {
 
 // The database, as the Chest makes it.
 const capabilities = manifest.capabilities ?? [];
+const superUrl = process.env["DEV_DATABASE_URL"] ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres";
 let databaseUrl = null;
+let toolDatabaseName = null;
 if (capabilities.includes("database")) {
-  const admin = postgres(process.env["DEV_DATABASE_URL"] ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres", { max: 1, onnotice: () => {} });
-  const role = "t_" + manifest.name.replace(/-/gu, "_");
+  const admin = postgres(superUrl, { max: 1, onnotice: () => {} });
+  // t_<tool> on the default port; t_<tool>_<port> on another, so that two
+  // harnesses of the same tool on this machine (agents in parallel) never
+  // drop each other's database.
+  const role = "t_" + manifest.name.replace(/-/gu, "_") + (port === 4000 ? "" : `_${port}`);
+  toolDatabaseName = role;
   const password = "dev";
   const [exists] = await admin`select 1 as x from pg_database where datname = ${role}`;
   if (flag("reset") && exists) await admin.unsafe(`drop database ${role} with (force)`);
@@ -159,11 +208,33 @@ if (capabilities.includes("database")) {
   await sql.end();
 }
 
+// The schedules: "schedules" of chest.json (contract 0.4), else a studio
+// tool's chest.proposals.json; the runs posted, newest last.
+const schedules = manifest.schedules ?? proposals.schedules ?? [];
+const runs = [];
+
 // The fake Chest, with the cast given the tool's roles.
 process.env["CHEST_TOOL"] = manifest.name;
-// The mail options stay this harness's: /_dev/delivery "quota" sets perDay
-// to 0 (the day's messages used), which the fake reads at each call.
-const mailOptions = { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [], perDay: 500 };
+// Mail goes to people outside only; Reply-To is the company's address set
+// with the connector unless the tool gives its own. No daily number since
+// 0.7.0-studio.2 (the Chest paces: a message beyond the pace is "queued").
+const mailOptions = { domain: "atelier-martin.test", replyTo: "contact@atelier-martin.test", connected: !flag("no-mail-connector") };
+// The events this tool emits: chest.json "emits" (0.7, {type: {description,
+// data}}). A tool still on 0.4 lists them in chest.proposals.json, which
+// 0.7.0's fake cannot take: it emits nothing here (403) until migrated.
+const emits = manifest.emits && typeof manifest.emits === "object" && !Array.isArray(manifest.emits) ? manifest.emits : {};
+if (Array.isArray(proposals.emits) && proposals.emits.length && !Object.keys(emits).length) console.warn(`! chest.proposals.json "emits" is a list (0.4.1-studio): SDK 0.7.0's fake takes chest.json "emits" {type: {description, data}}; this tool's emits are refused (403) until it is migrated`);
+// The events it receives: chest.json "receives" (0.7: member.*, and the
+// types of other tools), with a 0.4 tool's chest.proposals.json ones.
+const receives = [...new Set([...(manifest.receives ?? []), ...(Array.isArray(proposals.receives) ? proposals.receives : [])])];
+if (flag("linked")) console.warn("! --linked: 0.7.0 has no links between tools (events.emit answers how many receivers; the fake says 0): ignored");
+// Realtime (0.7.0): the channels and feeds of chest.json, and who is in a
+// membership table (read from the tool's database, feeds.mjs).
+let feeds = null;
+const realtimeOptions = capabilities.includes("realtime") ? { channels: manifest.realtime?.channels ?? [], feeds: manifest.realtime?.feeds ?? [], membership: (table, key, member) => feeds?.member(table, key, member) ?? false } : undefined;
+// "members.groups": an official capability since 0.7.0 (chest.json), a
+// proposal before (chest.proposals.json).
+const groupsRead = capabilities.includes("members.groups") || (Array.isArray(proposals.capabilities) && proposals.capabilities.includes("members.groups"));
 const members = castFor(manifest, tool, { zone, elsewhere: flag("elsewhere") });
 // Paul Lefèvre left the company three weeks ago (FormerMember.leftAt,
 // Proposal (studio.15)): the seeds' "former member".
@@ -173,110 +244,233 @@ const chest = await testing.fakeChest({
   former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre", leftAt: paulLeft }],
   // Every cast member has the tool without a group giving it (a tool open
   // to everyone, the usual case): as on a Chest, member.groups and
-  // members.*.groups are then [], and a member's groups are asked with
-  // members.groups.of (a tool with "groups": "read"). --granting-groups:
-  // the three groups give the tool (a tool the owner gave to groups).
+  // members.*.groups are then [] — unless the tool holds the capability
+  // "members.groups" (chest.proposals.json "capabilities"), which shows
+  // every group. --granting-groups: the three groups give the tool (a tool
+  // the owner gave to groups).
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id), grants: flag("granting-groups") })),
-  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" ? ["groups"] : [])],
+  capabilities: [...new Set([...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(groupsRead ? ["members.groups"] : [])])],
+  // The roles the tool declares (what a value may be sealed for).
+  ...(Array.isArray(manifest.roles) && manifest.roles.length ? { roles: manifest.roles } : {}),
   mail: mailOptions,
   // The calendar bridge (Proposal (studio)): each member's feed at
-  // http://localhost:<port>/_chest/calendar/<secret>.ics — a calendar app
+  // https://127.0.0.1:<port>/_chest/calendar/<secret>.ics — a calendar app
   // on this machine may subscribe to it.
   calendar: { domain: "atelier-martin.test", toolTitle: manifest.title ?? manifest.name, company: "Atelier Martin" },
-  emits: proposals.emits ?? [],
-  storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },
-  receives: manifest.receives ?? [],
+  emits,
+  // A visitor's upload is 0.7.0's files.uploadUrl(folder, {public: true}):
+  // only the studio's public files are an option now.
+  storage: { publicFiles: proposals.files?.publicFiles === true },
+  receives,
+  ...(realtimeOptions ? { realtime: realtimeOptions } : {}),
   // The other tools installed beside this one (Proposal (studio):
   // chest.toolUrl, CHEST_TOOL_URLS): those whose events it receives
   // ("forms.request" → forms), at the fake's team host
   // https://<name>-chest.chest.test — never reached, but a link back to
   // them shows as on a Chest. This tool is always there, at the origin.
-  tools: Object.fromEntries([...(proposals.receives ?? []).map(type => String(type).split(".")[0]), ...option("tools", "").split(",").filter(Boolean)].filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group"].includes(name)).map(name => [name, true])),
-  origin,
-  schedules: proposals.schedules ?? [],
+  tools: Object.fromEntries([...receives.map(type => String(type).split(".")[0]), ...option("tools", "").split(",").filter(Boolean)].filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group", "access", "folders"].includes(name)).map(name => [name, true])),
+  // Schedules: "schedules" of chest.json (contract 0.4), else a studio
+  // tool's chest.proposals.json.
+  schedules,
+  tool: manifest.name,
   ...(proposals.checks ? { checks: proposals.checks } : {}),
   // Webhooks (Proposal (studio)): the Chest delivers to the addresses the
   // tool adds — simulated here (no request leaves this machine); /_dev
   // makes a target fail and plays the retries; webhook.disabled goes to
   // the tool's POST /chest-webhooks.
   ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: `http://127.0.0.1:${inner}` } } : {}),
-  // The Chest (SDK 0.3.0: CHEST_ORGANIZATION, CHEST_TIME_ZONE,
-  // CHEST_LANGUAGE; Proposal (studio): CHEST_CURRENCY, and the public host
-  // CHEST_PUBLIC_URL of a tool with a public part — both hosts are this
-  // harness's one origin, CHEST_TEAM_URL too).
-  chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", ...(manifest.public ? { publicUrl: origin } : {}) },
+  // The Chest (contract 0.4: CHEST_ORGANIZATION, CHEST_TIME_ZONE,
+  // CHEST_LANGUAGE, the team host CHEST_TEAM_URL and, for a
+  // tool with a public part, the public host CHEST_PUBLIC_URL — null:
+  // none).
+  chest: { organization: "Atelier Martin", timeZone: zone, language: "en", teamUrl: origin, publicUrl: manifest.public ? publicOrigin : null },
   // The company's look (Proposal (studio)): its own identity for every tool
   // until the switcher on /_dev says otherwise.
   theme: {},
   themeFiles,
 });
-// --linked (opt-in; Proposal (studio.16): events.receivers): an admin
-// linked each tool installed beside this one to it, for every type this
-// tool emits that the other declares in its `receives` (read from its
-// manifests in tools/). Without it, nothing is linked: receivers answers
-// [] and publish counts `receivers` (0), as on a Chest where no admin
-// linked the tools yet.
-if (flag("linked")) {
-  const receivesOf = name => {
-    for (const kind of ["private", "public-and-private"]) {
-      const dir = join(root, "tools", kind, name);
-      if (!existsSync(join(dir, "chest.json"))) continue;
-      const read = file => (existsSync(join(dir, file)) ? JSON.parse(readFileSync(join(dir, file), "utf8")).receives ?? [] : []);
-      return [...read("chest.json"), ...read("chest.proposals.json")];
+// The fake's own address (CHEST_API: the tool's calls go there), and the
+// origin of the links and uploads it signs, which a Chest serves on the
+// team host (/_chest/files/…): the fake writes them with chest.api, so it
+// is the team host's from here on — a page's <img src> is then
+// same-origin, as on a Chest, and the tool's CSP holds.
+// A visitor's upload is a path (/_chest/files/upload/…, 0.7.0), which the
+// public page sends to its own host: routed to the fake (routing.mjs).
+const apiOrigin = chest.api;
+chest.api = origin;
+
+// The tool's CHEST_API: the fake's, through one relay of the harness that
+// passes every call as it came — but one. 0.7.0's fake reads its former
+// members once, at start (options.former), so an event about someone who
+// left after the start (a member removed from /_dev: Leave's "the leave
+// cancelled when Inès left", Equipment's "Tom leaves") would be refused
+// invalid_data, where a Chest accepts a member the tool had. While such a
+// POST /events is in the fake's hands, the former members it names stand
+// in chest.members (no role, no groups), and leave when it answers. Only
+// that call sees them; noted for the SDK report (a fake that reads
+// chest.former at each call).
+const hubPort = Number(new URL(apiOrigin).port);
+const memberIds = /mbr_[a-z2-7]{26}/gu;
+const toolApi = createHttpServer(async (request, response) => {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  const body = Buffer.concat(chunks);
+  let standIns = [];
+  if (request.method === "POST" && (request.url ?? "").split("?")[0] === "/events") {
+    const named = new Set(body.toString("utf8").match(memberIds) ?? []);
+    standIns = chest.former.filter(f => named.has(f.id) && !chest.members.some(m => m.id === f.id)).map(f => ({ id: f.id, firstName: "", lastName: "", name: f.name ?? "", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: zone }));
+    chest.members.push(...standIns);
+  }
+  const leave = () => {
+    for (const standIn of standIns) {
+      const at = chest.members.indexOf(standIn);
+      if (at >= 0) chest.members.splice(at, 1);
     }
-    return [];
+    standIns = [];
   };
-  for (const type of proposals.emits ?? []) chest.linked[type] = Object.keys(chest.tools).filter(name => name !== manifest.name && receivesOf(name).includes(type)).sort();
+  const upstream = httpRequest({ host: "127.0.0.1", port: hubPort, path: request.url, method: request.method, headers: { ...request.headers, host: `127.0.0.1:${hubPort}` } }, answer => {
+    leave();
+    response.writeHead(answer.statusCode ?? 502, answer.headers);
+    answer.pipe(response);
+  });
+  upstream.on("error", () => {
+    leave();
+    if (!response.headersSent) response.writeHead(503, { "Content-Type": "application/json" }).end('{"error":"unavailable"}');
+    else response.destroy();
+  });
+  upstream.end(body);
+});
+await new Promise(resolve => toolApi.listen(0, "127.0.0.1", resolve));
+const toolApiOrigin = `http://127.0.0.1:${toolApi.address().port}`;
+
+// Realtime's feeds: the Chest's triggers on the tool's tables, installed
+// after the migrations (feeds.mjs); each committed row reaches the fake's
+// hub, which publishes it to the pages joined to its channel.
+if (realtimeOptions && toolDatabaseName && (realtimeOptions.feeds.length || realtimeOptions.channels.some(c => c.join && !Array.isArray(c.join)))) {
+  feeds = await startFeeds({
+    superUrl,
+    database: toolDatabaseName,
+    role: toolDatabaseName,
+    realtime: realtimeOptions,
+    onRow: (table, op, row) => chest.realtime.commit(table, op, row),
+    onRemoved: (table, key, member) => chest.realtime.removed(table, key, member),
+    log: line => console.warn(line),
+  });
+  console.log(`realtime: feeds of ${feeds.tables.join(", ") || "no table"} → their channels`);
 }
 
-// The tool, with the Chest's environment.
-// The fake Chest wrote the Chest's variables in this process's environment
-// (fakeChest sets them, as the Chest sets the tool's): they are passed on
-// by name, those it leaves unset (CHEST_PUBLIC_URL for a tool without a
-// public part) left out. The names before SDK 0.3.0 never reach the tool.
-const chestEnv = Object.fromEntries(["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
+// The tool, with the Chest's environment — and nothing of the shell's (a
+// Chest's container has no NODE_OPTIONS, no proxy, no secret of yours): the
+// variables the fake Chest wrote in this process's environment (fakeChest
+// sets them, as the Chest sets the tool's), passed on by name, those it
+// leaves unset (CHEST_PUBLIC_URL for a tool without a public part) left
+// out; PORT; DATABASE_URL; and the variables the tool declares in `env`
+// (chest.json), from the shell when it has them, as the owner would set
+// them in the Chest.
+const pkg = JSON.parse(readFileSync(join(tool, "package.json"), "utf8"));
+const chestEnv = Object.fromEntries(["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
+const declared = Object.fromEntries((manifest.env ?? []).filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
+const dev = !flag("prod") && typeof pkg.scripts?.dev === "string";
 const env = {
-  ...process.env,
+  PATH: process.env["PATH"],
+  HOME: process.env["HOME"],
+  ...declared,
   PORT: String(inner),
-  CHEST_API: chest.api,
+  CHEST_API: toolApiOrigin,
   CHEST_TOKEN: chest.token,
   CHEST_TOOL: manifest.name,
   ...chestEnv,
-  NODE_ENV: flag("prod") ? "production" : "development",
+  NODE_ENV: dev ? "development" : "production",
+  NPM_CONFIG_UPDATE_NOTIFIER: "false",
   NEXT_TELEMETRY_DISABLED: "1",
   ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
 };
-delete env["DEV_DATABASE_URL"];
-for (const old of ["CHEST_COMPANY", "CHEST_TIMEZONE", "CHEST_LOCALE"]) delete env[old];
-// --prod serves the last `npm run build`: say so loudly when the sources are
-// newer, so a flow or a screenshot never checks yesterday's code by mistake.
-if (flag("prod")) {
-  const built = join(tool, ".next", "BUILD_ID");
-  if (!existsSync(built)) {
-    console.error("✗ no build: run `npm run build` in the tool first (--prod serves the last build)");
+if (!dev && !flag("prod")) console.log("· the tool has no `dev` script: served as the Chest serves it (build.start, after build.command)");
+
+// The contract's commands, as argument vectors (never a shell).
+const commandOf = command => {
+  if (command === "npm start") return ["npm", "start"];
+  const script = /^npm run ([a-z0-9][a-z0-9:_-]{0,63})$/u.exec(command ?? "")?.[1];
+  if (!script) {
+    console.error(`✗ chest.json: ${JSON.stringify(command)} is not "npm start" or "npm run <script>"`);
     process.exit(1);
   }
-  const at = statSync(built).mtimeMs;
+  return ["npm", "run", script];
+};
+const build = manifest.build ?? {};
+// The build's output, for --prod: .next/BUILD_ID (Next.js), else the newest
+// file of dist/ or build/ (Vite and the others). Its time, or null.
+const builtAt = () => {
+  if (existsSync(join(tool, ".next", "BUILD_ID"))) return statSync(join(tool, ".next", "BUILD_ID")).mtimeMs;
+  let newest = null;
+  const walk = dir => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else newest = Math.max(newest ?? 0, statSync(path).mtimeMs);
+    }
+  };
+  for (const out of ["dist", "build"]) if (existsSync(join(tool, out))) walk(join(tool, out));
+  return newest;
+};
+if (!dev) {
+  // --build: what the Chest does before it serves a version — `npm ci`
+  // (when node_modules is missing or older than the lock) and
+  // `build.command`.
+  if (flag("build")) {
+    const lock = join(tool, "package-lock.json");
+    if (!existsSync(join(tool, "node_modules")) || (existsSync(lock) && statSync(lock).mtimeMs > statSync(join(tool, "node_modules")).mtimeMs)) {
+      console.log("· npm ci");
+      execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: tool, stdio: "inherit", env: { ...env, NODE_ENV: "development" } });
+    }
+    if (build.command) {
+      console.log(`· ${build.command}`);
+      const [cmd, ...rest] = commandOf(build.command);
+      // A build has no Chest variable (they are the running tool's).
+      execFileSync(cmd, rest, { cwd: tool, stdio: "inherit", env: { PATH: env.PATH, HOME: env.HOME, NEXT_TELEMETRY_DISABLED: "1", NPM_CONFIG_UPDATE_NOTIFIER: "false" } });
+    }
+  }
+  // Serving the last build: say so loudly when the sources are newer, so a
+  // flow or a screenshot never checks yesterday's code by mistake.
+  const at = build.command ? builtAt() : Infinity;
+  if (at === null) {
+    console.error(`✗ no build: run \`${build.command}\` in the tool first, or pass --build (--prod serves the last build)`);
+    process.exit(1);
+  }
   const newer = [];
   const walk = dir => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (["node_modules", ".next", "docs", "test", "seed"].includes(entry.name) || entry.name.startsWith(".")) continue;
+      if (["node_modules", ".next", "dist", "build", "docs", "test", "seed", "logs"].includes(entry.name) || entry.name.startsWith(".")) continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (/\.(tsx?|css|json|mjs|sql)$/u.test(entry.name) && statSync(path).mtimeMs > at) newer.push(path.slice(tool.length + 1));
+      else if (/\.(tsx?|jsx?|css|json|mjs|sql)$/u.test(entry.name) && statSync(path).mtimeMs > at) newer.push(path.slice(tool.length + 1));
     }
   };
   walk(tool);
   if (newer.length && !flag("stale-ok")) {
-    console.error(`✗ the build is older than ${newer.length} source file(s) (e.g. ${newer.slice(0, 3).join(", ")}): run \`npm run build\` again (or pass --stale-ok)`);
+    console.error(`✗ the build is older than ${newer.length} source file(s) (e.g. ${newer.slice(0, 3).join(", ")}): run \`${build.command}\` again, or pass --build (or --stale-ok)`);
     process.exit(1);
   }
 }
-const child = spawn("npm", flag("prod") ? ["start"] : ["run", "dev"], { cwd: tool, env, stdio: ["ignore", "inherit", "inherit"] });
-child.on("exit", code => {
-  console.log(`the tool stopped (${code})`);
-  process.exit(code ?? 1);
+// The tool's log: a file per run of the harness, as the Chest keeps a
+// tool's stdout and stderr (its Logs tab), with the Chest's own lines
+// (started, asleep, woken, refused) beside them.
+const runId = new Date().toISOString().replace(/[:.]/gu, "-");
+const toolProcess = createTool({
+  cwd: tool,
+  argv: dev ? ["npm", "run", "dev"] : commandOf(build.start ?? "npm start"),
+  env,
+  port: inner,
+  logFile: join(root, "lab", "chest-dev", "logs", manifest.name, `${runId}.log`),
+  sleepAfter,
 });
+await toolProcess.start(`Started: ${dev ? "npm run dev" : build.start ?? "npm start"} (${dev ? "development" : "production"})${sleepAfter ? `, asleep after ${sleepAfter} s without a visit` : ""}`).catch(error => toolProcess.log(`✗ ${error.message}`));
+// The tool's address for a delivery (an event, a schedule's run, mail…),
+// woken first as the Chest wakes it.
+const to = async (why = "a delivery") => {
+  await toolProcess.wake(why);
+  return `http://127.0.0.1:${inner}`;
+};
 
 // Who is signed in on /chest, and in which language: cookies of the harness.
 function cookies(request) {
@@ -288,14 +482,14 @@ function cookies(request) {
 // The member signed in, as the Chest asserts them: their language, or the
 // one chosen on /_dev (the cookie keeps its name, dev_locale: flows set
 // it), and only the groups that give the tool (0.3.0: the assertion
-// carries no other).
+// carries no other) — every group with "members.groups".
 const languages = new Set(["en", "fr"]);
 function current(request) {
   const jar = cookies(request);
   const chosen = chest.members.find(m => m.id === jar["dev_member"]) ?? chest.members[0];
   const language = languages.has(jar["dev_locale"]) ? jar["dev_locale"] : null;
   const granting = new Set(chest.groups.filter(g => g.grants !== false).map(g => g.id));
-  return { ...chosen, groups: chosen.groups.filter(g => granting.has(g)), ...(language ? { language } : {}) };
+  return { ...chosen, groups: groupsRead ? chosen.groups : chosen.groups.filter(g => granting.has(g)), ...(language ? { language } : {}) };
 }
 
 function relay(request, response, target, headers) {
@@ -316,7 +510,8 @@ async function readForm(request) {
   return new URLSearchParams(Buffer.concat(chunks).toString());
 }
 
-const front = createServer(async (request, response) => {
+// The team host: the harness's /_dev, then the Chest's front.
+async function teamHost(request, response) {
   const url = new URL(request.url ?? "/", origin);
   const path = url.pathname;
   if (path === "/_dev" || path.startsWith("/_dev/")) {
@@ -341,24 +536,33 @@ const front = createServer(async (request, response) => {
           const leftAt = new Date().toISOString();
           if (gone >= 0) {
             const [who] = chest.members.splice(gone, 1);
-            chest.former.push(type === "member.erased" ? { id, erased: true, leftAt } : { id, name: who.name, leftAt });
+            chest.former.push(type === "member.erased" ? { id, status: "erased", leftAt } : { id, name: who.name, leftAt });
           } else if (type === "member.erased") {
             const known = chest.former.find(f => f.id === id);
-            if (known) { delete known.name; known.erased = true; }
+            if (known) { delete known.name; known.status = "erased"; }
           }
         }
-        const status = await chest.emit({ type, data }, `http://127.0.0.1:${inner}`);
+        // The Chest closes the pages of a member whose access is taken back
+        // (realtime: closed "access_removed").
+        if (["access.revoked", "member.removed", "member.erased"].includes(type)) chest.realtime?.revoke(id);
+        const status = await chest.deliver({ type, data }, await to(`the event ${type}`));
         console.log(`event ${type} for ${id} → ${status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/schedule") {
-        const status = await chest.run(form.get("name"), `http://127.0.0.1:${inner}`);
-        console.log(`schedule ${form.get("name")} run → ${status}`);
+        // A run of one of chest.json's schedules, now: the fake Chest posts
+        // it signed (Chest-Schedule) to POST /chest-schedules, the tool woken
+        // first as the Chest wakes it.
+        const name = form.get("name");
+        if (!schedules.some(s => s.name === name)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end(`no schedule named ${name} in chest.json`);
+        const status = await chest.run(name, await to(`a run of the schedule ${name}`));
+        runs.push({ name, scheduledAt: new Date().toISOString(), status });
+        toolProcess.log(`Schedule ${name}: run posted → ${status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/check") {
         const ok = form.get("ok") === "1";
-        const status = await chest.check(form.get("name"), `http://127.0.0.1:${inner}`, ok ? {} : { ok: false, status: 503, ms: 870, error: "status" });
+        const status = await chest.check(form.get("name"), await to("a check"), ok ? {} : { ok: false, status: 503, ms: 870, error: "status" });
         console.log(`check ${form.get("name")} ${ok ? "ok" : "failed"} → ${status}`);
         return void response.writeHead(303, back).end();
       }
@@ -373,25 +577,13 @@ const front = createServer(async (request, response) => {
         }
         return void response.writeHead(303, back).end();
       }
-      if (path === "/_dev/receive") {
-        // Proposal (studio): a new message, or a reply to one the tool sent
-        // (to its thread address when it had one, In-Reply-To its id).
-        const replied = chest.outbox.find(m => m.id === form.get("reply"));
-        const mailbox = form.get("mailbox");
-        const message = { mailbox, from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text"), ...(form.get("html") ? { html: form.get("html") } : {}), auto: form.get("auto") === "1", authenticated: form.get("forged") !== "1" };
-        if (replied) {
-          message.subject = /^re:/iu.test(replied.subject) ? replied.subject : `Re: ${replied.subject}`;
-          message.inReplyTo = replied.messageId;
-          message.references = [...(replied.references ?? []), replied.messageId];
-          if (replied.replyTo && replied.replyTo.startsWith(mailbox + "+")) message.deliveredTo = replied.replyTo;
-        }
-        const status = await chest.receive(message, `http://127.0.0.1:${inner}`);
-        console.log(`mail to ${message.deliveredTo ?? mailbox} → ${status}`);
-        return void response.writeHead(303, back).end();
-      }
       if (path === "/_dev/bounce") {
-        const status = await chest.bounce(form.get("message"), `http://127.0.0.1:${inner}`, { permanent: form.get("permanent") !== "0" });
-        console.log(`bounce of ${form.get("message")} → ${status}`);
+        // The message could not be delivered (or the person complained):
+        // mail.status(id) says so; nothing is posted to the tool.
+        const sent = chest.outbox.find(m => m.id === form.get("message"));
+        if (!sent) return void response.writeHead(404, { "Content-Type": "text/plain" }).end("no such message");
+        chest.bounce(sent.id, { permanent: form.get("permanent") !== "0", complained: form.get("complained") === "1" });
+        console.log(`bounce of ${sent.id} → ${sent.status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/feed") {
@@ -409,9 +601,8 @@ const front = createServer(async (request, response) => {
           const adding = form.get("action") === "add";
           if (adding && !group.members.includes(who.id)) { group.members.push(who.id); who.groups.push(group.id); }
           if (!adding) { group.members = group.members.filter(id => id !== who.id); who.groups = who.groups.filter(id => id !== group.id); }
-          const to = `http://127.0.0.1:${inner}`;
-          if ((manifest.receives ?? []).includes("member.*")) console.log(`event member.updated (groups) → ${await chest.emit({ type: "member.updated", data: { id: who.id, changed: ["groups"] } }, to)}`);
-          if ((proposals.receives ?? []).includes("group.*")) console.log(`event group.changed (members) → ${await chest.emit({ type: "group.changed", data: { id: group.id, changed: ["members"] } }, to)}`);
+          // 0.7.0 has no group events: member.updated (groups) only.
+          if (receives.includes("member.*")) console.log(`event member.updated (groups) → ${await chest.deliver({ type: "member.updated", data: { id: who.id, changed: ["groups"] } }, await to("the event member.updated"))}`);
         }
         return void response.writeHead(303, back).end();
       }
@@ -419,35 +610,45 @@ const front = createServer(async (request, response) => {
         // An event of another tool: its data (JSON), and optionally when it
         // happened (occurredAt, an ISO 8601 instant: an event delivered
         // late or out of order), the tool it comes from (source: the type's
-        // first part by default) and its id (evt_…: the same event twice).
+        // first part by default — 0.7.0 tells a tool's event by its source),
+        // its subject, its audience ("all", or member ids separated by
+        // commas or spaces) and its id (evt_…: the same event twice). A
+        // member's or a folder's event (member.*, access.revoked,
+        // folders.*) has no source.
         let data = {};
         try { data = JSON.parse(form.get("data") || "{}"); } catch { data = {}; }
         const occurredAt = form.get("occurredAt") ? new Date(form.get("occurredAt")) : null;
         if (occurredAt && Number.isNaN(occurredAt.getTime())) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("occurredAt: an ISO 8601 instant (2026-09-30T08:00:00Z)");
-        const event = { type: form.get("type"), data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}), ...(form.get("source") ? { source: form.get("source") } : {}), ...(form.get("id") ? { id: form.get("id") } : {}) };
-        const status = await chest.deliver(event, `http://127.0.0.1:${inner}`);
+        const type = String(form.get("type") ?? "");
+        const chestOwn = /^(member\.|access\.revoked$|folders\.)/u.test(type);
+        const audience = (form.get("audience") ?? "").trim();
+        const event = {
+          type,
+          data,
+          ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}),
+          ...(chestOwn ? {} : { source: form.get("source") || type.split(".")[0] }),
+          ...(!chestOwn && form.get("subject") ? { subject: form.get("subject") } : {}),
+          ...(!chestOwn && audience && audience !== "all" ? { audience: audience.split(/[\s,]+/u).filter(Boolean) } : {}),
+          ...(form.get("id") ? { id: form.get("id") } : {}),
+        };
+        const status = await chest.deliver(event, await to(`the event ${event.type}`));
         console.log(`event ${event.type}${event.source ? ` from ${event.source}` : ""}${event.occurredAt ? ` (occurred ${event.occurredAt})` : ""} delivered → ${status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/member") {
-        // What a member chose in the Chest (their profile): how they want
-        // email (mailPreference, Proposal (studio.15): all, digest, none —
-        // read by members.get/list/lookup, applied by mail.send) and the
-        // zone they work in (member.timeZone). No event tells the tool: the
-        // next request's assertion, and the members API, say it.
+        // What a member chose in the Chest (their profile): the zone they
+        // work in (member.timeZone). No event tells the tool: the next
+        // request's assertion, and the members API, say it. (How they get
+        // their notifications by email is the Chest's, never a tool's.)
         const who = chest.members.find(m => m.id === form.get("member"));
         if (!who) return void response.writeHead(404, { "Content-Type": "text/plain" }).end("no such member");
-        const preference = form.get("mailPreference");
-        if (preference !== null && !["all", "digest", "none", ""].includes(preference)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mailPreference: all, digest or none");
-        if (preference === "all" || preference === "") delete who.mailPreference;
-        else if (preference) who.mailPreference = preference;
         const place = form.get("timeZone");
         if (place) {
           try { new Intl.DateTimeFormat("en", { timeZone: place }); } catch { return void response.writeHead(400, { "Content-Type": "text/plain" }).end("timeZone: an IANA zone"); }
           who.timeZone = place;
         }
         chest.clearCaches();
-        console.log(`${who.name}: email ${who.mailPreference ?? "all"}, zone ${who.timeZone}`);
+        console.log(`${who.name}: zone ${who.timeZone}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/delivery") {
@@ -457,15 +658,15 @@ const front = createServer(async (request, response) => {
         // are used); webhooks ready or suspended (the owner paused them).
         const mail = form.get("mail"), hooks = form.get("webhooks");
         if (mail) {
-          if (!["ready", "not_connected", "suspended", "quota"].includes(mail)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mail: ready, not_connected, suspended or quota");
-          chest.delivery.mail = mail === "quota" ? "ready" : mail;
-          mailOptions.perDay = mail === "quota" ? 0 : 500;
+          if (mail === "quota") return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mail: no quota since 0.7.0-studio.2 (no daily number: the Chest paces, a message beyond the pace is queued)");
+          if (!["ready", "not_connected", "suspended"].includes(mail)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mail: ready, not_connected or suspended");
+          chest.delivery.mail = mail;
         }
         if (hooks) {
           if (!["ready", "suspended"].includes(hooks)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("webhooks: ready or suspended");
           chest.delivery.webhooks = hooks;
         }
-        console.log(`delivery: mail ${mailOptions.perDay === 0 ? "quota" : chest.delivery.mail}, webhooks ${chest.delivery.webhooks}`);
+        console.log(`delivery: mail ${chest.delivery.mail}, webhooks ${chest.delivery.webhooks}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/theme") {
@@ -478,6 +679,17 @@ const front = createServer(async (request, response) => {
         console.log(`look ${level === "all" ? "for all tools" : "for this tool"}: ${value}`);
         return void response.writeHead(303, back).end();
       }
+      if (path === "/_dev/sleep") {
+        // The Chest's sleep, now: the tool's process stops (SIGTERM); the
+        // next request, event or run wakes it. A tool that kept something in
+        // memory loses it here, as on a Chest.
+        await toolProcess.stop("Asleep: put to sleep from /_dev");
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/wake") {
+        await toolProcess.wake("/_dev");
+        return void response.writeHead(303, back).end();
+      }
       if (path === "/_dev/clear") {
         chest.notifications.splice(0);
         return void response.writeHead(303, back).end();
@@ -486,12 +698,19 @@ const front = createServer(async (request, response) => {
       // Chest offers it: chest.dev?.[name](form).
       const control = path.slice("/_dev/".length);
       if (typeof chest.dev?.[control] === "function") {
-        await chest.dev[control](Object.fromEntries(form), `http://127.0.0.1:${inner}`);
+        await chest.dev[control](Object.fromEntries(form), await to(`/_dev/${control}`));
         return void response.writeHead(303, back).end();
       }
       return void response.writeHead(404).end();
     }
-    const html = devPage({ manifest, proposals, chest, me: current(request), origin, zone, mailQuota: mailOptions.perDay === 0, schedulesApi: testing.schedulesApi, catalogue, sampleBrand });
+    if (path === "/_dev/logs") {
+      const html = logsPage({ manifest, entries: toolProcess.recent(), logFile: toolProcess.logFile.slice(root.length + 1), state: toolProcess.state, stream: url.searchParams.get("stream") ?? "" });
+      return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
+    }
+    if (path === "/_dev/logs.txt") {
+      return void response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }).end(toolProcess.recent().map(e => `${e.at} ${e.stream.padEnd(5)} ${e.line}`).join("\n") + "\n");
+    }
+    const html = devPage({ manifest, proposals, chest, schedules, runs, sdkVersion, me: current(request), origin, publicOrigin, zone, receives, schedulesApi: testing.schedulesApi, catalogue, sampleBrand, tool: { state: toolProcess.state, sleepAfter, logFile: toolProcess.logFile.slice(root.length + 1), statics: staticPrefixes(manifest) } });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) {
@@ -500,21 +719,169 @@ const front = createServer(async (request, response) => {
     const headers = { ...request.headers };
     delete headers["chest-member"];
     if (path === "/_chest/calendar" || path === "/_chest/calendar/new") headers["chest-member"] = testing.signAssertion(current(request));
-    return relay(request, response, { port: Number(new URL(chest.api).port) }, headers);
+    // The realtime client's question before connecting (a GET of
+    // /_chest/realtime, which renews the member's session): asked of the
+    // fake's hub as the member signed in — the only identity, whatever the
+    // query says.
+    if (path === "/_chest/realtime") request.url = realtimePath(request);
+    return relay(request, response, { port: Number(new URL(apiOrigin).port) }, headers);
   }
-  if (path === "/chest-events" || path === "/chest-mail" || path === "/chest-checks" || path === "/chest-webhooks" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
-  const headers = { ...request.headers, "x-forwarded-host": `localhost:${port}`, "x-forwarded-proto": "http" };
-  delete headers["chest-member"];
-  const first = path.split("/")[1]?.toLowerCase();
-  if (first === "chest") headers["chest-member"] = testing.signAssertion(current(request));
-  relay(request, response, { port: inner }, headers);
-});
-front.listen(port, "127.0.0.1", () => {
-  console.log(`\n${manifest.title ?? manifest.name}: ${origin}/chest  (members' part)  ·  ${origin}/  (public)  ·  ${origin}/_dev  (the harness)\n`);
+  return front(request, response, "team");
+}
+
+// The Chest's front, on both hosts (routing.mjs): what goes to the tool,
+// with or without a member, and what the Chest answers itself — logged, so a
+// page that loads a file outside the rules fails visibly.
+function front(request, response, host) {
+  const decision = route(host, { method: request.method ?? "GET", url: request.url ?? "/", headers: request.headers }, manifest, { teamOrigin: origin, publicOrigin });
+  if (decision.to === "chest") return relay(request, response, { port: Number(new URL(apiOrigin).port) }, request.headers);
+  if (!decision.to) {
+    // A browser going to a page of the other host is how it works; a file
+    // a page loads (an image, a script, a stylesheet) sent to the other host
+    // is what breaks: logged.
+    const quiet = decision.status === 302 && (host === "public" || (manifest.public && isNavigation(request.method, request.headers)));
+    if (!quiet) toolProcess.log(`front (${host} host): ${request.method} ${request.url} → ${decision.status}${decision.location ? " " + decision.location : ""}: ${decision.reason}${request.headers.referer ? ` (asked by ${request.headers.referer})` : ""}`);
+    if (decision.status === 302) return void response.writeHead(302, { Location: decision.location }).end();
+    const text = { 400: "Bad request", 403: "Forbidden", 404: "Page not found", 501: "Not implemented" }[decision.status] ?? "Refused";
+    return void response.writeHead(decision.status, { "Content-Type": "text/plain; charset=utf-8", "Content-Security-Policy": "default-src 'none'" }).end(`${text} (the Chest's front: ${decision.reason})\n`);
+  }
+  // Toward the tool: path, query and Host unchanged, every Chest-* header
+  // removed, X-Forwarded-Proto and X-Forwarded-Host set by the Chest, and
+  // the member's assertion on /chest.
+  const headers = {};
+  // The client's forwarding headers are never trusted: X-Forwarded-For,
+  // Forwarded and X-Real-IP are dropped (the Chest adds none).
+  for (const [name, value] of Object.entries(request.headers)) if (!name.startsWith("chest-") && !["x-forwarded-proto", "x-forwarded-host", "x-forwarded-for", "forwarded", "x-real-ip"].includes(name)) headers[name] = value;
+  headers["x-forwarded-proto"] = "https";
+  headers["x-forwarded-host"] = new URL(host === "team" ? origin : publicOrigin).host;
+  // Proposal (studio, SDK report §4.8): on the public host, the front tells
+  // the tool the visitor's address — the connection it accepted —, which
+  // visitors.address() reads; no client can send it (Chest-* removed above).
+  // A contract-0.4 Chest names no visitor: the header is a proposal (SDK
+  // report §4.8), sent only with --visitor-address, so public forms are
+  // tested as they will run today (every visitor unknown).
+  // With it, the front also sets Chest-Visitor, the key visitors.visitor()
+  // reads (SDK studio.2: an HMAC the Chest holds), as the fake plays it.
+  if (host === "public" && flag("visitor-address")) for (const [name, value] of typeof chest.visitorHeaders === "function" ? chest.visitorHeaders(String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "")) : new Headers({ "chest-visitor-address": String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "") })) headers[name] = value;
+  // The member's assertion and, with SDK 0.7.0, the opener ticket the
+  // Chest's front gives each member's request (Chest-Opener: sealed values
+  // and folders open with it), as 0.7.0's withMember writes them.
+  if (decision.member) {
+    const who = current(request);
+    if (typeof testing.withMember === "function") {
+      for (const [name, value] of testing.withMember(new Request(origin + "/chest"), who).headers) if (name.startsWith("chest-")) headers[name] = value;
+    } else headers["chest-member"] = testing.signAssertion(who);
+  }
+  void toTool(host, request, response, headers);
+}
+
+const pause = ms => new Promise(r => setTimeout(r, ms));
+async function toTool(host, request, response, headers) {
+  toolProcess.begin();
+  let ended = false;
+  const finish = () => { if (!ended) { ended = true; toolProcess.end(); } };
+  response.on("close", finish);
+  if (toolProcess.state !== "awake") {
+    // Asleep: the request waits for the tool (60 s at most); a browser
+    // opening a page waits 2 s, then gets the Chest's "Waking up…" page,
+    // which asks again by itself.
+    const navigation = isNavigation(request.method, request.headers);
+    const woken = toolProcess.wake(`${request.method} ${request.url}`).then(() => "awake", () => "failed");
+    const outcome = await Promise.race([woken, pause(navigation ? 2000 : 60000).then(() => "late")]);
+    if (outcome !== "awake") {
+      finish();
+      if (outcome === "late" && navigation) return void response.writeHead(503, { "Content-Type": "text/html; charset=utf-8", "Retry-After": "2", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }).end(wakingPage(manifest.title ?? manifest.name));
+      toolProcess.log(`front (${host} host): ${request.method} ${request.url} → 503: the tool ${outcome === "late" ? "did not wake within 60 s" : "could not start"}`);
+      return void response.writeHead(503, { "Content-Type": "text/plain; charset=utf-8", "Retry-After": "2" }).end("The tool is not answering (starting, or stopped): see /_dev/logs.\n");
+    }
+  }
+  const upstream = httpRequest({ host: "127.0.0.1", port: inner, path: request.url, method: request.method, headers }, answer => {
+    const out = { ...answer.headers };
+    const own = out["content-security-policy"];
+    const added = addedPolicies(host, manifest, own);
+    if (added.length) out["content-security-policy"] = [...(own === undefined ? [] : Array.isArray(own) ? own : [own]).filter(v => String(v).trim() !== ""), ...added];
+    if (out["set-cookie"]) {
+      const kept = allowedCookies(out["set-cookie"]);
+      if (kept.length !== [].concat(out["set-cookie"]).length) toolProcess.log(`front (${host} host): ${request.method} ${request.url}: a Set-Cookie removed (named __Host-chest, carrying Domain, or unreadable)`);
+      out["set-cookie"] = kept;
+    }
+    response.writeHead(answer.statusCode ?? 502, out);
+    answer.pipe(response);
+    answer.on("end", finish);
+  });
+  upstream.on("error", () => {
+    finish();
+    if (!response.headersSent) response.writeHead(502, { "Content-Type": "text/plain" }).end("The tool is not answering (starting, or stopped): see /_dev/logs.\n");
+    else response.destroy();
+  });
+  request.pipe(upstream);
+}
+
+// Where the fake's hub takes a page of the member signed in on /_dev
+// (testing-realtime.ts: the fake has no session, the member is in the
+// address).
+function realtimePath(request) {
+  return "/_chest/realtime?member=" + encodeURIComponent(current(request).id);
+}
+
+// A page's realtime connection (SDK 0.7.0's realtime/client): the
+// WebSocket on the team host's /_chest/realtime, relayed byte for byte to
+// the fake Chest's hub as the member signed in. The tool is never asked:
+// the Chest holds the connection while the tool sleeps. Any other Upgrade
+// is refused, as the Chest refuses it (routing.mjs).
+const relayed = new Set();
+function upgrade(host, request, socket, head) {
+  const decision = route(host, { method: request.method ?? "GET", url: request.url ?? "/", headers: request.headers }, manifest, { teamOrigin: origin, publicOrigin });
+  if (decision.to !== "realtime") {
+    toolProcess.log(`front (${host} host): Upgrade ${request.url} → ${decision.status}: ${decision.reason}`);
+    const text = { 403: "Forbidden", 404: "Not Found" }[decision.status] ?? "Not Implemented";
+    return void socket.end(`HTTP/1.1 ${decision.status ?? 501} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  }
+  const hub = Number(new URL(apiOrigin).port);
+  relayed.add(socket);
+  socket.on("close", () => relayed.delete(socket));
+  const upstream = connectSocket(hub, "127.0.0.1", () => {
+    const lines = [`GET ${realtimePath(request)} HTTP/1.1`, `Host: 127.0.0.1:${hub}`];
+    // The handshake's own headers only: no cookie, no Chest-* header.
+    for (let i = 0; i < request.rawHeaders.length; i += 2) {
+      const name = request.rawHeaders[i];
+      if (/^(upgrade|connection|sec-websocket-(key|version|protocol|extensions)|origin|user-agent)$/iu.test(name)) lines.push(`${name}: ${request.rawHeaders[i + 1]}`);
+    }
+    upstream.write(lines.join("\r\n") + "\r\n\r\n");
+    if (head?.length) upstream.write(head);
+    socket.pipe(upstream).pipe(socket);
+  });
+  const end = () => { socket.destroy(); upstream.destroy(); };
+  upstream.on("error", end);
+  socket.on("error", end);
+  upstream.on("close", () => socket.destroy());
+  socket.on("close", () => upstream.destroy());
+}
+
+const tls = certificate();
+const team = createServer(tls, teamHost);
+const publicHost = createServer(tls, (request, response) => front(request, response, "public"));
+team.on("upgrade", (request, socket, head) => upgrade("team", request, socket, head));
+publicHost.on("upgrade", (request, socket, head) => upgrade("public", request, socket, head));
+team.listen(port, "127.0.0.1", () => {
+  publicHost.listen(publicPort, "127.0.0.1", () => {
+    console.log(`\n${manifest.title ?? manifest.name}: ${origin}/chest  (team host)  ·  ${manifest.public ? `${publicOrigin}/  (public host)` : `${publicOrigin}  (public host: no public part, 404)`}  ·  ${origin}/_dev  (the harness)  ·  logs: ${toolProcess.logFile.slice(root.length + 1)}\n`);
+  });
 });
 
+// Stopping: the tool, the pages' realtime connections (a relayed socket
+// keeps the fake's server open), the feeds' listener, the fake Chest — and
+// out after 5 s whatever still hangs.
+let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, async () => {
-  child.kill("SIGTERM");
-  await chest.close();
+  if (stopping) return;
+  stopping = true;
+  setTimeout(() => process.exit(0), 5000).unref();
+  await toolProcess.close();
+  for (const socket of relayed) socket.destroy();
+  await Promise.race([feeds?.close(), pause(2000)]);
+  toolApi.closeAllConnections();
+  toolApi.close();
+  await Promise.race([chest.close(), pause(2000)]);
   process.exit(0);
 });

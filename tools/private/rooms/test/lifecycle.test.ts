@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as desks from "../lib/desk-bookings.ts";
-import { addDays, today } from "../lib/model.ts";
-import * as places from "../lib/places.ts";
-import { presenceOf, setPresence } from "../lib/presence.ts";
-import * as rooms from "../lib/room-bookings.ts";
+import { builtServer, type Handler } from "./support/server.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { addDays, today } from "../src/shared/model.ts";
+import * as places from "../src/lib/places.ts";
+import { presenceOf, setPresence } from "../src/lib/presence.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -15,7 +15,9 @@ import { office, workday, zone } from "./support/places.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
   chest = await fakeChest({ members: everyone });
   o = await office(database.sql);
@@ -36,7 +38,7 @@ test("someone who leaves: their coming bookings are cancelled and their guests t
   // A booking of the past, written as it would have been.
   await sql`insert into desk_bookings (desk_id, member_id, day, part, during) values (${o.desks[1]!}, ${hugo.id}, ${addDays(today(zone), -7)}, 'day', tstzrange(now() - interval '8 days', now() - interval '7 days'))`;
   chest.notifications.length = 0;
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
   assert.deepEqual(await rooms.roomDay(sql, asMember(ines), o.office, d, zone).then(b => b.map(x => [x.id, x.attendees])), [[invited.bookings[0]!.id, [ines.id]]]);
   assert.equal((await desks.deskDay(sql, asMember(ines), o.office, workday(2))).some(b => b.id === desk.id), false);
   assert.equal((await presenceOf(sql, [hugo.id], d, d)).get(hugo.id), undefined);
@@ -47,8 +49,8 @@ test("someone who leaves: their coming bookings are cancelled and their guests t
   // Inès, invited to Hugo's meeting, hears it is cancelled, in French.
   const told = chest.notifications.filter(n => n.member === ines.id);
   assert.equal(told.length, 1);
-  assert.equal(told[0]!.title, "Réunion annulée : Hugo's review");
-  assert.match(told[0]!.body ?? "", /L’organisateur est parti/u);
+  assert.equal((told[0]!).title, "Réunion annulée\u202f: Hugo's review");
+  assert.match((told[0]!).body ?? "", /L’organisateur est parti/u);
   assert.equal(told[0]!.key, `room:${mine.bookings[0]!.id}`);
 });
 
@@ -61,8 +63,8 @@ test("an erasure anonymises the past, deletes presence, and is acknowledged once
   await sql`insert into room_bookings (room_id, member_id, title, day, during) values (${o.bora}, ${sofia.id}, 'Old', ${addDays(today(zone), -3)}, tstzrange(now() - interval '3 days', now() - interval '3 days' + interval '1 hour'))`;
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: sofia.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   for (const table of ["desk_bookings", "room_bookings", "room_attendees", "presence", "member_prefs"]) {
     const [left] = await sql.unsafe(`select count(*)::int as n from ${table} where member_id = $1`, [sofia.id]);
     assert.equal(left!["n"], 0, table);

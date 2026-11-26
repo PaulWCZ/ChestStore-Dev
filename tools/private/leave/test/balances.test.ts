@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addDays, addMonths } from "../lib/calendar.ts";
-import * as balances from "../lib/balances.ts";
-import { planImport } from "../lib/import.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { today } from "../lib/today.ts";
-import { types } from "../lib/rules.ts";
-import { setApprover, setStartDate } from "../lib/staff.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addDays, addMonths } from "../src/shared/calendar.ts";
+import * as balances from "../src/lib/balances.ts";
+import { planImport } from "../src/lib/import.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { today } from "../src/lib/today.ts";
+import { types } from "../src/lib/rules.ts";
+import { setApprover, setStartDate } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, lea, sofia, tom } from "./support/members.ts";
@@ -22,7 +22,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
   rtt = all.find(t => t.key === "rtt")!.id;

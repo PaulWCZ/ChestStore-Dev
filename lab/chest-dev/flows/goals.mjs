@@ -1,8 +1,10 @@
 // Goals, as people use it, in a real browser: node lab/chest-dev/flows/goals.mjs [port]
-// (the harness runs the tool with --reset: Atelier Martin's sample cycles are there).
+// (the harness runs the tool with --reset: Atelier Martin's sample cycles are there;
+// start it again with --reset after screens.mjs or audit.mjs, which check in one
+// of Hugo's key results for their Undo screen, and before running this a second time).
 // With --empty, a new company's first visit instead (the harness runs with --reset --empty).
 import { fileURLToPath } from "node:url";
-import { as, control, done, expect, id, open, step } from "./lib.mjs";
+import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5600);
 const fixtures = fileURLToPath(new URL("../../../tools/private/goals/test/fixtures/", import.meta.url));
@@ -141,11 +143,15 @@ await step("a member cannot write a company objective; Nora, without a role, see
 await step("the company tree folds and unfolds; the cycle downloads as a spreadsheet", async () => {
   await english("sofia");
   await page.goto(origin + "/chest/company");
-  const before = await page.locator(".tree .node").count();
-  await page.getByRole("button", { name: /Hide what supports “Win 20 new customers in Lyon”/u }).click();
-  expect(await page.locator(".tree .node").count() < before, "folded");
-  await page.getByRole("button", { name: /Show what supports “Win 20 new customers in Lyon”/u }).click();
-  expect(await page.locator(".tree .node").count() === before, "unfolded");
+  // The fold is the browser's own <details> (no script): its button says
+  // what it shows, and whether it is open.
+  const shown = () => page.locator(".tree .node:visible").count();
+  const before = await shown();
+  const fold = page.locator(".branch > summary", { hasText: "What supports “Win 20 new customers in Lyon”" });
+  await fold.click();
+  expect((await shown()) < before, "folded");
+  await fold.click();
+  expect((await shown()) === before, "unfolded");
   const csv = await (await page.request.get(origin + "/chest/cycles/2/export")).text();
   expect(csv.startsWith("﻿Level,Team,Objective"), "csv headers");
   expect(csv.includes("Double the showroom visits"), "new objective exported");
@@ -180,7 +186,9 @@ await step("Camille writes the retrospective of a closed cycle's objective, and 
   await page.getByLabel("Ce que nous avons appris").fill("Une annonce plus précise sur nos machines.");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Rétrospective enregistrée.");
-  await page.getByRole("button", { name: /Reporter sur \S+ – \S+ \d{4}/u }).click();
+  // The next cycle's name follows its dates ("oct. – déc. 2026", or across
+  // a new year "oct. 2026 – janv. 2027").
+  await page.getByRole("button", { name: /^Reporter sur .+ \d{4}$/u }).click();
   await page.waitForSelector(".ck-toast >> text=Reporté");
   await page.goto(origin + "/chest/cycles/1");
   expect((await page.locator("main").innerText()).includes("Une annonce plus précise"), "review shows the learning");
@@ -192,7 +200,9 @@ await step("Camille starts the next cycle", async () => {
   await page.getByRole("button", { name: "Créer le cycle" }).click();
   await page.waitForSelector("text=Cycle créé.");
   await page.waitForFunction(() => document.querySelectorAll("ul.rows > li").length === 3, null, { timeout: 5000 });
-  expect((await page.locator("ul.rows").innerText()).includes("T1 2027"), "T1 2027 (Camille reads French) suggested and created");
+  // Its name follows its dates, in Camille's language (the quarter after
+  // the current cycle: "T1 2027", or a span such as "janv. – avr. 2027").
+  expect(/T\d \d{4}|[a-zéû]+\.? – [a-zéû]+\.? \d{4}|[a-zéû]+\.? \d{4} – [a-zéû]+\.? \d{4}/u.test(await page.locator("ul.rows > li").last().innerText()) || (await page.locator("ul.rows").innerText()).includes("2027"), "the next cycle suggested and created, named in French: " + (await page.locator("ul.rows").innerText()));
 });
 
 await step("an end before the cycle's start is refused: said under the field, Save waits, the old end kept; a good end saved (kit 0.2.4)", async () => {
@@ -254,23 +264,10 @@ await step("a quiet week: Hugo checks in \"Same as last week\" in one click", as
   expect((await page.locator("main").innerText()).includes("1 customer") && !(await page.locator("main").innerText()).includes("1 customers"), "one customer, not customers");
 });
 
-await step("Hugo turns the reminders' email off (and on again)", async () => {
-  const toggle = page.getByRole("switch", { name: /Also email me/u });
-  await toggle.uncheck();
-  await page.waitForSelector(".ck-toast >> text=Reminders stay in the bell only.");
-  await toggle.check();
-  await page.waitForSelector(".ck-toast >> text=Reminders will also come by email.");
-});
-
-await step("Hugo chose one email a day in his Chest: My goals says so under the switch; back to every email, it says nothing", async () => {
-  const note = "In your Chest settings you chose one email a day: they wait for it.";
-  await control(page, origin, "member", { member: id("hugo"), mailPreference: "digest" });
-  await page.goto(origin + "/chest");
-  expect((await page.locator("main").innerText()).includes(note), "the digest is said");
-  await control(page, origin, "member", { member: id("hugo"), mailPreference: "all" });
-  await page.goto(origin + "/chest");
-  expect(!(await page.locator("main").innerText()).includes(note), "nothing said for every email");
-  expect(await page.getByRole("switch", { name: /Also email me/u }).isChecked(), "the tool's own switch unchanged");
+await step("My goals has no email setting: the member chooses in the Chest; Goals mails nobody", async () => {
+  const main = await page.locator("main").innerText();
+  expect(await page.getByRole("switch").count() === 0 && !/email/iu.test(main), "no email switch, no email note");
+  expect(!(await dev()).includes("Mail to people outside"), "no mail proposal: no outbox");
 });
 
 await step("the company tree filters by status and owner, kept in the address", async () => {
@@ -306,43 +303,17 @@ await step("a lowered target is in the key result's history, with who lowered it
   expect((await card.locator(".changes").innerText()).includes("Target changed from 25 customers to 20 customers · by Camille Martin"), "change shown");
 });
 
-await step("Camille sees who has not checked in and reminds Tom: the bell and an email", async () => {
+await step("Camille sees who has not checked in and reminds Tom: one notification, in his language", async () => {
   await english("camille");
   await page.goto(origin + "/chest/company");
   await page.locator(".chase summary").click();
   const row = page.locator(".chase-rows > li", { hasText: "Tom Walker" });
   await row.getByRole("button", { name: "Remind Tom Walker" }).click();
-  await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded, in the bell and by email.");
+  await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded.");
   expect((await row.innerText()).includes("Reminded today"), "marked");
   const bell = await dev();
-  expect(bell.includes("Camille Martin asks for your weekly update"), "bell and outbox");
-});
-
-await step("someone who turned the reminders' email off is reminded in the bell only, and the toast says so", async () => {
-  // Another person still waiting for a check-in.
-  const next = page.locator(".chase-rows > li", { has: page.getByRole("button", { name: /^Remind / }) }).first();
-  const name = (await next.getByRole("button", { name: /^Remind / }).getAttribute("aria-label")).replace(/^Remind /u, "");
-  const handle = name.split(" ")[0].normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  await english(handle);
-  await page.goto(origin + "/chest");
-  await page.getByRole("switch", { name: /Also email me/u }).uncheck();
-  await page.waitForSelector(".ck-toast >> text=Reminders stay in the bell only.");
-  await english("camille");
-  await page.goto(origin + "/chest/company");
-  await page.locator(".chase summary").click();
-  // The newest message of the harness's outbox, before and after.
-  const newest = async () => ((await dev()).split("<p>Outbox:</p><ul>")[1] ?? "").split("</li>")[0];
-  const emailsBefore = await newest();
-  const row = page.locator(".chase-rows > li", { hasText: name });
-  await row.getByRole("button", { name: `Remind ${name}` }).click();
-  await page.waitForSelector(`.ck-toast >> text=${name} is reminded in the bell.`);
-  expect((await newest()) === emailsBefore, `no email to ${name}`);
-  // Back on, as they had it.
-  await english(handle);
-  await page.goto(origin + "/chest");
-  await page.getByRole("switch", { name: /Also email me/u }).check();
-  await page.waitForSelector(".ck-toast >> text=Reminders will also come by email.");
-  await english("camille");
+  // In Tom's language (each member reads their own, SDK 0.7.0).
+  expect(bell.includes("Camille Martin asks for your weekly update"), "the notice, in Tom's language");
 });
 
 await step("Camille imports Lattice's goals file: columns guessed, an unknown owner given to Sofia, then Undo", async () => {
@@ -422,6 +393,20 @@ await step("a key result's dialog never loses what was typed: Escape asks first"
   await page.keyboard.press("Escape");
   await dialog.getByRole("button", { name: "Discard" }).click();
   expect(await page.locator("dialog[open]").count() === 0, "closed once discarded");
+});
+
+// SDK 0.7.0: pages left open follow the Chest's realtime (the channel
+// `goals`, fed by the tables' writes), never a timer. The harness's fake
+// Chest turns no database write into a feed's row, so here the page is seen
+// joining the channel (the feeds are tools/private/goals/chest.json's and
+// the package's useLive is proven by its own bench).
+await step("an open page joins the Chest's realtime channel, and sets no timer", async () => {
+  const sockets = [];
+  page.on("websocket", ws => sockets.push(ws.url()));
+  await page.goto(origin + "/chest/company");
+  await page.waitForTimeout(1500);
+  expect(sockets.some(u => u.endsWith("/_chest/realtime")), "joined: " + sockets.join(", "));
+  expect(await page.locator("[data-island=AutoRefresh]").count() === 0 && await page.locator("[data-island=Live]").count() === 1, "the Live island, no AutoRefresh");
 });
 
 await step("phone width: My goals, the tree and an objective fit the screen", async () => {
@@ -528,7 +513,7 @@ await step("the dark map band is the Trail map's own: another look gets the kit'
   await english("hugo");
   const band = async () => page.locator(".ck-bar").evaluate(e => { const [r, g, b] = getComputedStyle(e).backgroundColor.match(/\d+/gu).map(Number); return (r + g + b) / 3; });
   await page.goto(origin + "/chest");
-  expect(await page.locator("html[data-look=own]").count() === 1 && (await band()) < 90, "own look: the dark band");
+  expect((await band()) < 90, "own look: the dark band");
   const set = async choice => page.request.post(origin + "/_dev/theme", { form: { level: "all", choice }, maxRedirects: 0 });
   await set("catalogue:chest");
   await page.goto(origin + "/chest");

@@ -1,0 +1,10 @@
+{
+  "name": "starter-bench",
+  "private": true,
+  "type": "module",
+  "description": "Measures Perseus starters the same way (install, build, memory at rest, cold start, browser bytes, axe) and drives the starter in a real browser. A lab tool, never part of a tool.",
+  "dependencies": {
+    "axe-core": "4.10.3",
+    "playwright-core": "1.56.1"
+  }
+}

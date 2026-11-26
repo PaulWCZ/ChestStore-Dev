@@ -86,3 +86,23 @@ Good: archive-not-delete everywhere, Undo toasts, per-card history, a JSON expor
 14. Minors: Markdown description, several checklists, due time, duplicate card, dark header tint, locale-proof date input, seed dates. **S each**
 
 Harness note: `lab/chest-dev/dev.mjs` says "--reset starts it empty", but line 94 loads `seed/sample.sql` whenever the database is fresh, so `--reset` always seeds. An `--empty` flag is needed to judge first visits. I emptied the tables by hand.
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Tasks's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **142.2 → 74.7 MiB**;
+  image 461 → 32 MiB; first members' page 761 →
+  382 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: drag between columns without a render loop (React error #185 near the bottom of an empty column, or after Escape); one panel per card, the focus given back to the card that opened it; cards keep the order they were typed in — every path that places a card locks its column, with concurrent-add tests that fail without the lock on PostgreSQL (`ba2e41e`). Pages left open re-read themselves only when their reader comes back (the package's `useAutoRefresh`, `c1a83b7`).
+- **Pending**: Nothing listed as pending in its commits.

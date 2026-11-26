@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { provide } from "../../lib/db.ts";
+import { provide } from "../../src/lib/db.ts";
 
 // A fresh database for a test file, with the tool's migrations run as the
 // Chest runs them (in name order, each in its own transaction, recorded in
@@ -39,12 +39,15 @@ export async function testDatabase(options: { until?: string; timeZone?: string 
   if (!/^[A-Za-z0-9_+\/-]+$/u.test(zone)) throw new Error("not a zone: " + zone);
   const server = process.env["TEST_DATABASE_URL"];
   if (server) {
+    // The Chest's shape: a role t_<tool> owning its database (databaseUrl()
+    // refuses any other, so the built server checks it too).
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
     const admin = postgres(server, { max: 1, onnotice: () => {} });
-    await admin.unsafe(`create database ${name}`);
+    await admin.unsafe(`create role ${name} login password 'test'`);
+    await admin.unsafe(`create database ${name} owner ${name}`);
     await admin.unsafe(`alter database ${name} set timezone to '${zone}'`);
     const base = new URL(server);
-    const url = `postgres://${base.username}:${base.password}@127.0.0.1:${base.port || 5432}/${name}`;
+    const url = `postgres://${name}:test@127.0.0.1:${base.port || 5432}/${name}?sslmode=disable`;
     const sql = postgres(url, { max: 4, onnotice: () => {} });
     await migrate(sql, options.until);
     process.env["DATABASE_URL"] = url;
@@ -56,6 +59,7 @@ export async function testDatabase(options: { until?: string; timeZone?: string 
         provide(undefined);
         await sql.end();
         await admin.unsafe(`drop database if exists ${name} with (force)`);
+        await admin.unsafe(`drop role if exists ${name}`);
         await admin.end();
       },
     };
@@ -68,12 +72,15 @@ export async function testDatabase(options: { until?: string; timeZone?: string 
   const pg = await PGlite.create({ extensions: { pg_trgm, unaccent, btree_gist } });
   // PGlite is one session, which every connection of the socket shares.
   await pg.exec(`set time zone '${zone}'`);
-  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
+  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1", maxConnections: 8 });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();
   const port = address?.port ?? 0;
   // The shape of the Chest's address (lib/db.ts checks it through the SDK).
   const url = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
+  // One connection for the built server too (src/lib/db.ts reads it):
+  // PGlite is one session, two transactions at once would mix there.
+  process.env["DATABASE_POOL_MAX"] = "1";
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   await migrate(sql, options.until);
   process.env["DATABASE_URL"] = url;

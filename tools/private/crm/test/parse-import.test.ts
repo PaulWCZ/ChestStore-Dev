@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { dayOf, endOf, firstName, guessMapping, mapRow, readTable } from "../lib/parse-import.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { dayOf, endOf, firstName, guessMapping, mapRow, readTable } from "../src/shared/parse-import.ts";
 
 test("HubSpot's exports: their headers find their fields", () => {
   assert.deepEqual(guessMapping("contacts", ["Record ID", "First Name", "Last Name", "Email", "Phone Number", "Mobile Phone Number", "Job Title", "Associated Company", "Contact owner", "Lifecycle Stage"]),
@@ -14,7 +14,7 @@ test("HubSpot's exports: their headers find their fields", () => {
 
 test("Pipedrive's exports (English and French) and French spreadsheets", () => {
   assert.deepEqual(guessMapping("deals", ["Deal - Title", "Deal - Value", "Deal - Currency", "Deal - Organization", "Deal - Contact person", "Deal - Stage", "Deal - Status", "Deal - Owner", "Deal - Expected close date", "Deal - Lost reason"]),
-    ["title", "value", "keep", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
+    ["title", "value", "currency", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
   assert.deepEqual(guessMapping("contacts", ["Person - Name", "Person - Organization", "Person - Email - Work", "Person - Email - Home", "Person - Phone - Work", "Person - Labels", "Person - Owner"]),
     ["name", "company", "email", "keep", "phone", "tags", "owner"]);
   assert.deepEqual(guessMapping("companies", ["Organisation - Nom", "Organization - Address", "Organization - Owner", "Organization - Labels"]),

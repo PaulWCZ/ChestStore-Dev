@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as posts from "../lib/posts.ts";
-import { recordView } from "../lib/views.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import * as posts from "../src/lib/posts.ts";
+import { recordView } from "../src/lib/views.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -12,7 +12,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -30,11 +30,11 @@ test("leaving (or losing access) removes answers to events still to come; the re
   // The second event is over by now.
   await sql`update posts set event_day = '2026-01-01' where id = ${past.id}`;
   await posts.visit(sql, asMember(ines));
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.removed", data: { id: ines.id } }, POST), 204);
   const left = await sql<{ post_id: string }[]>`select post_id from rsvps where member = ${ines.id}`;
   assert.deepEqual(left.map(r => String(r.post_id)), [past.id]);
   assert.equal((await sql`select 1 from visits where member = ${ines.id}`).length, 0);
-  assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
 });
 
 test("an erasure leaves the company's posts unsigned, removes the person's own records, and is acknowledged once", async () => {
@@ -52,9 +52,9 @@ test("an erasure leaves the company's posts unsigned, removes the person's own r
   const erasure = "era_" + b32("a");
   const event = { type: "member.erased" as const, id: "evt_" + b32("b"), data: { id: camille.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   const erasureHugo = "era_" + b32("c");
-  assert.equal(await chest.emit({ type: "member.erased", id: "evt_" + b32("d"), data: { id: hugo.id, erasure: erasureHugo, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.deliver({ type: "member.erased", id: "evt_" + b32("d"), data: { id: hugo.id, erasure: erasureHugo, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, POST), 204);
   const d = await posts.post(sql, asMember(ines), mine.id, { zone });
   assert.equal(d.author, "erased");
   assert.equal(d.welcome, "erased");

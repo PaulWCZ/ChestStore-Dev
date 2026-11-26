@@ -79,5 +79,9 @@ if (existsSync(lockPath)) {
   writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
 }
 rmSync(join(tool, "node_modules", "@argentic", "chest-ui"), { recursive: true, force: true });
-if (existsSync(join(tool, "node_modules"))) execFileSync("npm", ["install", "--no-audit", "--no-fund"], { cwd: tool, stdio: ["ignore", "ignore", "inherit"] });
-console.log(`${basename(tool)}: @argentic/chest-ui → file:vendor/${tarball}${existsSync(join(tool, "node_modules")) ? " (installed)" : " (run npm install in " + target + ")"}`);
+// Without node_modules, the lockfile is still brought up to date (the new
+// tarball's integrity, nothing installed): `npm ci`, the Chest's install,
+// refuses a lockfile that does not match package.json.
+const installed = existsSync(join(tool, "node_modules"));
+execFileSync("npm", installed ? ["install", "--no-audit", "--no-fund"] : ["install", "--package-lock-only", "--no-audit", "--no-fund"], { cwd: tool, stdio: ["ignore", "ignore", "inherit"] });
+console.log(`${basename(tool)}: @argentic/chest-ui → file:vendor/${tarball}${installed ? " (installed)" : " (lockfile updated; npm ci installs it)"}`);

@@ -2,23 +2,27 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Bricolage Grotesque (font) | [The Bricolage Grotesque Project Authors](https://github.com/ateliertriay/bricolage), via `@fontsource-variable/bricolage-grotesque` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-bricolage-grotesque.txt` |
-| Instrument Sans (font) | [The Instrument Sans Project Authors](https://github.com/Instrument/instrument-sans), via `@fontsource-variable/instrument-sans` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-instrument-sans.txt` |
-| dnd-kit | `@dnd-kit/core` 6.3.1, `@dnd-kit/utilities` 3.2.2 | MIT | npm dependency (the board) |
+| Bricolage Grotesque (font) | [The Bricolage Grotesque Project Authors](https://github.com/ateliertriay/bricolage), via `@fontsource-variable/bricolage-grotesque` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-bricolage-grotesque.txt` |
+| Instrument Sans (font) | [The Instrument Sans Project Authors](https://github.com/Instrument/instrument-sans), via `@fontsource-variable/instrument-sans` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-instrument-sans.txt` |
+| dnd-kit | `@dnd-kit/core` 6.3.1, `@dnd-kit/utilities` 3.2.2 | MIT | npm dependency (the board), bundled into the server by Vite |
 
 Code copied from the studio's own tools (same licence, same studio):
-`lib/csv.ts`, `lib/public-origin.ts`, `lib/i18n/format.ts`, the board's
+`src/shared/csv.ts`, `src/lib/public-origin.ts`, `src/shared/format.ts`, the board's
 keyboard and drag patterns (Tasks, Support, Booking). The studio's UI kit
 `@argentic/chest-ui` (MIT, © 2026 Argentic) is vendored in `vendor/`: the
-theme, the look's runtime and the shared components.
+theme, the look's runtime and the shared components; so is the studio's
+package `@argentic/chest-app` (MIT, © 2026 Argentic): the server's pages,
+actions, islands and tests.
 
 Ideas, no code (reports/02-open-source/hiring.md): stages per job and
 rating on cards (Horilla, LGPL — ideas only), explicit "move to" actions and
 reasons for rejection (OrangeHRM, GPL — ideas only), structured interview
 feedback (Frappe HR, GPL — ideas only), activity log per candidate
 (OpenCATS, MPL/CPL — ideas only). Dependencies from npm under their own
-licences: `next`, `react`, `react-dom` (MIT), `postgres` (Unlicense),
-`@argentic/chest-sdk` (MIT, the studio's working copy in `vendor/`).
+licences: `hono`, `@hono/node-server`, `react`, `react-dom` (MIT),
+`postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the studio's working
+copy in `vendor/`); to build and test only: `vite`, `typescript` (MIT,
+Apache-2.0), `@electric-sql/pglite` (Apache-2.0).
 Icons drawn for this tool.
 
 ## Formats followed (read 2026-09-29)
@@ -37,7 +41,7 @@ tests check what they say (`test/reach.test.ts`).
 | Welcome to the Jungle ATS | https://help.welcometothejungle.com/en/export-your-applications-from-welcome-to-the-jungle-solutions-ats | A per-candidate CSV: `test/fixtures/wttj-candidats.csv` is a French spreadsheet in that spirit, not a real export |
 | Workable | https://help.workable.com/hc/en-us/articles/115014887828-How-do-I-export-candidate-data | A full export is a ZIP of CSVs with résumés in folders: the importer reads the candidates CSV and CVs named with the candidate's email |
 | iCalendar | RFC 5545 (through the SDK's `calendar.ics`) | The invitation's `.ics` |
-| ZIP | PKWARE APPNOTE (the common subset) | `lib/zip.ts` writes, `lib/unzip.ts` reads — no dependency |
+| ZIP | PKWARE APPNOTE (the common subset) | `src/lib/zip.ts` writes, `src/shared/unzip.ts` reads — no dependency |
 
 Share links: `https://www.linkedin.com/sharing/share-offsite/?url=` and
 `https://x.com/intent/post?text=&url=` are opened by the recruiter's

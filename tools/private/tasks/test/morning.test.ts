@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { chestToday } from "../lib/clock.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { morning, reminder } from "../lib/morning.ts";
-import * as reminders from "../lib/reminders.ts";
-import { addDays } from "../lib/repeat.ts";
+import { onSchedule as POST } from "../src/lib/deliveries.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { chestToday } from "../src/lib/clock.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { morning, reminder } from "../src/lib/morning.ts";
+import * as reminders from "../src/lib/reminders.ts";
+import { addDays } from "../src/shared/repeat.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, seen } from "./support/members.ts";
 
 // The weekday morning: one reminder per person, in their language, of what
 // is due today and late — replaced, never doubled; taken back when nothing
@@ -22,9 +22,11 @@ import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+let chestZone: string | undefined;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "morning", cron: "30 7 * * 1-5" }] });
+  chest = await fakeChest({ members: everyone, network: {} });
+  chestZone = process.env["CHEST_TIME_ZONE"];
 });
 after(async () => {
   await chest.close();
@@ -36,10 +38,16 @@ beforeEach(async () => {
   await database.sql`delete from reminders`;
   chest.notifications.length = 0;
   chest.badges.clear();
+  process.env["CHEST_TIME_ZONE"] = chestZone;
 });
 
-const run = (scheduledAt: string, timeZone: string): Run => ({ id: "run_" + "a".repeat(26), name: "morning", scheduledAt, attempt: 1, timeZone });
-const bell = () => chest.notifications.map(n => [n.member, n.title, n.body, n.key, n.path]);
+// A run of the morning at that instant, on a Chest in that zone (a run is
+// read on the Chest's clock: chest.timeZone, CHEST_TIME_ZONE).
+const run = (scheduledAt: string, timeZone: string): Run => {
+  process.env["CHEST_TIME_ZONE"] = timeZone;
+  return { id: "run_" + "a".repeat(26), name: "morning", scheduledAt, attempt: 1 };
+};
+const bell = () => chest.notifications.map(n => [n.member, seen(n).title, seen(n).body, n.key, n.path]);
 
 async function board(options: { visibility?: "team" | "private" } = {}) {
   const b = await boards.createBoard(database.sql, asMember(hugo), { name: "Morning", ...options }, en.templates.columns);
@@ -112,7 +120,7 @@ test("the reminder is taken back the morning nothing is due, or as soon as the l
   assert.deepEqual(bell().map(n => n[0]), [ines.id, hugo.id]);
   // Inès does hers: her item goes at once (the action refreshes her tile).
   await cards.moveCard(sql, asMember(ines), one.id, done.id, null, null);
-  const { refreshBadges } = await import("../lib/tell.ts");
+  const { refreshBadges } = await import("../src/lib/tell.ts");
   await refreshBadges(sql, [ines.id]);
   assert.deepEqual(bell().map(n => n[0]), [hugo.id]);
   // Hugo's card moves to next year: the next morning takes his item back.

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arriving, newcomers, tenure, thisMonth } from "../lib/calendar.ts";
-import { AppError } from "../lib/errors.ts";
-import { addDays, birthday, clean, day, dueState, fold, offset, phone, skills } from "../lib/model.ts";
-import { orgChart } from "../lib/tree.ts";
+import { arriving, newcomers, tenure, thisMonth } from "../src/shared/calendar.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { addDays, birthday, clean, day, dueState, fold, offset, phone, skills } from "../src/shared/model.ts";
+import { orgChart } from "../src/shared/tree.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -68,19 +68,17 @@ test("newcomers, arrivals, this month's birthdays and anniversaries", () => {
   assert.deepEqual(tenure("2026-09-22", "2026-09-28"), { years: 0, months: 0, days: 6 });
 });
 
-test("zones: a member's own day, the Chest's when they have none", async () => {
-  const { todayOf, zoneOf } = await import("../lib/zone.ts");
+test("zones: a member's clock is theirs, \"today\" is the company's for everyone", async () => {
+  const { today, zoneOf } = await import("../src/lib/zone.ts");
   const { fakeChest } = await import("@argentic/chest-sdk/testing");
-  const chest = await fakeChest({ chest: { timeZone: "Europe/Paris" } });
+  const chest = await fakeChest({ capabilities: ["members", "files", "notifications", "ai", "sealed"], network: {}, chest: { timeZone: "Europe/Paris" } });
   try {
     assert.equal(zoneOf(null), "Europe/Paris");
     assert.equal(zoneOf({ timeZone: "America/Montreal" }), "America/Montreal");
     assert.equal(zoneOf({}), "Europe/Paris");
-    // 03:30 UTC on 1 October: still 30 September in Montreal.
-    const at = Date.parse("2026-10-01T03:30:00Z");
-    assert.equal(todayOf({ timeZone: "America/Montreal" }, at), "2026-09-30");
-    assert.equal(todayOf({ timeZone: "Europe/Paris" }, at), "2026-10-01");
-    assert.equal(todayOf(null, at), "2026-10-01");
+    // "Today" is the company's day (SDK 0.7.0), whoever reads it.
+    const { chest: company } = await import("@argentic/chest-sdk/chest");
+    assert.equal(today(), company.today());
   } finally {
     await chest.close();
   }

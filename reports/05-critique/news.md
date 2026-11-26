@@ -75,3 +75,23 @@ Good: Undo on delete (kept 30 days), a draft kept in the browser, the CSE paragr
 9. @mentions and replies. **S/M**
 10. Slack channel import; export all posts. **M**
 11. Minors: the French button label, phone tabs, the welcome block, pin expiry, stemming, a second language. **S each**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from News's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-package`; PSS of the
+  server's process tree at rest, median of 5): **119.9 → 66.6 MiB**;
+  image 475 → 28 MiB; first members' page 820 →
+  460 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: the export streamed (a ZIP written as it is sent, one file at a time: 8 files of 20 MB peak at 177 MiB RSS from 99 at rest); the Slack import counted while read (50 MB) and capped at 64 MiB inflated; date and list formatters made once; the editor's frame while it loads; the focus after "I have read it"; a reader gets a 404 on every publisher's page (`eba4e48`).
+- **Pending**: Nothing listed as pending in its commits.

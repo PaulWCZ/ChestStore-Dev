@@ -33,11 +33,19 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   2026 allowances for staff working away (meal 21,40 €, night 76,60 € in
   Paris and the inner suburbs, 56,80 € elsewhere — to check each January);
   the accountant adds the company's own per diems.
-- **Other currencies.** An expense in pounds or yen takes the rate its
-  owner types (the one on their card statement) or the company's rate for
-  that currency (*Settings → Company*); its amount in euros is shown,
-  counted in totals, paid back and booked. Without any rate it stays apart,
-  with a warning.
+- **Other currencies.** The currency people are paid back in is the
+  tool's own setting (*Settings → Company*, EUR until the accountant picks
+  another; the Chest has no currency). An expense in pounds or yen keeps
+  its own currency and takes the rate its owner types (the one on their
+  card statement) or the company's rate for that currency; its amount in
+  the reimbursement currency is shown, counted in totals, paid back and
+  booked. Without any rate it stays apart, with a warning. Totals are
+  never added across currencies (one total per currency). Every amount the
+  company sets keeps its code too: a category's limit, a flat rate and the
+  mileage scale are in the currency they were entered in, so changing the
+  reimbursement currency never turns €50 into £50 — the settings say "In
+  EUR" next to such an amount until it is entered again; a flat rate or a
+  trip in another currency is paid back through the company's rate.
 - **Car trips (mileage).** From, to, distance (a *return trip* box doubles
   it), date. The amount comes from the French mileage scale (*barème
   kilométrique*) for the vehicle chosen once in *Settings → My vehicle*
@@ -56,7 +64,9 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   then it shows *Fix it* and the server refuses to send it
   (`refused_unchanged`).
   They go to the approver the accountant named for you, or to the
-  accountants. After saving, the toast also offers *Send it now*.
+  accountants. After saving, the toast also offers *Send it now*. While
+  nobody has decided, its owner may **take it back** (*Take it back* on
+  the expense): a draft again.
 - **Approve or refuse.** The approver sees what waits, by person, oldest
   first, with warnings and the receipt's thumbnail (a photo opens large, a
   PDF in a tab); *Approve all* approves only the lines **without a
@@ -79,11 +89,18 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   someone else changes a person's details, that person hears it; when a
   person changes their own, the accountants do, and *To pay back* flags
   details changed in the last 30 days (the usual payment-diversion fraud).
+  Details **someone else entered** (an accountant, from *To pay back*) are
+  **kept out of the transfer file until their owner says "These are mine"**
+  in *Settings → Me* (or enters them themselves): an accountant alone cannot
+  send someone's reimbursement to an account of their choosing.
   *To pay back* then makes **one SEPA credit transfer file** for the bank
   (ISO 20022 `pain.001.001.03`, the XML French banks take for grouped
   transfers): one transfer per person with an account in the SEPA zone, in
   euros, on the day chosen; they are marked paid on that day (*Undo*, or
-  later *Cancel this file*: back to "to pay back"). The file can be
+  later *Cancel this file*: back to "to pay back" — always after a
+  confirmation naming the file's day and amount, and once that day has come
+  only with *My bank did not pay these transfers* ticked: otherwise people
+  would be paid twice). The file can be
   downloaded again, identical (same message id, which banks use to refuse a
   duplicate). People without bank details are named and paid by hand with
   *Mark paid* as before. The text on each person's bank statement
@@ -163,10 +180,14 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   (a manager, the owner), which the Chest's admin gives. Claims approved by
   their own owner before this rule are marked "Approved by its own owner"
   in *To pay back* and "(own expense)" in the export's *Approved by*.
+- **Approving and paying may be the same person** (a small company's
+  accountant often does both): *To pay back* marks each line the person
+  paying approved themselves ("You approved it: have someone else check it
+  before paying"); the tool does not forbid it.
 - **Someone who left**: their claim still waits in *To approve*, which says
   they left and when ("Left the company on 30 September: approving still
   means paying them back — on their final pay slip, not by the transfer
-  file"; the day from the Chest, `FormerMember.leftAt`, studio.15 — without
+  file"; the day from the Chest, `members.leftAt` (a studio proposal) — without
   it, the sentence without the day); in *To pay back* they are **kept out of
   the transfer file** (a transfer to a former employee's account is what a
   diversion would ask for) and paid by hand with *Mark paid*.
@@ -182,23 +203,41 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   (*Settings → Company → Card statement words*; about 70 common French
   labels shipped). Words are matched whole, accents and case aside, the
   longest match winning (`UBER EATS` → Meals over `UBER`); no match:
-  "Other" (`lib/card-guess.ts`, tested).
-- **Email** (the `mail` proposal): an approver is emailed when expenses are
-  sent to them (each named, with the link to *To approve*); a card holder
-  when card payments wait for their receipt ("Receipt needed: UBER *TRIP ·
-  €23.40"); on the 25th, people with drafts and approvers with expenses
-  waiting. In each person's language, sent by the Chest to their address
-  (the tool never knows it), once per event (a key). On a Chest without
-  mail, nothing is sent and the bell still says it.
-- **The bell**, in each person's language: approvers when something is sent
-  to them; employees when approved, refused (with the reason) or paid. The
-  tile's number is what waits for you: expenses to decide, plus your refused
-  drafts.
+  "Other" (`src/lib/card-guess.ts`, tested).
+- **Notifications** (the Chest's inbox), each in its reader's language:
+  approvers when something is sent to them (each expense named);
+  employees when approved, refused (with the reason) or paid; card holders
+  when card payments wait for their receipt (each payment named: "15 Sept ·
+  UBER *TRIP · €23.40"); on the 25th, people with drafts not sent, and
+  approvers with expenses waiting for them. The
+  tile's number is what waits for you: expenses to decide, plus your
+  refused drafts. **Email**: the tool sends none to the team — the Chest
+  mails each member their notifications by their own choice (each one,
+  once or twice a day, or never; off per tool), set in the Chest, not here.
+
+## Mail to people outside the company
+
+None. Expenses mails nobody: the accountant's monthly export, the
+journal and the SEPA transfer file are downloaded from *Export* and *To pay
+back*, and handed to the outside accountant or the bank by the company as it
+does today. (The tool declares no `mail` proposal.)
+
+**Changed on 6 October 2026** (the owner's mail decisions): the emails
+Expenses used to send its team — to an approver when expenses were sent, to
+a card holder for a missing receipt, the 25th's reminder to people with
+drafts and to approvers with expenses waiting — are gone. The first three
+are notifications (they were already in the bell; the card one now names
+each payment, as its email did). The approvers' "5 expenses wait for your
+approval" of the 25th, an email only until then, is a notification at the
+same moment: the nudge before the month closes for an approver who let the
+first notices go by; it goes from the inbox once nothing waits.
 - **One date format**: every list writes a day the same way ("8 Sept",
   "8 sept."), and a line's parts never wrap with a "·" at the start.
 - **Reminder** (schedule proposal): on the 25th at 09:00, everyone with
   unsent drafts is reminded ("Send your expenses before the end of the
-  month", with their count and total). The accountant can turn it off.
+  month", with their count and total), and each approver with expenses
+  waiting for them ("5 expenses wait for your approval", replaced each
+  month, gone once nothing waits). The accountant can turn it off.
 
 ## Roles
 
@@ -212,7 +251,7 @@ A draft is its owner's alone until it is sent (nobody else sees it). Nobody
 approves their own expense, not even an accountant: theirs go to the
 person named for them, or to the other accountants (see above). Without a
 named approver, the accountants approve. Rights are enforced on the server
-in `lib/access.ts` and tested per role.
+in `src/lib/access.ts` and tested per role.
 
 ## First minute
 
@@ -235,7 +274,10 @@ in `lib/access.ts` and tested per role.
   ("Guests not named: your approver will ask who was there"), not only to
   the approver. On a phone, the field being typed in is never left under
   the sticky *Save* bar.
-- **Mistakes**: an amount that isn't one says "Enter an amount, like 12.50";
+- **Mistakes**: an amount that isn't one says "Enter an amount, like 12.50"
+  — and so does one that could be read two ways ("1,234", "0,500": a
+  thousand for an English reader, one euro for a French one; never
+  guessed);
   a wrong file type or size is refused before it is sent; *Delete* on a
   draft offers *Undo* (kept a week); *Mark paid* offers *Undo*; a sent
   expense cannot be changed ("ask your approver to refuse it: it comes back
@@ -264,19 +306,23 @@ in `lib/access.ts` and tested per role.
 | `/chest/api/receipts` | POST: authorise one receipt upload (browser → Chest) |
 | `/chest/receipts/[id]` | Opens a receipt through a fresh 15-minute signed link (`?size=256|1024` thumbnail, `?download`) |
 | `/chest-events` | Members' lifecycle (signed by the Chest) |
-| `/chest-jobs/[name]` | Schedules `reminder`, `cleanup` (proposal, signed) |
+| `/chest-schedules` | Schedules `reminder`, `cleanup` (`chest.json`; signed `Chest-Schedule`) |
 | `/` | Public host: "this tool lives in your Chest" (no public part) |
 
 ## On a Chest
 
-- `capabilities`: `database`, `files` (receipts: photo or PDF, 10 MB each,
-  uploaded by the browser straight to the Chest), `members` (names; who is
-  accountant or approver), `notifications`; `receives: ["member.*"]`;
-  `mail: {send: true}` (proposal, `chest.proposals.json`).
+- Contract **0.7** (SDK 0.7.0, `chest check` OK). `capabilities`:
+  `database`, `files` (receipts: photo or PDF, 10 MB each, uploaded by the
+  browser straight to the Chest), `members` (names; who is accountant or
+  approver), `notifications`, `realtime` (pages left open), `sealed` (bank
+  details); `receives: ["member.*"]`; `schedules` `reminder` (25th, 09:00,
+  the company's zone) and `cleanup` (nightly). No `mail` (the team hears
+  through notifications; nobody outside is mailed). Proposal left in
+  `chest.proposals.json`: the store's words in French (`translations`).
 - **Receipts are kept as sent**: the tool never changes the file, records
   its SHA-256, and a receipt cannot be replaced once the expense is sent.
   Uploads never used go after a day, deleted drafts after a week (nightly
-  `cleanup` schedule; without schedules they stay until the next run).
+  `cleanup` schedule).
 - **Someone leaves** (or loses access): what they sent still waits, shown as
   "Name (former member)", for the accountant to approve and pay; the people
   they approved, and what was waiting for them, go back to the accountants.
@@ -286,23 +332,53 @@ in `lib/access.ts` and tested per role.
   deleted. Their drafts (never sent: not records of anything) are deleted
   with their receipts, and so are their vehicle and unused uploads. Then the
   erasure is acknowledged.
-- `env`: `BANK_DETAILS_KEY`, **optional**, a secret variable (32 random
-  bytes in base64: `openssl rand -base64 32`), set in the tool's
-  *Variables*. With it, IBANs are sealed at rest (AES-256-GCM, bound to
-  their owner); without it they are kept as typed in the tool's own
-  database (no other tool reaches it) and the company settings say so.
-  Details saved before the key was set stay readable and are sealed when
-  saved again. **Keep the key**: removing or changing it makes the sealed
-  IBANs unreadable (the transfer file then says so, and people enter them
-  again).
+- **Bank details are sealed by the Chest** (`sealed`, SDK 0.5+): the IBAN
+  is stored as `chest:sealed:1:accountant:…` (the Data tab, the agents,
+  logs and backups show *Sealed*), bound to its owner, and **opens only for
+  a member whose role is `accountant`** — the Chest checks the role at
+  every open and journals it — on that member's own request: the transfer
+  file, at the click that downloads it (one call for the whole file). A
+  schedule, an event or a public page never opens one. What lists need
+  stays in clear: the country, the last four characters (the masked
+  "FR•• •••• 0189" every page shows), the BIC, the holder's name and the
+  address. The owner of an account sees it masked and replaces or removes
+  it; nobody but an accountant ever opens it whole (the tool also refuses
+  everyone else first, `src/lib/bank.ts`). "Sealed data is locked" when
+  the Chest waits for its owner's recovery code.
+- `env`: `BANK_DETAILS_KEY`, **only for the move** from Expenses 0.2,
+  which sealed IBANs itself with that key (or kept them as typed without
+  it). The nightly `cleanup` has the Chest seal every such value — in the
+  accounts and in the transfer files kept to be downloaded again — so after
+  one night none is left (until then, a transfer file still opens them).
+  Keep the variable until the first night has passed; the next version
+  drops it.
 - **Reading receipts** needs no network and no service: the phone runs
-  tesseract.js on the files `npm run build` copies into `public/ocr/`
-  (worker 111 KB, core 3.9 MB, French model 0.7 MB). The page's policy
-  allows the tool's own worker (`worker-src 'self'`); `/ocr/` is served
-  without the page policy (its worker compiles WebAssembly). The install
-  grows by the `tesseract.js-core` package (44 MB on disk, 6 variants).
-- No WebSocket: *My expenses* and *To approve* re-read themselves every 30 s
-  while visible.
+  tesseract.js on the files `npm run build` copies into `dist/ocr/`
+  (`scripts/ocr-assets.mjs`: worker 111 KB, core 3.9 MB, French model
+  0.7 MB). The tool answers them at `/chest/ocr/<version>/<file>` (members
+  only; the version in the address, so a browser keeps them a year) with
+  a policy of their own, `script-src 'self' 'wasm-unsafe-eval'`: a worker
+  obeys the policy its own script comes with, and this one compiles
+  WebAssembly — the pages keep the strict policy (no inline script or
+  style, no `'unsafe-eval'`). tesseract.js is a build-time dependency only
+  (`devDependencies`: the image holds the copied files, not the package).
+- **Live without polling** (`realtime`): *My expenses* joins the member's
+  own channel (`mine:<id>`), where the tool publishes "expenses.changed"
+  when someone else changes their expenses (approved, refused, paid, a card
+  payment's draft); *To approve* joins its reader's desk —
+  `desk:<approver>` for an approver, `desk:accountants` for the
+  accountants —, where a row of `desk_events` arrives (its id only: the
+  page reads the rest, checking who may see what) at each write of an
+  expense sent to that desk, and when one leaves it (reassigned, taken
+  back, refused). **Nobody hears of a draft, and an approver only of the
+  expenses sent to them**: a trigger writes `desk_events` (migration 0008;
+  the table `expenses` itself is not fed), and the Chest checks the table
+  `desk_live` at every join, where the tool writes a row once *To approve*
+  checked the reader's role. The rows go when their role changes, their
+  access is revoked, they leave or are erased; the Chest takes them out at
+  once, and the page, read again (a count of exits is part of its version:
+  never a 304), lets them in again if still allowed. The Chest holds the connections, so the
+  tool sleeps while the pages stay open; no timer anywhere.
 - Memory: the CSV is bounded to 20,000 lines; the ZIP is streamed with one
   receipt in memory at a time (10 MB at most), 5,000 receipts and 1 GB per
   archive at most — well within the 256 MB a tool has. Beyond, export one
@@ -352,51 +428,55 @@ suggestions to confirm with the company's accountant.
 
 ## Needs from the SDK
 
-The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.3.0 +
-studio proposals (0.3.1-studio.1).
+The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.7.0 +
+studio proposals (0.7.0-studio.2), `@argentic/chest-app` 0.1.0-studio.12,
+contract 0.7 (`chest check` OK).
 
 - `member.language` (SDK 0.3.0): interface, bell and export in each
-  member's language (`localeOf`: English for a language the tool does not
-  speak yet).
-- `chest.language`, `chest.timeZone`, `chest.today()` (SDK 0.3.0): the
+  member's language (English for a language the tool does not speak yet).
+- `chest.language`, `chest.timeZone`, `chest.today()` (SDK 0.3.0; on 0.7.0
+  the zone is the company's, captured once, set on no screen): the
   Chest's language is the default of the bank statements' text until the
-  accountant picks one (`settings.bankLocale`); the Chest's day
-  (`lib/today.ts`) is "today" everywhere — a receipt's date that has come,
+  accountant picks one (`settings.bankLocale`); the company's day
+  (`src/lib/today.ts`) is "today" everywhere — a receipt's date that has come,
   a transfer's execution day, the scale's year — the same day as the
   database's `current_date`, which the Chest puts in its zone. The SEPA
   file's creation time is written in the Chest's zone.
-- `mail` — **Proposal (studio)** (`chest.proposals.json`, `lib/mail.ts`):
-  emails to approvers, card holders and people with drafts. Without it,
-  the bell only. Keys are passed whole (studio.15 hashes a long one), and
-  each person's email preference in the Chest applies: none of these is
-  transactional.
-- `members.lookup`'s `leftAt` — **Proposal (studio.15)**: the day a former
-  member left, in *To approve* and *To pay back*.
-- **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`):
-  `reminder` (25th, 09:00) and `cleanup` (nightly). On a Chest without them,
-  nobody is reminded and unused uploads and deleted drafts stay (the tool
-  still works).
+- **Notices with translations** (official since 0.5): one
+  `notifications.notify` per event, English words with their French in
+  `translations`; the Chest shows each member their language
+  (`src/lib/notify.ts`).
+- **`sealed`** (0.5): the IBANs (above); **`realtime`** (0.5): the pages
+  left open (above).
+- `members.leftAt(ids)` — **Proposal (studio)**: the day a former member
+  left, in *To approve* and *To pay back* (lookup's `no_access` — someone
+  still in the Chest who lost access to Expenses — is no "former": written
+  "Name (no access)", their plain name in a transfer file, paid as usual).
+- **Schedules** (official since contract 0.4): `reminder` and `cleanup`, run on
+  `POST /chest-schedules`; the deliveries already handled (events and runs)
+  are kept in `chest_events` and forgotten after 30 days by the cleanup.
+- `FileObject.sha256` (0.4.1): a receipt's SHA-256 as the Chest took it;
+  the tool never reads a receipt into its memory to hash it.
 - Wished, not built:
-  - **sealed values** (`secrets.seal(value, context)` / `secrets.open(sealed,
-    context)`, a key the Chest keeps per tool and never gives it, rotated by
-    the Chest): bank details sealed without asking an admin to set
-    `BANK_DETAILS_KEY` (today's seam: `lib/seal.ts`);
+  - **sealed values for an owner and some roles**: `sealed`'s `roles` name
+    roles, not members, so an IBAN opens for the accountants only — its
+    owner, if no accountant, never sees it whole (they never need to: the
+    page shows it masked). A seal "for these roles and this member" would
+    let a person read their own back;
   - **reading receipts with AI** (SDK 0.3.0's `@argentic/chest-sdk/ai` with
     an image, not used yet, or an `ocr.read(file)` on a receipt the Chest
     holds): reading blurred, crumpled
     or PDF receipts and HEIC photos, which the phone's Tesseract cannot;
-    today's seam: `components/ocr.ts` → `lib/receipt-text.ts`;
+    today's seam: `src/components/ocr.ts` → `src/shared/receipt-text.ts`;
   - **bank and card feeds** (a bank connection through the Chest, PSD2):
     card payments arriving by themselves instead of a monthly CSV (the
-    matching is built: `lib/cards.ts` takes lines from any source), and
+    matching is built: `src/lib/cards.ts` takes lines from any source), and
     knowing a transfer was executed;
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
-  - the **Chest's currency** (`chest.currency`, a studio proposal) as the
-    default of the company's currency (the accountant sets it today), and
-    **thumbnails of HEIC photos** (iPhone). An instant shown on the client
-    (none today but relative times) would be in Europe/Paris
-    (`lib/i18n/format.ts`); the server passes the member's zone.
+  - **thumbnails of HEIC photos** (iPhone).
+- **No Chest currency (0.7.0)**: the reimbursement currency is the tool's
+  own setting; every amount keeps its ISO 4217 code (above).
 
 ## Looks
 
@@ -407,7 +487,9 @@ contrast, or another tool's identity) or **its own brand** (colours, fonts,
 corners, logo), for all its tools or for Expenses alone: every screen and
 feature stays the same, and every text stays readable (WCAG AA, light and
 dark). In brand mode the company's logo stands where the Expenses mark
-does. The look is chosen on the server (`chest.theme()`, `lib/theme.ts`);
+does. The look is chosen on the server (`chest.theme()`, `src/theme.ts`)
+and served as a stylesheet of its own (`/chest/look.css?v=<hash>`, never
+inline);
 the tool has no switch of its own. Screenshots: `docs/screens/*-chest-*`,
 `*-theme-*` (Library, Seaside), `*-brand-*` (a sample brand).
 
@@ -417,26 +499,64 @@ worked (and none once someone was told), dialogs that never lose a typed
 IBAN, a confirmation before erasing bank details, date fields typed in the
 reader's language, the file picker for certificates and imports.
 
+## How it is made
+
+The studio's stack (`starter/`, `reports/06-perseus-starter.md`): Hono,
+React rendered on the server with a few islands, Vite, on the vendored
+package `@argentic/chest-app` (`node_modules/@argentic/chest-app/AGENTS.md`).
+`src/app.tsx` holds every route (pages, downloads, `/chest-events`,
+`/chest-schedules`), `src/actions.ts` every change (typed actions an island
+calls with `call()`), `src/pages/` the pages, `src/islands/` what runs in
+the browser (one view island per page — its lists, dialogs, toasts — beside
+the search box and the realtime `Live` island), `src/lib/` the rules and SQL,
+`src/shared/` the rules the browser runs too (money, scale, IBAN, CSV
+reading), `src/i18n/` every word. Islands and the pages call the same
+services as before; the services lock the rows they read then write (two
+approvals, two payments, two transfer files of the same expense: one wins,
+the other is told).
+
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # tsc, the server built into dist/test, node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm run build     # tsc, the browser's files, the server, the receipt reader's files (dist/ocr)
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/private/expenses --reset
---port 4900` (a month of sample expenses from `seed/sample.sql`),
-`node lab/chest-dev/flows/expenses.mjs 4900` (the browser flows),
-`node lab/chest-dev/screens.mjs tools/private/expenses --port 4900` (run the
-flows first: they add the photo receipt the screenshots show).
-`SEPA_XSD=<path to pain.001.001.03.xsd> npm test` (and the same variable
-for the flow) also validates the transfer files against the ISO 20022
-schema with `xmllint`; the schema is not shipped. `npm run build` (and
-`npm run dev`) first copy the receipt reader's files into `public/ocr/`
-(`scripts/ocr-assets.mjs`; not in Git).
+In the studio: `node lab/chest-dev/dev.mjs tools/private/expenses --prod
+--build --reset --port 4920` (a month of sample expenses from
+`seed/sample.sql`), `node lab/chest-dev/flows/expenses.mjs 4920` (the
+browser flows, 32 steps), `node lab/chest-dev/screens.mjs
+tools/private/expenses --port 4920` (run the flows first: they add the
+photo receipt the screenshots show), `node lab/chest-dev/audit.mjs
+tools/private/expenses --port 4920` (axe: 0 violations on 27 screens).
+The tests and the flow validate every transfer file against the ISO 20022
+schema `test/fixtures/pain.001.001.03.xsd` (THIRD_PARTY.md) with
+`xmllint`, which they need (`libxml2-utils`; a test run without it says
+so); `SEPA_XSD` names another copy.
+
+**Measured** (`lab/measure`, 6 October 2026, Node 24.21, this machine
+under other builds — load average 6 to 11 on 4 CPUs —, results in
+`lab/measure/results/after-hono/expenses.json`), Next.js 16 before → this
+stack: memory at rest (PSS of the process tree, median of 5 rests of 30 s)
+**127.0 → 67.6 MiB**, peak 159.7 → 71.3 MiB; image 514 → 33 MiB
+(`node_modules` after pruning 499 → 16 MiB); `npm ci` and the build now fit
+the 512 MiB, one-CPU container (before: killed for memory), build 19.4 →
+8.1 s with 4 CPUs (peak 295 MiB PSS); first 200 after a start 779 → 979 ms
+(median of 10, from 351 to 1,394 ms) — slower here, measured while the
+machine was loaded; the server's module loads in 100–170 ms alone.
 
 ## What it does not do (yet)
+
+- **On SDK 0.7.0, nothing it did is lost.** What 0.7.0 cannot give, the
+  tool does not pretend to: the store's tile and role names stay in
+  English for a French member (the store has one language for a tool's
+  words: `translations` is a studio proposal); the company's theme
+  (`chest.theme()`, a studio proposal) falls back to Expenses' own look;
+  when a former member left (`members.leftAt`, a proposal) is unknown on a
+  Chest without it ("Name (former member)" without the day); bank details
+  open for accountants only (above).
 
 - **Card feeds**: card payments come from a CSV the accountant imports each
   month, not live from the bank (needs a bank connection: SDK). The CSV
@@ -464,10 +584,6 @@ schema with `xmllint`; the schema is not shipped. `npm run build` (and
   account elsewhere are paid by hand.
 - **Importing** receipts files or trips from the previous tool (lines only,
   as history); matching people by email.
-- **Email preferences**: the emails are only those that ask someone to act,
-  and nobody can turn them off yet (Tasks has a per-person switch; not
-  here). The date someone left is not known to the tool (the Chest says
-  "former", not when): *To approve* says they left, not the day.
 - **Search** is plain text (case aside, not accents: "hotel" does not find
   "Hôtel"), 100 results, no filters of its own; category words are those of
   the reader's language.

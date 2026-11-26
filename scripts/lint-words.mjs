@@ -13,8 +13,10 @@ import { pathToFileURL } from "node:url";
 const args = process.argv.slice(2);
 const folder = args.find(a => !a.startsWith("--"));
 const asJson = args.includes("--json");
-if (!folder || !existsSync(join(folder, "lib", "i18n", "en.ts")) || !existsSync(join(folder, "lib", "i18n", "fr.ts"))) {
-  console.error("usage: node scripts/lint-words.mjs <tool folder> [--json]   (with lib/i18n/en.ts and fr.ts)");
+// A tool on the studio's starter keeps its words in src/i18n/; older ones in lib/i18n/.
+const i18n = folder && ["src", "lib"].map(d => join(folder, d, "i18n")).find(d => existsSync(join(d, "en.ts")) && existsSync(join(d, "fr.ts")));
+if (!folder || !i18n) {
+  console.error("usage: node scripts/lint-words.mjs <tool folder> [--json]   (with src/i18n/ or lib/i18n/ en.ts and fr.ts)");
   process.exit(2);
 }
 
@@ -27,7 +29,7 @@ if (!folder || !existsSync(join(folder, "lib", "i18n", "en.ts")) || !existsSync(
 // Inside guillemets (or “…” in English), a listed text is not held to the
 // glossary's words; the typography rules still apply to it.
 async function catalogue(lang) {
-  const mod = await import(pathToFileURL(resolve(folder, "lib", "i18n", `${lang}.ts`)).href);
+  const mod = await import(pathToFileURL(resolve(i18n, `${lang}.ts`)).href);
   const value = mod[lang] ?? mod.default ?? Object.values(mod).find(v => v && typeof v === "object" && !Array.isArray(v));
   if (!value || typeof value !== "object") throw new Error(`no catalogue exported by ${lang}.ts`);
   const quoted = Array.isArray(mod.quotedUi) ? mod.quotedUi.filter(q => typeof q === "string" && q.trim() !== "") : [];
